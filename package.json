@@ -17,8 +17,10 @@
     "format": "prettier --write \"**/*.{ts,tsx,js,json,md}\"",
     "db:up": "docker compose -f infra/docker/docker-compose.yml up -d",
     "db:down": "docker compose -f infra/docker/docker-compose.yml down",
-    "db:migrate": "pnpm --filter @signet/db prisma migrate dev",
-    "db:generate": "pnpm --filter @signet/db prisma generate"
+    "db:migrate": "pnpm --filter @signet/db run migrate",
+    "db:generate": "pnpm --filter @signet/db run generate",
+    "indexer:dev": "pnpm --filter @signet/indexer dev",
+    "indexer:seed": "pnpm --filter @signet/indexer dev -- --reseed"
   },
   "devDependencies": {
     "@eslint/js": "^9.13.0",

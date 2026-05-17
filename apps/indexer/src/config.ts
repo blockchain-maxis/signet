@@ -1,18 +1,24 @@
-// Loads indexer configuration from environment variables.
-// TODO(signet): validate with zod and fail fast on missing required vars.
-
 export interface IndexerConfig {
-  databaseUrl: string | undefined;
-  stellarNetwork: string;
+  databaseUrl: string;
+  network: string;
   horizonUrl: string;
-  sorobanRpcUrl: string;
+  rpcUrl: string;
+  tickIntervalMs: number;
+  logLevel: string;
+  reseed: boolean;
 }
 
 export function loadConfig(): IndexerConfig {
+  const databaseUrl = process.env.DATABASE_URL;
+  if (!databaseUrl) throw new Error('[indexer] DATABASE_URL is required');
+
   return {
-    databaseUrl: process.env.DATABASE_URL,
-    stellarNetwork: process.env.STELLAR_NETWORK ?? 'testnet',
-    horizonUrl: process.env.STELLAR_HORIZON_URL ?? 'https://horizon-testnet.stellar.org',
-    sorobanRpcUrl: process.env.SOROBAN_RPC_URL ?? 'https://soroban-testnet.stellar.org',
+    databaseUrl,
+    network:         process.env.INDEXER_NETWORK          ?? 'mainnet',
+    horizonUrl:      process.env.INDEXER_HORIZON_URL      ?? 'https://horizon.stellar.org',
+    rpcUrl:          process.env.INDEXER_RPC_URL          ?? 'https://soroban-rpc.stellar.org',
+    tickIntervalMs:  Number(process.env.INDEXER_TICK_INTERVAL_MS ?? 30_000),
+    logLevel:        process.env.INDEXER_LOG_LEVEL        ?? 'info',
+    reseed:          process.argv.includes('--reseed'),
   };
 }

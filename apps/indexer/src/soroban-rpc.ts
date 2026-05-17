@@ -1,11 +1,5 @@
-// TODO(signet): wrap the Soroban RPC endpoint used to read contract state and
-// resolve on-chain attestations from the identity-registry contract.
-
-import type { IndexerConfig } from './config.js';
-
-export function createSorobanRpcClient(config: IndexerConfig) {
-  // TODO(signet): return a real Soroban RPC client.
-  return {
-    rpcUrl: config.sorobanRpcUrl,
-  };
+// Soroban RPC — Phase 2 (on-chain attestation reads).
+// For Phase 1 the indexer uses Horizon only.
+export function createSorobanRpcClient(_rpcUrl: string): null {
+  return null;
 }
