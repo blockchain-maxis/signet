@@ -1,4 +1,3 @@
-// TODO(signet): expand schema with wallets, contracts, attestations, snapshots
 generator client {
   provider = "prisma-client-js"
 }
@@ -9,7 +8,66 @@ datasource db {
 }
 
 model Profile {
-  id        String   @id @default(cuid())
-  handle    String   @unique
-  createdAt DateTime @default(now())
+  id          String   @id @default(cuid())
+  handle      String   @unique
+  displayName String?
+  bio         String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  wallets     Wallet[]
+
+  @@index([handle])
+}
+
+model Wallet {
+  id         String   @id @default(cuid())
+  profileId  String
+  pubkey     String   @unique
+  attestedAt DateTime @default(now())
+  source     String   @default("curated")
+  isPrimary  Boolean  @default(false)
+
+  profile    Profile  @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  contracts  Contract[]
+
+  @@index([profileId])
+  @@index([pubkey])
+}
+
+model Contract {
+  id              String   @id @default(cuid())
+  address         String   @unique
+  walletId        String
+  deployerPubkey  String
+  deployedAt      DateTime
+  deployTxHash    String
+  network         String   @default("mainnet")
+  contractType    String?
+  firstIndexedAt  DateTime @default(now())
+
+  wallet          Wallet   @relation(fields: [walletId], references: [id], onDelete: Cascade)
+  snapshots       ContractSnapshot[]
+
+  @@index([deployerPubkey])
+  @@index([deployedAt])
+}
+
+model ContractSnapshot {
+  id           String   @id @default(cuid())
+  contractId   String
+  capturedAt   DateTime @default(now())
+  txCount24h   Int      @default(0)
+  txCountTotal Int      @default(0)
+  lastActivity DateTime?
+
+  contract     Contract @relation(fields: [contractId], references: [id], onDelete: Cascade)
+
+  @@index([contractId, capturedAt])
+}
+
+model IndexerCursor {
+  id         String   @id @default("main")
+  lastLedger Int      @default(0)
+  updatedAt  DateTime @updatedAt
 }

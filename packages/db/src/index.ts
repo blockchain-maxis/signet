@@ -1,8 +1,14 @@
-// Re-export the generated Prisma client so apps import it via `@signet/db`.
-// Run `pnpm db:generate` (or `pnpm install`, which triggers postinstall) to
-// generate the client before typechecking.
-//
-// TODO(signet): add a shared, pre-configured PrismaClient singleton here once
-// the schema is expanded (connection pooling, logging, etc.).
+import { PrismaClient } from '@prisma/client';
+
 export * from '@prisma/client';
 export { PrismaClient } from '@prisma/client';
+
+// Singleton for Next.js (prevents multiple instances in development HMR)
+const globalForPrisma = globalThis as unknown as { prisma: PrismaClient | undefined };
+
+export const prisma: PrismaClient =
+  globalForPrisma.prisma ?? new PrismaClient({ log: ['error'] });
+
+if (process.env.NODE_ENV !== 'production') {
+  globalForPrisma.prisma = prisma;
+}

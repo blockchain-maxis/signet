@@ -13,6 +13,8 @@
   },
   "scripts": {
     "build": "prisma generate",
+    "migrate": "prisma migrate dev",
+    "generate": "prisma generate",
     "typecheck": "tsc --noEmit",
     "lint": "eslint . --config ../../eslint.config.js",
     "test": "echo \"@signet/db: no tests yet\" && exit 0",
