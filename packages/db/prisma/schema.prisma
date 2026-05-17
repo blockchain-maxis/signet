@@ -1,0 +1,15 @@
+// TODO(signet): expand schema with wallets, contracts, attestations, snapshots
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Profile {
+  id        String   @id @default(cuid())
+  handle    String   @unique
+  createdAt DateTime @default(now())
+}

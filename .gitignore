@@ -1,0 +1,43 @@
+# Dependencies
+node_modules/
+.pnp.*
+
+# Build outputs
+dist/
+.next/
+out/
+.turbo/
+*.tsbuildinfo
+
+# Rust / Soroban
+target/
+**/*.rs.bk
+
+# Prisma generated client
+packages/db/src/generated/
+.prisma/
+
+# Env
+.env
+.env.local
+.env.*.local
+
+# Logs
+*.log
+npm-debug.log*
+pnpm-debug.log*
+
+# Editor / OS
+.DS_Store
+.idea/
+.vscode/*
+!.vscode/extensions.json
+
+# Next.js
+next-env.d.ts
+
+# Vercel
+.vercel
+
+#cl
+.claude

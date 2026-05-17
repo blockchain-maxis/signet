@@ -1,0 +1,21 @@
+services:
+  postgres:
+    image: postgres:16
+    container_name: signet-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: signet
+      POSTGRES_PASSWORD: signet
+      POSTGRES_DB: signet
+    ports:
+      - "5432:5432"
+    volumes:
+      - signet-pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U signet -d signet"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  signet-pgdata:
