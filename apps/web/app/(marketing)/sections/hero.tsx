@@ -87,7 +87,7 @@ export function Hero() {
 
           <h1
             style={{ fontFamily: "var(--font-display)", fontWeight: 700, lineHeight: "0.96", letterSpacing: "-0.025em" }}
-            className="mt-12 text-[58px] text-[#f5f4ee] md:text-[78px] lg:text-[104px]"
+            className="mt-8 text-[48px] text-[#f5f4ee] md:text-[64px] lg:text-[72px]"
           >
             <span className="block overflow-hidden">
               <motion.span
@@ -182,34 +182,6 @@ export function Hero() {
           <Seal scrollRotate={sealScrollRotate} />
         </motion.div>
       </motion.section>
-
-      {/* Status bar */}
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        transition={{ duration: 1, delay: 1.6 }}
-        className="absolute bottom-0 left-0 right-0 z-30 flex flex-wrap items-center justify-between gap-3 border-t border-[#1f1d19] px-8 py-4 md:px-14"
-      >
-        <div
-          className="flex items-center gap-7 text-[10px] uppercase tracking-[0.22em] text-[#8a8779]"
-          style={{ fontFamily: "var(--font-mono)" }}
-        >
-          <span className="flex items-center gap-2.5">
-            <span className="relative flex h-1.5 w-1.5">
-              <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[#8b1a1a] opacity-60" />
-              <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-[#8b1a1a]" />
-            </span>
-            Network · live
-          </span>
-          <span className="hidden md:inline">Ledger&nbsp;51,284,917</span>
-        </div>
-        <div
-          className="text-[10px] uppercase tracking-[0.22em] text-[#3d3a33]"
-          style={{ fontFamily: "var(--font-mono)" }}
-        >
-          Stellar Community Fund · 2026
-        </div>
-      </motion.div>
     </div>
   );
 }

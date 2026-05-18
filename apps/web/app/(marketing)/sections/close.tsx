@@ -5,7 +5,7 @@ import { easeSignet } from "../lib/tokens";
 
 export function Close() {
   return (
-    <section className="relative flex min-h-[80vh] flex-col items-center justify-center px-4 py-32 text-center">
+    <section className="relative flex min-h-[80vh] flex-col items-center justify-center px-4 py-12 text-center">
       {/* Hairline top */}
       <div className="mb-20 w-full border-t border-[#1f1d19]" />
 
@@ -21,13 +21,13 @@ export function Close() {
       </motion.div>
 
       {/* Headline */}
-      <div className="mt-14 overflow-hidden">
+      <div className="overflow-hidden">
         <motion.h2
           initial={{ y: "105%" }}
           whileInView={{ y: "0%" }}
           viewport={{ once: true, amount: 0.5 }}
           transition={{ duration: 1, delay: 0.2, ease: easeSignet }}
-          className="text-[64px] font-bold leading-[0.96] tracking-[-0.025em] text-[#f5f4ee] md:text-[80px]"
+          className="text-[64px] font-bold leading-[0.96] text-white tracking-[-0.025em] text-[#f5f4ee] md:text-[80px]"
           style={{ fontFamily: "var(--font-display)" }}
         >
           Create your record.
