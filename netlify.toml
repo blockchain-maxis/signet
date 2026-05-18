@@ -1,0 +1,4 @@
+[build]
+  base = "."
+  command = "pnpm install --frozen-lockfile && pnpm turbo run build --filter=web"
+  publish = "apps/web/.next"
