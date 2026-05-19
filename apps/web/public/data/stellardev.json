@@ -1,1 +1,70 @@
-{"_embedded": {"records": []}}
+{
+  "_embedded": {
+    "records": [
+      {
+        "_links": {
+          "self": {
+            "href": "https://horizon.stellar.org/operations/268993814635778049"
+          },
+          "transaction": {
+            "href": "https://horizon.stellar.org/transactions/ac8ee7b5112a402822556d56fdfa938aa2fde5dec439cc4a2aeb20746ca0f44f"
+          },
+          "effects": {
+            "href": "https://horizon.stellar.org/operations/268993814635778049/effects"
+          },
+          "succeeds": {
+            "href": "https://horizon.stellar.org/effects?order=desc&cursor=268993814635778049"
+          },
+          "precedes": {
+            "href": "https://horizon.stellar.org/effects?order=asc&cursor=268993814635778049"
+          }
+        },
+        "id": "268993814635778049",
+        "paging_token": "268993814635778049",
+        "transaction_successful": true,
+        "source_account": "GCD2NJKNFJFGIV7JQWAMQATB6UOTCXTLLW5L2IVQKGVLSLXDFU5NSYEW",
+        "type": "invoke_host_function",
+        "type_i": 24,
+        "created_at": "2026-05-18T21:33:48Z",
+        "transaction_hash": "ac8ee7b5112a402822556d56fdfa938aa2fde5dec439cc4a2aeb20746ca0f44f",
+        "function": "HostFunctionTypeHostFunctionTypeInvokeContract",
+        "parameters": [
+          {
+            "value": "AAAAEgAAAAGt785ZruUpaPdgYdSUwlJbdWWfpClqZfSZ7ynlZHfklg==",
+            "type": "Address"
+          },
+          {
+            "value": "AAAADwAAAAh0cmFuc2Zlcg==",
+            "type": "Sym"
+          },
+          {
+            "value": "AAAAEgAAAAAAAAAAh6alTSpKZFfphYDIAmH1HTFea126vSKwUaq5LuMtOtk=",
+            "type": "Address"
+          },
+          {
+            "value": "AAAAEgAAAAEJXeqgFB1+jBtn5IIc7ATZ+/YMwvLpkgCFxCzNLgDI7g==",
+            "type": "Address"
+          },
+          {
+            "value": "AAAACgAAAAAAAAAAAAAAAAkw58A=",
+            "type": "I128"
+          }
+        ],
+        "address": "",
+        "salt": "",
+        "asset_balance_changes": [
+          {
+            "asset_type": "credit_alphanum4",
+            "asset_code": "USDC",
+            "asset_issuer": "GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN",
+            "type": "transfer",
+            "from": "GCD2NJKNFJFGIV7JQWAMQATB6UOTCXTLLW5L2IVQKGVLSLXDFU5NSYEW",
+            "to": "CAEV32VACQOX5DA3M7SIEHHMATM7X5QMYLZOTEQAQXCCZTJOADEO4E7H",
+            "amount": "15.4200000"
+          }
+        ],
+        "decoded_function": "transfer"
+      }
+    ]
+  }
+}

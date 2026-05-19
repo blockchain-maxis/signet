@@ -1,76 +1,96 @@
 # Signet
 
-Signet is a verifiable developer career record built on Stellar/Soroban.
-Developers link their deployment wallets to a profile, on-chain attestations
-bind wallet → identity, and an indexer pulls every contract they've deployed
-along with its activity. Public profiles live at `{handle}.signet.dev`.
+Signet is a verifiable developer career record built on Stellar/Soroban. Developers link their deployment wallets to a profile; on-chain attestations bind wallet → identity; an indexer pulls every contract they've deployed along with its activity. Public profiles become the canonical record of a developer's smart-contract career.
 
-> **Status:** scaffolding. Directory structure, tooling, and stubs only —
-> business logic, contracts, schema, and UI come in subsequent passes. See
-> [`NEXT_STEPS.md`](./NEXT_STEPS.md).
+## Live demo
 
-## Prerequisites
+| URL | Description |
+|-----|-------------|
+| `/` | Landing page with "See it in action" section |
+| `/p/aquawolf` | Demo profile — Blend Protocol collateral ops |
+| `/p/sorobuilder` | Demo profile — Soroswap DEX swaps |
+| `/p/stellardev` | Demo profile — USDC token transfers |
+| `/how-it-works` | How Signet works + what's coming |
 
-- **Node.js 20+** (see [`.nvmrc`](./.nvmrc))
-- **pnpm 9+** (`npm i -g pnpm`)
-- **Docker** (for the local Postgres container)
-- **Rust + `wasm32-unknown-unknown` target** (for the Soroban contracts):
+## What's working in this build
 
-  ```bash
-  rustup target add wasm32-unknown-unknown
-  ```
+- **Landing page** — polished marketing page with animated sections and a live "See it in action" demos block linking to the 3 profiles
+- **Demo profiles at `/p/{handle}`** — server-rendered profile pages reading real Soroban operation data from `apps/web/public/data/{handle}.json`; each operation links to Stellar Expert for independent verification
+- **How it works page** — explains the thesis, what's live, and what's coming
+- **Middleware routing** — `/p/` and `/how-it-works` pass through correctly; existing subdomain routing logic preserved
+- **Real on-chain data** — all operation data comes from the Stellar Horizon public API, fetched live and stored as static JSON; function names decoded from XDR
 
-## Setup
+## What's stubbed or coming next
+
+- **Handle-to-wallet mapping** — hardcoded in `profiles.json`; no wallet-connect or on-chain attestation yet
+- **No on-chain identity registry** — Phase 2 will write a Soroban contract that binds profile → wallet cryptographically
+- **No indexer** — operation data was fetched once and stored statically; the `apps/indexer/` worker is scaffolded but not running
+- **Dashboard routes** (`/app`, `/app/wallets`, etc.) — scaffolded but require a database connection (Prisma) and are not functional
+- **`/profile/{handle}` route** — uses Prisma, will 404 or error without a running database; use `/p/{handle}` for the demo
+- **Reputation scoring** — op counts are raw; no attestations, TVL tracking, or incident records
+- **No authentication** — claim flow ("Sign in with your wallet") is a stub
+
+## Run locally
 
 ```bash
 git clone <repo> signet && cd signet
 pnpm install
-cp .env.example .env
-pnpm db:up          # start local Postgres
-pnpm db:migrate     # create the schema
-pnpm dev            # run web (and other apps) via Turborepo
+
+# Run just the web app (no database needed for the demo routes)
+pnpm --filter @signet/web dev
 ```
 
-The web app serves on http://localhost:3000. Subdomains map to surfaces; on
-plain `localhost` use the path-based fallback:
+Visit `http://localhost:3000` for the landing page.
+Visit `http://localhost:3000/p/aquawolf` for the first demo profile.
 
-| Surface   | Subdomain               | Path fallback (localhost)     |
-| --------- | ----------------------- | ----------------------------- |
-| Marketing | `signet.dev`            | `/`                           |
-| Dashboard | `app.signet.dev`        | `/app`                        |
-| Docs      | `docs.signet.dev`       | `/docs`                       |
-| Profile   | `{handle}.signet.dev`   | `/@{handle}` or `/{handle}`   |
+> **Note:** Google Fonts (`IBM Plex Sans`, `IBM Plex Mono`) are loaded via `next/font/google`. In environments without internet access, the build will log font fetch errors but continue — the pages render with system font fallbacks.
 
-See [`apps/web/middleware.ts`](./apps/web/middleware.ts) for routing details.
+## Architecture (planned)
+
+```
+┌─────────────────────────────────────────────────────┐
+│                    apps/web (Next.js)                │
+│  /p/{handle}   — static JSON → profile render        │
+│  /profile/{handle} — Prisma → profile render (Phase2)│
+└───────────────────┬─────────────────────────────────┘
+                    │
+          ┌─────────▼─────────┐
+          │   apps/indexer    │   Long-running worker
+          │ (TypeScript)      │   polls Horizon API,
+          │                   │   writes to Postgres
+          └─────────┬─────────┘
+                    │
+          ┌─────────▼─────────┐
+          │   packages/db     │   Prisma schema
+          │   (PostgreSQL)    │   Profile, Wallet,
+          │                   │   Contract, Snapshot
+          └───────────────────┘
+
+Future:
+  packages/contracts/identity-registry  — Soroban contract
+  packages/sdk                          — External SDK
+```
 
 ## Directory structure
 
-| Path              | Purpose                                                       |
-| ----------------- | ------------------------------------------------------------- |
-| `apps/web`        | Next.js App Router app + tRPC API (all subdomains)            |
-| `apps/indexer`    | Long-running TypeScript worker that indexes on-chain activity |
-| `packages/contracts` | Soroban Rust contracts (Cargo workspace) — see its README  |
-| `packages/db`     | Prisma schema + generated client (`@signet/db`)              |
-| `packages/sdk`    | External SDK for integrators (`@signet/sdk`)                  |
-| `packages/types`  | Shared TypeScript types (`@signet/types`)                     |
-| `packages/ui`     | Shared React components (`@signet/ui`)                        |
-| `infra`           | Local dev infra (Docker Postgres) — see its README           |
+| Path | Purpose |
+|------|---------|
+| `apps/web` | Next.js App Router + tRPC API |
+| `apps/indexer` | Long-running TypeScript indexer worker |
+| `packages/contracts` | Soroban Rust contracts |
+| `packages/db` | Prisma schema + generated client |
+| `packages/sdk` | External SDK for integrators |
+| `packages/types` | Shared TypeScript types |
+| `packages/ui` | Shared React components |
+| `infra` | Local dev infra (Docker Postgres) |
 
 ## Scripts
 
-| Command             | Description                                  |
-| ------------------- | -------------------------------------------- |
-| `pnpm dev`          | Run all apps via Turborepo                    |
-| `pnpm build`        | Build all workspaces                          |
-| `pnpm lint`         | Lint all workspaces                           |
-| `pnpm typecheck`    | Typecheck all workspaces                      |
-| `pnpm test`         | Run workspace tests                           |
-| `pnpm db:up` / `db:down` | Start / stop local Postgres             |
-| `pnpm db:migrate`   | Run Prisma migrations                         |
-| `pnpm db:generate`  | Regenerate the Prisma client                  |
-
-## Per-package docs
-
-- [`packages/contracts/README.md`](./packages/contracts/README.md)
-- [`packages/contracts/identity-registry/README.md`](./packages/contracts/identity-registry/README.md)
-- [`infra/README.md`](./infra/README.md)
+| Command | Description |
+|---------|-------------|
+| `pnpm dev` | Run all apps via Turborepo |
+| `pnpm --filter @signet/web dev` | Run web app only (no DB required for demo) |
+| `pnpm --filter @signet/web build` | Build web app |
+| `pnpm --filter @signet/web typecheck` | Typecheck web app |
+| `pnpm db:up` / `db:down` | Start / stop local Postgres |
+| `pnpm db:migrate` | Run Prisma migrations |

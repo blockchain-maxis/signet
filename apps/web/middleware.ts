@@ -107,6 +107,8 @@ export function middleware(req: NextRequest): NextResponse {
     first === 'app' ||
     first === 'docs' ||
     first === 'profile' ||
+    first === 'p' ||           // demo profiles live at /p/{handle}
+    first === 'how-it-works' || // static informational page
     first === 'api' ||
     first === '_next'
   ) {

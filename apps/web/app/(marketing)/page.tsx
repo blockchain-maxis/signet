@@ -1,29 +1,11 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { IBM_Plex_Sans, IBM_Plex_Mono } from "next/font/google";
 import { LenisProvider } from "./lib/lenis";
 import { Hero } from "./sections/hero";
 import { Unlocks } from "./sections/unlocks";
+import { Demos } from "./sections/demos";
 import { Close } from "./sections/close";
-
-const displayFont = IBM_Plex_Sans({
-  subsets: ["latin"],
-  weight: ["600", "700"],
-  variable: "--font-display",
-});
-
-const bodyFont = IBM_Plex_Sans({
-  subsets: ["latin"],
-  weight: ["400", "500"],
-  variable: "--font-body",
-});
-
-const monoFont = IBM_Plex_Mono({
-  subsets: ["latin"],
-  weight: ["400", "500"],
-  variable: "--font-mono",
-});
 
 const Profile  = dynamic(() => import("./sections/profile").then((m) => m.Profile),   { ssr: false });
 const Mechanism = dynamic(() => import("./sections/mechanism").then((m) => m.Mechanism), { ssr: false });
@@ -34,7 +16,7 @@ export default function MarketingPage() {
   return (
     <LenisProvider>
       <div
-        className={`${displayFont.variable} ${bodyFont.variable} ${monoFont.variable} relative bg-[#0a0908] text-[#f5f4ee]`}
+        className="relative bg-[#0a0908] text-[#f5f4ee]"
       >
         {/* Grain — persists across all sections */}
         <div
@@ -50,6 +32,7 @@ export default function MarketingPage() {
         <Mechanism />
         <Compound />
         <Unlocks />
+        <Demos />
         <Featured />
         <Close />
       </div>

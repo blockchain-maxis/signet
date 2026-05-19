@@ -1,1 +1,114 @@
-{"_embedded": {"records": []}}
+{
+  "_embedded": {
+    "records": [
+      {
+        "_links": {
+          "self": {
+            "href": "https://horizon.stellar.org/operations/268993814635769857"
+          },
+          "transaction": {
+            "href": "https://horizon.stellar.org/transactions/393e9f4c1f43a74ccd104b20e241df81b3b86ec3cb18ff9d28ab3ba6e08057f3"
+          },
+          "effects": {
+            "href": "https://horizon.stellar.org/operations/268993814635769857/effects"
+          },
+          "succeeds": {
+            "href": "https://horizon.stellar.org/effects?order=desc&cursor=268993814635769857"
+          },
+          "precedes": {
+            "href": "https://horizon.stellar.org/effects?order=asc&cursor=268993814635769857"
+          }
+        },
+        "id": "268993814635769857",
+        "paging_token": "268993814635769857",
+        "transaction_successful": true,
+        "source_account": "GCNP4JVZFDAQFBPZ76VD6YARZNURD6DIC43HMZAFGBIZ2OLEHYKEPAO2",
+        "type": "invoke_host_function",
+        "type_i": 24,
+        "created_at": "2026-05-18T21:33:48Z",
+        "transaction_hash": "393e9f4c1f43a74ccd104b20e241df81b3b86ec3cb18ff9d28ab3ba6e08057f3",
+        "function": "HostFunctionTypeHostFunctionTypeInvokeContract",
+        "parameters": [
+          {
+            "value": "AAAAEgAAAAGN0li40oVrYwRFGIib1pAgVY49gTpWCtjXW79cHTYmJw==",
+            "type": "Address"
+          },
+          {
+            "value": "AAAADwAAABFjcmVhdGVfY29sbGF0ZXJhbAAAAA==",
+            "type": "Sym"
+          },
+          {
+            "value": "AAAADQAAACDUwFU+aZJ+QqGyhoJfCbPRqs67Cdtk+aYkS1CTexaV4Q==",
+            "type": "Bytes"
+          },
+          {
+            "value": "AAAAEgAAAAAAAAAAjrJTKA/KO+nMIouNcJIgrKXpXBDMh64p9sskeRqJw5U=",
+            "type": "Address"
+          },
+          {
+            "value": "AAAADgAAAC9Db2xsYXRlcmFsLWJjYWJlNWJiLWMyODQtNGRiOC1iYmY1LTllMTc5OTcwZGYxOAA=",
+            "type": "Str"
+          }
+        ],
+        "address": "",
+        "salt": "",
+        "asset_balance_changes": null,
+        "decoded_function": "create_collateral"
+      },
+      {
+        "_links": {
+          "self": {
+            "href": "https://horizon.stellar.org/operations/268993814635765761"
+          },
+          "transaction": {
+            "href": "https://horizon.stellar.org/transactions/11ce1eccf1ce1e04abc7872117f35a8b2fe4c655322adc5b38cd8f8435255e7d"
+          },
+          "effects": {
+            "href": "https://horizon.stellar.org/operations/268993814635765761/effects"
+          },
+          "succeeds": {
+            "href": "https://horizon.stellar.org/effects?order=desc&cursor=268993814635765761"
+          },
+          "precedes": {
+            "href": "https://horizon.stellar.org/effects?order=asc&cursor=268993814635765761"
+          }
+        },
+        "id": "268993814635765761",
+        "paging_token": "268993814635765761",
+        "transaction_successful": true,
+        "source_account": "GCNP4JVZFDAQFBPZ76VD6YARZNURD6DIC43HMZAFGBIZ2OLEHYKEPAO2",
+        "type": "invoke_host_function",
+        "type_i": 24,
+        "created_at": "2026-05-18T21:33:48Z",
+        "transaction_hash": "11ce1eccf1ce1e04abc7872117f35a8b2fe4c655322adc5b38cd8f8435255e7d",
+        "function": "HostFunctionTypeHostFunctionTypeInvokeContract",
+        "parameters": [
+          {
+            "value": "AAAAEgAAAAGN0li40oVrYwRFGIib1pAgVY49gTpWCtjXW79cHTYmJw==",
+            "type": "Address"
+          },
+          {
+            "value": "AAAADwAAABFjcmVhdGVfY29sbGF0ZXJhbAAAAA==",
+            "type": "Sym"
+          },
+          {
+            "value": "AAAADQAAACADfYNOODSMu4TiB+R+kTnUJaYryEk9POM3fkqNIQn6aw==",
+            "type": "Bytes"
+          },
+          {
+            "value": "AAAAEgAAAAAAAAAANPaEYY1opeKIjXCtqQMYdEPgNDOgTfvd7iR7WaSo9XY=",
+            "type": "Address"
+          },
+          {
+            "value": "AAAADgAAAC9Db2xsYXRlcmFsLWIyZDcxOWY3LTc2ZGQtNGFiMS04NjU5LTMyOTAwODI3NjBlNQA=",
+            "type": "Str"
+          }
+        ],
+        "address": "",
+        "salt": "",
+        "asset_balance_changes": null,
+        "decoded_function": "create_collateral"
+      }
+    ]
+  }
+}

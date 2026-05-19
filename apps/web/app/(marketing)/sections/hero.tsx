@@ -37,17 +37,11 @@ export function Hero() {
           className="hidden gap-9 text-[11px] uppercase tracking-[0.22em] text-[#8a8779] md:flex"
           style={{ fontFamily: "var(--font-mono)" }}
         >
-          <a href="#" className="transition-colors hover:text-[#f5f4ee]">
-            Manifesto
+          <a href="/how-it-works" className="transition-colors hover:text-[#f5f4ee]">
+            How it works
           </a>
-          <a href="#" className="transition-colors hover:text-[#f5f4ee]">
-            Registry
-          </a>
-          <a href="#" className="transition-colors hover:text-[#f5f4ee]">
-            Docs
-          </a>
-          <a href="#" className="transition-colors hover:text-[#f5f4ee]">
-            GitHub
+          <a href="/p/aquawolf" className="transition-colors hover:text-[#f5f4ee]">
+            Demo
           </a>
         </div>
         <a
