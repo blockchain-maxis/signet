@@ -3,7 +3,7 @@ resolver = "2"
 members = ["identity-registry"]
 
 [workspace.dependencies]
-soroban-sdk = "22"
+soroban-sdk = "26"
 
 [profile.release]
 opt-level = "z"
