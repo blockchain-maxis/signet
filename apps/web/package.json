@@ -19,7 +19,7 @@
     "@signet/ui": "workspace:*",
     "@stellar/stellar-sdk": "^15.1.0",
     "@trpc/client": "^11.0.0",
-    "@trpc/server": "^11.0.0",
+    "@trpc/server": "^11.18.0",
     "clsx": "^2.1.1",
     "framer-motion": "^12.40.0",
     "gsap": "^3.15.0",
