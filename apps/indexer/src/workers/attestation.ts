@@ -19,7 +19,7 @@ import type { IndexerConfig } from '../config.js';
 const CURSOR_ID = 'attestation';
 
 export type AttestationEvent = {
-  kind: 'claimed' | 'released';
+  kind: 'claimed' | 'released' | 'revoked';
   handle: string;
   wallet: string;
 };
@@ -51,13 +51,13 @@ export interface AttestationStore {
  * event isn't one we care about (wrong topic, malformed payload).
  *
  * The contract publishes:
- *   topics = [ symbol("claimed"|"released"), string(handle) ],  data = address(wallet)
+ *   topics = [ symbol("claimed"|"released"|"revoked"), string(handle) ],  data = address(wallet)
  */
 export function decodeEvent(topics: xdr.ScVal[], value: xdr.ScVal): AttestationEvent | null {
   try {
     if (topics.length < 2) return null;
     const kind = scValToNative(topics[0]!) as string;
-    if (kind !== 'claimed' && kind !== 'released') return null;
+    if (kind !== 'claimed' && kind !== 'released' && kind !== 'revoked') return null;
     const handle = String(scValToNative(topics[1]!));
     const wallet = String(scValToNative(value));
     if (!handle || !wallet) return null;
@@ -84,7 +84,7 @@ export async function applyAttestation(
       create: { pubkey: ev.wallet, profileId: profile.id, source: 'onchain', isPrimary: true },
     });
   } else {
-    // released → drop the binding (the wallet row carries the link).
+    // released / revoked → drop the binding (the wallet row carries the link).
     await store.wallet.deleteMany({ where: { pubkey: ev.wallet } });
   }
 }

@@ -140,6 +140,7 @@ fn admin_revoke_removes_binding() {
 
     client.admin_revoke(&handle);
     assert!(!client.is_bound(&handle));
+    assert!(!env.events().all().events().is_empty());
 }
 
 #[test]

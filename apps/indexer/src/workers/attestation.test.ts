@@ -30,6 +30,15 @@ test('decodeEvent decodes a released event', () => {
   });
 });
 
+test('decodeEvent decodes a revoked event', () => {
+  const pk = Keypair.random().publicKey();
+  assert.deepEqual(decodeEvent(topics('revoked', 'aquawolf'), walletVal(pk)), {
+    kind: 'revoked',
+    handle: 'aquawolf',
+    wallet: pk,
+  });
+});
+
 test('decodeEvent ignores unrelated or malformed events', () => {
   const pk = Keypair.random().publicKey();
   assert.equal(decodeEvent(topics('transfer', 'x'), walletVal(pk)), null);

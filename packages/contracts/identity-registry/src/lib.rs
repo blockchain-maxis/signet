@@ -110,7 +110,7 @@ impl IdentityRegistry {
         Self::require_initialized(&env)?;
         let wallet = Self::resolve(env.clone(), handle.clone()).ok_or(Error::HandleNotFound)?;
         wallet.require_auth();
-        Self::remove_binding(&env, &handle, &wallet);
+        Self::remove_binding(&env, &handle, &wallet, symbol_short!("released"));
         Ok(())
     }
 
@@ -123,7 +123,7 @@ impl IdentityRegistry {
             .ok_or(Error::NotInitialized)?;
         admin.require_auth();
         let wallet = Self::resolve(env.clone(), handle.clone()).ok_or(Error::HandleNotFound)?;
-        Self::remove_binding(&env, &handle, &wallet);
+        Self::remove_binding(&env, &handle, &wallet, symbol_short!("revoked"));
         Ok(())
     }
 
@@ -171,7 +171,12 @@ impl IdentityRegistry {
         }
     }
 
-    fn remove_binding(env: &Env, handle: &String, wallet: &Address) {
+    fn remove_binding(
+        env: &Env,
+        handle: &String,
+        wallet: &Address,
+        event_name: soroban_sdk::Symbol,
+    ) {
         env.storage()
             .persistent()
             .remove(&DataKey::Owner(handle.clone()));
@@ -185,7 +190,7 @@ impl IdentityRegistry {
             .set(&DataKey::Count, &count.saturating_sub(1));
 
         env.events()
-            .publish((symbol_short!("released"), handle.clone()), wallet.clone());
+            .publish((event_name, handle.clone()), wallet.clone());
     }
 }
 
