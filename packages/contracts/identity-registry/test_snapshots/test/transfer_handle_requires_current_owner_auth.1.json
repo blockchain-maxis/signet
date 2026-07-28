@@ -1,6 +1,6 @@
 {
   "generators": {
-    "address": 3,
+    "address": 4,
     "nonce": 0,
     "mux_id": 0
   },
@@ -17,7 +17,7 @@
               "function_name": "claim",
               "args": [
                 {
-                  "string": "dev_01-x"
+                  "string": "aquawolf"
                 },
                 {
                   "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAHK3M"
@@ -29,6 +29,10 @@
         }
       ]
     ],
+    [],
+    [],
+    [],
+    [],
     []
   ],
   "ledger": {
@@ -60,7 +64,7 @@
               },
               "durability": "persistent",
               "val": {
-                "string": "dev_01-x"
+                "string": "aquawolf"
               }
             }
           },
@@ -81,7 +85,7 @@
                     "symbol": "Owner"
                   },
                   {
-                    "string": "dev_01-x"
+                    "string": "aquawolf"
                   }
                 ]
               },

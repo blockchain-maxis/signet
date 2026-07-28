@@ -20,11 +20,13 @@
 //! and per-call cost stay constant regardless of how many handles exist.
 
 use soroban_sdk::{
-    contract, contracterror, contractimpl, contracttype, symbol_short, Address, Env, String,
+    contract, contracterror, contractimpl, contracttype, symbol_short, Address, Env, String, Vec,
 };
 
 /// Maximum handle length in bytes. Handles are short, URL-safe identifiers.
 const MAX_HANDLE_LEN: u32 = 32;
+/// Maximum number of handles in a single batch resolve call.
+const MAX_BATCH_SIZE: u32 = 100;
 /// Bump persistent entries by ~30 days (at ~5s ledgers) on access.
 const BUMP_LEDGERS: u32 = 518_400;
 /// Threshold below which an accessed entry gets bumped.
@@ -54,6 +56,7 @@ pub enum Error {
     NotOwner = 5,
     InvalidHandle = 6,
     WalletAlreadyBound = 7,
+    BatchTooLarge = 8,
 }
 
 #[contract]
@@ -195,6 +198,23 @@ impl IdentityRegistry {
     /// Number of currently-bound handles. O(1); enumerate via the event stream.
     pub fn count(env: Env) -> u32 {
         env.storage().instance().get(&DataKey::Count).unwrap_or(0)
+    }
+
+    /// Resolve multiple handles to their owning wallets, positionally.
+    ///
+    /// Returns `None` for any handle that is not currently bound. Rejects
+    /// batches larger than [`MAX_BATCH_SIZE`].
+    pub fn resolve_batch(env: Env, handles: Vec<String>) -> Result<Vec<Option<Address>>, Error> {
+        let len = handles.len();
+        if len > MAX_BATCH_SIZE {
+            return Err(Error::BatchTooLarge);
+        }
+        let mut results: Vec<Option<Address>> = Vec::new(&env);
+        for handle in handles.iter() {
+            let addr = Self::resolve(env.clone(), handle);
+            results.push_back(addr);
+        }
+        Ok(results)
     }
 
     // ── internal ────────────────────────────────────────────────────────────

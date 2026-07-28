@@ -17,7 +17,7 @@
               "function_name": "claim",
               "args": [
                 {
-                  "string": "dev_01-x"
+                  "string": "bound"
                 },
                 {
                   "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAHK3M"
@@ -60,7 +60,7 @@
               },
               "durability": "persistent",
               "val": {
-                "string": "dev_01-x"
+                "string": "bound"
               }
             }
           },
@@ -81,7 +81,7 @@
                     "symbol": "Owner"
                   },
                   {
-                    "string": "dev_01-x"
+                    "string": "bound"
                   }
                 ]
               },
