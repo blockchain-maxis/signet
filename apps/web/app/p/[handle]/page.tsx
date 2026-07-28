@@ -1,10 +1,10 @@
 import { notFound } from 'next/navigation';
 import { SignetMonogram } from '../../(marketing)/components/signet-monogram';
-import { getProfile, getOperations, listHandles, computeStats, type Operation } from '@/lib/profiles';
+import { getProfile, getOperations, listAllHandles, computeStats, type Operation } from '@/lib/profiles';
 
-// Pre-render the curated profiles at build time; unknown handles 404.
+// Pre-render curated + on-chain-bound profiles; others render on demand, unknown 404.
 export async function generateStaticParams() {
-  return (await listHandles()).map((handle) => ({ handle }));
+  return (await listAllHandles()).map((handle) => ({ handle }));
 }
 
 function truncate(str: string, head: number, tail: number): string {

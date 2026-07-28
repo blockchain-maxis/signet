@@ -1,6 +1,12 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { isValidHandle, getProfile, getOperations, listHandles } from './profiles.ts';
+import {
+  isValidHandle,
+  getProfile,
+  getOperations,
+  listHandles,
+  listAllHandles,
+} from './profiles.ts';
 
 test('isValidHandle accepts the registry charset', () => {
   for (const h of ['aquawolf', 'dev_01', 'a-b-c', 'x'.repeat(32)]) {
@@ -29,6 +35,14 @@ test('listHandles includes the curated profiles', async () => {
   const handles = await listHandles();
   assert.ok(handles.includes('aquawolf'));
   assert.ok(handles.length >= 3);
+});
+
+test('listAllHandles is a deduped superset of the curated handles', async () => {
+  // Without DATABASE_URL the on-chain source is empty, so this is the curated
+  // set — but always deduped and never fewer than the manifest.
+  const [all, curated] = await Promise.all([listAllHandles(), listHandles()]);
+  for (const handle of curated) assert.ok(all.includes(handle));
+  assert.equal(all.length, new Set(all).size);
 });
 
 test('getOperations returns an array (possibly empty) for any handle', async () => {

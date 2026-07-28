@@ -106,6 +106,33 @@ export async function listHandles(): Promise<string[]> {
 }
 
 /**
+ * Best-effort list of every handle bound in the database — curated-synced rows
+ * plus self-sovereign on-chain attestations. Returns `[]` on any failure (no
+ * `DATABASE_URL`, unreachable DB) so callers still build from the static
+ * manifest alone. The DB client is imported lazily, like `safeDbProfile`.
+ */
+export async function safeDbHandles(): Promise<string[]> {
+  if (!process.env.DATABASE_URL) return [];
+  try {
+    const { prisma } = await import('@signet/db');
+    const rows = await prisma.profile.findMany({ select: { handle: true } });
+    return rows.map((r) => r.handle);
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Every public handle for surfaces like the sitemap and OG images: the curated
+ * manifest unioned with on-chain-bound handles, de-duplicated. Falls back to the
+ * manifest alone when no database is configured.
+ */
+export async function listAllHandles(): Promise<string[]> {
+  const [curated, onchain] = await Promise.all([listHandles(), safeDbHandles()]);
+  return [...new Set([...curated, ...onchain])];
+}
+
+/**
  * Best-effort database lookup. Returns null on ANY failure — no `DATABASE_URL`,
  * unreachable DB, empty result — so callers degrade gracefully to static data
  * instead of throwing a 500. The DB client is imported lazily so the web app
