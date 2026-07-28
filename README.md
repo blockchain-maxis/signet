@@ -54,6 +54,12 @@ Visit `http://localhost:3000/p/aquawolf` for the first demo profile.
 
 > **Requires Node 22+.** Fonts (`IBM Plex Sans`/`Mono`) load via a browser-side `@import` in `globals.css` (not `next/font`), so the build never blocks on font downloads.
 
+## Roadmap and funding
+
+**See [`PROPOSAL.md`](PROPOSAL.md)** for the grant proposal: the problem
+statement, an itemized budget, dated milestones through 2027-04-30, and a
+fix-log of resolved issues with the tests that keep them closed.
+
 ## Architecture
 
 **See [`ARCHITECTURE.md`](ARCHITECTURE.md)** for the real data flows
