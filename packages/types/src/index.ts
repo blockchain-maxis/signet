@@ -30,4 +30,15 @@ export interface ProfileResponse {
   stats: ProfileStats;
 }
 
+/** A single handle ↔ wallet binding from the on-chain registry. */
+export interface RegistryEntry {
+  handle: Handle;
+  wallet: StellarAddress;
+}
+
+/** Response shape returned by `registry.count`. */
+export interface RegistryCount {
+  count: number;
+}
+
 export const SIGNET_TYPES_VERSION = '0.1.0';
