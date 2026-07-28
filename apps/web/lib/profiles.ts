@@ -68,9 +68,26 @@ export async function getProfile(handle: string): Promise<Profile | null> {
 
 export async function getOperations(handle: string): Promise<Operation[]> {
   if (!isValidHandle(handle)) return [];
-  // Prefer indexer-populated DB rows; fall back to the static demo JSON.
+
+  // 1. Prefer indexer-populated DB rows (fastest, richest data including decoded_function).
   const fromDb = await safeDbOperations(handle);
   if (fromDb && fromDb.length > 0) return fromDb;
+
+  // 2. Horizon fallback: fetch invoke_host_function ops for the bound wallet directly
+  //    from the Horizon API. This makes claimed handles work without a database.
+  //    We need the profile to resolve the wallet address, but only if the DB didn't
+  //    already return an empty array because the profile genuinely has no ops yet.
+  if (fromDb === null) {
+    // DB is unavailable (no DATABASE_URL or connection failed) — try Horizon.
+    const profile = await getProfile(handle);
+    if (profile?.wallet) {
+      const { fetchHorizonOperations } = await import('./server/horizon.ts');
+      const fromHorizon = await fetchHorizonOperations(profile.wallet);
+      if (fromHorizon && fromHorizon.length > 0) return fromHorizon;
+    }
+  }
+
+  // 3. Static demo JSON (for the curated demo handles: aquawolf, sorobuilder, stellardev).
   const data = await readJson<{ _embedded?: { records?: Operation[] } }>(`${handle}.json`);
   return data?._embedded?.records ?? [];
 }
