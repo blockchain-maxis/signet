@@ -21,7 +21,8 @@
     "db:deploy": "pnpm --filter @signet/db run migrate:deploy",
     "db:generate": "pnpm --filter @signet/db run generate",
     "indexer:dev": "pnpm --filter @signet/indexer dev",
-    "indexer:seed": "pnpm --filter @signet/indexer dev -- --reseed"
+    "indexer:seed": "pnpm --filter @signet/indexer dev -- --reseed",
+    "docs:generate": "pnpm --filter @signet/web run docs:generate"
   },
   "devDependencies": {
     "@eslint/js": "^9.13.0",

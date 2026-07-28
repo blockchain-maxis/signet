@@ -2,12 +2,14 @@
   "name": "@signet/web",
   "version": "0.0.0",
   "private": true,
+  "type": "module",
   "scripts": {
     "dev": "next dev -p 3000",
     "build": "next build",
     "start": "next start -p 3000",
     "typecheck": "tsc --noEmit",
     "lint": "eslint . --config ../../eslint.config.js",
+    "docs:generate": "node --experimental-strip-types scripts/generate-api-docs.ts",
     "test": "node --experimental-strip-types --test \"lib/**/*.test.ts\"",
     "test:e2e": "playwright test"
   },

@@ -47,6 +47,19 @@ export interface AttestationStore {
 }
 
 /**
+ * Minimal cursor persistence interface. Tests can inject a lightweight mock
+ * instead of depending on a real database.
+ */
+export interface CursorStore {
+  findUnique(args: { where: { id: string } }): Promise<{ lastLedger: number } | null>;
+  upsert(args: {
+    where: { id: string };
+    update: { lastLedger: number };
+    create: { id: string; lastLedger: number };
+  }): Promise<unknown>;
+}
+
+/**
  * Decode a raw contract event into an `AttestationEvent`, or `null` if the
  * event isn't one we care about (wrong topic, malformed payload).
  *
@@ -89,17 +102,50 @@ export async function applyAttestation(
   }
 }
 
+export type GetEventsInput = {
+  startLedger: number;
+  filters: { type: string; contractIds: string[] }[];
+  limit: number;
+};
+
+export type GetEventsResult = {
+  latestLedger: number;
+  events: { topic: xdr.ScVal[]; value: xdr.ScVal; ledger: number }[];
+};
+
+export type GetLatestLedgerResult = {
+  sequence: number;
+};
+
+/**
+ * Run the attestation worker tick.
+ *
+ * @param server      Soroban RPC server
+ * @param config      Indexer configuration
+ * @param cursorStore Optional cursor store (defaults to real Prisma client).
+ *                    Tests inject a mock to verify cursor resumption.
+ * @param eventStore  Optional event store (defaults to real Prisma client).
+ *                    Tests inject a mock to verify events are applied only once.
+ */
 export async function runAttestationWorker(
-  server: rpc.Server,
+  server: {
+    getEvents(input: GetEventsInput): Promise<GetEventsResult>;
+    getLatestLedger(): Promise<GetLatestLedgerResult>;
+  },
   config: IndexerConfig,
+  cursorStore?: CursorStore,
+  eventStore?: AttestationStore,
 ): Promise<{ eventsDecoded: number }> {
   if (!config.registryContractId) {
     logger.debug({}, 'attestation.skip — no registry contract configured');
     return { eventsDecoded: 0 };
   }
 
+  const store = cursorStore ?? (prisma as unknown as CursorStore);
+  const evStore = eventStore ?? (prisma as unknown as AttestationStore);
+
   // Resume from the cursor, or start `eventWindowLedgers` back on first run.
-  const cursor = await prisma.indexerCursor.findUnique({ where: { id: CURSOR_ID } });
+  const cursor = await store.findUnique({ where: { id: CURSOR_ID } });
   let startLedger: number;
   if (cursor && cursor.lastLedger > 0) {
     startLedger = cursor.lastLedger + 1;
@@ -122,7 +168,7 @@ export async function runAttestationWorker(
     for (const e of res.events) {
       const decoded = decodeEvent(e.topic, e.value);
       if (!decoded) continue;
-      await applyAttestation(prisma as unknown as AttestationStore, decoded);
+      await applyAttestation(evStore, decoded);
       applied++;
       logger.debug(
         { kind: decoded.kind, handle: decoded.handle, ledger: e.ledger },
@@ -135,7 +181,7 @@ export async function runAttestationWorker(
     return { eventsDecoded: applied };
   }
 
-  await prisma.indexerCursor.upsert({
+  await store.upsert({
     where: { id: CURSOR_ID },
     update: { lastLedger: latestLedger },
     create: { id: CURSOR_ID, lastLedger: latestLedger },
