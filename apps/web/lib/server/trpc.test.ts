@@ -59,6 +59,7 @@ test('account.me returns the signed-in address', async () => {
   const res = await authedCaller('10.0.2.2', 'GTESTADDRESS').account.me();
   assert.equal(res.address, 'GTESTADDRESS');
   assert.equal(res.handle, null); // no database configured under test
+  assert.equal(res.dbConfigured, false);
 });
 
 test('account.update is rejected without a session', async () => {

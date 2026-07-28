@@ -25,6 +25,11 @@ export function ProfileEditor() {
       .query()
       .then((me) => {
         if (!active) return;
+        if (!me.dbConfigured) {
+          setStatus('error');
+          setMessage('Profile editing requires a configured database.');
+          return;
+        }
         setHandle(me.handle);
         setDisplayName(me.displayName ?? '');
         setBio(me.bio ?? '');
@@ -56,7 +61,11 @@ export function ProfileEditor() {
     return <p className="text-[14px] text-[#8a8779]">Loading…</p>;
   }
   if (status === 'error') {
-    return <p className="text-[14px] text-[#b8654a]">Could not load your profile.</p>;
+    return (
+      <p className="max-w-[640px] text-[14px] leading-[1.7] text-[#b8654a]">
+        {message ?? 'Could not load your profile.'}
+      </p>
+    );
   }
   if (status === 'no-profile') {
     return (
