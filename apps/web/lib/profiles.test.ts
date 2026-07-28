@@ -1,6 +1,13 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { isValidHandle, getProfile, getOperations, listHandles } from './profiles.ts';
+import {
+  isValidHandle,
+  getProfile,
+  getOperations,
+  listHandles,
+  safeChainProfile,
+  decodeResolvedAddress,
+} from './profiles.ts';
 
 test('isValidHandle accepts the registry charset', () => {
   for (const h of ['aquawolf', 'dev_01', 'a-b-c', 'x'.repeat(32)]) {
@@ -23,6 +30,41 @@ test('getProfile returns curated data for a known handle', async () => {
 
 test('getProfile rejects invalid handles without filesystem access', async () => {
   assert.equal(await getProfile('../../etc/passwd'), null);
+});
+
+test('curated profiles still resolve when neither a DB nor a registry is configured', async () => {
+  // No DATABASE_URL and no REGISTRY_CONTRACT_ID here, so both the database and
+  // chain layers no-op and resolution falls through to the static manifest.
+  const p = await getProfile('aquawolf');
+  assert.ok(p, 'aquawolf should resolve from the static manifest');
+  assert.equal(p!.source, 'demo');
+});
+
+test('safeChainProfile is a no-op when the registry is not configured', async () => {
+  // Returns without any network access — an unconfigured registry must not
+  // cost a doomed RPC round trip on every profile render.
+  assert.equal(await safeChainProfile('aquawolf'), null);
+});
+
+test('safeChainProfile rejects invalid handles before any network access', async () => {
+  assert.equal(await safeChainProfile('../../etc/passwd'), null);
+});
+
+test('decodeResolvedAddress accepts account and contract addresses', () => {
+  const account = `G${'A'.repeat(55)}`;
+  const contract = `C${'A'.repeat(55)}`;
+  assert.equal(decodeResolvedAddress(account), account);
+  assert.equal(decodeResolvedAddress(contract), contract);
+});
+
+test('decodeResolvedAddress rejects an unbound handle and malformed values', () => {
+  // `resolve` returns Option<Address>; `None` decodes to null.
+  assert.equal(decodeResolvedAddress(null), null);
+  assert.equal(decodeResolvedAddress(undefined), null);
+  assert.equal(decodeResolvedAddress(''), null);
+  assert.equal(decodeResolvedAddress(`G${'A'.repeat(54)}`), null);
+  assert.equal(decodeResolvedAddress(`X${'A'.repeat(55)}`), null);
+  assert.equal(decodeResolvedAddress({ wallet: `G${'A'.repeat(55)}` }), null);
 });
 
 test('listHandles includes the curated profiles', async () => {

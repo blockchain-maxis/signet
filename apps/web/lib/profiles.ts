@@ -1,22 +1,45 @@
 import { promises as fs } from 'fs';
 import path from 'path';
+import {
+  ALLOW_HTTP,
+  NETWORK_PASSPHRASE,
+  REGISTRY_CONTRACT_ID,
+  SOROBAN_RPC_URL,
+  isRegistryConfigured,
+} from './chain.ts';
 
 /**
  * Single source of truth for profile data.
  *
- * Reads the curated static manifest in `public/data/`. This is what powers the
- * canonical `/p/{handle}` profile route. It has no database dependency, so it
- * works in every environment (preview, prod, offline) without provisioning.
+ * `getProfile` resolves a handle through three layers, in order:
  *
- * When the indexer + Postgres come online (Phase 2), `getProfile` can try the
- * database first and fall back to the static manifest — see `safeDbProfile`.
+ *   1. database — indexer-synced bindings, when a `DATABASE_URL` is configured
+ *   2. chain    — a live `resolve(handle)` read against the Identity Registry
+ *                 over Soroban RPC, when the contract is deployed
+ *   3. static   — the curated demo manifest in `public/data/`
+ *
+ * The chain layer is what lets a handle claimed on-chain render at
+ * `/p/{handle}` before (or without) the indexer syncing it into Postgres —
+ * previously such a handle 404'd. Each layer degrades to the next rather than
+ * throwing: no database, no deployed registry, or an unreachable RPC all fall
+ * through, so the curated demo profiles keep working in every environment
+ * (preview, prod, offline) with nothing provisioned at all.
  */
+
+/**
+ * Which of the three layers answered a lookup. Carried on the profile so the
+ * UI can label provenance honestly: a handle bound on-chain must not be
+ * presented with the curated manifest's "synthetic demo data" framing, and
+ * curated data must never be presented as a real binding.
+ */
+export type ProfileSource = 'database' | 'chain' | 'demo';
 
 export type Profile = {
   name: string;
   wallet: string;
   bio: string;
   joined: string;
+  source: ProfileSource;
 };
 
 export type Operation = {
@@ -38,6 +61,9 @@ export type Operation = {
   }>;
 };
 
+/** Shape of an entry in `public/data/profiles.json` — provenance is implied. */
+type ManifestProfile = Omit<Profile, 'source'>;
+
 const DATA_DIR = path.join(process.cwd(), 'public/data');
 
 /** A handle is 1–32 chars of `[a-z0-9_-]` — mirrors the on-chain registry. */
@@ -57,13 +83,19 @@ async function readJson<T>(file: string): Promise<T | null> {
 
 export async function getProfile(handle: string): Promise<Profile | null> {
   if (!isValidHandle(handle)) return null;
-  // Prefer the database (on-chain-synced bindings) when one is configured;
-  // otherwise fall back to the curated static manifest. `safeDbProfile`
-  // returns null whenever there's no DB, so this is a no-op until provisioned.
+  // Prefer the database (indexer-synced bindings, plus the off-chain display
+  // fields the other layers can't supply) when one is configured.
+  // `safeDbProfile` returns null whenever there's no DB, so this is a no-op
+  // until provisioned.
   const fromDb = await safeDbProfile(handle);
   if (fromDb) return fromDb;
-  const manifest = await readJson<Record<string, Profile>>('profiles.json');
-  return manifest?.[handle] ?? null;
+  // A handle can be bound on-chain long before the indexer syncs it into the
+  // database — or with no database at all. Ask the registry directly so it
+  // renders instead of 404ing.
+  const fromChain = await safeChainProfile(handle);
+  if (fromChain) return fromChain;
+  const entry = (await readJson<Record<string, ManifestProfile>>('profiles.json'))?.[handle];
+  return entry ? { ...entry, source: 'demo' } : null;
 }
 
 export async function getOperations(handle: string): Promise<Operation[]> {
@@ -107,8 +139,9 @@ export async function listHandles(): Promise<string[]> {
 
 /**
  * Best-effort database lookup. Returns null on ANY failure — no `DATABASE_URL`,
- * unreachable DB, empty result — so callers degrade gracefully to static data
- * instead of throwing a 500. The DB client is imported lazily so the web app
+ * unreachable DB, empty result — so callers degrade gracefully to the chain
+ * and static layers instead of throwing a 500. The DB client is imported
+ * lazily so the web app
  * never hard-depends on Postgres being present.
  */
 export async function safeDbProfile(handle: string): Promise<Profile | null> {
@@ -125,7 +158,81 @@ export async function safeDbProfile(handle: string): Promise<Profile | null> {
       wallet: row.wallets[0]?.pubkey ?? '',
       bio: row.bio ?? '',
       joined: row.createdAt.toISOString().slice(0, 10),
+      source: 'database',
     };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * A Stellar `Address`: either a `G…` account or a `C…` contract StrKey. The
+ * registry binds a handle to an `Address`, so a contract-controlled identity
+ * (a multisig or an account abstraction wallet) is just as valid as a
+ * classic account and must not be dropped here.
+ */
+const ADDRESS_RE = /^[GC][A-Z2-7]{55}$/;
+
+/**
+ * Decode the return value of `resolve(handle) -> Option<Address>` into an
+ * address string, or null when the handle is unbound (`None` decodes to null)
+ * or the response isn't the shape we expect. Pure and exported so the decode
+ * can be tested without touching the network.
+ */
+export function decodeResolvedAddress(value: unknown): string | null {
+  return typeof value === 'string' && ADDRESS_RE.test(value) ? value : null;
+}
+
+/**
+ * Source account for read-only simulation. Simulating a view call never reads
+ * the source account's balance or sequence, so the well-known null account is
+ * used rather than a funded one — a lookup must not require an account to
+ * exist, and reusing a constant avoids generating a throwaway keypair per
+ * request.
+ */
+const SIMULATION_SOURCE = 'GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF';
+
+/**
+ * Best-effort on-chain resolution of a handle to a profile. Reads the Identity
+ * Registry's `resolve(handle) -> Option<Address>` view through a read-only
+ * Soroban RPC simulation — no signature, no fee, nothing submitted — and, when
+ * the handle is bound, returns a minimal profile built from that binding.
+ *
+ * Returns null on ANY miss: registry not deployed, handle unbound, RPC
+ * unreachable, malformed response. `getProfile` then falls through to the
+ * static manifest rather than throwing a 500. The stellar-sdk is imported
+ * lazily so the database and static paths never pay to load it.
+ *
+ * Only the handle→wallet binding is authoritative on-chain; presentation
+ * fields live off-chain, so `name` falls back to the handle and `bio` stays
+ * empty until the indexer or database fills them in. `joined` is likewise left
+ * empty: the binding ledger's close time isn't part of the `resolve` response,
+ * and inventing a date would be worse than omitting one.
+ */
+export async function safeChainProfile(handle: string): Promise<Profile | null> {
+  if (!isValidHandle(handle) || !isRegistryConfigured()) return null;
+
+  try {
+    const { rpc, Account, BASE_FEE, Contract, TransactionBuilder, nativeToScVal, scValToNative } =
+      await import('@stellar/stellar-sdk');
+
+    const server = new rpc.Server(SOROBAN_RPC_URL, { allowHttp: ALLOW_HTTP });
+    const contract = new Contract(REGISTRY_CONTRACT_ID);
+    const tx = new TransactionBuilder(new Account(SIMULATION_SOURCE, '0'), {
+      fee: BASE_FEE,
+      networkPassphrase: NETWORK_PASSPHRASE,
+    })
+      .addOperation(contract.call('resolve', nativeToScVal(handle, { type: 'string' })))
+      .setTimeout(30)
+      .build();
+
+    const sim = await server.simulateTransaction(tx);
+    if (rpc.Api.isSimulationError(sim) || !sim.result) return null;
+
+    const wallet = decodeResolvedAddress(scValToNative(sim.result.retval));
+    if (!wallet) return null;
+
+    return { name: handle, wallet, bio: '', joined: '', source: 'chain' };
   } catch {
     return null;
   }
