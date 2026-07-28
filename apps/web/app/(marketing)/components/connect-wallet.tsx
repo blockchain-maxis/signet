@@ -43,7 +43,9 @@ export function ConnectWallet({
   const [validationError, setValidationError] = useState<string | null>(null);
 
   useEffect(() => {
-    getConnectedAddress().then(setAddress).catch(() => {});
+    getConnectedAddress()
+      .then(setAddress)
+      .catch(() => {});
   }, []);
 
   async function onConnect() {
@@ -73,7 +75,7 @@ export function ConnectWallet({
 
   async function onSubmitClaim() {
     if (!address || !handle) return;
-    
+
     const error = validateHandle(handle);
     if (error) {
       setValidationError(error);
@@ -86,9 +88,9 @@ export function ConnectWallet({
       const { hash } = await claimHandle(handle, address);
       setStatus(`Claimed! tx ${truncate(hash)}`);
       setShowClaimForm(false);
-      // Navigate to the profile page on success
+      // Navigate to the public profile page on success
       setTimeout(() => {
-        router.push(`/profile/${handle}`);
+        router.push(`/p/${handle}`);
       }, 1500);
     } catch (err) {
       if (err instanceof RegistryNotConfiguredError) {
