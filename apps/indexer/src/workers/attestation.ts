@@ -92,10 +92,10 @@ export async function applyAttestation(
 export async function runAttestationWorker(
   server: rpc.Server,
   config: IndexerConfig,
-): Promise<void> {
+): Promise<{ eventsDecoded: number }> {
   if (!config.registryContractId) {
     logger.debug({}, 'attestation.skip — no registry contract configured');
-    return;
+    return { eventsDecoded: 0 };
   }
 
   // Resume from the cursor, or start `eventWindowLedgers` back on first run.
@@ -124,14 +124,15 @@ export async function runAttestationWorker(
       if (!decoded) continue;
       await applyAttestation(prisma as unknown as AttestationStore, decoded);
       applied++;
-      logger.info(
+      logger.debug(
         { kind: decoded.kind, handle: decoded.handle, ledger: e.ledger },
         'attestation.applied',
       );
     }
   } catch (err) {
     logger.error({ error: String(err), startLedger }, 'attestation.fetchFailed');
-    return; // leave the cursor untouched so we retry this window next tick
+    // Leave the cursor untouched so we retry this window next tick.
+    return { eventsDecoded: applied };
   }
 
   await prisma.indexerCursor.upsert({
@@ -140,5 +141,6 @@ export async function runAttestationWorker(
     create: { id: CURSOR_ID, lastLedger: latestLedger },
   });
 
-  logger.info({ applied, throughLedger: latestLedger }, 'attestation.done');
+  logger.debug({ applied, throughLedger: latestLedger }, 'attestation.done');
+  return { eventsDecoded: applied };
 }

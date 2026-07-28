@@ -17,19 +17,22 @@ async function tick(
   config: ReturnType<typeof loadConfig>,
 ): Promise<void> {
   const start = Date.now();
-  logger.info({}, 'tick.start');
+  logger.debug({}, 'tick.start');
 
   // Attestations: ingest on-chain claim/release events into the DB
-  await runAttestationWorker(soroban, config);
+  const { eventsDecoded } = await runAttestationWorker(soroban, config);
 
   // Deployments: find new contract creations for all tracked wallets
-  const highestLedger = await runDeploymentWorker(horizon, config);
+  const { highestLedger, walletsScanned, contractsFound } = await runDeploymentWorker(
+    horizon,
+    config,
+  );
 
   // Activity: refresh snapshots for tracked contracts
-  await runActivityWorker(horizon);
+  const { snapshotsWritten } = await runActivityWorker(horizon);
 
   // Operations: pull recent Soroban invocations for tracked wallets
-  await runOperationsWorker(horizon);
+  const { opsUpserted } = await runOperationsWorker(horizon);
 
   // Persist cursor
   if (highestLedger > 0) {
@@ -40,7 +43,19 @@ async function tick(
     });
   }
 
-  logger.info({ durationMs: Date.now() - start }, 'tick.end');
+  // One structured metrics line per tick. Per-record detail is logged at debug
+  // level inside each worker, so the default (info) output stays one line/tick.
+  logger.info(
+    {
+      walletsScanned,
+      eventsDecoded,
+      contractsFound,
+      opsUpserted,
+      snapshotsWritten,
+      durationMs: Date.now() - start,
+    },
+    'tick.summary',
+  );
 }
 
 async function main(): Promise<void> {

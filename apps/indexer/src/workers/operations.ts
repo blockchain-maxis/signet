@@ -12,8 +12,14 @@ const PER_WALLET_LIMIT = 50;
  * This is what backs the activity list on `/p/{handle}` once the DB is live —
  * the web app reads these rows in preference to the static demo JSON.
  */
-export async function runOperationsWorker(horizon: Horizon.Server): Promise<void> {
+export interface OperationsResult {
+  opsUpserted: number;
+  walletsScanned: number;
+}
+
+export async function runOperationsWorker(horizon: Horizon.Server): Promise<OperationsResult> {
   const wallets = await prisma.wallet.findMany();
+  let opsUpserted = 0;
 
   for (const wallet of wallets) {
     let stored = 0;
@@ -54,6 +60,9 @@ export async function runOperationsWorker(horizon: Horizon.Server): Promise<void
     } catch (err) {
       logger.error({ pubkey: wallet.pubkey, error: String(err) }, 'operations.scanFailed');
     }
-    logger.info({ pubkey: wallet.pubkey, stored }, 'operations.walletDone');
+    opsUpserted += stored;
+    logger.debug({ pubkey: wallet.pubkey, stored }, 'operations.walletDone');
   }
+
+  return { opsUpserted, walletsScanned: wallets.length };
 }
