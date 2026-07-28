@@ -1,4 +1,5 @@
 import type { Handle, ProfileResponse } from '@signet/types';
+import { ApiError, NetworkError, NotFoundError } from './errors.ts';
 
 export interface SignetClientOptions {
   /** Base URL of a Signet deployment, e.g. https://signet.dev */
@@ -26,19 +27,43 @@ export class SignetClient {
     }
   }
 
+  /**
+   * Issues a tRPC GET query. Throws a typed error the caller can discriminate:
+   * `NetworkError` when the request never reached the server, `NotFoundError`
+   * on a 404, or `ApiError` (carrying the status) on any other non-OK response.
+   */
   private async query<T>(procedure: string, input: unknown): Promise<T | null> {
     const url = `${this.baseUrl}/api/trpc/${procedure}?input=${encodeURIComponent(
       JSON.stringify(input),
     )}`;
-    const res = await this.fetchImpl(url, { headers: { accept: 'application/json' } });
-    if (!res.ok) return null;
+
+    let res: Response;
+    try {
+      res = await this.fetchImpl(url, { headers: { accept: 'application/json' } });
+    } catch (cause) {
+      throw new NetworkError(`request to ${procedure} failed`, { cause });
+    }
+
+    if (!res.ok) {
+      if (res.status === 404) throw new NotFoundError(`${procedure} not found`);
+      throw new ApiError(`${procedure} failed with status ${res.status}`, res.status);
+    }
+
     const body = (await res.json()) as { result?: { data?: T } };
     return body.result?.data ?? null;
   }
 
-  /** Fetch a developer's profile + on-chain stats, or null if not found. */
+  /**
+   * Fetch a developer's profile + on-chain stats, or `null` if not found. Other
+   * failures (network down, server error) throw the corresponding typed error.
+   */
   async getProfile(handle: Handle): Promise<ProfileResponse | null> {
-    return this.query<ProfileResponse>('profile.byHandle', { handle });
+    try {
+      return await this.query<ProfileResponse>('profile.byHandle', { handle });
+    } catch (err) {
+      if (err instanceof NotFoundError) return null;
+      throw err;
+    }
   }
 
   /** List every curated handle in the registry. */
