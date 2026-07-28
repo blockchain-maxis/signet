@@ -14,13 +14,13 @@
 
 /** Human-readable messages keyed by their contract Error discriminant. */
 const CONTRACT_ERROR_MESSAGES: Record<number, string> = {
-  1: 'The registry is already initialised.',       // AlreadyInitialized
+  1: 'The registry is already initialised.', // AlreadyInitialized
   2: 'The registry has not been initialised yet.', // NotInitialized
-  3: 'That handle is already taken.',              // HandleTaken
-  4: 'Handle not found.',                          // HandleNotFound
-  5: 'You are not the owner of that handle.',      // NotOwner
+  3: 'That handle is already taken.', // HandleTaken
+  4: 'Handle not found.', // HandleNotFound
+  5: 'You are not the owner of that handle.', // NotOwner
   6: 'That handle is invalid. Use 1–32 lowercase letters, digits, hyphens, or underscores.', // InvalidHandle
-  7: 'This wallet already has a handle.',          // WalletAlreadyBound
+  7: 'This wallet already has a handle.', // WalletAlreadyBound
 } as const;
 
 const FALLBACK_MESSAGE = 'An unexpected contract error occurred. Please try again.';
@@ -58,11 +58,11 @@ export function parseClaimError(error: unknown): string {
 
   // claimHandle throws: `Claim submission failed: <JSON>`
   // The JSON may contain a nested `errorResult` with a Soroban contract error.
-  const match = error.message.match(/:\s*(\{.*\})\s*$/s);
-  if (match) {
+  const payload = error.message.match(/:\s*(\{.*\})\s*$/s)?.[1];
+  if (payload) {
     try {
       // Walk the parsed object looking for a numeric contract error code.
-      const code = extractContractErrorCode(JSON.parse(match[1]));
+      const code = extractContractErrorCode(JSON.parse(payload));
       if (code !== null) {
         return contractErrorMessage(code);
       }
