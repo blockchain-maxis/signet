@@ -208,6 +208,15 @@ fn transfer_handle_happy_path() {
 
     client.transfer_handle(&handle, &new_wallet);
 
+    // `env.auths()` and `env.events()` only reflect the most recent invocation, so both
+    // must be read before any further client calls.
+    let auths = env.auths();
+    assert_eq!(auths.len(), 1);
+    assert_eq!(auths[0].0, old_wallet);
+
+    // Verify event was emitted
+    assert!(!env.events().all().events().is_empty());
+
     // Bindings updated correctly
     assert_eq!(client.resolve(&handle), Some(new_wallet.clone()));
     assert_eq!(client.lookup(&new_wallet), Some(handle.clone()));
@@ -216,14 +225,28 @@ fn transfer_handle_happy_path() {
 
     // Count is preserved
     assert_eq!(client.count(), 1);
+}
 
-    // Verify auth was requested from old owner
-    let auths = env.auths();
-    assert_eq!(auths.len(), 1);
-    assert_eq!(auths[0].0, old_wallet);
+#[test]
+fn transfer_handle_requires_current_owner_auth() {
+    let (env, client, _admin) = setup();
+    let old_wallet = Address::generate(&env);
+    let new_wallet = Address::generate(&env);
+    let handle = String::from_str(&env, "aquawolf");
 
-    // Verify event was emitted
-    assert!(!env.events().all().events().is_empty());
+    client.claim(&handle, &old_wallet);
+
+    // Drop the blanket auth mock: nobody authorizes the transfer.
+    env.set_auths(&[]);
+    let res = client.try_transfer_handle(&handle, &new_wallet);
+    assert!(res.is_err());
+
+    // The binding is untouched.
+    env.mock_all_auths();
+    assert_eq!(client.resolve(&handle), Some(old_wallet.clone()));
+    assert_eq!(client.lookup(&old_wallet), Some(handle.clone()));
+    assert_eq!(client.lookup(&new_wallet), None);
+    assert_eq!(client.count(), 1);
 }
 
 #[test]
@@ -256,4 +279,3 @@ fn transfer_handle_target_wallet_already_bound_errors() {
     assert_eq!(client.lookup(&old_wallet), Some(handle1.clone()));
     assert_eq!(client.count(), 2);
 }
-

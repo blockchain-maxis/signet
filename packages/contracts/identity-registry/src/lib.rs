@@ -109,7 +109,8 @@ impl IdentityRegistry {
     /// Fails if the handle is not found or if the target wallet already holds a handle.
     pub fn transfer_handle(env: Env, handle: String, new_wallet: Address) -> Result<(), Error> {
         Self::require_initialized(&env)?;
-        let current_owner = Self::resolve(env.clone(), handle.clone()).ok_or(Error::HandleNotFound)?;
+        let current_owner =
+            Self::resolve(env.clone(), handle.clone()).ok_or(Error::HandleNotFound)?;
         current_owner.require_auth();
 
         let new_wallet_key = DataKey::Handle(new_wallet.clone());
