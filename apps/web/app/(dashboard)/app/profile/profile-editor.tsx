@@ -70,8 +70,8 @@ export function ProfileEditor() {
   if (status === 'no-profile') {
     return (
       <p className="max-w-[640px] text-[14px] leading-[1.7] text-[#8a8779]">
-        No profile is bound to this wallet yet. Claim a handle on-chain via the Identity
-        Registry, and the indexer will create your profile — then you can edit it here.
+        No profile is bound to this wallet yet. Claim a handle on-chain via the Identity Registry,
+        and the indexer will create your profile — then you can edit it here.
       </p>
     );
   }
@@ -81,7 +81,11 @@ export function ProfileEditor() {
     'w-full border border-[#1f1d19] bg-transparent px-4 py-3 text-[14px] text-[#f5f4ee] outline-none focus:border-[#5e5b51]';
 
   return (
-    <form onSubmit={save} className="max-w-[560px] space-y-7" style={{ fontFamily: 'var(--font-mono)' }}>
+    <form
+      onSubmit={save}
+      className="max-w-[560px] space-y-7"
+      style={{ fontFamily: 'var(--font-mono)' }}
+    >
       <p className="text-[13px] text-[#8a8779]">
         Editing <code className="text-[#b8b5a8]">/p/{handle}</code>
       </p>

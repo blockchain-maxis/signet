@@ -122,5 +122,6 @@ export async function updateAccount(address: string, update: AccountUpdate): Pro
     handle: profile.handle,
     displayName: profile.displayName,
     bio: profile.bio,
+    dbConfigured: true,
   };
 }
