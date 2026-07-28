@@ -10,6 +10,10 @@ import { runAttestationWorker } from './workers/attestation.js';
 import { runOperationsWorker } from './workers/operations.js';
 
 let shuttingDown = false;
+let shuttingDownPrisma = false;
+
+/** Max time (ms) to wait for a graceful shutdown before force-exiting. */
+const SHUTDOWN_TIMEOUT_MS = 10_000;
 
 async function tick(
   horizon: ReturnType<typeof createHorizonServer>,
@@ -87,30 +91,66 @@ async function main(): Promise<void> {
 
   // Graceful shutdown
   function onSignal(signal: string) {
+    if (shuttingDown) {
+      // Second signal: force exit immediately
+      logger.warn({ signal }, 'indexer.force_shutdown');
+      process.exit(1);
+    }
     logger.info({ signal }, 'indexer.shutdown');
     shuttingDown = true;
   }
   process.on('SIGTERM', () => onSignal('SIGTERM'));
   process.on('SIGINT',  () => onSignal('SIGINT'));
 
-  // Main loop
-  while (!shuttingDown) {
-    try {
-      await tick(horizon, soroban, config);
-    } catch (err) {
-      logger.error({ error: String(err) }, 'tick.error');
-    }
+  try {
+    // Main loop
+    while (!shuttingDown) {
+      try {
+        await tick(horizon, soroban, config);
+      } catch (err) {
+        logger.error({ error: String(err) }, 'tick.error');
+      }
 
-    // Sleep in small chunks so we can react to shutdown quickly
-    const end = Date.now() + config.tickIntervalMs;
-    while (!shuttingDown && Date.now() < end) {
-      await sleep(250);
+      if (shuttingDown) break;
+
+      // Sleep in small chunks so we can react to shutdown quickly
+      const end = Date.now() + config.tickIntervalMs;
+      while (!shuttingDown && Date.now() < end) {
+        await sleep(250);
+      }
     }
+  } finally {
+    await gracefulShutdown();
   }
+}
+
+async function gracefulShutdown(): Promise<void> {
+  // Prevent concurrent shutdown attempts
+  if (shuttingDownPrisma) return;
+  shuttingDownPrisma = true;
 
   logger.info({}, 'indexer.stopping');
-  await disconnectDb();
-  process.exit(0);
+
+  // Force exit if graceful shutdown takes too long
+  const forceExit = setTimeout(() => {
+    logger.error({ timeoutMs: SHUTDOWN_TIMEOUT_MS }, 'indexer.force_exit');
+    process.exit(1);
+  }, SHUTDOWN_TIMEOUT_MS);
+  forceExit.unref();
+
+  try {
+    await disconnectDb();
+    process.exitCode = 0;
+  } catch (err) {
+    logger.error({ error: String(err) }, 'indexer.disconnect_error');
+    process.exitCode = 1;
+  } finally {
+    clearTimeout(forceExit);
+  }
+
+  // Ensure the process exits. After Prisma disconnect there may still be
+  // lingering handles that prevent the event loop from draining.
+  process.exit(process.exitCode);
 }
 
 main().catch((err: unknown) => {
