@@ -1,5 +1,6 @@
 import { currentAddress } from '@/lib/server/session';
 import { getAccountWallets } from '@/lib/server/account';
+import { isRegistryConfigured, lookupHandleOnchain } from '@/lib/server/registry-read';
 
 function truncate(a: string): string {
   return a.length > 18 ? `${a.slice(0, 8)}…${a.slice(-6)}` : a;
@@ -12,7 +13,18 @@ const EXPLORER = NETWORK === 'mainnet' || NETWORK === 'public' ? 'public' : 'tes
 
 export default async function WalletsPage() {
   const address = await currentAddress();
-  const wallets = address ? await getAccountWallets(address) : [];
+  const registryConfigured = isRegistryConfigured();
+
+  let wallets = address ? await getAccountWallets(address) : [];
+
+  // When the indexer/database has nothing yet, read the binding straight from
+  // the on-chain registry so a wallet claimed on-chain still shows up.
+  if (address && wallets.length === 0 && registryConfigured) {
+    const handle = await lookupHandleOnchain(address);
+    if (handle) {
+      wallets = [{ pubkey: address, isPrimary: true, source: 'onchain', attestedAt: '' }];
+    }
+  }
 
   return (
     <section>
@@ -28,8 +40,9 @@ export default async function WalletsPage() {
       <div className="mt-8 max-w-[640px] border border-[#1f1d19]">
         {wallets.length === 0 ? (
           <p className="px-6 py-6 text-[13px] leading-[1.7] text-[#5e5b51]" style={mono}>
-            No wallets are linked yet. Claim a handle on-chain and the indexer will attribute the
-            signing wallet here automatically.
+            {registryConfigured
+              ? 'No wallets are linked yet. Claim a handle on-chain and the signing wallet is attributed here automatically.'
+              : 'The Identity Registry is not deployed on this network yet, so on-chain wallet bindings can’t be read.'}
           </p>
         ) : (
           wallets.map((w, i) => (
