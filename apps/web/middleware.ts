@@ -11,6 +11,7 @@ import { NextResponse, type NextRequest } from 'next/server';
  *   docs        →  /docs
  *   profile     →  /profile/{handle}, /profile/{handle}/contract/{address}
  *   trpc api    →  /api/trpc/*
+ *   handles     →  /handles (the public directory)
  *
  * Resolution order:
  *   1. If there's a usable subdomain, route by subdomain.
@@ -42,6 +43,7 @@ const RESERVED = new Set([
   'static',
   'assets',
   'cdn',
+  'handles',
 ]);
 
 /**
@@ -116,6 +118,7 @@ export function middleware(req: NextRequest): NextResponse {
     first === 'profile' ||
     first === 'p' ||           // demo profiles live at /p/{handle}
     first === 'how-it-works' || // static informational page
+    first === 'handles' ||     // public handle directory
     first === 'api' ||
     first === '_next'
   ) {

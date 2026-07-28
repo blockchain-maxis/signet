@@ -10,11 +10,11 @@ jobs:
     name: lint • typecheck • test • build
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - uses: pnpm/action-setup@v6
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: pnpm
@@ -38,14 +38,14 @@ jobs:
     name: soroban contract tests
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: wasm32v1-none
 
       - name: Cache cargo
-        uses: actions/cache@v5
+        uses: actions/cache@v6
         with:
           path: |
             ~/.cargo/registry
@@ -61,15 +61,38 @@ jobs:
         working-directory: packages/contracts
         run: cargo build --target wasm32v1-none --release
 
+      # Guardrail against accidental contract bloat — a heavy dependency, a
+      # broken release profile (opt-level/lto/strip), or unbounded logic can
+      # balloon the deployment artifact. identity-registry is ~9 KB today; the
+      # 20 KB budget leaves headroom for planned growth while still catching a
+      # regression. Bump BUDGET_BYTES deliberately when a size increase is
+      # expected and justified.
+      - name: Wasm size budget
+        working-directory: packages/contracts
+        env:
+          BUDGET_BYTES: 20480
+        run: |
+          wasm="target/wasm32v1-none/release/identity_registry.wasm"
+          if [ ! -f "$wasm" ]; then
+            echo "::error::Expected wasm not found at $wasm"
+            exit 1
+          fi
+          size=$(wc -c < "$wasm")
+          echo "identity_registry.wasm: ${size} bytes (budget ${BUDGET_BYTES} bytes)"
+          if [ "$size" -gt "$BUDGET_BYTES" ]; then
+            echo "::error::Contract wasm ${size} bytes exceeds budget ${BUDGET_BYTES} bytes"
+            exit 1
+          fi
+
   security:
     name: dependency audit
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       - uses: pnpm/action-setup@v6
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 22
           cache: pnpm

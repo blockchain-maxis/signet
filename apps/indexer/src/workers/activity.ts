@@ -6,7 +6,9 @@ import { sleep } from '../stellar.js';
 const RATE_LIMIT_DELAY_MS = 100;
 const SNAPSHOT_TTL_MS = 5 * 60 * 1000; // 5 minutes
 
-export async function runActivityWorker(horizon: Horizon.Server): Promise<void> {
+export async function runActivityWorker(
+  horizon: Horizon.Server,
+): Promise<{ snapshotsWritten: number }> {
   const contracts = await prisma.contract.findMany({
     include: {
       snapshots: {
@@ -15,6 +17,7 @@ export async function runActivityWorker(horizon: Horizon.Server): Promise<void> 
       },
     },
   });
+  let snapshotsWritten = 0;
 
   for (const contract of contracts) {
     const lastSnapshot = contract.snapshots[0];
@@ -60,10 +63,13 @@ export async function runActivityWorker(horizon: Horizon.Server): Promise<void> 
         lastActivity,
       },
     });
+    snapshotsWritten++;
 
-    logger.info(
+    logger.debug(
       { contract: contract.address, txCountTotal, txCount24h },
       'activity.refreshed',
     );
   }
+
+  return { snapshotsWritten };
 }

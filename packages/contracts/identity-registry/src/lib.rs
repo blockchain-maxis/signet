@@ -105,12 +105,48 @@ impl IdentityRegistry {
         Ok(())
     }
 
+    /// Transfer a handle to a new wallet. Requires authentication from the current owner.
+    /// Fails if the handle is not found or if the target wallet already holds a handle.
+    pub fn transfer_handle(env: Env, handle: String, new_wallet: Address) -> Result<(), Error> {
+        Self::require_initialized(&env)?;
+        let current_owner =
+            Self::resolve(env.clone(), handle.clone()).ok_or(Error::HandleNotFound)?;
+        current_owner.require_auth();
+
+        let new_wallet_key = DataKey::Handle(new_wallet.clone());
+        if env.storage().persistent().has(&new_wallet_key) {
+            return Err(Error::WalletAlreadyBound);
+        }
+
+        let owner_key = DataKey::Owner(handle.clone());
+        let current_owner_key = DataKey::Handle(current_owner.clone());
+
+        env.storage().persistent().remove(&current_owner_key);
+
+        env.storage().persistent().set(&owner_key, &new_wallet);
+        env.storage().persistent().set(&new_wallet_key, &handle);
+
+        env.storage()
+            .persistent()
+            .extend_ttl(&owner_key, BUMP_THRESHOLD, BUMP_LEDGERS);
+        env.storage()
+            .persistent()
+            .extend_ttl(&new_wallet_key, BUMP_THRESHOLD, BUMP_LEDGERS);
+
+        env.events().publish(
+            (soroban_sdk::Symbol::new(&env, "transferred"), handle),
+            (current_owner, new_wallet),
+        );
+
+        Ok(())
+    }
+
     /// Release a handle. Only the owning wallet may call this.
     pub fn release(env: Env, handle: String) -> Result<(), Error> {
         Self::require_initialized(&env)?;
         let wallet = Self::resolve(env.clone(), handle.clone()).ok_or(Error::HandleNotFound)?;
         wallet.require_auth();
-        Self::remove_binding(&env, &handle, &wallet);
+        Self::remove_binding(&env, &handle, &wallet, symbol_short!("released"));
         Ok(())
     }
 
@@ -123,7 +159,7 @@ impl IdentityRegistry {
             .ok_or(Error::NotInitialized)?;
         admin.require_auth();
         let wallet = Self::resolve(env.clone(), handle.clone()).ok_or(Error::HandleNotFound)?;
-        Self::remove_binding(&env, &handle, &wallet);
+        Self::remove_binding(&env, &handle, &wallet, symbol_short!("revoked"));
         Ok(())
     }
 
@@ -171,7 +207,12 @@ impl IdentityRegistry {
         }
     }
 
-    fn remove_binding(env: &Env, handle: &String, wallet: &Address) {
+    fn remove_binding(
+        env: &Env,
+        handle: &String,
+        wallet: &Address,
+        event_name: soroban_sdk::Symbol,
+    ) {
         env.storage()
             .persistent()
             .remove(&DataKey::Owner(handle.clone()));
@@ -185,7 +226,7 @@ impl IdentityRegistry {
             .set(&DataKey::Count, &count.saturating_sub(1));
 
         env.events()
-            .publish((symbol_short!("released"), handle.clone()), wallet.clone());
+            .publish((event_name, handle.clone()), wallet.clone());
     }
 }
 

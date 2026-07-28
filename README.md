@@ -54,7 +54,12 @@ Visit `http://localhost:3000/p/aquawolf` for the first demo profile.
 
 > **Requires Node 22+.** Fonts (`IBM Plex Sans`/`Mono`) load via a browser-side `@import` in `globals.css` (not `next/font`), so the build never blocks on font downloads.
 
-## Architecture (planned)
+## Architecture
+
+**See [`ARCHITECTURE.md`](ARCHITECTURE.md)** for the real data flows
+(`claim → event → attestation → DB` and `wallet → operations → DB`), the read
+path, and a precise breakdown of what is **deployed** vs **operational-only**.
+The two flows are code-complete; the diagram below sketches how the pieces fit.
 
 ```
 ┌─────────────────────────────────────────────────────┐

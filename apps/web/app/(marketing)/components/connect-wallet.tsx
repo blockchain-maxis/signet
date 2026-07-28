@@ -1,11 +1,23 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { connectWallet, disconnectWallet, getConnectedAddress } from '@/lib/wallet';
 import { claimHandle, isRegistryConfigured, RegistryNotConfiguredError } from '@/lib/registry';
 
 function truncate(addr: string): string {
   return addr.length > 12 ? `${addr.slice(0, 5)}…${addr.slice(-4)}` : addr;
+}
+
+const HANDLE_PATTERN = /^[a-z0-9_-]{1,32}$/;
+
+function validateHandle(handle: string): string | null {
+  if (!handle) return 'Handle is required';
+  if (!HANDLE_PATTERN.test(handle)) {
+    if (handle.length > 32) return 'Handle must be 32 characters or less';
+    return 'Handle can only contain lowercase letters, numbers, underscores, and hyphens';
+  }
+  return null;
 }
 
 type Variant = 'nav' | 'cta';
@@ -22,12 +34,18 @@ export function ConnectWallet({
   variant?: Variant;
   className?: string;
 }) {
+  const router = useRouter();
   const [address, setAddress] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
+  const [showClaimForm, setShowClaimForm] = useState(false);
+  const [handle, setHandle] = useState('');
+  const [validationError, setValidationError] = useState<string | null>(null);
 
   useEffect(() => {
-    getConnectedAddress().then(setAddress).catch(() => {});
+    getConnectedAddress()
+      .then(setAddress)
+      .catch(() => {});
   }, []);
 
   async function onConnect() {
@@ -42,15 +60,38 @@ export function ConnectWallet({
     }
   }
 
-  async function onClaim() {
+  function onClaimClick() {
     if (!address) return onConnect();
-    const handle = window.prompt('Choose your Signet handle (a–z, 0–9, _ or -):')?.trim();
-    if (!handle) return;
+    setShowClaimForm(true);
+    setStatus(null);
+    setValidationError(null);
+  }
+
+  function handleInputChange(value: string) {
+    setHandle(value);
+    const error = validateHandle(value);
+    setValidationError(error);
+  }
+
+  async function onSubmitClaim() {
+    if (!address || !handle) return;
+
+    const error = validateHandle(handle);
+    if (error) {
+      setValidationError(error);
+      return;
+    }
+
     setBusy(true);
     setStatus(null);
     try {
       const { hash } = await claimHandle(handle, address);
       setStatus(`Claimed! tx ${truncate(hash)}`);
+      setShowClaimForm(false);
+      // Navigate to the public profile page on success
+      setTimeout(() => {
+        router.push(`/p/${handle}`);
+      }, 1500);
     } catch (err) {
       if (err instanceof RegistryNotConfiguredError) {
         setStatus('On-chain claim launches in Phase 2 — registry not yet deployed.');
@@ -62,10 +103,20 @@ export function ConnectWallet({
     }
   }
 
+  function onCancelClaim() {
+    setShowClaimForm(false);
+    setHandle('');
+    setValidationError(null);
+    setStatus(null);
+  }
+
   async function onDisconnect() {
     await disconnectWallet();
     setAddress(null);
     setStatus(null);
+    setShowClaimForm(false);
+    setHandle('');
+    setValidationError(null);
   }
 
   const label = busy
@@ -84,11 +135,71 @@ export function ConnectWallet({
         : `Disconnect ${address}`
       : 'Connect wallet';
 
+  // Show claim form
+  if (showClaimForm && address) {
+    return (
+      <span className="inline-flex flex-col items-start gap-2">
+        <div className="flex flex-col gap-2">
+          <input
+            type="text"
+            value={handle}
+            onChange={(e) => handleInputChange(e.target.value)}
+            placeholder="your-handle"
+            disabled={busy}
+            className="rounded border border-[#8b1a1a] bg-[#f5f4ee] px-3 py-2 text-sm font-mono text-[#1a1816] placeholder:text-[#8a8779] focus:outline-none focus:ring-2 focus:ring-[#8b1a1a] disabled:opacity-50"
+            maxLength={32}
+            autoFocus
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !validationError && handle) {
+                onSubmitClaim();
+              } else if (e.key === 'Escape') {
+                onCancelClaim();
+              }
+            }}
+          />
+          {validationError && (
+            <span className="text-xs text-[#8b1a1a]" style={{ fontFamily: 'var(--font-mono)' }}>
+              {validationError}
+            </span>
+          )}
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={onSubmitClaim}
+              disabled={busy || !handle || !!validationError}
+              className="rounded bg-[#8b1a1a] px-4 py-2 text-sm text-[#f5f4ee] hover:bg-[#6d1515] disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {busy ? 'Claiming…' : 'Claim'}
+            </button>
+            <button
+              type="button"
+              onClick={onCancelClaim}
+              disabled={busy}
+              className="rounded border border-[#8b1a1a] px-4 py-2 text-sm text-[#8b1a1a] hover:bg-[#8b1a1a] hover:text-[#f5f4ee] disabled:opacity-50"
+            >
+              Cancel
+            </button>
+          </div>
+        </div>
+        {status && (
+          <span
+            role="status"
+            aria-live="polite"
+            className="max-w-[260px] text-[10px] leading-tight text-[#8a8779]"
+            style={{ fontFamily: 'var(--font-mono)' }}
+          >
+            {status}
+          </span>
+        )}
+      </span>
+    );
+  }
+
   return (
     <span className="inline-flex flex-col items-start gap-1">
       <button
         type="button"
-        onClick={variant === 'cta' ? onClaim : address ? onDisconnect : onConnect}
+        onClick={variant === 'cta' ? onClaimClick : address ? onDisconnect : onConnect}
         disabled={busy}
         className={`${className} focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b1a1a] focus-visible:ring-offset-2 focus-visible:ring-offset-[#0a0908]`}
         aria-label={actionLabel}

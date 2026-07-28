@@ -1,9 +1,9 @@
-"use client";
-import { useRef } from "react";
-import { motion, useScroll, useTransform } from "framer-motion";
-import { Seal } from "../components/seal";
-import { SignetMonogram } from "../components/signet-monogram";
-import { ConnectWallet } from "../components/connect-wallet";
+'use client';
+import { useRef } from 'react';
+import { motion, useScroll, useTransform } from 'framer-motion';
+import { Seal } from '../components/seal';
+import { SignetMonogram } from '../components/signet-monogram';
+import { ConnectWallet } from '../components/connect-wallet';
 
 export function Hero() {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -15,16 +15,13 @@ export function Hero() {
   const heroFade = useTransform(scrollY, [0, 500], [1, 0.3]);
 
   return (
-    <div
-      ref={containerRef}
-      className="relative min-h-screen overflow-hidden"
-    >
+    <div ref={containerRef} className="relative min-h-screen overflow-hidden">
       {/* Vignette — hero only */}
       <div
         className="pointer-events-none fixed inset-0 z-20"
         style={{
           background:
-            "radial-gradient(ellipse 80% 70% at 50% 45%, transparent 0%, transparent 40%, #0a0908 100%)",
+            'radial-gradient(ellipse 80% 70% at 50% 45%, transparent 0%, transparent 40%, #0a0908 100%)',
         }}
       />
 
@@ -36,12 +33,18 @@ export function Hero() {
         </a>
         <div
           className="hidden gap-9 text-[11px] uppercase tracking-[0.22em] text-[#8a8779] md:flex"
-          style={{ fontFamily: "var(--font-mono)" }}
+          style={{ fontFamily: 'var(--font-mono)' }}
         >
-          <a href="/how-it-works" className="transition-colors hover:text-[#f5f4ee] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b1a1a] focus-visible:ring-offset-2 focus-visible:ring-offset-[#0a0908]">
+          <a
+            href="/how-it-works"
+            className="transition-colors hover:text-[#f5f4ee] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b1a1a] focus-visible:ring-offset-2 focus-visible:ring-offset-[#0a0908]"
+          >
             How it works
           </a>
-          <a href="/p/aquawolf" className="transition-colors hover:text-[#f5f4ee] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b1a1a] focus-visible:ring-offset-2 focus-visible:ring-offset-[#0a0908]">
+          <a
+            href="/p/aquawolf"
+            className="transition-colors hover:text-[#f5f4ee] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b1a1a] focus-visible:ring-offset-2 focus-visible:ring-offset-[#0a0908]"
+          >
             Demo
           </a>
         </div>
@@ -63,7 +66,7 @@ export function Hero() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1] }}
             className="flex items-center gap-3 text-[11px] uppercase tracking-[0.26em] text-[#8a8779]"
-            style={{ fontFamily: "var(--font-mono)" }}
+            style={{ fontFamily: 'var(--font-mono)' }}
           >
             <span className="relative inline-flex h-1.5 w-1.5">
               <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[#8b1a1a] opacity-70" />
@@ -77,13 +80,18 @@ export function Hero() {
           </motion.div>
 
           <h1
-            style={{ fontFamily: "var(--font-display)", fontWeight: 700, lineHeight: "0.96", letterSpacing: "-0.025em" }}
+            style={{
+              fontFamily: 'var(--font-display)',
+              fontWeight: 700,
+              lineHeight: '0.96',
+              letterSpacing: '-0.025em',
+            }}
             className="mt-8 text-[48px] text-[#f5f4ee] md:text-[64px] lg:text-[72px]"
           >
             <span className="block overflow-hidden">
               <motion.span
-                initial={{ y: "105%" }}
-                animate={{ y: "0%" }}
+                initial={{ y: '105%' }}
+                animate={{ y: '0%' }}
                 transition={{ duration: 1, delay: 0.1, ease: [0.16, 1, 0.3, 1] }}
                 className="block"
               >
@@ -92,8 +100,8 @@ export function Hero() {
             </span>
             <span className="block overflow-hidden">
               <motion.span
-                initial={{ y: "105%" }}
-                animate={{ y: "0%" }}
+                initial={{ y: '105%' }}
+                animate={{ y: '0%' }}
                 transition={{ duration: 1, delay: 0.22, ease: [0.16, 1, 0.3, 1] }}
                 className="block"
               >
@@ -102,8 +110,8 @@ export function Hero() {
             </span>
             <span className="block overflow-hidden pt-2 md:pt-4">
               <motion.span
-                initial={{ y: "105%" }}
-                animate={{ y: "0%" }}
+                initial={{ y: '105%' }}
+                animate={{ y: '0%' }}
                 transition={{ duration: 1, delay: 0.42, ease: [0.16, 1, 0.3, 1] }}
                 className="block text-[#b8b5a8]"
               >
@@ -117,11 +125,10 @@ export function Hero() {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.8, delay: 0.8, ease: [0.16, 1, 0.3, 1] }}
             className="mt-12 max-w-[460px] text-[15px] leading-[1.65] tracking-[-0.005em] text-[#8a8779]"
-            style={{ fontFamily: "var(--font-body)" }}
+            style={{ fontFamily: 'var(--font-body)' }}
           >
-            Signet aggregates every Soroban contract a developer has deployed
-            into a public, citable record. Used by grant programs, audit firms,
-            and protocols to assess deployer history.
+            Signet aggregates every Soroban contract a developer has deployed into a public, citable
+            record. Used by grant programs, audit firms, and protocols to assess deployer history.
           </motion.p>
 
           <motion.div
@@ -137,7 +144,7 @@ export function Hero() {
             <a
               href="/p/aquawolf"
               className="group inline-flex items-center gap-2.5 px-1 py-4 text-[12px] uppercase tracking-[0.18em] text-[#b8b5a8] transition-colors hover:text-[#f5f4ee]"
-              style={{ fontFamily: "var(--font-mono)" }}
+              style={{ fontFamily: 'var(--font-mono)' }}
             >
               <span className="border-b border-[#3d3a33] pb-1 transition-colors group-hover:border-[#f5f4ee]">
                 Browse the registry
@@ -151,7 +158,7 @@ export function Hero() {
             animate={{ opacity: 1 }}
             transition={{ duration: 1, delay: 1.4 }}
             className="mt-16 flex items-center gap-5 text-[10px] uppercase tracking-[0.24em] text-[#5e5b51]"
-            style={{ fontFamily: "var(--font-mono)" }}
+            style={{ fontFamily: 'var(--font-mono)' }}
           >
             <span className="h-px w-10 bg-[#3d3a33]" />
             <span>Curated demo profiles · synthetic testnet activity</span>
