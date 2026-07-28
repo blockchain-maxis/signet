@@ -38,10 +38,10 @@ export function Hero() {
           className="hidden gap-9 text-[11px] uppercase tracking-[0.22em] text-[#8a8779] md:flex"
           style={{ fontFamily: "var(--font-mono)" }}
         >
-          <a href="/how-it-works" className="transition-colors hover:text-[#f5f4ee]">
+          <a href="/how-it-works" className="transition-colors hover:text-[#f5f4ee] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b1a1a] focus-visible:ring-offset-2 focus-visible:ring-offset-[#0a0908]">
             How it works
           </a>
-          <a href="/p/aquawolf" className="transition-colors hover:text-[#f5f4ee]">
+          <a href="/p/aquawolf" className="transition-colors hover:text-[#f5f4ee] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b1a1a] focus-visible:ring-offset-2 focus-visible:ring-offset-[#0a0908]">
             Demo
           </a>
         </div>
