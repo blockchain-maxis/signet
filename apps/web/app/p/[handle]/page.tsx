@@ -1,6 +1,7 @@
 import { notFound } from 'next/navigation';
 import { SignetMonogram } from '../../(marketing)/components/signet-monogram';
 import { getProfile, getOperations, listHandles, computeStats, type Operation } from '@/lib/profiles';
+import { CopyAddress } from './copy-address';
 
 // Pre-render the curated profiles at build time; unknown handles 404.
 export async function generateStaticParams() {
@@ -136,13 +137,10 @@ export default async function ProfilePage({ params }: { params: Promise<{ handle
           <SectionLabel>Linked wallet</SectionLabel>
           <div className="mt-6 border border-[#1f1d19]">
             <div className="flex flex-wrap items-center justify-between gap-4 px-5 py-4">
-              <span
-                className="text-[13px] text-[#b8b5a8]"
-                style={{ fontFamily: 'var(--font-mono)' }}
-                title={profile.wallet}
-              >
-                {truncate(profile.wallet, 8, 6)}
-              </span>
+              <CopyAddress
+                address={profile.wallet}
+                display={truncate(profile.wallet, 8, 6)}
+              />
               <a
                 href={`https://stellar.expert/explorer/${NETWORK}/account/${profile.wallet}`}
                 target="_blank"
