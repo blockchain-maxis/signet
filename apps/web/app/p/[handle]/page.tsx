@@ -2,10 +2,24 @@ import { notFound } from 'next/navigation';
 import { SignetMonogram } from '../../(marketing)/components/signet-monogram';
 import { getProfile, getOperations, listHandles, computeStats, type Operation } from '@/lib/profiles';
 
-// Pre-render the curated profiles at build time; unknown handles 404.
+// Pre-render the curated profiles at build time so they're served straight
+// from the edge cache.
 export async function generateStaticParams() {
   return (await listHandles()).map((handle) => ({ handle }));
 }
+
+// Handles are claimed on-chain continuously, so the set known at build time is
+// always stale. Anything outside `generateStaticParams` is rendered on demand
+// and then cached — a handle claimed after the last build resolves without a
+// redeploy, and `getProfile` still returns null (→ 404) for one that was never
+// claimed. Without this, a miss would be a hard 404 until the next deploy.
+export const dynamicParams = true;
+
+// Re-render a cached profile at most once a minute, so newly indexed on-chain
+// activity shows up shortly after it lands instead of being frozen at the
+// value captured on first render. Short enough to feel live, long enough that
+// a shared profile link doesn't re-query Postgres on every view.
+export const revalidate = 60;
 
 function truncate(str: string, head: number, tail: number): string {
   if (str.length <= head + tail + 3) return str;
