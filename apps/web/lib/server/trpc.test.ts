@@ -58,8 +58,11 @@ test('account.me returns the signed-in address', async () => {
   __resetRateLimit();
   const res = await authedCaller('10.0.2.2', 'GTESTADDRESS').account.me();
   assert.equal(res.address, 'GTESTADDRESS');
-  assert.equal(res.handle, null); // no database configured under test
+  // Neither a database nor a registry contract id is configured under test,
+  // so there is nothing to resolve the handle from.
+  assert.equal(res.handle, null);
   assert.equal(res.dbConfigured, false);
+  assert.equal(res.editable, false);
 });
 
 test('account.update is rejected without a session', async () => {
