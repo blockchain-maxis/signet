@@ -2,8 +2,10 @@ import type { Horizon } from '@stellar/stellar-sdk';
 import { prisma } from '../db.js';
 import { logger } from '../logger.js';
 import { sleep } from '../stellar.js';
+import { withRetry } from '../retry.js';
 
 const RATE_LIMIT_DELAY_MS = 100;
+const RETRY_LABEL = 'operations.horizon';
 const PER_WALLET_LIMIT = 50;
 
 /**
@@ -24,12 +26,16 @@ export async function runOperationsWorker(horizon: Horizon.Server): Promise<Oper
   for (const wallet of wallets) {
     let stored = 0;
     try {
-      const ops = await horizon
-        .operations()
-        .forAccount(wallet.pubkey)
-        .order('desc')
-        .limit(PER_WALLET_LIMIT)
-        .call();
+      const ops = await withRetry(
+        () =>
+          horizon
+            .operations()
+            .forAccount(wallet.pubkey)
+            .order('desc')
+            .limit(PER_WALLET_LIMIT)
+            .call(),
+        { label: RETRY_LABEL },
+      );
       await sleep(RATE_LIMIT_DELAY_MS);
 
       for (const op of ops.records) {
