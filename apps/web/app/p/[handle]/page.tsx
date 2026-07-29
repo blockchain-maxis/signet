@@ -143,15 +143,17 @@ export default async function ProfilePage({ params }: { params: Promise<{ handle
               >
                 {truncate(profile.wallet, 8, 6)}
               </span>
-              <a
-                href={`https://stellar.expert/explorer/${NETWORK}/account/${profile.wallet}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-[10px] uppercase tracking-[0.2em] text-[#8b1a1a] transition-colors hover:text-[#c2410c]"
-                style={{ fontFamily: 'var(--font-mono)' }}
-              >
-                Stellar Expert ↗
-              </a>
+              {profile.isDemo ? null : (
+                <a
+                  href={`https://stellar.expert/explorer/${NETWORK}/account/${profile.wallet}`}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-[10px] uppercase tracking-[0.2em] text-[#8b1a1a] transition-colors hover:text-[#c2410c]"
+                  style={{ fontFamily: 'var(--font-mono)' }}
+                >
+                  Stellar Expert ↗
+                </a>
+              )}
             </div>
           </div>
         </section>
@@ -251,15 +253,25 @@ export default async function ProfilePage({ params }: { params: Promise<{ handle
                       {fmtDate(op.created_at)}
                     </span>
                     {op.transaction_hash ? (
-                      <a
-                        href={stellarExpertTx(op.transaction_hash)}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="whitespace-nowrap text-[10px] uppercase tracking-[0.18em] text-[#8b1a1a] transition-colors hover:text-[#c2410c]"
-                        style={{ fontFamily: 'var(--font-mono)' }}
-                      >
-                        Verify ↗
-                      </a>
+                      profile.isDemo ? (
+                        <span
+                          className="whitespace-nowrap text-[10px] text-[#5e5b51]"
+                          style={{ fontFamily: 'var(--font-mono)' }}
+                          title={op.transaction_hash}
+                        >
+                          {truncate(op.transaction_hash, 6, 4)}
+                        </span>
+                      ) : (
+                        <a
+                          href={stellarExpertTx(op.transaction_hash)}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="whitespace-nowrap text-[10px] uppercase tracking-[0.18em] text-[#8b1a1a] transition-colors hover:text-[#c2410c]"
+                          style={{ fontFamily: 'var(--font-mono)' }}
+                        >
+                          Verify ↗
+                        </a>
+                      )
                     ) : (
                       <span className="text-[10px] text-[#3d3a33]" style={{ fontFamily: 'var(--font-mono)' }}>—</span>
                     )}

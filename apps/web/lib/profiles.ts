@@ -17,6 +17,12 @@ export type Profile = {
   wallet: string;
   bio: string;
   joined: string;
+  /**
+   * True when the profile is sourced from the static demo JSON rather than
+   * the live DB/indexer. Explorer links should not be rendered for demo
+   * profiles because the synthetic tx hashes and wallets don't exist on-chain.
+   */
+  isDemo: boolean;
 };
 
 export type Operation = {
@@ -62,8 +68,10 @@ export async function getProfile(handle: string): Promise<Profile | null> {
   // returns null whenever there's no DB, so this is a no-op until provisioned.
   const fromDb = await safeDbProfile(handle);
   if (fromDb) return fromDb;
-  const manifest = await readJson<Record<string, Profile>>('profiles.json');
-  return manifest?.[handle] ?? null;
+  const manifest = await readJson<Record<string, Omit<Profile, 'isDemo'>>>('profiles.json');
+  const raw = manifest?.[handle];
+  if (!raw) return null;
+  return { ...raw, isDemo: true };
 }
 
 export async function getOperations(handle: string): Promise<Operation[]> {
@@ -125,6 +133,7 @@ export async function safeDbProfile(handle: string): Promise<Profile | null> {
       wallet: row.wallets[0]?.pubkey ?? '',
       bio: row.bio ?? '',
       joined: row.createdAt.toISOString().slice(0, 10),
+      isDemo: false,
     };
   } catch {
     return null;
