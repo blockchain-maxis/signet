@@ -86,10 +86,10 @@ How a wallet becomes bound to a handle, self-sovereignly, with no trusted oracle
 4. **Result.** The database now holds on-chain-verified bindings. On the website
    these take precedence over the curated seed mapping (see *Read path* below).
 
-> This flow only runs once the registry contract is deployed and its id is
-> configured — see *Deployed vs operational-only*. Until then, `claimHandle`
-> throws `RegistryNotConfiguredError` and the UI shows an honest "Phase 2"
-> state, and the attestation worker no-ops.
+> The registry is deployed on testnet (see *Deployed vs operational-only*), so
+> this flow runs wherever its contract id is configured. Without an id,
+> `claimHandle` throws `RegistryNotConfiguredError` and the UI shows an honest
+> "Phase 2" state, and the attestation worker no-ops.
 
 ---
 
@@ -165,17 +165,18 @@ and skipped without advancing the relevant cursor, so the next tick retries.
 **Deployed & serving traffic today**
 
 - **Web app** — built and hosted on Netlify via git integration
-  ([`netlify.toml`](netlify.toml)): landing, `/how-it-works`, and the three demo
-  profiles at `/p/{handle}`, rendered from the static manifest using **synthetic
-  testnet data**. The tRPC API and SIWS auth surface ship with it.
+  ([`netlify.toml`](netlify.toml)): landing, `/how-it-works`, `/handles`, and the
+  three demo profiles at `/p/{handle}`, rendered from the static manifest using
+  **synthetic testnet data**. The tRPC API and SIWS auth surface ship with it.
+- **Identity Registry contract** — deployed to Stellar **testnet** on
+  **2026-07-09** at `CASFJHI5PQSRWS7JV25CF7FOMRKIVBP3RXRP3E2GH2CV4BCAG7FUJRCN`
+  and `initialize`d. Set `NEXT_PUBLIC_IDENTITY_REGISTRY_ID` (web) and
+  `INDEXER_REGISTRY_CONTRACT_ID` (indexer) to that id to activate the claim +
+  attestation flow. Not yet deployed to mainnet.
 
 **Code-complete but operational-only** (built, tested, and containerised —
 needs provisioning to go live; this is "Phase 2")
 
-- **Identity Registry contract** — compiles to wasm and is unit-tested, but is
-  **not yet deployed on-chain**. Deploy it, then set
-  `NEXT_PUBLIC_IDENTITY_REGISTRY_ID` (web) and `INDEXER_REGISTRY_CONTRACT_ID`
-  (indexer) to activate the claim + attestation flow.
 - **Indexer worker** — packaged by [`apps/indexer/Dockerfile`](apps/indexer/Dockerfile)
   and published to GHCR by the opt-in [`deploy.yml`](.github/workflows/deploy.yml)
   (`migrate` → build/push image), gated on the `DEPLOY_ENABLED` repo variable.

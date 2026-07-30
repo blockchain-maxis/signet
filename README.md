@@ -2,6 +2,29 @@
 
 Signet is a verifiable developer career record built on Stellar/Soroban. Developers link their deployment wallets to a profile; on-chain attestations bind wallet → identity; an indexer pulls every contract they've deployed along with its activity. Public profiles become the canonical record of a developer's smart-contract career.
 
+## Status
+
+| Component | Network / host | State |
+|-----------|----------------|-------|
+| **Identity Registry** contract | Stellar **testnet** | **Deployed 2026-07-09** — `CASFJHI5PQSRWS7JV25CF7FOMRKIVBP3RXRP3E2GH2CV4BCAG7FUJRCN`, wasm executable, `initialize`d |
+| **Identity Registry** contract | Stellar **mainnet** | Not deployed |
+| **Web app** (`apps/web`) | Netlify ([`netlify.toml`](netlify.toml)) | Deployed — landing, `/how-it-works`, `/handles`, tRPC API, SIWS auth, demo profiles |
+| **Indexer** (`apps/indexer`) | GHCR image, opt-in [`deploy.yml`](.github/workflows/deploy.yml) | Code-complete, not provisioned — needs a Postgres to point at |
+| **PostgreSQL** (`packages/db`) | — | Prisma schema + migrations committed; no hosted instance |
+
+Point the app at the deployed registry with:
+
+```bash
+NEXT_PUBLIC_IDENTITY_REGISTRY_ID=CASFJHI5PQSRWS7JV25CF7FOMRKIVBP3RXRP3E2GH2CV4BCAG7FUJRCN
+```
+
+**What the deployment does *not* change:** the three profiles at `/p/{handle}`
+still render the curated **synthetic testnet manifest** in
+`apps/web/public/data/` — a live registry does not make that data real activity.
+`/handles` is the one surface that reads live on-chain state (the registry's
+`claimed`/`released` event stream), and it falls back to the same curated manifest
+when no contract id is configured or the RPC call fails.
+
 ## Live demo
 
 > Demo profiles use **synthetic data on Stellar testnet** — generated, unowned
@@ -14,6 +37,7 @@ Signet is a verifiable developer career record built on Stellar/Soroban. Develop
 | `/p/aquawolf` | Demo profile — Blend-style collateral ops (testnet, synthetic) |
 | `/p/sorobuilder` | Demo profile — Soroswap-style DEX swaps (testnet, synthetic) |
 | `/p/stellardev` | Demo profile — USDC token transfers (testnet, synthetic) |
+| `/handles` | Handle directory — live `claimed`/`released` events from the registry (curated manifest as fallback) |
 | `/how-it-works` | How Signet works + what's coming |
 
 ## What's working in this build
@@ -22,20 +46,21 @@ Signet is a verifiable developer career record built on Stellar/Soroban. Develop
 - **Demo profiles at `/p/{handle}`** — server-rendered (SSG) profile pages reading synthetic testnet operation data from `apps/web/public/data/{handle}.json`; clearly labelled as demo data
 - **How it works page** — explains the thesis, what's live, and what's coming
 - **Middleware routing** — `/p/` and `/how-it-works` pass through; handles validated; legacy `/profile/` redirects to `/p/`
-- **Production data path** — the same UI renders real Horizon API data on mainnet once the indexer + registry are live (`safeDbProfile` already wires the DB-with-static fallback)
+- **Production data path** — the same UI renders real Horizon API data once the indexer + a Postgres instance are provisioned (`safeDbProfile` already wires the DB-with-static fallback)
 
 ## Also implemented
 
-- **On-chain Identity Registry** — a real Soroban contract (`packages/contracts/identity-registry`) binds a wallet to a handle via a signed `claim`; ownership is enforced by `require_auth`. 13 unit tests, builds to wasm.
-- **Wallet connect + claim flow** — `Connect wallet` / `Claim your handle` use Stellar Wallets Kit and submit the on-chain claim (`apps/web/lib/{wallet,registry}.ts`). Until the registry's contract id is configured (`NEXT_PUBLIC_IDENTITY_REGISTRY_ID`), the claim surfaces an honest "Phase 2" message.
+- **On-chain Identity Registry — deployed to testnet** — a real Soroban contract (`packages/contracts/identity-registry`) binds a wallet to a handle via a signed `claim`; ownership is enforced by `require_auth`. Live at `CASFJHI5PQSRWS7JV25CF7FOMRKIVBP3RXRP3E2GH2CV4BCAG7FUJRCN` since 2026-07-09 (see [Status](#status)). 18 unit tests, builds to wasm.
+- **Wallet connect + claim flow — live** — `Connect wallet` / `Claim your handle` use Stellar Wallets Kit and submit a real on-chain `claim` against the deployed registry (`apps/web/lib/{wallet,registry}.ts`) whenever `NEXT_PUBLIC_IDENTITY_REGISTRY_ID` is set. With no contract id configured, `claimHandle` throws `RegistryNotConfiguredError` and the UI shows an honest "Phase 2" message rather than a broken button.
+- **Public handle directory** — `/handles` rebuilds the currently-bound set from the registry's `claimed`/`released` event stream over Soroban RPC, with no database in the path (`apps/web/lib/directory.ts`).
 - **Real API + SDK** — tRPC `profile.byHandle` / `profile.list` / `health`; `@signet/sdk` fetches them. Both covered by tests.
 - **CI gates** lint · typecheck · test · build, plus a Rust contract job.
 
 ## What's coming next (Phase 2)
 
-- **Deploy the registry** to testnet/mainnet and set `NEXT_PUBLIC_IDENTITY_REGISTRY_ID` to make claims live.
+- **Mainnet deploy** of the Identity Registry (testnet is live — see [Status](#status)), plus a contract audit before it.
 - **Run the indexer** against a Postgres instance to populate full deployment/activity history; `/p` already has a DB-with-static-fallback loader (`safeDbProfile`).
-- **Self-sovereign bindings** replace the curated `profiles.json` mapping once claims are live.
+- **Self-sovereign bindings** replace the curated `profiles.json` mapping as claims land on the deployed registry.
 - **Developer dashboard** (`/app/*`) — currently an honest read-only preview pending wallet auth.
 - **Reputation scoring** — attestations, TVL tracking, incident records.
 
@@ -59,31 +84,40 @@ Visit `http://localhost:3000/p/aquawolf` for the first demo profile.
 **See [`ARCHITECTURE.md`](ARCHITECTURE.md)** for the real data flows
 (`claim → event → attestation → DB` and `wallet → operations → DB`), the read
 path, and a precise breakdown of what is **deployed** vs **operational-only**.
-The two flows are code-complete; the diagram below sketches how the pieces fit.
+Both flows are code-complete; the sketch below marks which pieces are running.
 
 ```
-┌─────────────────────────────────────────────────────┐
-│                    apps/web (Next.js)                │
-│  /p/{handle}   — canonical profile (static + DB-opt) │
-│  /profile/{handle} — legacy alias → redirects to /p  │
-└───────────────────┬─────────────────────────────────┘
-                    │
-          ┌─────────▼─────────┐
-          │   apps/indexer    │   Long-running worker
-          │ (TypeScript)      │   polls Horizon API,
-          │                   │   writes to Postgres
-          └─────────┬─────────┘
-                    │
-          ┌─────────▼─────────┐
-          │   packages/db     │   Prisma schema
-          │   (PostgreSQL)    │   Profile, Wallet,
-          │                   │   Contract, Snapshot
-          └───────────────────┘
-
-Implemented:
-  packages/contracts/identity-registry  — Soroban claim contract (13 tests)
-  packages/sdk                          — External SDK (fetches the tRPC API)
+browser ──▶  apps/web (Next.js)                                   [DEPLOYED]
+             /p/{handle} · /handles · /how-it-works · /api/trpc · /api/auth
+                  │                                    │
+    reads profile │                                    │ submits signed claim
+    (DB first,    │                                    ▼
+     static       │            Identity Registry (Soroban)  [DEPLOYED 2026-07-09]
+     fallback)    │            testnet · CASFJHI5…AG7FUJRCN
+                  │                                    │ emits claimed / released
+                  │                                    ▼
+                  │            apps/indexer (worker)        [OPERATIONAL-ONLY]
+                  │            attestation ← Soroban RPC getEvents
+                  │            deployment · operations · activity ← Horizon
+                  │                                    │ upserts
+                  ▼                                    ▼
+             packages/db (PostgreSQL)                       [OPERATIONAL-ONLY]
+             Profile · Wallet · Contract · Operation · ContractSnapshot
 ```
+
+`/handles` reads the registry's event stream over Soroban RPC directly — the
+indexer's Postgres sync is an accelerant for it, not a dependency.
+
+**Deployed & serving traffic**
+
+- `apps/web` on Netlify — landing, `/how-it-works`, `/handles`, demo profiles (synthetic manifest), tRPC API, SIWS auth
+- `packages/contracts/identity-registry` — Soroban contract on Stellar **testnet**, 18 `cargo test` unit tests, builds to wasm
+
+**Operational-only** — built and tested, needs provisioning to go live
+
+- `apps/indexer` — attestation + deployment + operations + activity workers; needs `DATABASE_URL`
+- `packages/db` — Prisma schema + committed migrations; no hosted Postgres yet
+- `packages/sdk` — external SDK over the tRPC API; in-tree, not yet published to npm
 
 ## Directory structure
 
@@ -108,3 +142,15 @@ Implemented:
 | `pnpm --filter @signet/web typecheck` | Typecheck web app |
 | `pnpm db:up` / `db:down` | Start / stop local Postgres |
 | `pnpm db:migrate` | Run Prisma migrations |
+| `pnpm test` | All TypeScript tests via Turborepo |
+| `cargo test` (in `packages/contracts`) | Identity Registry unit tests |
+
+## Tests
+
+| Suite | Count |
+|-------|-------|
+| `pnpm test` | **61** — `@signet/web` 51 · `@signet/indexer` 6 · `@signet/sdk` 4 (`types`, `ui`, `db` have no tests yet) |
+| `cargo test` | **18** — `packages/contracts/identity-registry` |
+
+Both are CI gates ([`ci.yml`](.github/workflows/ci.yml)), alongside `lint`,
+`typecheck`, `build` and the wasm contract build.
