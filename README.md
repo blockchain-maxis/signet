@@ -85,6 +85,14 @@ Implemented:
   packages/sdk                          — External SDK (fetches the tRPC API)
 ```
 
+## Integrating with the registry
+
+**See [`docs/REGISTRY_INTEGRATION.md`](docs/REGISTRY_INTEGRATION.md)** to resolve Signet
+handles from your own app: the deployed testnet contract id and passphrase, every
+`contracterror` code, the event topic/data layout, and `@stellar/stellar-sdk` snippets for
+reading (`resolve` / `lookup` / `is_bound` / `count`), claiming, and rebuilding the handle
+set from the event stream.
+
 ## Directory structure
 
 | Path | Purpose |
