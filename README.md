@@ -7,6 +7,8 @@ Signet is a verifiable developer career record built on Stellar/Soroban. Develop
 > Demo profiles use **synthetic data on Stellar testnet** — generated, unowned
 > accounts — so no real wallet's activity is attributed to an invented persona.
 > Production renders real mainnet activity bound on-chain via the Identity Registry.
+> Provenance, schema, regeneration, and the honesty policy:
+> [`docs/DEMO_DATA.md`](docs/DEMO_DATA.md).
 
 | URL | Description |
 |-----|-------------|
@@ -15,6 +17,7 @@ Signet is a verifiable developer career record built on Stellar/Soroban. Develop
 | `/p/sorobuilder` | Demo profile — Soroswap-style DEX swaps (testnet, synthetic) |
 | `/p/stellardev` | Demo profile — USDC token transfers (testnet, synthetic) |
 | `/how-it-works` | How Signet works + what's coming |
+| [`docs/DEMO_DATA.md`](docs/DEMO_DATA.md) | Demo fixture provenance, schema, and honesty policy |
 
 ## What's working in this build
 
