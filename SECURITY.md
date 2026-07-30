@@ -20,7 +20,21 @@ mitigation for confirmed high-severity issues within 30 days.
 
 - **`SIGNET_AUTH_SECRET`** must be set (≥16 random chars) in production —
   the app refuses the dev fallback when `NODE_ENV=production`. Rotate it (and
-  bump `SIGNET_SESSIONS_VALID_AFTER`) to revoke all sessions.
+  bump `SIGNET_SESSIONS_VALID_AFTER`, see below) to revoke all sessions.
+- **`SIGNET_SESSIONS_VALID_AFTER`** invalidates any session whose `iat`
+  (issued-at) claim is older than this value. Set it to an
+  [ISO 8601](https://en.wikipedia.org/wiki/ISO_8601) timestamp to force all
+  existing sessions to be re-authenticated. This is the mechanism for
+  bulk-revoking sessions after a credential rotation or security incident.
+
+  ```bash
+  # Revoke all sessions created before now
+  SIGNET_SESSIONS_VALID_AFTER=$(date -u +"%Y-%m-%dT%H:%M:%SZ")
+  ```
+
+  A good practice is to set this value to **the moment you rotate
+  `SIGNET_AUTH_SECRET`**, so that old-credential-issued sessions are rejected
+  immediately. The env var applies server-side and is read on each request.
 - The default rate limiter is per-instance; back it with a shared store
   (`setRateLimitStore`) for multi-instance deployments.
 - Security headers (CSP, HSTS, …) are set in `apps/web/next.config.js`. The CSP
