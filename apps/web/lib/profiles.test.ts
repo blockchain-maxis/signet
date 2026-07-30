@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { isValidHandle, getProfile, getOperations, listHandles } from './profiles.ts';
+import { isValidHandle, getProfile, getOperations, listHandles, computeStats } from './profiles.ts';
 
 test('isValidHandle accepts the registry charset', () => {
   for (const h of ['aquawolf', 'dev_01', 'a-b-c', 'x'.repeat(32)]) {
@@ -29,6 +29,11 @@ test('listHandles includes the curated profiles', async () => {
   const handles = await listHandles();
   assert.ok(handles.includes('aquawolf'));
   assert.ok(handles.length >= 3);
+});
+
+test('computeStats returns zeroed stats for missing or empty operations', () => {
+  assert.deepEqual(computeStats(undefined), { invocations: 0, uniqueFunctions: 0, reputation: 0 });
+  assert.deepEqual(computeStats([]), { invocations: 0, uniqueFunctions: 0, reputation: 0 });
 });
 
 test('getOperations returns an array (possibly empty) for any handle', async () => {

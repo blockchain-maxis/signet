@@ -91,8 +91,9 @@ function functionOf(op: Operation): string {
  * The score is a simple, explainable heuristic (not gameable signal yet):
  * volume of successful invocations + diversity of functions exercised.
  */
-export function computeStats(operations: Operation[]): ProfileStats {
-  const successful = operations.filter((op) => op.transaction_successful !== false);
+export function computeStats(operations: Operation[] | null | undefined): ProfileStats {
+  const source = Array.isArray(operations) ? operations : [];
+  const successful = source.filter((op) => op.transaction_successful !== false);
   const uniqueFunctions = new Set(successful.map(functionOf)).size;
   const invocations = successful.length;
   // 6 pts per invocation (cap 60) + 10 pts per distinct function (cap 40).
