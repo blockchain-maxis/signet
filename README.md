@@ -54,6 +54,13 @@ Visit `http://localhost:3000/p/aquawolf` for the first demo profile.
 
 > **Requires Node 22+.** Fonts (`IBM Plex Sans`/`Mono`) load via a browser-side `@import` in `globals.css` (not `next/font`), so the build never blocks on font downloads.
 
+## Self-host / deploy
+
+**See [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md)** for a clone-to-running guide:
+prerequisites, deploy key + Friendbot, wasm build, `infra/deploy-contract.sh`,
+`initialize(admin)`, Netlify (`netlify.toml`) and Vercel production env
+(including `SIGNET_AUTH_SECRET`), verification checklist, and rollback.
+
 ## Architecture
 
 **See [`ARCHITECTURE.md`](ARCHITECTURE.md)** for the real data flows
