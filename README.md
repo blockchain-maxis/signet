@@ -85,6 +85,13 @@ Implemented:
   packages/sdk                          — External SDK (fetches the tRPC API)
 ```
 
+## Running the indexer
+
+**See [`docs/INDEXER.md`](docs/INDEXER.md)** — the operator runbook: what each worker
+does, how cursors and the ledger-window cold start work, every `INDEXER_*` setting,
+running locally and in Docker, what the structured log lines mean, and a troubleshooting
+table for the common failures.
+
 ## Directory structure
 
 | Path | Purpose |
