@@ -54,6 +54,10 @@ Visit `http://localhost:3000/p/aquawolf` for the first demo profile.
 
 > **Requires Node 22+.** Fonts (`IBM Plex Sans`/`Mono`) load via a browser-side `@import` in `globals.css` (not `next/font`), so the build never blocks on font downloads.
 
+First-run failures (stellar CLI passphrase bug, Friendbot funding, missing
+`wasm32v1-none`, no `DATABASE_URL`, Phase 2 claim message, indexer without a
+registry id): see [`docs/TROUBLESHOOTING.md`](docs/TROUBLESHOOTING.md).
+
 ## Architecture
 
 **See [`ARCHITECTURE.md`](ARCHITECTURE.md)** for the real data flows
