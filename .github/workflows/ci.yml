@@ -6,6 +6,22 @@ on:
   pull_request:
 
 jobs:
+  docs:
+    name: docs links · env · scripts
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+
+      # Fails on broken relative links/anchors, env vars out of lockstep with
+      # .env.example, and pnpm/cargo script names cited in markdown that do not
+      # exist. No install step — pure Node stdlib, well under 60s.
+      - name: Check docs drift
+        run: node scripts/check-docs.mjs
+
   web:
     name: lint • typecheck • test • build
     runs-on: ubuntu-latest

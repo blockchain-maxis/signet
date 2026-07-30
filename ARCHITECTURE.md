@@ -193,6 +193,29 @@ needs provisioning to go live; this is "Phase 2")
 | `DATABASE_URL` | DB-backed reads and the indexer's write path (Flow 2) |
 | `DEPLOY_ENABLED` (repo var) + `DATABASE_URL` (secret) | Continuous delivery: prod migrations + indexer image publish |
 
+Full declarations and defaults live in [`.env.example`](.env.example). Every
+variable there is listed below so docs and the example file stay in lockstep
+(enforced by the `docs` CI job).
+
+| Variable | Consumed by | Notes |
+| --- | --- | --- |
+| `DATABASE_URL` | web, indexer, db | Optional for demo `/p` routes; required for indexer |
+| `STELLAR_NETWORK` | server / tooling | `testnet` or `mainnet` |
+| `STELLAR_HORIZON_URL` | server / indexer | Horizon base URL |
+| `SOROBAN_RPC_URL` | server, `/handles` directory | Soroban RPC; directory also accepts a dedicated override |
+| `NEXT_PUBLIC_APP_URL` | web | Public site origin |
+| `NEXT_PUBLIC_ROOT_DOMAIN` | web | Root domain for routing |
+| `SIGNET_AUTH_SECRET` | web (SIWS) | ≥16 chars in production |
+| `SIGNET_SESSIONS_VALID_AFTER` | web (SIWS) | Unix ms; bump to revoke all sessions |
+| `NEXT_PUBLIC_STELLAR_NETWORK` | web (wallet kit) | Client network label |
+| `NEXT_PUBLIC_SOROBAN_RPC_URL` | web (claims) | Browser-side RPC |
+| `NEXT_PUBLIC_IDENTITY_REGISTRY_ID` | web, indexer fallback | Empty → claim UI shows Phase 2 |
+| `INDEXER_REGISTRY_CONTRACT_ID` | indexer attestation | Falls back to `NEXT_PUBLIC_IDENTITY_REGISTRY_ID` |
+| `INDEXER_EVENT_WINDOW_LEDGERS` | indexer attestation | First-run event lookback |
+| `INDEXER_TICK_INTERVAL_MS` | indexer loop | Default `30000` |
+| `REGISTRY_CONTRACT_ID` | web `/handles` | Falls back to `NEXT_PUBLIC_IDENTITY_REGISTRY_ID` |
+| `REGISTRY_EVENT_WINDOW_LEDGERS` | web `/handles` | Per-request event lookback |
+
 ---
 
 ## CI gates
@@ -202,6 +225,8 @@ needs provisioning to go live; this is "Phase 2")
 - **web** — `lint` · `typecheck` · `test` · `build`
 - **contracts** — `cargo test` + `cargo build --target wasm32v1-none --release`
 - **security** — `pnpm audit` + `cargo audit` (advisory)
+- **docs** — relative link/anchor check, env-var lockstep with `.env.example`,
+  and `pnpm`/`cargo` script names cited in markdown (`scripts/check-docs.mjs`)
 
 Deployment ([`deploy.yml`](.github/workflows/deploy.yml)) is separate and opt-in,
 so forks and un-provisioned clones never attempt to deploy.
