@@ -3,6 +3,7 @@
   "private": true,
   "version": "0.0.0",
   "description": "Signet — a verifiable developer career record built on Stellar/Soroban.",
+  "license": "Apache-2.0",
   "packageManager": "pnpm@9.12.0",
   "engines": {
     "node": ">=22",

@@ -108,3 +108,10 @@ Implemented:
 | `pnpm --filter @signet/web typecheck` | Typecheck web app |
 | `pnpm db:up` / `db:down` | Start / stop local Postgres |
 | `pnpm db:migrate` | Run Prisma migrations |
+
+## License
+
+Signet is licensed under the Apache License 2.0 — see [`LICENSE`](LICENSE) for the
+full text. This covers every workspace package (`@signet/sdk`, `@signet/types`,
+`@signet/ui`, `@signet/db`, `@signet/web`, `@signet/indexer`) and the Soroban
+`identity-registry` contract.
