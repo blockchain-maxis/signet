@@ -4,10 +4,24 @@ import { getProfile, getOperations, listAllHandles, computeStats } from '@/lib/p
 import OperationsList from './operations-list';
 import { CopyAddress } from './copy-address';
 
-// Pre-render curated + on-chain-bound profiles; others render on demand, unknown 404.
+// Pre-render curated + on-chain-bound profiles at build time so they're served
+// straight from the edge cache.
 export async function generateStaticParams() {
   return (await listAllHandles()).map((handle) => ({ handle }));
 }
+
+// Handles are claimed on-chain continuously, so the set known at build time is
+// always stale. Anything outside `generateStaticParams` is rendered on demand
+// and then cached — a handle claimed after the last build resolves without a
+// redeploy, and `getProfile` still returns null (→ 404) for one that was never
+// claimed. Without this, a miss would be a hard 404 until the next deploy.
+export const dynamicParams = true;
+
+// Re-render a cached profile at most once a minute, so newly indexed on-chain
+// activity shows up shortly after it lands instead of being frozen at the
+// value captured on first render. Short enough to feel live, long enough that
+// a shared profile link doesn't re-query Postgres on every view.
+export const revalidate = 60;
 
 // Curated demo profiles use synthetic data on Stellar testnet. Handles bound
 // through the on-chain Identity Registry resolve live against the same network.
