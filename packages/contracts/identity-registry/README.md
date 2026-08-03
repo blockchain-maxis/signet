@@ -19,6 +19,7 @@ no trusted oracle, no off-chain admin minting identities. Bindings are 1:1
 | `initialize(admin)` | — | One-time; sets the moderation admin. |
 | `claim(handle, wallet)` | `wallet` | Bind `handle` ↔ `wallet`. Emits `claimed`. |
 | `release(handle)` | owning wallet | Remove your binding. Emits `released`. |
+| `transfer_handle(handle, new_wallet)` | current owner | Move a handle to another wallet. Emits `transferred`. |
 | `admin_revoke(handle)` | `admin` | Moderation force-remove. Emits `released`. |
 | `resolve(handle) -> Option<Address>` | — | Handle → wallet. |
 | `lookup(wallet) -> Option<String>` | — | Wallet → handle. |
@@ -32,6 +33,10 @@ no matter how many handles exist.
 
 Handles are `[a-z0-9_-]`, 1–32 chars. Errors are returned as a `contracterror`
 (`HandleTaken`, `WalletAlreadyBound`, `InvalidHandle`, `NotOwner`, …).
+
+To call the deployed contract from your own app — contract id, numeric error codes,
+event layout and `@stellar/stellar-sdk` snippets — see
+[`docs/REGISTRY_INTEGRATION.md`](../../../docs/REGISTRY_INTEGRATION.md).
 
 ## Build & test
 

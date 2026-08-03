@@ -1,9 +1,10 @@
 import type { Horizon } from '@stellar/stellar-sdk';
-import { prisma } from '../db.js';
 import { logger } from '../logger.js';
 import { sleep } from '../stellar.js';
+import { withRetry } from '../retry.js';
 
 const RATE_LIMIT_DELAY_MS = 100;
+const RETRY_LABEL = 'operations.horizon';
 const PER_WALLET_LIMIT = 50;
 
 /**
@@ -17,19 +18,68 @@ export interface OperationsResult {
   walletsScanned: number;
 }
 
-export async function runOperationsWorker(horizon: Horizon.Server): Promise<OperationsResult> {
-  const wallets = await prisma.wallet.findMany();
+/** A tracked wallet, as far as this worker is concerned. */
+export interface OperationsWallet {
+  id: string;
+  pubkey: string;
+}
+
+/** Fields written to an `Operation` row on create. */
+export interface OperationCreate {
+  id: string;
+  walletId: string;
+  type: string;
+  function: string | null;
+  sourceAccount: string | null;
+  createdAt: Date;
+  transactionHash: string | null;
+  successful: boolean;
+  balanceChanges?: unknown;
+}
+
+/** Fields refreshed on an existing `Operation` row. */
+export interface OperationUpdate {
+  successful: boolean;
+  balanceChanges?: unknown;
+}
+
+/**
+ * The persistence surface the worker needs — the injectable seam that makes its
+ * idempotency (upsert keyed on the Horizon op id) testable without a database.
+ * Production passes Prisma; tests pass an in-memory store. Mirrors the
+ * `AttestationStore` pattern in `attestation.ts`.
+ */
+export interface OperationsStore {
+  wallet: { findMany: () => Promise<OperationsWallet[]> };
+  operation: {
+    upsert: (args: {
+      where: { id: string };
+      update: OperationUpdate;
+      create: OperationCreate;
+    }) => Promise<unknown>;
+  };
+}
+
+export async function runOperationsWorker(
+  horizon: Horizon.Server,
+  store: OperationsStore,
+): Promise<OperationsResult> {
+  const wallets = await store.wallet.findMany();
   let opsUpserted = 0;
 
   for (const wallet of wallets) {
     let stored = 0;
     try {
-      const ops = await horizon
-        .operations()
-        .forAccount(wallet.pubkey)
-        .order('desc')
-        .limit(PER_WALLET_LIMIT)
-        .call();
+      const ops = await withRetry(
+        () =>
+          horizon
+            .operations()
+            .forAccount(wallet.pubkey)
+            .order('desc')
+            .limit(PER_WALLET_LIMIT)
+            .call(),
+        { label: RETRY_LABEL },
+      );
       await sleep(RATE_LIMIT_DELAY_MS);
 
       for (const op of ops.records) {
@@ -37,7 +87,7 @@ export async function runOperationsWorker(horizon: Horizon.Server): Promise<Oper
         // Horizon's SDK types don't expose the invoke-host-function fields.
         const r = op as any;
 
-        await prisma.operation.upsert({
+        await store.operation.upsert({
           where: { id: op.id },
           update: {
             successful: op.transaction_successful ?? true,

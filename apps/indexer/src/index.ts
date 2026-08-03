@@ -1,3 +1,4 @@
+import { writeFile } from 'node:fs/promises';
 import { loadConfig } from './config.js';
 import { logger, setLogLevel } from './logger.js';
 import { connectDb, disconnectDb, prisma } from './db.js';
@@ -7,9 +8,22 @@ import { runSeedWorker } from './workers/seed.js';
 import { runDeploymentWorker } from './workers/deployment.js';
 import { runActivityWorker } from './workers/activity.js';
 import { runAttestationWorker } from './workers/attestation.js';
-import { runOperationsWorker } from './workers/operations.js';
+import { runOperationsWorker, type OperationsStore } from './workers/operations.js';
 
 let shuttingDown = false;
+
+// Liveness marker, refreshed after every successful tick. The Docker
+// HEALTHCHECK reads its mtime and reports the worker unhealthy once it goes
+// stale, so a wedged loop (which never completes a tick) can't look healthy.
+const LIVENESS_FILE = process.env.INDEXER_LIVENESS_FILE ?? '/tmp/indexer-alive';
+
+async function markAlive(): Promise<void> {
+  try {
+    await writeFile(LIVENESS_FILE, `${Date.now()}\n`);
+  } catch (err) {
+    logger.warn({ error: String(err), file: LIVENESS_FILE }, 'liveness.writeFailed');
+  }
+}
 
 async function tick(
   horizon: ReturnType<typeof createHorizonServer>,
@@ -32,7 +46,7 @@ async function tick(
   const { snapshotsWritten } = await runActivityWorker(horizon);
 
   // Operations: pull recent Soroban invocations for tracked wallets
-  const { opsUpserted } = await runOperationsWorker(horizon);
+  const { opsUpserted } = await runOperationsWorker(horizon, prisma as unknown as OperationsStore);
 
   // Persist cursor
   if (highestLedger > 0) {
@@ -97,6 +111,8 @@ async function main(): Promise<void> {
   while (!shuttingDown) {
     try {
       await tick(horizon, soroban, config);
+      // Only a completed tick refreshes liveness; a throw leaves it to go stale.
+      await markAlive();
     } catch (err) {
       logger.error({ error: String(err) }, 'tick.error');
     }

@@ -32,6 +32,22 @@ const BUMP_LEDGERS: u32 = 518_400;
 /// Threshold below which an accessed entry gets bumped.
 const BUMP_THRESHOLD: u32 = 86_400;
 
+/// Handles that collide with the web app's top-level routes (see `apps/web/app`)
+/// and must never be claimable, or a profile would shadow an app page. All are
+/// lowercase, matching the `[a-z0-9_-]` charset enforced by `validate_handle`.
+const RESERVED_HANDLES: [&str; 10] = [
+    "p",
+    "api",
+    "app",
+    "admin",
+    "docs",
+    "handles",
+    "how-it-works",
+    "profile",
+    "robots",
+    "sitemap",
+];
+
 #[contracttype]
 #[derive(Clone)]
 enum DataKey {
@@ -56,7 +72,8 @@ pub enum Error {
     NotOwner = 5,
     InvalidHandle = 6,
     WalletAlreadyBound = 7,
-    BatchTooLarge = 8,
+    HandleReserved = 8,
+    BatchTooLarge = 9,
 }
 
 #[contract]
@@ -80,6 +97,9 @@ impl IdentityRegistry {
         Self::require_initialized(&env)?;
         wallet.require_auth();
         validate_handle(&handle)?;
+        if is_reserved_handle(&handle) {
+            return Err(Error::HandleReserved);
+        }
 
         let owner_key = DataKey::Owner(handle.clone());
         if env.storage().persistent().has(&owner_key) {
@@ -266,6 +286,25 @@ fn validate_handle(handle: &String) -> Result<(), Error> {
         }
     }
     Ok(())
+}
+
+/// True when `handle` matches a reserved app-route name (see `RESERVED_HANDLES`).
+/// Runs after `validate_handle`, so the handle is already known to be within
+/// length and charset — a byte compare against each reserved name suffices.
+fn is_reserved_handle(handle: &String) -> bool {
+    let len = handle.len() as usize;
+    if len == 0 || len > MAX_HANDLE_LEN as usize {
+        return false;
+    }
+    let mut buf = [0u8; MAX_HANDLE_LEN as usize];
+    handle.copy_into_slice(&mut buf[..len]);
+    let bytes = &buf[..len];
+    for reserved in RESERVED_HANDLES.iter() {
+        if bytes == reserved.as_bytes() {
+            return true;
+        }
+    }
+    false
 }
 
 mod test;

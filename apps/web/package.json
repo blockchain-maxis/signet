@@ -17,7 +17,7 @@
     "@signet/sdk": "workspace:*",
     "@signet/types": "workspace:*",
     "@signet/ui": "workspace:*",
-    "@stellar/stellar-sdk": "^15.1.0",
+    "@stellar/stellar-sdk": "^16.1.0",
     "@trpc/client": "^11.0.0",
     "@trpc/server": "^11.18.0",
     "clsx": "^2.1.1",
