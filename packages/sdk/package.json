@@ -2,6 +2,24 @@
   "name": "@signet/sdk",
   "version": "0.0.0",
   "private": true,
+  "description": "Read-only client for the Signet API — fetch a developer's verifiable Stellar/Soroban career record by handle.",
+  "keywords": [
+    "signet",
+    "stellar",
+    "soroban",
+    "web3",
+    "developer-profile",
+    "sdk"
+  ],
+  "homepage": "https://github.com/blockchain-maxis/signet/tree/main/packages/sdk#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/blockchain-maxis/signet.git",
+    "directory": "packages/sdk"
+  },
+  "bugs": {
+    "url": "https://github.com/blockchain-maxis/signet/issues"
+  },
   "type": "module",
   "main": "./src/index.ts",
   "types": "./src/index.ts",

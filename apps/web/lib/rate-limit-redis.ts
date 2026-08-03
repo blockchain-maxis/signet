@@ -15,11 +15,12 @@ import type { RateLimitResult, RateLimitStore } from './rate-limit.ts';
  * Redis blip degrades to "unlimited" rather than taking the API down.
  */
 export class UpstashRateLimitStore implements RateLimitStore {
-  constructor(
-    private readonly url: string,
-    private readonly token: string,
-  ) {
+  private readonly url: string;
+  private readonly token: string;
+
+  constructor(url: string, token: string) {
     this.url = url.replace(/\/$/, '');
+    this.token = token;
   }
 
   async hit(key: string, max: number, windowMs: number): Promise<RateLimitResult> {

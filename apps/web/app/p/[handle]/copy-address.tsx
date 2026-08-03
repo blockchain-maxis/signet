@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 
 interface CopyAddressProps {
   address: string;
@@ -9,12 +9,26 @@ interface CopyAddressProps {
 
 export function CopyAddress({ address, display }: CopyAddressProps) {
   const [copied, setCopied] = useState(false);
+  const resetTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Navigating away inside the 2s confirmation window would otherwise leave a
+  // timer that sets state on an unmounted component.
+  useEffect(() => {
+    return () => {
+      if (resetTimer.current) clearTimeout(resetTimer.current);
+    };
+  }, []);
+
+  const confirm = useCallback(() => {
+    setCopied(true);
+    if (resetTimer.current) clearTimeout(resetTimer.current);
+    resetTimer.current = setTimeout(() => setCopied(false), 2000);
+  }, []);
 
   const handleCopy = useCallback(async () => {
     try {
       await navigator.clipboard.writeText(address);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
+      confirm();
     } catch {
       // Fallback for environments without clipboard API
       const el = document.createElement('textarea');
@@ -25,10 +39,9 @@ export function CopyAddress({ address, display }: CopyAddressProps) {
       el.select();
       document.execCommand('copy');
       document.body.removeChild(el);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
+      confirm();
     }
-  }, [address]);
+  }, [address, confirm]);
 
   return (
     <button
@@ -65,16 +78,19 @@ export function CopyAddress({ address, display }: CopyAddressProps) {
           </svg>
         )}
       </span>
-      {copied && (
-        <span
-          role="status"
-          aria-live="polite"
-          className="text-[11px] text-[#4ade80]"
-          style={{ fontFamily: 'var(--font-mono)' }}
-        >
-          copied
-        </span>
-      )}
+      {/*
+        Rendered unconditionally: a live region that mounts at the same moment
+        as its text is frequently missed by screen readers. Only the text
+        changes, which is the announcement.
+      */}
+      <span
+        role="status"
+        aria-live="polite"
+        className="text-[11px] text-[#4ade80]"
+        style={{ fontFamily: 'var(--font-mono)' }}
+      >
+        {copied ? 'copied' : ''}
+      </span>
     </button>
   );
 }

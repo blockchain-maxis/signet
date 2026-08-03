@@ -1,5 +1,6 @@
 import { initTRPC } from '@trpc/server';
 import { getProfile, getOperations, listHandles, isValidHandle, computeStats } from '../profiles.ts';
+import { fetchLiveDirectory } from '../directory.ts';
 import { logger } from '../logger.ts';
 import { rateLimit } from '../rate-limit.ts';
 import { verifySession, SESSION_COOKIE } from '../auth.ts';
@@ -91,6 +92,15 @@ function handleInput(raw: unknown): { handle: string } {
   return { handle };
 }
 
+/** Stellar account address: G… or C… followed by 55 base32 chars. */
+const STELLAR_ADDR_RE = /^[GC][A-Z2-7]{55}$/;
+
+function walletInput(raw: unknown): { wallet: string } {
+  const wallet = String((raw as { wallet?: unknown })?.wallet ?? '');
+  if (!STELLAR_ADDR_RE.test(wallet)) throw new Error('Invalid wallet address');
+  return { wallet };
+}
+
 /** Procedures backing the public-facing profile surface. */
 const profileRouter = router({
   list: publicProcedure.query(() => listHandles()),
@@ -117,10 +127,33 @@ const accountRouter = router({
     .mutation(({ ctx, input }) => updateAccount(ctx.address, input)),
 });
 
+/** On-chain identity registry reads (handle → wallet, wallet → handle, count). */
+const registryRouter = router({
+  resolve: publicProcedure.input(handleInput).query(async ({ input }) => {
+    const directory = await fetchLiveDirectory();
+    if (!directory) return null;
+    const entry = directory.find((e) => e.handle === input.handle);
+    return entry ? { handle: entry.handle, wallet: entry.wallet } : null;
+  }),
+
+  lookup: publicProcedure.input(walletInput).query(async ({ input }) => {
+    const directory = await fetchLiveDirectory();
+    if (!directory) return null;
+    const entry = directory.find((e) => e.wallet === input.wallet);
+    return entry ? { handle: entry.handle, wallet: entry.wallet } : null;
+  }),
+
+  count: publicProcedure.query(async () => {
+    const directory = await fetchLiveDirectory();
+    return { count: directory?.length ?? 0 };
+  }),
+});
+
 export const appRouter = router({
   health: publicProcedure.query(() => ({ ok: true, service: 'signet', ts: Date.now() })),
   profile: profileRouter,
   account: accountRouter,
+  registry: registryRouter,
 });
 
 export type AppRouter = typeof appRouter;

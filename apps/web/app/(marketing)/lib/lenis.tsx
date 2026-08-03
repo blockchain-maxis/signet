@@ -1,9 +1,14 @@
 "use client";
 import { useEffect } from "react";
+import { MotionConfig } from "framer-motion";
 import Lenis from "lenis";
 
 export function LenisProvider({ children }: { children: React.ReactNode }) {
   useEffect(() => {
+    // Honour the OS reduced-motion setting: skip Lenis entirely so the page
+    // uses the browser's native (non-smooth) scroll.
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+
     const lenis = new Lenis({
       duration: 1.2,
       easing: (t: number) => Math.min(1, 1.001 - Math.pow(2, -10 * t)),
@@ -30,5 +35,8 @@ export function LenisProvider({ children }: { children: React.ReactNode }) {
     return () => lenis.destroy();
   }, []);
 
-  return <>{children}</>;
+  // `reducedMotion="user"` makes every framer-motion entrance animation on the
+  // page (opacity/transform reveals) respect the OS setting, resolving to its
+  // final state instead of animating.
+  return <MotionConfig reducedMotion="user">{children}</MotionConfig>;
 }
