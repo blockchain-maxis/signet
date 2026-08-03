@@ -1,4 +1,5 @@
 import { NextResponse, type NextRequest } from 'next/server';
+import { RESERVED_HANDLES, isValidHandle } from '@signet/types';
 
 /**
  * Subdomain routing with a path-based fallback.
@@ -25,17 +26,11 @@ import { NextResponse, type NextRequest } from 'next/server';
 
 const ROOT_DOMAIN = process.env.NEXT_PUBLIC_ROOT_DOMAIN ?? 'signet.dev';
 
-/** Canonical profile path. Mirrors the on-chain registry's handle rules. */
-const HANDLE_RE = /^[a-z0-9_-]{1,32}$/;
-const isValidHandle = (h: string): boolean => HANDLE_RE.test(h);
-
-// Subdomains / first path segments that are NOT developer handles.
-const RESERVED = new Set([
-  'app',
-  'api',
-  'docs',
+// Infrastructure subdomains that are not developer handles. These are a
+// routing concern only — the contract has no opinion on them, so a wallet can
+// still claim e.g. `www` on-chain even though it will never route here.
+const INFRA_SUBDOMAINS = [
   'www',
-  'admin',
   'status',
   'support',
   'mail',
@@ -43,8 +38,11 @@ const RESERVED = new Set([
   'static',
   'assets',
   'cdn',
-  'handles',
-]);
+] as const;
+
+// Subdomains / first path segments that are NOT developer handles: everything
+// the registry refuses to hand out, plus the infrastructure names above.
+const RESERVED = new Set<string>([...RESERVED_HANDLES, ...INFRA_SUBDOMAINS]);
 
 /**
  * Extract the subdomain from a host header, or `null` when there isn't a

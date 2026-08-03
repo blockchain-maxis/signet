@@ -9,7 +9,13 @@
  * The Prisma client is imported lazily so the web app keeps working without a
  * database (the public `/p` routes don't need one); edits, however, require a
  * configured DB and a profile that already exists from an on-chain claim.
+ *
+ * Because the registry — not Postgres — is authoritative for the handle→wallet
+ * binding, the handle is resolved from the registry whenever the database
+ * can't answer: no `DATABASE_URL`, or a claim the indexer hasn't synced yet.
  */
+
+import { lookupWallet, type RegistryReadOptions } from './registry-read.ts';
 
 export interface Account {
   address: string;
@@ -17,6 +23,13 @@ export interface Account {
   displayName: string | null;
   bio: string | null;
   dbConfigured: boolean;
+  /**
+   * Whether the presentation fields can be edited — true only once a profile
+   * row exists for this wallet. A handle resolved straight from the registry
+   * is real but not yet editable: `displayName`/`bio` live in Postgres, so
+   * `updateAccount` has nothing to write to until the indexer syncs the claim.
+   */
+  editable: boolean;
 }
 
 export interface AccountUpdate {
@@ -41,10 +54,32 @@ async function getPrisma() {
   return prisma;
 }
 
-/** Resolve the signed-in wallet's account; profile fields are null until claimed. */
-export async function getAccount(address: string): Promise<Account> {
+/**
+ * Resolve the signed-in wallet's account; profile fields are null until claimed.
+ *
+ * The presentation fields (display name, bio) live only in the database, so
+ * they stay null without one. The handle does not: it falls back to an
+ * on-chain `lookup` against the Identity Registry, which is what makes a
+ * just-claimed handle show up on the dashboard immediately — without a
+ * database at all, and ahead of the indexer on deployments that have one.
+ * That read is soft-failing, so an unconfigured or unreachable registry
+ * simply leaves the handle null rather than breaking the dashboard.
+ */
+export async function getAccount(
+  address: string,
+  options: RegistryReadOptions = {},
+): Promise<Account> {
   const prisma = await getPrisma();
-  if (!prisma) return { address, handle: null, displayName: null, bio: null, dbConfigured: false };
+  if (!prisma) {
+    return {
+      address,
+      handle: await lookupWallet(address, options),
+      displayName: null,
+      bio: null,
+      dbConfigured: false,
+      editable: false,
+    };
+  }
 
   const wallet = await prisma.wallet.findUnique({
     where: { pubkey: address },
@@ -53,10 +88,11 @@ export async function getAccount(address: string): Promise<Account> {
   const profile = wallet?.profile;
   return {
     address,
-    handle: profile?.handle ?? null,
+    handle: profile?.handle ?? (await lookupWallet(address, options)),
     displayName: profile?.displayName ?? null,
     bio: profile?.bio ?? null,
     dbConfigured: true,
+    editable: profile != null,
   };
 }
 
@@ -123,5 +159,6 @@ export async function updateAccount(address: string, update: AccountUpdate): Pro
     displayName: profile.displayName,
     bio: profile.bio,
     dbConfigured: true,
+    editable: true,
   };
 }

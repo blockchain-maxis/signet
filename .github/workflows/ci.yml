@@ -84,6 +84,43 @@ jobs:
             exit 1
           fi
 
+  e2e:
+    name: e2e smoke tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: pnpm/action-setup@v6
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Cache Playwright browsers
+        uses: actions/cache@v6
+        id: pw-cache
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-chromium-${{ hashFiles('apps/web/package.json') }}
+
+      - name: Install Playwright browsers
+        if: steps.pw-cache.outputs.cache-hit != 'true'
+        run: pnpm --filter @signet/web exec playwright install --with-deps chromium
+
+      - name: Install Playwright browser deps (cached hit)
+        if: steps.pw-cache.outputs.cache-hit == 'true'
+        run: pnpm --filter @signet/web exec playwright install-deps chromium
+
+      - name: Build web app
+        run: pnpm --filter @signet/web build
+
+      - name: Run e2e smoke tests
+        run: pnpm --filter @signet/web test:e2e
+
   security:
     name: dependency audit
     runs-on: ubuntu-latest
