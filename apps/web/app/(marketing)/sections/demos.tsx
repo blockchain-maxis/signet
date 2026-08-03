@@ -34,7 +34,7 @@ export function Demos() {
         transition={{ duration: 0.8, ease: easeSignet }}
         className="mb-12"
       >
-        <SectionLabel>Live demo · Real on-chain data</SectionLabel>
+        <SectionLabel>Live demo · Synthetic testnet data</SectionLabel>
         <h2
           className="mt-6 text-[48px] font-bold leading-[0.96] tracking-[-0.025em] text-[#f5f4ee] md:text-[64px]"
           style={{ fontFamily: "var(--font-display)" }}

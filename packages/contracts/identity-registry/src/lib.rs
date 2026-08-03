@@ -20,15 +20,33 @@
 //! and per-call cost stay constant regardless of how many handles exist.
 
 use soroban_sdk::{
-    contract, contracterror, contractimpl, contracttype, symbol_short, Address, Env, String,
+    contract, contracterror, contractimpl, contracttype, symbol_short, Address, Env, String, Vec,
 };
 
 /// Maximum handle length in bytes. Handles are short, URL-safe identifiers.
 const MAX_HANDLE_LEN: u32 = 32;
+/// Maximum number of handles in a single batch resolve call.
+const MAX_BATCH_SIZE: u32 = 100;
 /// Bump persistent entries by ~30 days (at ~5s ledgers) on access.
 const BUMP_LEDGERS: u32 = 518_400;
 /// Threshold below which an accessed entry gets bumped.
 const BUMP_THRESHOLD: u32 = 86_400;
+
+/// Handles that collide with the web app's top-level routes (see `apps/web/app`)
+/// and must never be claimable, or a profile would shadow an app page. All are
+/// lowercase, matching the `[a-z0-9_-]` charset enforced by `validate_handle`.
+const RESERVED_HANDLES: [&str; 10] = [
+    "p",
+    "api",
+    "app",
+    "admin",
+    "docs",
+    "handles",
+    "how-it-works",
+    "profile",
+    "robots",
+    "sitemap",
+];
 
 #[contracttype]
 #[derive(Clone)]
@@ -54,6 +72,8 @@ pub enum Error {
     NotOwner = 5,
     InvalidHandle = 6,
     WalletAlreadyBound = 7,
+    HandleReserved = 8,
+    BatchTooLarge = 9,
 }
 
 #[contract]
@@ -77,6 +97,9 @@ impl IdentityRegistry {
         Self::require_initialized(&env)?;
         wallet.require_auth();
         validate_handle(&handle)?;
+        if is_reserved_handle(&handle) {
+            return Err(Error::HandleReserved);
+        }
 
         let owner_key = DataKey::Owner(handle.clone());
         if env.storage().persistent().has(&owner_key) {
@@ -197,6 +220,23 @@ impl IdentityRegistry {
         env.storage().instance().get(&DataKey::Count).unwrap_or(0)
     }
 
+    /// Resolve multiple handles to their owning wallets, positionally.
+    ///
+    /// Returns `None` for any handle that is not currently bound. Rejects
+    /// batches larger than [`MAX_BATCH_SIZE`].
+    pub fn resolve_batch(env: Env, handles: Vec<String>) -> Result<Vec<Option<Address>>, Error> {
+        let len = handles.len();
+        if len > MAX_BATCH_SIZE {
+            return Err(Error::BatchTooLarge);
+        }
+        let mut results: Vec<Option<Address>> = Vec::new(&env);
+        for handle in handles.iter() {
+            let addr = Self::resolve(env.clone(), handle);
+            results.push_back(addr);
+        }
+        Ok(results)
+    }
+
     // ── internal ────────────────────────────────────────────────────────────
 
     fn require_initialized(env: &Env) -> Result<(), Error> {
@@ -246,6 +286,25 @@ fn validate_handle(handle: &String) -> Result<(), Error> {
         }
     }
     Ok(())
+}
+
+/// True when `handle` matches a reserved app-route name (see `RESERVED_HANDLES`).
+/// Runs after `validate_handle`, so the handle is already known to be within
+/// length and charset — a byte compare against each reserved name suffices.
+fn is_reserved_handle(handle: &String) -> bool {
+    let len = handle.len() as usize;
+    if len == 0 || len > MAX_HANDLE_LEN as usize {
+        return false;
+    }
+    let mut buf = [0u8; MAX_HANDLE_LEN as usize];
+    handle.copy_into_slice(&mut buf[..len]);
+    let bytes = &buf[..len];
+    for reserved in RESERVED_HANDLES.iter() {
+        if bytes == reserved.as_bytes() {
+            return true;
+        }
+    }
+    false
 }
 
 mod test;

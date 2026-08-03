@@ -10,6 +10,9 @@ interface Profile {
   initials: string;
 }
 
+// Illustrative cards for the marquee: invented handles and figures that show
+// the profile card format. Nothing here is indexed or on-chain, so the section
+// copy must not present them as live accounts.
 const profiles: Profile[] = [
   { handle: "aquawolf", contracts: 12, tvl: "$4.2M", score: 82, initials: "AW" },
   { handle: "nimbus",   contracts: 8,  tvl: "$1.8M", score: 71, initials: "NB" },
@@ -96,15 +99,17 @@ export function Featured() {
     <section className="relative overflow-hidden py-28">
       {/* Section header */}
       <div className="mb-14 px-4 md:px-14">
-        <SectionLabel>06 · Active profiles</SectionLabel>
+        <SectionLabel>06 · Profile cards</SectionLabel>
         <h2
           className="mt-6 text-[48px] font-bold leading-[0.96] tracking-[-0.025em] text-[#f5f4ee] md:text-[64px]"
           style={{ fontFamily: "var(--font-display)" }}
         >
-          Currently indexed.
+          What a profile card shows.
         </h2>
         <p className="mt-5 max-w-[480px] text-[15px] leading-[1.65] tracking-[-0.005em] text-[#8a8779]" style={{ fontFamily: "var(--font-body)" }}>
-          A sample of profiles aggregated from active Soroban deployers.
+          Illustrative cards, not indexed accounts — the handles and figures below are
+          made up to show the format. Contracts, TVL, and score are aggregated from
+          Soroban and Horizon activity once a wallet is bound.
         </p>
       </div>
 
