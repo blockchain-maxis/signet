@@ -6,6 +6,22 @@ on:
   pull_request:
 
 jobs:
+  docs:
+    name: docs links · env · scripts
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+
+      # Fails on broken relative links/anchors, env vars out of lockstep with
+      # .env.example, and pnpm/cargo script names cited in markdown that do not
+      # exist. No install step — pure Node stdlib, well under 60s.
+      - name: Check docs drift
+        run: node scripts/check-docs.mjs
+
   web:
     name: lint • typecheck • test • build
     runs-on: ubuntu-latest
@@ -83,6 +99,43 @@ jobs:
             echo "::error::Contract wasm ${size} bytes exceeds budget ${BUDGET_BYTES} bytes"
             exit 1
           fi
+
+  e2e:
+    name: e2e smoke tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: pnpm/action-setup@v6
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Cache Playwright browsers
+        uses: actions/cache@v6
+        id: pw-cache
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-chromium-${{ hashFiles('apps/web/package.json') }}
+
+      - name: Install Playwright browsers
+        if: steps.pw-cache.outputs.cache-hit != 'true'
+        run: pnpm --filter @signet/web exec playwright install --with-deps chromium
+
+      - name: Install Playwright browser deps (cached hit)
+        if: steps.pw-cache.outputs.cache-hit == 'true'
+        run: pnpm --filter @signet/web exec playwright install-deps chromium
+
+      - name: Build web app
+        run: pnpm --filter @signet/web build
+
+      - name: Run e2e smoke tests
+        run: pnpm --filter @signet/web test:e2e
 
   security:
     name: dependency audit

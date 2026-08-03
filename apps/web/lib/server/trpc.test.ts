@@ -58,8 +58,11 @@ test('account.me returns the signed-in address', async () => {
   __resetRateLimit();
   const res = await authedCaller('10.0.2.2', 'GTESTADDRESS').account.me();
   assert.equal(res.address, 'GTESTADDRESS');
-  assert.equal(res.handle, null); // no database configured under test
+  // Neither a database nor a registry contract id is configured under test,
+  // so there is nothing to resolve the handle from.
+  assert.equal(res.handle, null);
   assert.equal(res.dbConfigured, false);
+  assert.equal(res.editable, false);
 });
 
 test('account.update is rejected without a session', async () => {
@@ -92,4 +95,50 @@ test('rate limiter blocks a caller after the window max', async () => {
     }
   }
   assert.ok(blocked, 'expected rate limiting to trigger within 65 calls');
+});
+
+test('registry.resolve rejects a malformed handle', async () => {
+  __resetRateLimit();
+  await assert.rejects(() => caller('10.0.0.10').registry.resolve({ handle: 'BAD HANDLE!' }));
+});
+
+test('registry.resolve returns null when the registry is unconfigured', async () => {
+  __resetRateLimit();
+  const res = await caller('10.0.0.11').registry.resolve({ handle: 'aquawolf' });
+  assert.equal(res, null);
+});
+
+test('registry.resolve normalises the handle to lowercase', async () => {
+  __resetRateLimit();
+  const res = await caller('10.0.0.12').registry.resolve({ handle: 'AQUAWOLF' });
+  assert.equal(res, null);
+});
+
+test('registry.lookup rejects a malformed wallet address', async () => {
+  __resetRateLimit();
+  await assert.rejects(
+    () => caller('10.0.0.13').registry.lookup({ wallet: 'not-a-valid-address' }),
+  );
+});
+
+test('registry.lookup accepts a valid G… address', async () => {
+  __resetRateLimit();
+  const res = await caller('10.0.0.14').registry.lookup({
+    wallet: 'GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA2',
+  });
+  assert.equal(res, null);
+});
+
+test('registry.lookup accepts a valid C… address', async () => {
+  __resetRateLimit();
+  const res = await caller('10.0.0.15').registry.lookup({
+    wallet: 'CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA2',
+  });
+  assert.equal(res, null);
+});
+
+test('registry.count returns zero when the registry is unconfigured', async () => {
+  __resetRateLimit();
+  const res = await caller('10.0.0.16').registry.count();
+  assert.deepEqual(res, { count: 0 });
 });

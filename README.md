@@ -30,6 +30,8 @@ when no contract id is configured or the RPC call fails.
 > Demo profiles use **synthetic data on Stellar testnet** — generated, unowned
 > accounts — so no real wallet's activity is attributed to an invented persona.
 > Production renders real mainnet activity bound on-chain via the Identity Registry.
+> Provenance, schema, regeneration, and the honesty policy:
+> [`docs/DEMO_DATA.md`](docs/DEMO_DATA.md).
 
 | URL | Description |
 |-----|-------------|
@@ -39,6 +41,7 @@ when no contract id is configured or the RPC call fails.
 | `/p/stellardev` | Demo profile — USDC token transfers (testnet, synthetic) |
 | `/handles` | Handle directory — live `claimed`/`released` events from the registry (curated manifest as fallback) |
 | `/how-it-works` | How Signet works + what's coming |
+| [`docs/DEMO_DATA.md`](docs/DEMO_DATA.md) | Demo fixture provenance, schema, and honesty policy |
 
 ## What's working in this build
 
@@ -50,7 +53,7 @@ when no contract id is configured or the RPC call fails.
 
 ## Also implemented
 
-- **On-chain Identity Registry — deployed to testnet** — a real Soroban contract (`packages/contracts/identity-registry`) binds a wallet to a handle via a signed `claim`; ownership is enforced by `require_auth`. Live at `CASFJHI5PQSRWS7JV25CF7FOMRKIVBP3RXRP3E2GH2CV4BCAG7FUJRCN` since 2026-07-09 (see [Status](#status)). 18 unit tests, builds to wasm.
+- **On-chain Identity Registry — deployed to testnet** — a real Soroban contract (`packages/contracts/identity-registry`) binds a wallet to a handle via a signed `claim`; ownership is enforced by `require_auth`. Live at `CASFJHI5PQSRWS7JV25CF7FOMRKIVBP3RXRP3E2GH2CV4BCAG7FUJRCN` since 2026-07-09 (see [Status](#status)). 24 unit tests, builds to wasm.
 - **Wallet connect + claim flow — live** — `Connect wallet` / `Claim your handle` use Stellar Wallets Kit and submit a real on-chain `claim` against the deployed registry (`apps/web/lib/{wallet,registry}.ts`) whenever `NEXT_PUBLIC_IDENTITY_REGISTRY_ID` is set. With no contract id configured, `claimHandle` throws `RegistryNotConfiguredError` and the UI shows an honest "Phase 2" message rather than a broken button.
 - **Public handle directory** — `/handles` rebuilds the currently-bound set from the registry's `claimed`/`released` event stream over Soroban RPC, with no database in the path (`apps/web/lib/directory.ts`).
 - **Real API + SDK** — tRPC `profile.byHandle` / `profile.list` / `health`; `@signet/sdk` fetches them. Both covered by tests.
@@ -60,7 +63,7 @@ when no contract id is configured or the RPC call fails.
 
 - **Mainnet deploy** of the Identity Registry (testnet is live — see [Status](#status)), plus a contract audit before it.
 - **Run the indexer** against a Postgres instance to populate full deployment/activity history; `/p` already has a DB-with-static-fallback loader (`safeDbProfile`).
-- **Self-sovereign bindings** replace the curated `profiles.json` mapping as claims land on the deployed registry.
+- **Self-sovereign bindings** replace the curated `DEMO_PROFILES` mapping as claims land on the deployed registry.
 - **Developer dashboard** (`/app/*`) — currently an honest read-only preview pending wallet auth.
 - **Reputation scoring** — attestations, TVL tracking, incident records.
 
@@ -78,6 +81,23 @@ Visit `http://localhost:3000` for the landing page.
 Visit `http://localhost:3000/p/aquawolf` for the first demo profile.
 
 > **Requires Node 22+.** Fonts (`IBM Plex Sans`/`Mono`) load via a browser-side `@import` in `globals.css` (not `next/font`), so the build never blocks on font downloads.
+
+First-run failures (stellar CLI passphrase bug, Friendbot funding, missing
+`wasm32v1-none`, no `DATABASE_URL`, Phase 2 claim message, indexer without a
+registry id): see [`docs/TROUBLESHOOTING.md`](docs/TROUBLESHOOTING.md).
+
+## Self-host / deploy
+
+**See [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md)** for a clone-to-running guide:
+prerequisites, deploy key + Friendbot, wasm build, `infra/deploy-contract.sh`,
+`initialize(admin)`, Netlify (`netlify.toml`) and Vercel production env
+(including `SIGNET_AUTH_SECRET`), verification checklist, and rollback.
+
+## Roadmap and funding
+
+**See [`PROPOSAL.md`](PROPOSAL.md)** for the grant proposal: the problem
+statement, an itemized budget, dated milestones through 2027-04-30, and a
+fix-log of resolved issues with the tests that keep them closed.
 
 ## Architecture
 
@@ -111,13 +131,28 @@ indexer's Postgres sync is an accelerant for it, not a dependency.
 **Deployed & serving traffic**
 
 - `apps/web` on Netlify — landing, `/how-it-works`, `/handles`, demo profiles (synthetic manifest), tRPC API, SIWS auth
-- `packages/contracts/identity-registry` — Soroban contract on Stellar **testnet**, 18 `cargo test` unit tests, builds to wasm
+- `packages/contracts/identity-registry` — Soroban contract on Stellar **testnet**, 24 `cargo test` unit tests, builds to wasm
 
 **Operational-only** — built and tested, needs provisioning to go live
 
 - `apps/indexer` — attestation + deployment + operations + activity workers; needs `DATABASE_URL`
 - `packages/db` — Prisma schema + committed migrations; no hosted Postgres yet
 - `packages/sdk` — external SDK over the tRPC API; in-tree, not yet published to npm
+
+## Running the indexer
+
+**See [`docs/INDEXER.md`](docs/INDEXER.md)** — the operator runbook: what each worker
+does, how cursors and the ledger-window cold start work, every `INDEXER_*` setting,
+running locally and in Docker, what the structured log lines mean, and a troubleshooting
+table for the common failures.
+
+## Integrating with the registry
+
+**See [`docs/REGISTRY_INTEGRATION.md`](docs/REGISTRY_INTEGRATION.md)** to resolve Signet
+handles from your own app: the deployed testnet contract id and passphrase, every
+`contracterror` code, the event topic/data layout, and `@stellar/stellar-sdk` snippets for
+reading (`resolve` / `lookup` / `is_bound` / `count`), claiming, and rebuilding the handle
+set from the event stream.
 
 ## Directory structure
 
@@ -149,8 +184,15 @@ indexer's Postgres sync is an accelerant for it, not a dependency.
 
 | Suite | Count |
 |-------|-------|
-| `pnpm test` | **61** — `@signet/web` 51 · `@signet/indexer` 6 · `@signet/sdk` 4 (`types`, `ui`, `db` have no tests yet) |
-| `cargo test` | **18** — `packages/contracts/identity-registry` |
+| `pnpm test` | **170** — `@signet/web` 106 · `@signet/indexer` 36 · `@signet/sdk` 19 · `@signet/types` 9 (`ui`, `db` have no tests yet) |
+| `cargo test` | **24** — `packages/contracts/identity-registry` |
 
 Both are CI gates ([`ci.yml`](.github/workflows/ci.yml)), alongside `lint`,
 `typecheck`, `build` and the wasm contract build.
+
+## License
+
+Signet is licensed under the Apache License 2.0 — see [`LICENSE`](LICENSE) for the
+full text. This covers every workspace package (`@signet/sdk`, `@signet/types`,
+`@signet/ui`, `@signet/db`, `@signet/web`, `@signet/indexer`) and the Soroban
+`identity-registry` contract.
