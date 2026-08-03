@@ -16,6 +16,7 @@ export interface Account {
   handle: string | null;
   displayName: string | null;
   bio: string | null;
+  dbConfigured: boolean;
 }
 
 export interface AccountUpdate {
@@ -43,7 +44,7 @@ async function getPrisma() {
 /** Resolve the signed-in wallet's account; profile fields are null until claimed. */
 export async function getAccount(address: string): Promise<Account> {
   const prisma = await getPrisma();
-  if (!prisma) return { address, handle: null, displayName: null, bio: null };
+  if (!prisma) return { address, handle: null, displayName: null, bio: null, dbConfigured: false };
 
   const wallet = await prisma.wallet.findUnique({
     where: { pubkey: address },
@@ -55,6 +56,7 @@ export async function getAccount(address: string): Promise<Account> {
     handle: profile?.handle ?? null,
     displayName: profile?.displayName ?? null,
     bio: profile?.bio ?? null,
+    dbConfigured: true,
   };
 }
 
@@ -120,5 +122,6 @@ export async function updateAccount(address: string, update: AccountUpdate): Pro
     handle: profile.handle,
     displayName: profile.displayName,
     bio: profile.bio,
+    dbConfigured: true,
   };
 }

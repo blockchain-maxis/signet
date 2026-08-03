@@ -7,6 +7,8 @@ Signet is a verifiable developer career record built on Stellar/Soroban. Develop
 > Demo profiles use **synthetic data on Stellar testnet** — generated, unowned
 > accounts — so no real wallet's activity is attributed to an invented persona.
 > Production renders real mainnet activity bound on-chain via the Identity Registry.
+> Provenance, schema, regeneration, and the honesty policy:
+> [`docs/DEMO_DATA.md`](docs/DEMO_DATA.md).
 
 | URL | Description |
 |-----|-------------|
@@ -15,6 +17,7 @@ Signet is a verifiable developer career record built on Stellar/Soroban. Develop
 | `/p/sorobuilder` | Demo profile — Soroswap-style DEX swaps (testnet, synthetic) |
 | `/p/stellardev` | Demo profile — USDC token transfers (testnet, synthetic) |
 | `/how-it-works` | How Signet works + what's coming |
+| [`docs/DEMO_DATA.md`](docs/DEMO_DATA.md) | Demo fixture provenance, schema, and honesty policy |
 
 ## What's working in this build
 
@@ -54,7 +57,18 @@ Visit `http://localhost:3000/p/aquawolf` for the first demo profile.
 
 > **Requires Node 22+.** Fonts (`IBM Plex Sans`/`Mono`) load via a browser-side `@import` in `globals.css` (not `next/font`), so the build never blocks on font downloads.
 
-## Architecture (planned)
+## Roadmap and funding
+
+**See [`PROPOSAL.md`](PROPOSAL.md)** for the grant proposal: the problem
+statement, an itemized budget, dated milestones through 2027-04-30, and a
+fix-log of resolved issues with the tests that keep them closed.
+
+## Architecture
+
+**See [`ARCHITECTURE.md`](ARCHITECTURE.md)** for the real data flows
+(`claim → event → attestation → DB` and `wallet → operations → DB`), the read
+path, and a precise breakdown of what is **deployed** vs **operational-only**.
+The two flows are code-complete; the diagram below sketches how the pieces fit.
 
 ```
 ┌─────────────────────────────────────────────────────┐
@@ -79,6 +93,14 @@ Implemented:
   packages/contracts/identity-registry  — Soroban claim contract (13 tests)
   packages/sdk                          — External SDK (fetches the tRPC API)
 ```
+
+## Integrating with the registry
+
+**See [`docs/REGISTRY_INTEGRATION.md`](docs/REGISTRY_INTEGRATION.md)** to resolve Signet
+handles from your own app: the deployed testnet contract id and passphrase, every
+`contracterror` code, the event topic/data layout, and `@stellar/stellar-sdk` snippets for
+reading (`resolve` / `lookup` / `is_bound` / `count`), claiming, and rebuilding the handle
+set from the event stream.
 
 ## Directory structure
 

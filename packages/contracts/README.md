@@ -34,3 +34,15 @@ cargo build \
   --manifest-path packages/contracts/identity-registry/Cargo.toml \
   --target wasm32v1-none --release
 ```
+
+## Size budget
+
+The release wasm is the on-chain deployment artifact, so its size is a cost and
+a footprint concern. CI enforces a budget in the `contracts` job (see
+[`.github/workflows/ci.yml`](../../.github/workflows/ci.yml)): the build fails if
+`identity_registry.wasm` exceeds **20 KB** (`BUDGET_BYTES=20480`).
+
+`identity-registry` is ~9 KB today, so the budget leaves headroom for planned
+growth while catching accidental bloat — a heavy dependency, or a release
+profile that lost `opt-level = "z"` / `lto` / `strip`. Raise `BUDGET_BYTES`
+deliberately when a size increase is expected and justified.
