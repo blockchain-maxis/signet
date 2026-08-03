@@ -8,6 +8,7 @@
     "start": "next start -p 3000",
     "typecheck": "tsc --noEmit",
     "lint": "eslint . --config ../../eslint.config.js",
+    "docs:generate": "node --experimental-strip-types scripts/generate-api-docs.mts",
     "test": "node --experimental-strip-types --test \"lib/**/*.test.ts\"",
     "test:e2e": "playwright test"
   },
@@ -17,7 +18,7 @@
     "@signet/sdk": "workspace:*",
     "@signet/types": "workspace:*",
     "@signet/ui": "workspace:*",
-    "@stellar/stellar-sdk": "^15.1.0",
+    "@stellar/stellar-sdk": "^16.1.0",
     "@trpc/client": "^11.0.0",
     "@trpc/server": "^11.18.0",
     "clsx": "^2.1.1",
@@ -30,6 +31,7 @@
     "react-dom": "^18.3.1"
   },
   "devDependencies": {
+    "@playwright/test": "^1.49.0",
     "@types/node": "^20.16.0",
     "@types/react": "^18.3.11",
     "@types/react-dom": "^18.3.0",
