@@ -1,5 +1,5 @@
 import type { MetadataRoute } from 'next';
-import { listHandles } from '@/lib/profiles';
+import { listAllHandles } from '@/lib/profiles';
 
 const BASE = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000';
 
@@ -10,7 +10,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
     { url: `${BASE}/how-it-works`, lastModified: now, priority: 0.7 },
     { url: `${BASE}/docs`, lastModified: now, priority: 0.5 },
   ];
-  const profiles = (await listHandles()).map((handle) => ({
+  const profiles = (await listAllHandles()).map((handle) => ({
     url: `${BASE}/p/${handle}`,
     lastModified: now,
     priority: 0.6,

@@ -1,3 +1,4 @@
+import { writeFile } from 'node:fs/promises';
 import { loadConfig } from './config.js';
 import { logger, setLogLevel } from './logger.js';
 import { connectDb, disconnectDb, prisma } from './db.js';
@@ -7,9 +8,26 @@ import { runSeedWorker } from './workers/seed.js';
 import { runDeploymentWorker } from './workers/deployment.js';
 import { runActivityWorker } from './workers/activity.js';
 import { runAttestationWorker } from './workers/attestation.js';
-import { runOperationsWorker } from './workers/operations.js';
+import { runOperationsWorker, type OperationsStore } from './workers/operations.js';
 
 let shuttingDown = false;
+let shuttingDownPrisma = false;
+
+/** Max time (ms) to wait for a graceful shutdown before force-exiting. */
+const SHUTDOWN_TIMEOUT_MS = 10_000;
+
+// Liveness marker, refreshed after every successful tick. The Docker
+// HEALTHCHECK reads its mtime and reports the worker unhealthy once it goes
+// stale, so a wedged loop (which never completes a tick) can't look healthy.
+const LIVENESS_FILE = process.env.INDEXER_LIVENESS_FILE ?? '/tmp/indexer-alive';
+
+async function markAlive(): Promise<void> {
+  try {
+    await writeFile(LIVENESS_FILE, `${Date.now()}\n`);
+  } catch (err) {
+    logger.warn({ error: String(err), file: LIVENESS_FILE }, 'liveness.writeFailed');
+  }
+}
 
 async function tick(
   horizon: ReturnType<typeof createHorizonServer>,
@@ -32,7 +50,7 @@ async function tick(
   const { snapshotsWritten } = await runActivityWorker(horizon);
 
   // Operations: pull recent Soroban invocations for tracked wallets
-  const { opsUpserted } = await runOperationsWorker(horizon);
+  const { opsUpserted } = await runOperationsWorker(horizon, prisma as unknown as OperationsStore);
 
   // Persist cursor
   if (highestLedger > 0) {
@@ -87,30 +105,68 @@ async function main(): Promise<void> {
 
   // Graceful shutdown
   function onSignal(signal: string) {
+    if (shuttingDown) {
+      // Second signal: force exit immediately
+      logger.warn({ signal }, 'indexer.force_shutdown');
+      process.exit(1);
+    }
     logger.info({ signal }, 'indexer.shutdown');
     shuttingDown = true;
   }
   process.on('SIGTERM', () => onSignal('SIGTERM'));
   process.on('SIGINT',  () => onSignal('SIGINT'));
 
-  // Main loop
-  while (!shuttingDown) {
-    try {
-      await tick(horizon, soroban, config);
-    } catch (err) {
-      logger.error({ error: String(err) }, 'tick.error');
-    }
+  try {
+    // Main loop
+    while (!shuttingDown) {
+      try {
+        await tick(horizon, soroban, config);
+        // Only a completed tick refreshes liveness; a throw leaves it to go stale.
+        await markAlive();
+      } catch (err) {
+        logger.error({ error: String(err) }, 'tick.error');
+      }
 
-    // Sleep in small chunks so we can react to shutdown quickly
-    const end = Date.now() + config.tickIntervalMs;
-    while (!shuttingDown && Date.now() < end) {
-      await sleep(250);
+      if (shuttingDown) break;
+
+      // Sleep in small chunks so we can react to shutdown quickly
+      const end = Date.now() + config.tickIntervalMs;
+      while (!shuttingDown && Date.now() < end) {
+        await sleep(250);
+      }
     }
+  } finally {
+    await gracefulShutdown();
   }
+}
+
+async function gracefulShutdown(): Promise<void> {
+  // Prevent concurrent shutdown attempts
+  if (shuttingDownPrisma) return;
+  shuttingDownPrisma = true;
 
   logger.info({}, 'indexer.stopping');
-  await disconnectDb();
-  process.exit(0);
+
+  // Force exit if graceful shutdown takes too long
+  const forceExit = setTimeout(() => {
+    logger.error({ timeoutMs: SHUTDOWN_TIMEOUT_MS }, 'indexer.force_exit');
+    process.exit(1);
+  }, SHUTDOWN_TIMEOUT_MS);
+  forceExit.unref();
+
+  try {
+    await disconnectDb();
+    process.exitCode = 0;
+  } catch (err) {
+    logger.error({ error: String(err) }, 'indexer.disconnect_error');
+    process.exitCode = 1;
+  } finally {
+    clearTimeout(forceExit);
+  }
+
+  // Ensure the process exits. After Prisma disconnect there may still be
+  // lingering handles that prevent the event loop from draining.
+  process.exit(process.exitCode);
 }
 
 main().catch((err: unknown) => {
