@@ -137,6 +137,22 @@ const ENV_ALLOW = new Set([
   'BUDGET_BYTES', // CI workflow env
   'NETWORK', // shell override for deploy-contract.sh
   'STELLAR_ACCOUNT', // shell override for deploy-contract.sh
+  'ADMIN_ADDRESS', // shell override for deploy-contract.sh
+]);
+
+/**
+ * Exported code identifiers that happen to be SCREAMING_SNAKE. Docs cite these
+ * as symbols, not configuration, so requiring them in `.env.example` would be
+ * wrong — and the alternative (not backticking a real identifier) is worse.
+ * Add to this list rather than weakening the pattern below.
+ */
+const NOT_ENV_IDENTIFIERS = new Set([
+  'DEMO_PROFILES', // packages/types — the shared demo personas
+  'RESERVED_HANDLES', // packages/types
+  'HANDLE_MAX_LEN', // packages/types
+  'BASE_FEE', // @stellar/stellar-sdk constant
+  'MAX_BATCH_SIZE', // identity-registry contract constant
+  'MAX_HANDLE_LEN', // identity-registry contract constant
 ]);
 
 /** Backticked SCREAMING_SNAKE with an underscore — typical env var citation. */
@@ -150,7 +166,7 @@ for (const file of mdFiles) {
     let m;
     while ((m = ENV_REF_RE.exec(line))) {
       const name = m[1];
-      if (ENV_ALLOW.has(name)) continue;
+      if (ENV_ALLOW.has(name) || NOT_ENV_IDENTIFIERS.has(name)) continue;
       if (!docsVars.has(name)) docsVars.set(name, []);
       docsVars.get(name).push({ file, line: idx + 1 });
     }
@@ -238,6 +254,8 @@ const PNPM_BUILTINS = new Set([
   '-F',
   '--dir',
   '-C',
+  // Workspace binaries invoked as `pnpm <bin>` rather than package scripts.
+  'turbo',
 ]);
 
 const CARGO_SUBCOMMANDS = new Set([
