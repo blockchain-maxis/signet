@@ -19,8 +19,27 @@ mitigation for confirmed high-severity issues within 30 days.
 ## Hardening notes for operators
 
 - **`SIGNET_AUTH_SECRET`** must be set (≥16 random chars) in production —
-  the app refuses the dev fallback when `NODE_ENV=production`. Rotate it (and
-  bump `SIGNET_SESSIONS_VALID_AFTER`) to revoke all sessions.
+  the app refuses the dev fallback when `NODE_ENV=production`. Rotate it to
+  invalidate sessions going forward.
+
+- **`SIGNET_SESSIONS_VALID_AFTER`** — set this to a Unix epoch timestamp in
+  milliseconds to reject all sessions **issued before** that moment. Use it
+  right after rotating `SIGNET_AUTH_SECRET` (or after a suspected leak) to
+  force every existing session to be re-authenticated. The variable is checked
+  on every request, so no restart is needed.
+  
+  Copy-paste command to revoke all sessions right now:
+  
+  ```bash
+  export SIGNET_SESSIONS_VALID_AFTER=$(node -e "console.log(Date.now())")
+  ```
+  
+  For Docker Compose deployments, set the variable in your environment or
+  `.env` file and recreate the containers:
+  
+  ```bash
+  SIGNET_SESSIONS_VALID_AFTER=$(node -e "console.log(Date.now())") docker compose up -d --force-recreate
+  ```
 - The default rate limiter is per-instance; back it with a shared store
   (`setRateLimitStore`) for multi-instance deployments.
 - Security headers (CSP, HSTS, …) are set in `apps/web/next.config.js`. The CSP
