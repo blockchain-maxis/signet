@@ -1,3 +1,5 @@
+// See the note in app/(dashboard)/app/loading.tsx: loading boundaries only
+// belong on segments that never call `notFound()`.
 export default function Loading() {
   return (
     <div className="flex min-h-screen items-center justify-center bg-[#0a0908]">

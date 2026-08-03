@@ -2,8 +2,10 @@ import type { Horizon } from '@stellar/stellar-sdk';
 import { prisma } from '../db.js';
 import { logger } from '../logger.js';
 import { sleep } from '../stellar.js';
+import { withRetry } from '../retry.js';
 
 const RATE_LIMIT_DELAY_MS = 100;
+const RETRY_LABEL = 'activity.horizon';
 const SNAPSHOT_TTL_MS = 5 * 60 * 1000; // 5 minutes
 
 export async function runActivityWorker(
@@ -35,12 +37,16 @@ export async function runActivityWorker(
 
     try {
       // Horizon supports querying transactions for Soroban contract accounts
-      const txs = await horizon
-        .transactions()
-        .forAccount(contract.address)
-        .order('desc')
-        .limit(200)
-        .call();
+      const txs = await withRetry(
+        () =>
+          horizon
+            .transactions()
+            .forAccount(contract.address)
+            .order('desc')
+            .limit(200)
+            .call(),
+        { label: RETRY_LABEL },
+      );
 
       await sleep(RATE_LIMIT_DELAY_MS);
 

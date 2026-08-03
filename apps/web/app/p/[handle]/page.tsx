@@ -1,11 +1,31 @@
 import { notFound } from 'next/navigation';
 import { SignetMonogram } from '../../(marketing)/components/signet-monogram';
-import { getProfile, getOperations, listHandles, computeStats, type Operation } from '@/lib/profiles';
+import { getProfile, getOperations, listAllHandles, computeStats } from '@/lib/profiles';
+import OperationsList from './operations-list';
+import { CopyAddress } from './copy-address';
 
-// Pre-render the curated profiles at build time; unknown handles 404.
+// Pre-render curated + on-chain-bound profiles at build time so they're served
+// straight from the edge cache.
 export async function generateStaticParams() {
-  return (await listHandles()).map((handle) => ({ handle }));
+  return (await listAllHandles()).map((handle) => ({ handle }));
 }
+
+// Handles are claimed on-chain continuously, so the set known at build time is
+// always stale. Anything outside `generateStaticParams` is rendered on demand
+// and then cached — a handle claimed after the last build resolves without a
+// redeploy, and `getProfile` still returns null (→ 404) for one that was never
+// claimed. Without this, a miss would be a hard 404 until the next deploy.
+export const dynamicParams = true;
+
+// Re-render a cached profile at most once a minute, so newly indexed on-chain
+// activity shows up shortly after it lands instead of being frozen at the
+// value captured on first render. Short enough to feel live, long enough that
+// a shared profile link doesn't re-query Postgres on every view.
+export const revalidate = 60;
+
+// Curated demo profiles use synthetic data on Stellar testnet. Handles bound
+// through the on-chain Identity Registry resolve live against the same network.
+const NETWORK = 'testnet';
 
 function truncate(str: string, head: number, tail: number): string {
   if (str.length <= head + tail + 3) return str;
@@ -14,20 +34,6 @@ function truncate(str: string, head: number, tail: number): string {
 
 function fmtDate(iso: string): string {
   return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-}
-
-function resolveFunction(op: Operation): string {
-  if (op.decoded_function && op.decoded_function !== '?') return op.decoded_function;
-  if (op.function && !op.function.startsWith('HostFunction')) return op.function;
-  return 'invoke_contract';
-}
-
-// Demo profiles use synthetic data on Stellar testnet. The production build
-// renders real mainnet activity bound via the on-chain Identity Registry.
-const NETWORK = 'testnet';
-
-function stellarExpertTx(hash: string): string {
-  return `https://stellar.expert/explorer/${NETWORK}/tx/${hash}`;
 }
 
 export async function generateMetadata({ params }: { params: Promise<{ handle: string }> }) {
@@ -48,6 +54,10 @@ export default async function ProfilePage({ params }: { params: Promise<{ handle
   const stats = computeStats(operations);
   const oldest = operations[operations.length - 1];
   const newest = operations[0];
+  // A curated demo profile and a handle actually bound on-chain render through
+  // the same route, so provenance drives every claim the page makes about the
+  // data — neither may borrow the other's framing.
+  const isDemo = profile.source === 'demo';
 
   return (
     <div
@@ -92,7 +102,7 @@ export default async function ProfilePage({ params }: { params: Promise<{ handle
             className="text-[11px] uppercase tracking-[0.26em] text-[#5e5b51]"
             style={{ fontFamily: 'var(--font-mono)' }}
           >
-            Profile · Stellar Testnet · Demo
+            {isDemo ? 'Profile · Stellar Testnet · Demo' : 'Profile · Stellar Testnet'}
           </div>
 
           <h1
@@ -116,15 +126,27 @@ export default async function ProfilePage({ params }: { params: Promise<{ handle
           )}
 
           <div className="mt-7 flex items-center gap-3">
-            <span className="inline-flex items-center gap-2 border border-amber-800 bg-amber-950/30 px-3 py-1.5">
-              <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
-              <span
-                className="text-[10px] uppercase tracking-[0.22em] text-amber-400"
-                style={{ fontFamily: 'var(--font-mono)' }}
-              >
-                Synthetic data · Testnet demo
+            {isDemo ? (
+              <span className="inline-flex items-center gap-2 border border-amber-800 bg-amber-950/30 px-3 py-1.5">
+                <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
+                <span
+                  className="text-[10px] uppercase tracking-[0.22em] text-amber-400"
+                  style={{ fontFamily: 'var(--font-mono)' }}
+                >
+                  Synthetic data · Testnet demo
+                </span>
               </span>
-            </span>
+            ) : (
+              <span className="inline-flex items-center gap-2 border border-emerald-800 bg-emerald-950/30 px-3 py-1.5">
+                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                <span
+                  className="text-[10px] uppercase tracking-[0.22em] text-emerald-400"
+                  style={{ fontFamily: 'var(--font-mono)' }}
+                >
+                  Bound on-chain · Identity Registry
+                </span>
+              </span>
+            )}
           </div>
         </div>
       </header>
@@ -136,13 +158,10 @@ export default async function ProfilePage({ params }: { params: Promise<{ handle
           <SectionLabel>Linked wallet</SectionLabel>
           <div className="mt-6 border border-[#1f1d19]">
             <div className="flex flex-wrap items-center justify-between gap-4 px-5 py-4">
-              <span
-                className="text-[13px] text-[#b8b5a8]"
-                style={{ fontFamily: 'var(--font-mono)' }}
-                title={profile.wallet}
-              >
-                {truncate(profile.wallet, 8, 6)}
-              </span>
+              <CopyAddress
+                address={profile.wallet}
+                display={truncate(profile.wallet, 8, 6)}
+              />
               <a
                 href={`https://stellar.expert/explorer/${NETWORK}/account/${profile.wallet}`}
                 target="_blank"
@@ -185,89 +204,18 @@ export default async function ProfilePage({ params }: { params: Promise<{ handle
           </div>
         </section>
 
-        {/* Operations */}
+        {/* Operations — paginated: first 25 rendered server-side */}
         <section className="mb-16">
           <SectionLabel>
             Soroban invocations
             <span className="ml-1 text-[#5e5b51]">· {operations.length} indexed</span>
           </SectionLabel>
 
-          {operations.length === 0 ? (
-            <div className="mt-6 border border-[#1f1d19] px-5 py-6">
-              <p
-                className="text-[13px] text-[#5e5b51]"
-                style={{ fontFamily: 'var(--font-mono)' }}
-              >
-                No Soroban invocations indexed in this sample window.
-              </p>
-            </div>
-          ) : (
-            <div className="mt-6 border border-[#1f1d19]">
-              {/* Header */}
-              <div
-                className="grid grid-cols-[1fr_auto_auto] gap-4 border-b border-[#1f1d19] px-5 py-3 text-[9px] uppercase tracking-[0.22em] text-[#5e5b51]"
-                style={{ fontFamily: 'var(--font-mono)' }}
-              >
-                <span>Function</span>
-                <span className="hidden md:block">Date</span>
-                <span>Tx</span>
-              </div>
-
-              {operations.slice(0, 20).map((op, i) => {
-                const fn = resolveFunction(op);
-                const balChanges = op.asset_balance_changes ?? [];
-                return (
-                  <div
-                    key={op.id}
-                    className={`group grid grid-cols-[1fr_auto_auto] items-start gap-4 px-5 py-4 transition-colors hover:bg-[#0e0d0b] ${
-                      i < Math.min(operations.length, 20) - 1 ? 'border-b border-[#1f1d19]' : ''
-                    }`}
-                  >
-                    <div className="min-w-0">
-                      <span
-                        className="block font-medium text-[13px] text-[#b8b5a8]"
-                        style={{ fontFamily: 'var(--font-mono)' }}
-                      >
-                        {fn}
-                      </span>
-                      {balChanges.length > 0 && (
-                        <span
-                          className="block text-[11px] text-[#5e5b51] mt-1"
-                          style={{ fontFamily: 'var(--font-mono)' }}
-                        >
-                          {balChanges.map((bc, j) => (
-                            <span key={j} className="mr-3">
-                              {bc.type === 'transfer' ? '↔' : '·'}{' '}
-                              {bc.amount} {bc.asset_code ?? 'XLM'}
-                            </span>
-                          ))}
-                        </span>
-                      )}
-                    </div>
-                    <span
-                      className="hidden text-[11px] text-[#5e5b51] md:block whitespace-nowrap"
-                      style={{ fontFamily: 'var(--font-mono)' }}
-                    >
-                      {fmtDate(op.created_at)}
-                    </span>
-                    {op.transaction_hash ? (
-                      <a
-                        href={stellarExpertTx(op.transaction_hash)}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="whitespace-nowrap text-[10px] uppercase tracking-[0.18em] text-[#8b1a1a] transition-colors hover:text-[#c2410c]"
-                        style={{ fontFamily: 'var(--font-mono)' }}
-                      >
-                        Verify ↗
-                      </a>
-                    ) : (
-                      <span className="text-[10px] text-[#3d3a33]" style={{ fontFamily: 'var(--font-mono)' }}>—</span>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          )}
+          <OperationsList
+            handle={handle}
+            initialOperations={operations.slice(0, 25)}
+            total={operations.length}
+          />
         </section>
 
         {/* Verification footer */}
@@ -278,11 +226,23 @@ export default async function ProfilePage({ params }: { params: Promise<{ handle
               className="max-w-[680px] text-[13px] leading-[1.7] text-[#5e5b51]"
               style={{ fontFamily: 'var(--font-mono)' }}
             >
-              This is a <strong className="text-[#8a8779]">demo profile</strong> populated with
-              synthetic data on Stellar testnet — no real account&apos;s activity is shown. In
-              production, profiles render real mainnet Soroban invocations from the Horizon API,
-              each independently verifiable on Stellar Expert, with the handle→wallet binding
-              proved on-chain via the Identity Registry rather than curated.
+              {isDemo ? (
+                <>
+                  This is a <strong className="text-[#8a8779]">demo profile</strong> populated with
+                  synthetic data on Stellar testnet — no real account&apos;s activity is shown. In
+                  production, profiles render real mainnet Soroban invocations from the Horizon
+                  API, each independently verifiable on Stellar Expert, with the handle→wallet
+                  binding proved on-chain via the Identity Registry rather than curated.
+                </>
+              ) : (
+                <>
+                  This handle is{' '}
+                  <strong className="text-[#8a8779]">bound on-chain</strong> — the handle→wallet
+                  binding above was read live from the Identity Registry contract on Stellar
+                  testnet, not curated. Any Soroban invocations listed come from the indexed
+                  ledger and are independently verifiable on Stellar Expert.
+                </>
+              )}
             </p>
             <a
               href="/how-it-works"
@@ -306,7 +266,7 @@ export default async function ProfilePage({ params }: { params: Promise<{ handle
               <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[#8b1a1a] opacity-60" />
               <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-[#8b1a1a]" />
             </span>
-            Stellar testnet · demo
+            {isDemo ? 'Stellar testnet · demo' : 'Stellar testnet'}
           </span>
         </div>
         <div
