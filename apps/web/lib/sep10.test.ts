@@ -106,3 +106,76 @@ test('verifyJwt rejects a tampered signature', () => {
 test('verifyJwt rejects garbage input', () => {
   assert.equal(verifyJwt('not-a-jwt'), null);
 });
+
+// ── Fixed SEP-10 vectors ─────────────────────────────────────────────────
+//
+// The tests above build challenges with our own `buildChallenge`/`WebAuth`
+// calls, so a shared misreading of the spec on both sides would still pass.
+// These instead run fixed, pre-generated XDR (frozen at generation time, not
+// rebuilt per run) through the SDK's `readChallengeTx`/`verifyChallengeTxSigners`
+// — the same functions `verifyChallenge` wraps — against a fixed server/client
+// keypair pair, independent of this module's challenge-building code.
+//
+// Vectors generated once via `WebAuth.buildChallengeTx` with a 100-year
+// timeout (so they don't expire) for:
+//   server: GC3EMCYACUVLUKBO7JCBQ5CLEA4GGLC6QPHVFNRA36WJU3XC7PGQLQ44
+//   client: GB6EGXUFCFNSFFNLHCJBM22GXNZLYDBC5ZGCUHAGGXYONP4KVASNPTCA
+//   home_domain / web_auth_domain: signet.dev, network: testnet
+
+const FIXED_SERVER_PUBLIC = 'GC3EMCYACUVLUKBO7JCBQ5CLEA4GGLC6QPHVFNRA36WJU3XC7PGQLQ44';
+const FIXED_CLIENT_PUBLIC = 'GB6EGXUFCFNSFFNLHCJBM22GXNZLYDBC5ZGCUHAGGXYONP4KVASNPTCA';
+const FIXED_SIGNED_XDR =
+  'AAAAAgAAAAC2RgsAFSq6KC76RBh0SyA4Yyxeg89StiDfrJpu4vvNBQAAAMgAAAAAAAAAAAAAAAEAAAAAanEKCAAAAAEmaSgIAAAAAAAAAAIAAAABAAAAAHxDXoURWyKVqziSFmtGu3K8DCLuTCocBjXw5r+KqCTXAAAACgAAAA9zaWduZXQuZGV2IGF1dGgAAAAAAQAAAEBEQlYzRFJEMzVqWW5YNXRTUWJ3SUlKWmhXa1JWVnp1TjJaTVZoWFhVOGdTQmxaK0hpOFAvZyt4MDN6Wi9EQkN0AAAAAQAAAAC2RgsAFSq6KC76RBh0SyA4Yyxeg89StiDfrJpu4vvNBQAAAAoAAAAPd2ViX2F1dGhfZG9tYWluAAAAAAEAAAAKc2lnbmV0LmRldgAAAAAAAAAAAALi+80FAAAAQAUvDhi+PGwR4GgGLNB7yiLia6+XflfcIsALHBLKz9nE3+njhPZWUWj/iKdErfmJNdEI6aMCpvS/lCIyBK+O8gOKqCTXAAAAQKGWOLqOJp1qT3N7CjmGjvWxIrQK3JDuEP6SjVfOWI50UgR+/8l9YmxOQZR9KT4MeJAb3kR+uduH+qxyI8jX5As=';
+
+test('accepts a fixed known-good SEP-10 challenge transaction', () => {
+  const { clientAccountID } = WebAuth.readChallengeTx(
+    FIXED_SIGNED_XDR,
+    FIXED_SERVER_PUBLIC,
+    getNetworkPassphrase(),
+    getHomeDomain(),
+    getWebAuthDomain(),
+  );
+  assert.equal(clientAccountID, FIXED_CLIENT_PUBLIC);
+
+  const signers = WebAuth.verifyChallengeTxSigners(
+    FIXED_SIGNED_XDR,
+    FIXED_SERVER_PUBLIC,
+    getNetworkPassphrase(),
+    [FIXED_CLIENT_PUBLIC],
+    getHomeDomain(),
+    getWebAuthDomain(),
+  );
+  assert.deepEqual(signers, [FIXED_CLIENT_PUBLIC]);
+});
+
+test('rejects the fixed vector against the wrong server key', () => {
+  const impostorServer = Keypair.random().publicKey();
+  assert.throws(() =>
+    WebAuth.readChallengeTx(
+      FIXED_SIGNED_XDR,
+      impostorServer,
+      getNetworkPassphrase(),
+      getHomeDomain(),
+      getWebAuthDomain(),
+    ),
+  );
+});
+
+test('rejects the fixed vector when the client signature is stripped', () => {
+  // Rebuild the envelope with only the server's signature (drop the client's).
+  const tx = TransactionBuilder.fromXDR(FIXED_SIGNED_XDR, getNetworkPassphrase());
+  const envelope = tx.toEnvelope();
+  envelope.v1().signatures().pop();
+  const serverOnlyXdr = envelope.toXDR('base64');
+
+  assert.throws(() =>
+    WebAuth.verifyChallengeTxSigners(
+      serverOnlyXdr,
+      FIXED_SERVER_PUBLIC,
+      getNetworkPassphrase(),
+      [FIXED_CLIENT_PUBLIC],
+      getHomeDomain(),
+      getWebAuthDomain(),
+    ),
+  );
+});
