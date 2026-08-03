@@ -94,9 +94,23 @@ test('resolveHandle encodes the handle into the procedure URL', async () => {
   assert.ok(seen.includes(encodeURIComponent('{"handle":"aquawolf"}')));
 });
 
-test('resolveHandle returns null on non-OK', async () => {
-  const client = new SignetClient({ baseUrl: 'https://signet.dev', fetch: mockFetch({}, false) });
+test('resolveHandle returns null on a 404 (unregistered)', async () => {
+  const client = new SignetClient({
+    baseUrl: 'https://signet.dev',
+    fetch: mockFetch({}, { ok: false, status: 404 }),
+  });
   assert.equal(await client.resolveHandle('ghost'), null);
+});
+
+test('resolveHandle throws ApiError on a server error', async () => {
+  const client = new SignetClient({
+    baseUrl: 'https://signet.dev',
+    fetch: mockFetch({}, { ok: false, status: 503 }),
+  });
+  await assert.rejects(
+    () => client.resolveHandle('ghost'),
+    (err: unknown) => err instanceof ApiError && err.status === 503,
+  );
 });
 
 test('lookupWallet calls registry.lookup', async () => {
