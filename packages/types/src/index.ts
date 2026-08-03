@@ -1,6 +1,17 @@
 // Shared domain types for Signet. Kept framework-agnostic so every package
 // (web, indexer, sdk, contracts tooling) can depend on a single source.
 
+// Handle validity and reservation rules, mirrored from the on-chain registry.
+export {
+  HANDLE_MAX_LEN,
+  HANDLE_PATTERN,
+  RESERVED_HANDLES,
+  isClaimableHandle,
+  isReservedHandle,
+  isValidHandle,
+} from './handle.ts';
+export type { ReservedHandle } from './handle.ts';
+
 export type Handle = string;
 
 /** A Stellar account or contract address (G… / C…). */
@@ -28,6 +39,17 @@ export interface ProfileResponse {
   handle: Handle;
   profile: SignetProfile;
   stats: ProfileStats;
+}
+
+/** A single handle ↔ wallet binding from the on-chain registry. */
+export interface RegistryEntry {
+  handle: Handle;
+  wallet: StellarAddress;
+}
+
+/** Response shape returned by `registry.count`. */
+export interface RegistryCount {
+  count: number;
 }
 
 export const SIGNET_TYPES_VERSION = '0.1.0';

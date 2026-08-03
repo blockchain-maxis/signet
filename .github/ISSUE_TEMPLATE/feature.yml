@@ -1,0 +1,61 @@
+name: Feature request
+description: Suggest a new capability or an improvement
+title: "feat: "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for the suggestion! Describe the problem first — the more we
+        understand the need, the better the solution.
+
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem / motivation
+      description: What are you trying to do, and why is it hard today?
+      placeholder: As a developer, I want … so that …
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: What should happen? Describe the behaviour or API you have in mind.
+    validations:
+      required: true
+
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      description: Which part of the codebase would this touch?
+      options:
+        - web
+        - indexer
+        - contract
+        - sdk
+        - infra
+        - not sure
+    validations:
+      required: true
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Other approaches you thought about, and why you set them aside.
+    validations:
+      required: false
+
+  - type: textarea
+    id: acceptance
+    attributes:
+      label: Acceptance criteria
+      description: How will we know this is done? List concrete, checkable outcomes.
+      placeholder: |
+        - [ ] …
+        - [ ] …
+    validations:
+      required: false
