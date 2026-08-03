@@ -1,6 +1,6 @@
 # Signet API Reference
 
-Auto-generated from the tRPC router.  Regenerate with: `pnpm run docs:generate`
+Generated from the tRPC router — do not edit by hand. Regenerate with `pnpm run docs:generate`.
 
 ---
 
@@ -109,5 +109,65 @@ None (session cookie carries the identity)
   bio: string | null;
 }
 ```
+
+---
+
+## `registry.count`
+
+- **Type:** `query`
+- **Auth:** `public`
+
+### Input
+
+None
+
+### Output
+
+```ts
+{ count: number }
+```
+Number of claimed handles; `0` when the directory is unreachable.
+
+---
+
+## `registry.lookup`
+
+- **Type:** `query`
+- **Auth:** `public`
+
+### Input
+
+```ts
+{ wallet: string }
+```
+A Stellar public key (`G…`, 56 chars). Validated by `walletInput()`.
+
+### Output
+
+```ts
+{ handle: string; wallet: string } | null
+```
+`null` when the on-chain directory is unreachable or the wallet holds no handle.
+
+---
+
+## `registry.resolve`
+
+- **Type:** `query`
+- **Auth:** `public`
+
+### Input
+
+```ts
+{ handle: string }
+```
+A well-formed handle: 1–32 chars of `[a-z0-9_-]`. Validated by `handleInput()`.
+
+### Output
+
+```ts
+{ handle: string; wallet: string } | null
+```
+`null` when the on-chain directory is unreachable or the handle is unclaimed.
 
 ---

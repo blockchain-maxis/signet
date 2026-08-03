@@ -1,4 +1,4 @@
-import type { Handle, ProfileResponse } from '@signet/types';
+import type { Handle, ProfileResponse, RegistryEntry, RegistryCount } from '@signet/types';
 
 export interface SignetClientOptions {
   /** Base URL of a Signet deployment, e.g. https://signet.dev */
@@ -44,5 +44,20 @@ export class SignetClient {
   /** List every curated handle in the registry. */
   async listHandles(): Promise<Handle[]> {
     return (await this.query<Handle[]>('profile.list', undefined)) ?? [];
+  }
+
+  /** Resolve a handle to its bound wallet address, or null if unregistered. */
+  async resolveHandle(handle: Handle): Promise<RegistryEntry | null> {
+    return this.query<RegistryEntry>('registry.resolve', { handle });
+  }
+
+  /** Reverse-lookup: find the handle bound to a wallet address. */
+  async lookupWallet(wallet: string): Promise<RegistryEntry | null> {
+    return this.query<RegistryEntry>('registry.lookup', { wallet });
+  }
+
+  /** Return the total number of registered handle ↔ wallet bindings. */
+  async countRegistryEntries(): Promise<RegistryCount> {
+    return (await this.query<RegistryCount>('registry.count', undefined)) ?? { count: 0 };
   }
 }

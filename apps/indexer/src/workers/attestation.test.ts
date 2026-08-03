@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { Address, Keypair, nativeToScVal, xdr } from '@stellar/stellar-sdk';
+import { Address, Keypair, nativeToScVal, rpc, xdr } from '@stellar/stellar-sdk';
 import {
   decodeEvent,
   applyAttestation,
@@ -106,13 +106,11 @@ function fakeServer(overrides: {
   const ledgerOfEvents = overrides.ledgerOfEvents ?? latestLedger;
   const rawEvents = overrides.events ?? [];
 
+  // Only the two methods the worker calls are implemented, so the stub is cast
+  // to the SDK's `rpc.Server` rather than widening the worker's own signature.
   return {
     getLatestLedger: async () => ({ sequence: latestLedger }),
-    getEvents: async (input: {
-      startLedger: number;
-      filters: { type: string; contractIds: string[] }[];
-      limit: number;
-    }) => ({
+    getEvents: async (input: { startLedger: number }) => ({
       latestLedger,
       // Filter events that are at or after the requested startLedger.
       events: (input.startLedger > ledgerOfEvents ? [] : rawEvents).map((e) => ({
@@ -121,7 +119,7 @@ function fakeServer(overrides: {
         ledger: ledgerOfEvents,
       })),
     }),
-  };
+  } as unknown as rpc.Server;
 }
 
 /** Factory for the mock cursor store. Records every interaction. */
@@ -134,13 +132,15 @@ function recordingCursorStore(initial: { lastLedger: number } | null = null): {
   const calls: any[] = [];
   return {
     store: {
-      findUnique: async (_args) => {
-        calls.push(['findUnique', _args]);
-        return saved;
-      },
-      upsert: async (args) => {
-        calls.push(['upsert', args]);
-        saved = { lastLedger: args.update.lastLedger };
+      indexerCursor: {
+        findUnique: async (_args) => {
+          calls.push(['findUnique', _args]);
+          return saved;
+        },
+        upsert: async (args) => {
+          calls.push(['upsert', args]);
+          saved = { lastLedger: args.update.lastLedger };
+        },
       },
     },
     calls,
@@ -229,7 +229,7 @@ test('runAttestationWorker resumes from stored cursor on second run', async () =
       startLedgerFromSecondRun.value = input.startLedger;
       return { latestLedger: 600, events: [] };
     },
-  };
+  } as unknown as rpc.Server;
 
   const { store: store2, calls: secondCalls } = recordingStore();
   await runAttestationWorker(
@@ -315,7 +315,7 @@ test('runAttestationWorker does not move cursor on fetch error', async () => {
     getEvents: async () => {
       throw new Error('network error');
     },
-  };
+  } as unknown as rpc.Server;
   const { store } = recordingStore();
 
   await runAttestationWorker(

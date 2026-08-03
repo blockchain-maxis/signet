@@ -2,14 +2,17 @@
  * Generate API reference documentation from the tRPC router.
  *
  * Usage:
- *   tsx apps/web/scripts/generate-api-docs.ts
+ *   pnpm run docs:generate
  *
  * Output: docs/api-reference.md
  *
- * This script introspects the router tree at runtime and emits a markdown
- * reference.  Input/output shapes are documented based on the known input
- * validators and return types — if schemas (Zod etc.) are added later this
- * script can be extended to derive them automatically.
+ * The route list, procedure type (query/mutation) and auth level are read from
+ * the router tree at runtime, so a route can never be missing from the
+ * reference. The input/output shapes are hand-written below, because the
+ * procedures validate with plain functions rather than a reflectable schema
+ * library — swap `docForInput`/`docForOutput` for schema introspection if Zod
+ * (or similar) is adopted. Until then, a route with no entry fails the run
+ * rather than rendering as "Unknown".
  */
 
 import { writeFileSync } from 'fs';
@@ -28,8 +31,9 @@ type ProcedureMeta = {
   path: string;
   type: 'query' | 'mutation';
   auth: 'public' | 'protected';
-  inputDoc: string;
-  outputDoc: string;
+  /** `undefined` when the path has no hand-written entry — see `main()`. */
+  inputDoc: string | undefined;
+  outputDoc: string | undefined;
 };
 
 /**
@@ -84,7 +88,6 @@ function computeAuth(procedure: Record<string, unknown>): 'public' | 'protected'
   // Walk the procedure's _internal representation — try a few known shapes.
   const seen = new Set<unknown>();
 
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   function walk(obj: any): 'public' | 'protected' | null {
     if (!obj || seen.has(obj)) return null;
     seen.add(obj);
@@ -132,8 +135,15 @@ function docForInput(path: string): string {
     'account.update':
       '```ts\n{ displayName: string | null; bio: string | null }\n```\n' +
       '`displayName`: max 80 chars. `bio`: max 280 chars. Validated by `normalizeAccountUpdate()`.',
+    'registry.resolve':
+      '```ts\n{ handle: string }\n```\n' +
+      'A well-formed handle: 1–32 chars of `[a-z0-9_-]`. Validated by `handleInput()`.',
+    'registry.lookup':
+      '```ts\n{ wallet: string }\n```\n' +
+      'A Stellar public key (`G…`, 56 chars). Validated by `walletInput()`.',
+    'registry.count': 'None',
   };
-  return map[path] ?? 'Unknown';
+  return map[path];
 }
 
 /**
@@ -167,8 +177,16 @@ function docForOutput(path: string): string {
       '  displayName: string | null;\n' +
       '  bio: string | null;\n' +
       '}\n```',
+    'registry.resolve':
+      '```ts\n{ handle: string; wallet: string } | null\n```\n' +
+      '`null` when the on-chain directory is unreachable or the handle is unclaimed.',
+    'registry.lookup':
+      '```ts\n{ handle: string; wallet: string } | null\n```\n' +
+      '`null` when the on-chain directory is unreachable or the wallet holds no handle.',
+    'registry.count':
+      '```ts\n{ count: number }\n```\nNumber of claimed handles; `0` when the directory is unreachable.',
   };
-  return map[path] ?? 'Unknown';
+  return map[path];
 }
 
 /* ------------------------------------------------------------------ */
@@ -181,19 +199,24 @@ function render(procedures: ProcedureMeta[]): string {
   lines.push('# Signet API Reference');
   lines.push('');
   lines.push(
-    'Auto-generated from the tRPC router.  Regenerate with: `pnpm run docs:generate`',
+    'Generated from the tRPC router — do not edit by hand. ' +
+      'Regenerate with `pnpm run docs:generate`.',
   );
   lines.push('');
   lines.push('---');
   lines.push('');
 
-  // Sort: health first, then profile.*, then account.*
+  // Sort: health first, then profile.*, account.*, registry.*. Anything not
+  // listed sorts last rather than first — `findIndex` returns -1 for unknown
+  // categories, which would otherwise float new routers to the top of the page.
+  const order = ['health', 'profile', 'account', 'registry'];
+  const rank = (path: string) => {
+    const i = order.findIndex((o) => path.startsWith(o));
+    return i === -1 ? order.length : i;
+  };
   const sorted = [...procedures].sort((a, b) => {
-    const order = ['health', 'profile', 'account'];
-    const aCat = order.findIndex((o) => a.path.startsWith(o));
-    const bCat = order.findIndex((o) => b.path.startsWith(o));
-    if (aCat !== bCat) return aCat - bCat;
-    return a.path.localeCompare(b.path);
+    const diff = rank(a.path) - rank(b.path);
+    return diff !== 0 ? diff : a.path.localeCompare(b.path);
   });
 
   for (const p of sorted) {
@@ -229,14 +252,28 @@ function main() {
   const router = appRouter as unknown as Record<string, unknown>;
   const procedures = collectProcedures(router, '');
 
-  // The root "health" procedure lives directly on the router, "profile" and
-  // "account" are sub-routers — collectProcedures already recurses into them.
-  const md = render(
-    procedures.filter((p) => p.path !== 'createCaller' && !p.path.startsWith('_')),
+  // The root "health" procedure lives directly on the router, "profile",
+  // "account" and "registry" are sub-routers — collectProcedures already
+  // recurses into them.
+  const documented = procedures.filter(
+    (p) => p.path !== 'createCaller' && !p.path.startsWith('_'),
   );
 
-  writeFileSync(OUT, md, 'utf-8');
-  console.log(`Wrote ${OUT} (${procedures.length} procedures documented)`);
+  // The input/output shapes below are maintained by hand, so a procedure added
+  // to the router without a matching entry would silently render as "Unknown"
+  // and quietly rot the reference. Fail instead: a red `docs:generate` is a
+  // one-line fix, a reference full of "Unknown" is not.
+  const undocumented = documented.filter((p) => !p.inputDoc || !p.outputDoc);
+  if (undocumented.length > 0) {
+    console.error(
+      `Undocumented procedure(s): ${undocumented.map((p) => p.path).join(', ')}\n` +
+        'Add an entry to docForInput() and docForOutput() in this script.',
+    );
+    process.exit(1);
+  }
+
+  writeFileSync(OUT, render(documented), 'utf-8');
+  console.log(`Wrote ${OUT} (${documented.length} procedures documented)`);
 }
 
 main();

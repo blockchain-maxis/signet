@@ -48,15 +48,19 @@ export interface AttestationStore {
 
 /**
  * Minimal cursor persistence interface. Tests can inject a lightweight mock
- * instead of depending on a real database.
+ * instead of depending on a real database. The `indexerCursor` nesting mirrors
+ * the Prisma client's own shape so the production default can be passed
+ * straight through, the same way `AttestationStore` does.
  */
 export interface CursorStore {
-  findUnique(args: { where: { id: string } }): Promise<{ lastLedger: number } | null>;
-  upsert(args: {
-    where: { id: string };
-    update: { lastLedger: number };
-    create: { id: string; lastLedger: number };
-  }): Promise<unknown>;
+  indexerCursor: {
+    findUnique(args: { where: { id: string } }): Promise<{ lastLedger: number } | null>;
+    upsert(args: {
+      where: { id: string };
+      update: { lastLedger: number };
+      create: { id: string; lastLedger: number };
+    }): Promise<unknown>;
+  };
 }
 
 /**
@@ -102,36 +106,18 @@ export async function applyAttestation(
   }
 }
 
-export type GetEventsInput = {
-  startLedger: number;
-  filters: { type: string; contractIds: string[] }[];
-  limit: number;
-};
-
-export type GetEventsResult = {
-  latestLedger: number;
-  events: { topic: xdr.ScVal[]; value: xdr.ScVal; ledger: number }[];
-};
-
-export type GetLatestLedgerResult = {
-  sequence: number;
-};
-
 /**
  * Run the attestation worker tick.
  *
  * @param server      Soroban RPC server
  * @param config      Indexer configuration
- * @param cursorStore Optional cursor store (defaults to real Prisma client).
+ * @param cursorStore Optional cursor store (defaults to the real Prisma client).
  *                    Tests inject a mock to verify cursor resumption.
- * @param eventStore  Optional event store (defaults to real Prisma client).
+ * @param eventStore  Optional event store (defaults to the real Prisma client).
  *                    Tests inject a mock to verify events are applied only once.
  */
 export async function runAttestationWorker(
-  server: {
-    getEvents(input: GetEventsInput): Promise<GetEventsResult>;
-    getLatestLedger(): Promise<GetLatestLedgerResult>;
-  },
+  server: rpc.Server,
   config: IndexerConfig,
   cursorStore?: CursorStore,
   eventStore?: AttestationStore,
@@ -145,7 +131,7 @@ export async function runAttestationWorker(
   const evStore = eventStore ?? (prisma as unknown as AttestationStore);
 
   // Resume from the cursor, or start `eventWindowLedgers` back on first run.
-  const cursor = await store.findUnique({ where: { id: CURSOR_ID } });
+  const cursor = await store.indexerCursor.findUnique({ where: { id: CURSOR_ID } });
   let startLedger: number;
   if (cursor && cursor.lastLedger > 0) {
     startLedger = cursor.lastLedger + 1;
@@ -181,7 +167,7 @@ export async function runAttestationWorker(
     return { eventsDecoded: applied };
   }
 
-  await store.upsert({
+  await store.indexerCursor.upsert({
     where: { id: CURSOR_ID },
     update: { lastLedger: latestLedger },
     create: { id: CURSOR_ID, lastLedger: latestLedger },

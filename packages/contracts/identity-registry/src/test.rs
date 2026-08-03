@@ -282,3 +282,41 @@ fn transfer_handle_target_wallet_already_bound_errors() {
     assert_eq!(client.lookup(&old_wallet), Some(handle1.clone()));
     assert_eq!(client.count(), 2);
 }
+
+#[test]
+fn claim_rejects_reserved_handles() {
+    let (env, client, _admin) = setup();
+
+    // Every reserved app-route name must be rejected, and none may bind.
+    for name in [
+        "p",
+        "api",
+        "app",
+        "admin",
+        "docs",
+        "handles",
+        "how-it-works",
+        "profile",
+        "robots",
+        "sitemap",
+    ] {
+        let handle = String::from_str(&env, name);
+        let res = client.try_claim(&handle, &Address::generate(&env));
+        assert_eq!(res, Err(Ok(Error::HandleReserved)));
+        assert!(!client.is_bound(&handle));
+    }
+
+    assert_eq!(client.count(), 0);
+}
+
+#[test]
+fn claim_allows_handles_that_only_resemble_reserved_names() {
+    let (env, client, _admin) = setup();
+
+    // Reservation is exact-match: superstrings of reserved names are fine.
+    for name in ["apps", "apiv2", "administrator", "profiles"] {
+        let handle = String::from_str(&env, name);
+        client.claim(&handle, &Address::generate(&env));
+        assert!(client.is_bound(&handle));
+    }
+}

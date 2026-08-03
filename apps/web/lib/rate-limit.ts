@@ -67,7 +67,7 @@ function ensureStore(): Promise<void> {
       const token = process.env.UPSTASH_REDIS_REST_TOKEN;
       if (store instanceof MemoryStore && url && token) {
         const { UpstashRateLimitStore } = await import('./rate-limit-redis.ts');
-        store = new UpstashRateLimitStore(url, token);
+        setRateLimitStore(new UpstashRateLimitStore(url, token));
       }
       storeResolved = true;
     })();
