@@ -128,12 +128,20 @@ and skipped without advancing the relevant cursor, so the next tick retries.
 `/p/{handle}` is statically generated and reads through a single loader,
 [`apps/web/lib/profiles.ts`](apps/web/lib/profiles.ts):
 
-- `getProfile` / `getOperations` try the **database first**
-  (`safeDbProfile` / `safeDbOperations`) and **fall back to the curated static
-  manifest** in `apps/web/public/data/`. `safeDbProfile` returns `null` whenever
-  no database is configured, so the demo routes work with zero provisioning
-  (preview, prod, offline) and automatically upgrade to live data once the
-  indexer + Postgres are online.
+- `getProfile` resolves a handle **database → chain → static manifest**:
+  `safeDbProfile` (indexer-synced bindings plus off-chain display fields), then
+  `safeChainProfile` (a read-only `resolve(handle)` simulation against the
+  Identity Registry over Soroban RPC), then the curated manifest in
+  `apps/web/public/data/`. The chain layer is what lets a handle claimed
+  on-chain render before — or entirely without — an indexer sync.
+  `getOperations` is database-then-static (`safeDbOperations`), since activity
+  has no single-call on-chain equivalent.
+- Every layer returns `null` rather than throwing when it isn't provisioned —
+  no `DATABASE_URL`, no registry contract id, unreachable RPC — so the demo
+  routes work with zero provisioning (preview, prod, offline) and automatically
+  upgrade to live data as each dependency comes online. A profile carries the
+  layer that resolved it, so `/p/{handle}` can label a curated demo and a
+  genuine on-chain binding differently.
 - The same data is exposed over a **tRPC API**
   ([`apps/web/lib/server/trpc.ts`](apps/web/lib/server/trpc.ts)):
   `profile.list`, `profile.byHandle`, and `health` are public (per-IP rate
@@ -175,7 +183,10 @@ needs provisioning to go live; this is "Phase 2")
 - **Identity Registry contract** — compiles to wasm and is unit-tested, but is
   **not yet deployed on-chain**. Deploy it, then set
   `NEXT_PUBLIC_IDENTITY_REGISTRY_ID` (web) and `INDEXER_REGISTRY_CONTRACT_ID`
-  (indexer) to activate the claim + attestation flow.
+  (indexer) to activate the claim + attestation flow. Once the web app has that
+  id, `getProfile` resolves a handle **database → chain → static manifest**, so
+  a handle bound on-chain renders at `/p/{handle}` immediately — no database or
+  indexer sync required — while the curated demo profiles keep working.
 - **Indexer worker** — packaged by [`apps/indexer/Dockerfile`](apps/indexer/Dockerfile)
   and published to GHCR by the opt-in [`deploy.yml`](.github/workflows/deploy.yml)
   (`migrate` → build/push image), gated on the `DEPLOY_ENABLED` repo variable.

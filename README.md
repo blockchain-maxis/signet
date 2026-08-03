@@ -7,6 +7,8 @@ Signet is a verifiable developer career record built on Stellar/Soroban. Develop
 > Demo profiles use **synthetic data on Stellar testnet** — generated, unowned
 > accounts — so no real wallet's activity is attributed to an invented persona.
 > Production renders real mainnet activity bound on-chain via the Identity Registry.
+> Provenance, schema, regeneration, and the honesty policy:
+> [`docs/DEMO_DATA.md`](docs/DEMO_DATA.md).
 
 | URL | Description |
 |-----|-------------|
@@ -15,6 +17,7 @@ Signet is a verifiable developer career record built on Stellar/Soroban. Develop
 | `/p/sorobuilder` | Demo profile — Soroswap-style DEX swaps (testnet, synthetic) |
 | `/p/stellardev` | Demo profile — USDC token transfers (testnet, synthetic) |
 | `/how-it-works` | How Signet works + what's coming |
+| [`docs/DEMO_DATA.md`](docs/DEMO_DATA.md) | Demo fixture provenance, schema, and honesty policy |
 
 ## What's working in this build
 
@@ -35,7 +38,7 @@ Signet is a verifiable developer career record built on Stellar/Soroban. Develop
 
 - **Deploy the registry** to testnet/mainnet and set `NEXT_PUBLIC_IDENTITY_REGISTRY_ID` to make claims live.
 - **Run the indexer** against a Postgres instance to populate full deployment/activity history; `/p` already has a DB-with-static-fallback loader (`safeDbProfile`).
-- **Self-sovereign bindings** replace the curated `profiles.json` mapping once claims are live.
+- **Self-sovereign bindings** replace the curated `DEMO_PROFILES` mapping once claims are live.
 - **Developer dashboard** (`/app/*`) — currently an honest read-only preview pending wallet auth.
 - **Reputation scoring** — attestations, TVL tracking, incident records.
 
@@ -53,6 +56,23 @@ Visit `http://localhost:3000` for the landing page.
 Visit `http://localhost:3000/p/aquawolf` for the first demo profile.
 
 > **Requires Node 22+.** Fonts (`IBM Plex Sans`/`Mono`) load via a browser-side `@import` in `globals.css` (not `next/font`), so the build never blocks on font downloads.
+
+First-run failures (stellar CLI passphrase bug, Friendbot funding, missing
+`wasm32v1-none`, no `DATABASE_URL`, Phase 2 claim message, indexer without a
+registry id): see [`docs/TROUBLESHOOTING.md`](docs/TROUBLESHOOTING.md).
+
+## Self-host / deploy
+
+**See [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md)** for a clone-to-running guide:
+prerequisites, deploy key + Friendbot, wasm build, `infra/deploy-contract.sh`,
+`initialize(admin)`, Netlify (`netlify.toml`) and Vercel production env
+(including `SIGNET_AUTH_SECRET`), verification checklist, and rollback.
+
+## Roadmap and funding
+
+**See [`PROPOSAL.md`](PROPOSAL.md)** for the grant proposal: the problem
+statement, an itemized budget, dated milestones through 2027-04-30, and a
+fix-log of resolved issues with the tests that keep them closed.
 
 ## Architecture
 
@@ -84,6 +104,14 @@ Implemented:
   packages/contracts/identity-registry  — Soroban claim contract (13 tests)
   packages/sdk                          — External SDK (fetches the tRPC API)
 ```
+
+## Integrating with the registry
+
+**See [`docs/REGISTRY_INTEGRATION.md`](docs/REGISTRY_INTEGRATION.md)** to resolve Signet
+handles from your own app: the deployed testnet contract id and passphrase, every
+`contracterror` code, the event topic/data layout, and `@stellar/stellar-sdk` snippets for
+reading (`resolve` / `lookup` / `is_bound` / `count`), claiming, and rebuilding the handle
+set from the event stream.
 
 ## Directory structure
 
