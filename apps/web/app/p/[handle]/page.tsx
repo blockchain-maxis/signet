@@ -1,11 +1,16 @@
 import { notFound } from 'next/navigation';
 import { SignetMonogram } from '../../(marketing)/components/signet-monogram';
-import { getProfile, getOperations, listHandles, computeStats, type Operation } from '@/lib/profiles';
+import { getProfile, getOperations, listHandles, computeStats } from '@/lib/profiles';
+import OperationsList from './operations-list';
 
 // Pre-render the curated profiles at build time; unknown handles 404.
 export async function generateStaticParams() {
   return (await listHandles()).map((handle) => ({ handle }));
 }
+
+// Demo profiles use synthetic data on Stellar testnet. The production build
+// renders real mainnet activity bound via the on-chain Identity Registry.
+const NETWORK = 'testnet';
 
 function truncate(str: string, head: number, tail: number): string {
   if (str.length <= head + tail + 3) return str;
@@ -14,20 +19,6 @@ function truncate(str: string, head: number, tail: number): string {
 
 function fmtDate(iso: string): string {
   return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-}
-
-function resolveFunction(op: Operation): string {
-  if (op.decoded_function && op.decoded_function !== '?') return op.decoded_function;
-  if (op.function && !op.function.startsWith('HostFunction')) return op.function;
-  return 'invoke_contract';
-}
-
-// Demo profiles use synthetic data on Stellar testnet. The production build
-// renders real mainnet activity bound via the on-chain Identity Registry.
-const NETWORK = 'testnet';
-
-function stellarExpertTx(hash: string): string {
-  return `https://stellar.expert/explorer/${NETWORK}/tx/${hash}`;
 }
 
 export async function generateMetadata({ params }: { params: Promise<{ handle: string }> }) {
@@ -185,89 +176,18 @@ export default async function ProfilePage({ params }: { params: Promise<{ handle
           </div>
         </section>
 
-        {/* Operations */}
+        {/* Operations — paginated: first 25 rendered server-side */}
         <section className="mb-16">
           <SectionLabel>
             Soroban invocations
             <span className="ml-1 text-[#5e5b51]">· {operations.length} indexed</span>
           </SectionLabel>
 
-          {operations.length === 0 ? (
-            <div className="mt-6 border border-[#1f1d19] px-5 py-6">
-              <p
-                className="text-[13px] text-[#5e5b51]"
-                style={{ fontFamily: 'var(--font-mono)' }}
-              >
-                No Soroban invocations indexed in this sample window.
-              </p>
-            </div>
-          ) : (
-            <div className="mt-6 border border-[#1f1d19]">
-              {/* Header */}
-              <div
-                className="grid grid-cols-[1fr_auto_auto] gap-4 border-b border-[#1f1d19] px-5 py-3 text-[9px] uppercase tracking-[0.22em] text-[#5e5b51]"
-                style={{ fontFamily: 'var(--font-mono)' }}
-              >
-                <span>Function</span>
-                <span className="hidden md:block">Date</span>
-                <span>Tx</span>
-              </div>
-
-              {operations.slice(0, 20).map((op, i) => {
-                const fn = resolveFunction(op);
-                const balChanges = op.asset_balance_changes ?? [];
-                return (
-                  <div
-                    key={op.id}
-                    className={`group grid grid-cols-[1fr_auto_auto] items-start gap-4 px-5 py-4 transition-colors hover:bg-[#0e0d0b] ${
-                      i < Math.min(operations.length, 20) - 1 ? 'border-b border-[#1f1d19]' : ''
-                    }`}
-                  >
-                    <div className="min-w-0">
-                      <span
-                        className="block font-medium text-[13px] text-[#b8b5a8]"
-                        style={{ fontFamily: 'var(--font-mono)' }}
-                      >
-                        {fn}
-                      </span>
-                      {balChanges.length > 0 && (
-                        <span
-                          className="block text-[11px] text-[#5e5b51] mt-1"
-                          style={{ fontFamily: 'var(--font-mono)' }}
-                        >
-                          {balChanges.map((bc, j) => (
-                            <span key={j} className="mr-3">
-                              {bc.type === 'transfer' ? '↔' : '·'}{' '}
-                              {bc.amount} {bc.asset_code ?? 'XLM'}
-                            </span>
-                          ))}
-                        </span>
-                      )}
-                    </div>
-                    <span
-                      className="hidden text-[11px] text-[#5e5b51] md:block whitespace-nowrap"
-                      style={{ fontFamily: 'var(--font-mono)' }}
-                    >
-                      {fmtDate(op.created_at)}
-                    </span>
-                    {op.transaction_hash ? (
-                      <a
-                        href={stellarExpertTx(op.transaction_hash)}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="whitespace-nowrap text-[10px] uppercase tracking-[0.18em] text-[#8b1a1a] transition-colors hover:text-[#c2410c]"
-                        style={{ fontFamily: 'var(--font-mono)' }}
-                      >
-                        Verify ↗
-                      </a>
-                    ) : (
-                      <span className="text-[10px] text-[#3d3a33]" style={{ fontFamily: 'var(--font-mono)' }}>—</span>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          )}
+          <OperationsList
+            handle={handle}
+            initialOperations={operations.slice(0, 25)}
+            total={operations.length}
+          />
         </section>
 
         {/* Verification footer */}

@@ -12,7 +12,7 @@
     "build": "tsc --noEmit",
     "typecheck": "tsc --noEmit",
     "lint": "eslint . --config ../../eslint.config.js",
-    "test": "echo \"@signet/types: no tests yet\" && exit 0"
+    "test": "node --experimental-strip-types --test \"src/**/*.test.ts\""
   },
   "devDependencies": {
     "typescript": "^5.6.3"

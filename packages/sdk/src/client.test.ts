@@ -74,3 +74,58 @@ test('listHandles defaults to an empty array', async () => {
   });
   assert.deepEqual(await client.listHandles(), []);
 });
+
+test('resolveHandle calls registry.resolve and unwraps the result', async () => {
+  const data = { handle: 'aquawolf', wallet: 'GAAA...' };
+  const client = new SignetClient({ baseUrl: 'https://signet.dev', fetch: mockFetch({ result: { data } }) });
+  const res = await client.resolveHandle('aquawolf');
+  assert.deepEqual(res, data);
+});
+
+test('resolveHandle encodes the handle into the procedure URL', async () => {
+  let seen = '';
+  const fetchSpy = (async (url: string) => {
+    seen = String(url);
+    return { ok: true, json: async () => ({ result: { data: null } }) } as Response;
+  }) as unknown as typeof fetch;
+  const client = new SignetClient({ baseUrl: 'https://signet.dev/', fetch: fetchSpy });
+  await client.resolveHandle('aquawolf');
+  assert.ok(seen.includes('/api/trpc/registry.resolve'));
+  assert.ok(seen.includes(encodeURIComponent('{"handle":"aquawolf"}')));
+});
+
+test('resolveHandle returns null on non-OK', async () => {
+  const client = new SignetClient({ baseUrl: 'https://signet.dev', fetch: mockFetch({}, false) });
+  assert.equal(await client.resolveHandle('ghost'), null);
+});
+
+test('lookupWallet calls registry.lookup', async () => {
+  const data = { handle: 'aquawolf', wallet: 'GAAA...' };
+  const client = new SignetClient({ baseUrl: 'https://signet.dev', fetch: mockFetch({ result: { data } }) });
+  const res = await client.lookupWallet('GAAA...');
+  assert.deepEqual(res, data);
+});
+
+test('lookupWallet encodes the wallet into the procedure URL', async () => {
+  let seen = '';
+  const fetchSpy = (async (url: string) => {
+    seen = String(url);
+    return { ok: true, json: async () => ({ result: { data: null } }) } as Response;
+  }) as unknown as typeof fetch;
+  const client = new SignetClient({ baseUrl: 'https://signet.dev/', fetch: fetchSpy });
+  await client.lookupWallet('GABCDEF');
+  assert.ok(seen.includes('/api/trpc/registry.lookup'));
+  assert.ok(seen.includes(encodeURIComponent('{"wallet":"GABCDEF"}')));
+});
+
+test('countRegistryEntries calls registry.count', async () => {
+  const client = new SignetClient({ baseUrl: 'https://signet.dev', fetch: mockFetch({ result: { data: { count: 42 } } }) });
+  const res = await client.countRegistryEntries();
+  assert.deepEqual(res, { count: 42 });
+});
+
+test('countRegistryEntries defaults to zero when the response is null', async () => {
+  const client = new SignetClient({ baseUrl: 'https://signet.dev', fetch: mockFetch({ result: { data: null } }) });
+  const res = await client.countRegistryEntries();
+  assert.deepEqual(res, { count: 0 });
+});
