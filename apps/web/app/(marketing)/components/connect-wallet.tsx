@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { HANDLE_MAX_LEN, isReservedHandle, isValidHandle } from '@signet/types';
 import { connectWallet, disconnectWallet, getConnectedAddress } from '@/lib/wallet';
 import { claimHandle, isRegistryConfigured, RegistryNotConfiguredError } from '@/lib/registry';
 
@@ -9,14 +10,17 @@ function truncate(addr: string): string {
   return addr.length > 12 ? `${addr.slice(0, 5)}…${addr.slice(-4)}` : addr;
 }
 
-const HANDLE_PATTERN = /^[a-z0-9_-]{1,32}$/;
-
 function validateHandle(handle: string): string | null {
   if (!handle) return 'Handle is required';
-  if (!HANDLE_PATTERN.test(handle)) {
-    if (handle.length > 32) return 'Handle must be 32 characters or less';
+  if (!isValidHandle(handle)) {
+    if (handle.length > HANDLE_MAX_LEN) {
+      return `Handle must be ${HANDLE_MAX_LEN} characters or less`;
+    }
     return 'Handle can only contain lowercase letters, numbers, underscores, and hyphens';
   }
+  // Caught here rather than on-chain: `claim` rejects reserved names with
+  // HandleReserved, so submitting would cost a fee to learn the same thing.
+  if (isReservedHandle(handle)) return 'That handle is reserved for a Signet route';
   return null;
 }
 
@@ -147,7 +151,7 @@ export function ConnectWallet({
             placeholder="your-handle"
             disabled={busy}
             className="rounded border border-[#8b1a1a] bg-[#f5f4ee] px-3 py-2 text-sm font-mono text-[#1a1816] placeholder:text-[#8a8779] focus:outline-none focus:ring-2 focus:ring-[#8b1a1a] disabled:opacity-50"
-            maxLength={32}
+            maxLength={HANDLE_MAX_LEN}
             autoFocus
             onKeyDown={(e) => {
               if (e.key === 'Enter' && !validationError && handle) {
