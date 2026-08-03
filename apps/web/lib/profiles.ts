@@ -1,5 +1,6 @@
 import { promises as fs } from 'fs';
 import path from 'path';
+import { isValidHandle } from '@signet/types';
 import {
   ALLOW_HTTP,
   NETWORK_PASSPHRASE,
@@ -66,12 +67,9 @@ type ManifestProfile = Omit<Profile, 'source'>;
 
 const DATA_DIR = path.join(process.cwd(), 'public/data');
 
-/** A handle is 1–32 chars of `[a-z0-9_-]` — mirrors the on-chain registry. */
-const HANDLE_RE = /^[a-z0-9_-]{1,32}$/;
-
-export function isValidHandle(handle: string): boolean {
-  return HANDLE_RE.test(handle);
-}
+// Handle rules live in @signet/types, mirrored from the on-chain registry.
+// Re-exported here so existing callers keep importing it from this module.
+export { isValidHandle };
 
 async function readJson<T>(file: string): Promise<T | null> {
   try {
@@ -100,9 +98,26 @@ export async function getProfile(handle: string): Promise<Profile | null> {
 
 export async function getOperations(handle: string): Promise<Operation[]> {
   if (!isValidHandle(handle)) return [];
-  // Prefer indexer-populated DB rows; fall back to the static demo JSON.
+
+  // 1. Prefer indexer-populated DB rows (fastest, richest data including decoded_function).
   const fromDb = await safeDbOperations(handle);
   if (fromDb && fromDb.length > 0) return fromDb;
+
+  // 2. Horizon fallback: fetch invoke_host_function ops for the bound wallet directly
+  //    from the Horizon API. This makes claimed handles work without a database.
+  //    We need the profile to resolve the wallet address, but only if the DB didn't
+  //    already return an empty array because the profile genuinely has no ops yet.
+  if (fromDb === null) {
+    // DB is unavailable (no DATABASE_URL or connection failed) — try Horizon.
+    const profile = await getProfile(handle);
+    if (profile?.wallet) {
+      const { fetchHorizonOperations } = await import('./server/horizon.ts');
+      const fromHorizon = await fetchHorizonOperations(profile.wallet);
+      if (fromHorizon && fromHorizon.length > 0) return fromHorizon;
+    }
+  }
+
+  // 3. Static demo JSON (for the curated demo handles: aquawolf, sorobuilder, stellardev).
   const data = await readJson<{ _embedded?: { records?: Operation[] } }>(`${handle}.json`);
   return data?._embedded?.records ?? [];
 }
