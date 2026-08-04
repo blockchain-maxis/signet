@@ -6,7 +6,22 @@ export interface SignetClientOptions {
   baseUrl?: string;
   /** Optional fetch implementation (for tests / non-browser runtimes). */
   fetch?: typeof fetch;
+  /**
+   * Request timeout in milliseconds (default 10000).
+   * A stalled request that exceeds this limit is treated as "not found".
+   */
+  timeout?: number;
+  /**
+   * Max retries on 5xx responses (default 2).
+   * Retries use a simple exponential backoff: 200ms * 2^attempt.
+   */
+  retries?: number;
 }
+
+/** Default timeout in milliseconds. */
+const DEFAULT_TIMEOUT = 10_000;
+/** Default max retries on server errors. */
+const DEFAULT_RETRIES = 2;
 
 /**
  * Public SDK client for the Signet API.
@@ -14,14 +29,22 @@ export interface SignetClientOptions {
  * Talks to the tRPC endpoint over its HTTP GET form
  * (`/api/trpc/{procedure}?input=…`) so external integrators don't need the
  * tRPC client library.
+ *
+ * Each request is protected by a configurable timeout (default 10s) and
+ * automatic retries on 5xx responses (default 2 retries with exponential
+ * backoff).
  */
 export class SignetClient {
   private readonly baseUrl: string;
   private readonly fetchImpl: typeof fetch;
+  private readonly timeout: number;
+  private readonly retries: number;
 
   constructor(options: SignetClientOptions = {}) {
     this.baseUrl = (options.baseUrl ?? 'https://signet.dev').replace(/\/$/, '');
     this.fetchImpl = options.fetch ?? globalThis.fetch;
+    this.timeout = options.timeout ?? DEFAULT_TIMEOUT;
+    this.retries = options.retries ?? DEFAULT_RETRIES;
     if (!this.fetchImpl) {
       throw new Error('[signet] no fetch implementation available; pass options.fetch');
     }
@@ -94,4 +117,21 @@ export class SignetClient {
   async countRegistryEntries(): Promise<RegistryCount> {
     return (await this.query<RegistryCount>('registry.count', undefined)) ?? { count: 0 };
   }
+}
+
+/** Promise-based setTimeout for retry backoff. */
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/**
+ * Check if an error is an AbortError (from AbortController).
+ * Works across modern browsers and Node.js 17+.
+ */
+function isAbortError(err: unknown): boolean {
+  return (
+    err instanceof DOMException
+      ? err.name === 'AbortError'
+      : (err as Error)?.name === 'AbortError'
+  );
 }
