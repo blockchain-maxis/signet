@@ -3,7 +3,7 @@
 use super::*;
 use soroban_sdk::{
     testutils::{Address as _, Events},
-    Address, Env, String,
+    Address, Env, String, Vec,
 };
 
 fn setup() -> (Env, IdentityRegistryClient<'static>, Address) {
@@ -281,4 +281,103 @@ fn transfer_handle_target_wallet_already_bound_errors() {
     assert_eq!(client.resolve(&handle1), Some(old_wallet.clone()));
     assert_eq!(client.lookup(&old_wallet), Some(handle1.clone()));
     assert_eq!(client.count(), 2);
+}
+
+#[test]
+fn claim_rejects_reserved_handles() {
+    let (env, client, _admin) = setup();
+
+    // Every reserved app-route name must be rejected, and none may bind.
+    for name in [
+        "p",
+        "api",
+        "app",
+        "admin",
+        "docs",
+        "handles",
+        "how-it-works",
+        "profile",
+        "robots",
+        "sitemap",
+    ] {
+        let handle = String::from_str(&env, name);
+        let res = client.try_claim(&handle, &Address::generate(&env));
+        assert_eq!(res, Err(Ok(Error::HandleReserved)));
+        assert!(!client.is_bound(&handle));
+    }
+
+    assert_eq!(client.count(), 0);
+}
+
+#[test]
+fn claim_allows_handles_that_only_resemble_reserved_names() {
+    let (env, client, _admin) = setup();
+
+    // Reservation is exact-match: superstrings of reserved names are fine.
+    for name in ["apps", "apiv2", "administrator", "profiles"] {
+        let handle = String::from_str(&env, name);
+        client.claim(&handle, &Address::generate(&env));
+        assert!(client.is_bound(&handle));
+    }
+}
+
+#[test]
+fn resolve_batch_returns_positional_results() {
+    let (env, client, _admin) = setup();
+    let alice = Address::generate(&env);
+    let bob = Address::generate(&env);
+    let handle_a = String::from_str(&env, "alice");
+    let handle_b = String::from_str(&env, "bob");
+
+    client.claim(&handle_a, &alice);
+    client.claim(&handle_b, &bob);
+
+    let mut handles = Vec::new(&env);
+    handles.push_back(handle_a.clone());
+    handles.push_back(handle_b.clone());
+
+    let results = client.resolve_batch(&handles);
+
+    assert_eq!(results.len(), 2);
+    assert_eq!(results.get(0).unwrap(), Some(alice));
+    assert_eq!(results.get(1).unwrap(), Some(bob));
+}
+
+#[test]
+fn resolve_batch_unbound_returns_none() {
+    let (env, client, _admin) = setup();
+    let wallet = Address::generate(&env);
+    let handle_a = String::from_str(&env, "bound");
+    let handle_b = String::from_str(&env, "ghost");
+
+    client.claim(&handle_a, &wallet);
+
+    let mut handles = Vec::new(&env);
+    handles.push_back(handle_a.clone());
+    handles.push_back(handle_b.clone());
+
+    let results = client.resolve_batch(&handles);
+
+    assert_eq!(results.len(), 2);
+    assert_eq!(results.get(0).unwrap(), Some(wallet));
+    assert_eq!(results.get(1).unwrap(), None);
+}
+
+#[test]
+fn resolve_batch_empty_returns_empty() {
+    let (env, client, _admin) = setup();
+    let handles: Vec<String> = Vec::new(&env);
+    let results = client.resolve_batch(&handles);
+    assert_eq!(results.len(), 0);
+}
+
+#[test]
+fn resolve_batch_rejects_oversized() {
+    let (env, client, _admin) = setup();
+    let mut handles = Vec::new(&env);
+    for _ in 0..=MAX_BATCH_SIZE {
+        handles.push_back(String::from_str(&env, "h"));
+    }
+    let res = client.try_resolve_batch(&handles);
+    assert_eq!(res, Err(Ok(Error::BatchTooLarge)));
 }

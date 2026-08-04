@@ -86,10 +86,10 @@ How a wallet becomes bound to a handle, self-sovereignly, with no trusted oracle
 4. **Result.** The database now holds on-chain-verified bindings. On the website
    these take precedence over the curated seed mapping (see *Read path* below).
 
-> This flow only runs once the registry contract is deployed and its id is
-> configured — see *Deployed vs operational-only*. Until then, `claimHandle`
-> throws `RegistryNotConfiguredError` and the UI shows an honest "Phase 2"
-> state, and the attestation worker no-ops.
+> The registry is deployed on testnet (see *Deployed vs operational-only*), so
+> this flow runs wherever its contract id is configured. Without an id,
+> `claimHandle` throws `RegistryNotConfiguredError` and the UI shows an honest
+> "Phase 2" state, and the attestation worker no-ops.
 
 ---
 
@@ -128,12 +128,20 @@ and skipped without advancing the relevant cursor, so the next tick retries.
 `/p/{handle}` is statically generated and reads through a single loader,
 [`apps/web/lib/profiles.ts`](apps/web/lib/profiles.ts):
 
-- `getProfile` / `getOperations` try the **database first**
-  (`safeDbProfile` / `safeDbOperations`) and **fall back to the curated static
-  manifest** in `apps/web/public/data/`. `safeDbProfile` returns `null` whenever
-  no database is configured, so the demo routes work with zero provisioning
-  (preview, prod, offline) and automatically upgrade to live data once the
-  indexer + Postgres are online.
+- `getProfile` resolves a handle **database → chain → static manifest**:
+  `safeDbProfile` (indexer-synced bindings plus off-chain display fields), then
+  `safeChainProfile` (a read-only `resolve(handle)` simulation against the
+  Identity Registry over Soroban RPC), then the curated manifest in
+  `apps/web/public/data/`. The chain layer is what lets a handle claimed
+  on-chain render before — or entirely without — an indexer sync.
+  `getOperations` is database-then-static (`safeDbOperations`), since activity
+  has no single-call on-chain equivalent.
+- Every layer returns `null` rather than throwing when it isn't provisioned —
+  no `DATABASE_URL`, no registry contract id, unreachable RPC — so the demo
+  routes work with zero provisioning (preview, prod, offline) and automatically
+  upgrade to live data as each dependency comes online. A profile carries the
+  layer that resolved it, so `/p/{handle}` can label a curated demo and a
+  genuine on-chain binding differently.
 - The same data is exposed over a **tRPC API**
   ([`apps/web/lib/server/trpc.ts`](apps/web/lib/server/trpc.ts)):
   `profile.list`, `profile.byHandle`, and `health` are public (per-IP rate
@@ -165,17 +173,21 @@ and skipped without advancing the relevant cursor, so the next tick retries.
 **Deployed & serving traffic today**
 
 - **Web app** — built and hosted on Netlify via git integration
-  ([`netlify.toml`](netlify.toml)): landing, `/how-it-works`, and the three demo
-  profiles at `/p/{handle}`, rendered from the static manifest using **synthetic
-  testnet data**. The tRPC API and SIWS auth surface ship with it.
+  ([`netlify.toml`](netlify.toml)): landing, `/how-it-works`, `/handles`, and the
+  three demo profiles at `/p/{handle}`, rendered from the static manifest using
+  **synthetic testnet data**. The tRPC API and SIWS auth surface ship with it.
+- **Identity Registry contract** — deployed to Stellar **testnet** on
+  **2026-07-09** at `CASFJHI5PQSRWS7JV25CF7FOMRKIVBP3RXRP3E2GH2CV4BCAG7FUJRCN`
+  and `initialize`d. Set `NEXT_PUBLIC_IDENTITY_REGISTRY_ID` (web) and
+  `INDEXER_REGISTRY_CONTRACT_ID` (indexer) to that id to activate the claim +
+  attestation flow. Not yet deployed to mainnet. Once the web app has that id,
+  `getProfile` resolves a handle **database → chain → static manifest**, so a
+  handle bound on-chain renders at `/p/{handle}` immediately — no database or
+  indexer sync required — while the curated demo profiles keep working.
 
 **Code-complete but operational-only** (built, tested, and containerised —
 needs provisioning to go live; this is "Phase 2")
 
-- **Identity Registry contract** — compiles to wasm and is unit-tested, but is
-  **not yet deployed on-chain**. Deploy it, then set
-  `NEXT_PUBLIC_IDENTITY_REGISTRY_ID` (web) and `INDEXER_REGISTRY_CONTRACT_ID`
-  (indexer) to activate the claim + attestation flow.
 - **Indexer worker** — packaged by [`apps/indexer/Dockerfile`](apps/indexer/Dockerfile)
   and published to GHCR by the opt-in [`deploy.yml`](.github/workflows/deploy.yml)
   (`migrate` → build/push image), gated on the `DEPLOY_ENABLED` repo variable.
@@ -193,6 +205,29 @@ needs provisioning to go live; this is "Phase 2")
 | `DATABASE_URL` | DB-backed reads and the indexer's write path (Flow 2) |
 | `DEPLOY_ENABLED` (repo var) + `DATABASE_URL` (secret) | Continuous delivery: prod migrations + indexer image publish |
 
+Full declarations and defaults live in [`.env.example`](.env.example). Every
+variable there is listed below so docs and the example file stay in lockstep
+(enforced by the `docs` CI job).
+
+| Variable | Consumed by | Notes |
+| --- | --- | --- |
+| `DATABASE_URL` | web, indexer, db | Optional for demo `/p` routes; required for indexer |
+| `STELLAR_NETWORK` | server / tooling | `testnet` or `mainnet` |
+| `STELLAR_HORIZON_URL` | server / indexer | Horizon base URL |
+| `SOROBAN_RPC_URL` | server, `/handles` directory | Soroban RPC; directory also accepts a dedicated override |
+| `NEXT_PUBLIC_APP_URL` | web | Public site origin |
+| `NEXT_PUBLIC_ROOT_DOMAIN` | web | Root domain for routing |
+| `SIGNET_AUTH_SECRET` | web (SIWS) | ≥16 chars in production |
+| `SIGNET_SESSIONS_VALID_AFTER` | web (SIWS) | Unix ms; bump to revoke all sessions |
+| `NEXT_PUBLIC_STELLAR_NETWORK` | web (wallet kit) | Client network label |
+| `NEXT_PUBLIC_SOROBAN_RPC_URL` | web (claims) | Browser-side RPC |
+| `NEXT_PUBLIC_IDENTITY_REGISTRY_ID` | web, indexer fallback | Empty → claim UI shows Phase 2 |
+| `INDEXER_REGISTRY_CONTRACT_ID` | indexer attestation | Falls back to `NEXT_PUBLIC_IDENTITY_REGISTRY_ID` |
+| `INDEXER_EVENT_WINDOW_LEDGERS` | indexer attestation | First-run event lookback |
+| `INDEXER_TICK_INTERVAL_MS` | indexer loop | Default `30000` |
+| `REGISTRY_CONTRACT_ID` | web `/handles` | Falls back to `NEXT_PUBLIC_IDENTITY_REGISTRY_ID` |
+| `REGISTRY_EVENT_WINDOW_LEDGERS` | web `/handles` | Per-request event lookback |
+
 ---
 
 ## CI gates
@@ -202,6 +237,8 @@ needs provisioning to go live; this is "Phase 2")
 - **web** — `lint` · `typecheck` · `test` · `build`
 - **contracts** — `cargo test` + `cargo build --target wasm32v1-none --release`
 - **security** — `pnpm audit` + `cargo audit` (advisory)
+- **docs** — relative link/anchor check, env-var lockstep with `.env.example`,
+  and `pnpm`/`cargo` script names cited in markdown (`scripts/check-docs.mjs`)
 
 Deployment ([`deploy.yml`](.github/workflows/deploy.yml)) is separate and opt-in,
 so forks and un-provisioned clones never attempt to deploy.

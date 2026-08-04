@@ -33,7 +33,10 @@ export function ProfileEditor() {
         setHandle(me.handle);
         setDisplayName(me.displayName ?? '');
         setBio(me.bio ?? '');
-        setStatus(me.handle ? 'ready' : 'no-profile');
+        // A handle can be resolved from the registry before the indexer has
+        // created the profile row backing these fields — `editable`, not the
+        // handle, is what says there is something here to write to.
+        setStatus(me.editable ? 'ready' : 'no-profile');
       })
       .catch(() => active && setStatus('error'));
     return () => {
@@ -70,8 +73,18 @@ export function ProfileEditor() {
   if (status === 'no-profile') {
     return (
       <p className="max-w-[640px] text-[14px] leading-[1.7] text-[#8a8779]">
-        No profile is bound to this wallet yet. Claim a handle on-chain via the Identity Registry,
-        and the indexer will create your profile — then you can edit it here.
+        {handle ? (
+          <>
+            Handle <span className="text-[#b8b5a8]">@{handle}</span> is bound to this wallet
+            on-chain, but the indexer hasn&apos;t created your profile record yet. Editing unlocks
+            once the claim is synced.
+          </>
+        ) : (
+          <>
+            No profile is bound to this wallet yet. Claim a handle on-chain via the Identity
+            Registry, and the indexer will create your profile — then you can edit it here.
+          </>
+        )}
       </p>
     );
   }
