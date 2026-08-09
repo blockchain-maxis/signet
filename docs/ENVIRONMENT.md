@@ -32,6 +32,8 @@ Required means “must be set for that surface to do its job in production.” O
 | `INDEXER_EVENT_WINDOW_LEDGERS` | indexer | Optional | `17280` (~24h of 5s ledgers) | On first run (no `attestation` cursor) the worker starts this many ledgers behind tip. Unset → same default. |
 | `REGISTRY_CONTRACT_ID` | web (server) | Optional | Falls back to `NEXT_PUBLIC_IDENTITY_REGISTRY_ID` | Server-only override for directory + profile chain resolve without exposing a second id to the browser. Unset → public id / empty (chain reads skipped). |
 | `REGISTRY_EVENT_WINDOW_LEDGERS` | web (server) | Optional | `17280` | `/handles` directory scans this many ledgers back per request (no persisted cursor). Unset → same default. |
+| `SEP10_SIGNING_SECRET` | web (server) | **Required in production**. Optional in development. | Dev fallback: a random keypair per process | Stellar secret key (`S…`) of the account that signs SEP-10 challenge transactions; its public key is what `/.well-known/stellar.toml` advertises as its signing key. **Production:** `/api/auth/sep10` throws rather than sign with a throwaway key. **Development:** a fresh keypair is generated per restart, so the advertised signing key changes and previously issued challenges stop verifying. Generate with `stellar keys generate` (or any Stellar keypair tool). |
+| `SEP10_WEB_AUTH_DOMAIN` | web (server) | Optional | Falls back to `NEXT_PUBLIC_ROOT_DOMAIN` | The SEP-10 `web_auth_domain` written into (and checked on) challenge transactions. Only set it when auth is served from a different host than the home domain; for single-domain deployments leave it unset. A value that doesn't match the host actually serving `/api/auth/sep10` makes every verify fail. |
 
 ---
 
@@ -45,6 +47,7 @@ These are intentional product behaviour, not failures:
 | No registry id (`NEXT_PUBLIC_IDENTITY_REGISTRY_ID` and `REGISTRY_CONTRACT_ID` empty) | Claim button/flow disabled with an honest “not configured / Phase 2” message. No doomed RPC calls for resolve. |
 | No `INDEXER_REGISTRY_CONTRACT_ID` (and no public registry fallback) | Indexer starts (if `DATABASE_URL` is set) but **attestation worker no-ops**; seed/curated bindings stay authoritative until a registry id is provided. |
 | No `SIGNET_AUTH_SECRET` in production | Auth endpoints error; do not deploy web with `NODE_ENV=production` without a secret. |
+| No `SEP10_SIGNING_SECRET` | **Development:** SEP-10 works, but on a per-restart random signing key — external clients that cached the signing key from `stellar.toml` must refetch it. **Production:** `/api/auth/sep10` errors; the legacy SIWS flow is unaffected. |
 
 ---
 

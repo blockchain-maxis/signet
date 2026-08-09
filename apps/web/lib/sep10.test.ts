@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { Keypair, TransactionBuilder, WebAuth } from '@stellar/stellar-sdk';
+import { Keypair, Transaction, TransactionBuilder, WebAuth } from '@stellar/stellar-sdk';
 import {
   buildChallenge,
   verifyChallenge,
@@ -56,19 +56,21 @@ test('rejects a caller-supplied home_domain that does not match this service', (
 
 test('rejects expired timebounds', () => {
   const client = Keypair.random();
-  // Build directly with an already-elapsed timeout, bypassing our wrapper's
-  // fixed 5-minute window, to exercise the SDK's timebounds check.
-  const challenge = WebAuth.buildChallengeTx(
-    getServerKeypair(),
-    client.publicKey(),
-    getHomeDomain(),
-    -600, // expired 10 minutes ago
+  // Build a well-formed challenge, then rewind its timebounds so the window has
+  // already closed. A negative timeout can't be handed to `buildChallengeTx`:
+  // the SDK's builder rejects `min_time > max_time` before a challenge exists.
+  const fresh = TransactionBuilder.fromXDR(
+    buildChallenge(client.publicKey()),
     getNetworkPassphrase(),
-    getWebAuthDomain(),
-  );
-  const tx = TransactionBuilder.fromXDR(challenge, getNetworkPassphrase());
-  tx.sign(client);
-  const signed = tx.toEnvelope().toXDR('base64');
+  ) as Transaction;
+  const now = Math.floor(Date.now() / 1000);
+  const expired = TransactionBuilder.cloneFrom(fresh, {
+    timebounds: { minTime: now - 1200, maxTime: now - 600 },
+  }).build();
+  // Rewriting timebounds invalidates the original signatures, so re-sign as
+  // both the server and the client — only the expiry should fail verification.
+  expired.sign(getServerKeypair(), client);
+  const signed = expired.toEnvelope().toXDR('base64');
 
   assert.throws(() => verifyChallenge(signed), WebAuth.InvalidChallengeError);
 });
