@@ -1,6 +1,6 @@
 import { currentAddress } from '@/lib/server/session';
 import { getAccountWallets } from '@/lib/server/account';
-import { isRegistryConfigured, lookupHandleOnchain } from '@/lib/server/registry-read';
+import { isRegistryConfigured, lookupWallet } from '@/lib/server/registry-read';
 
 function truncate(a: string): string {
   return a.length > 18 ? `${a.slice(0, 8)}…${a.slice(-6)}` : a;
@@ -20,7 +20,7 @@ export default async function WalletsPage() {
   // When the indexer/database has nothing yet, read the binding straight from
   // the on-chain registry so a wallet claimed on-chain still shows up.
   if (address && wallets.length === 0 && registryConfigured) {
-    const handle = await lookupHandleOnchain(address);
+    const handle = await lookupWallet(address);
     if (handle) {
       wallets = [{ pubkey: address, isPrimary: true, source: 'onchain', attestedAt: '' }];
     }

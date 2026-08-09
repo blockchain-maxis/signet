@@ -23,6 +23,10 @@ export const SESSION_COOKIE = 'signet_session';
  * refuse to fall back to a known dev value, which would make sessions forgeable.
  */
 let cachedSecret: string | null = null;
+/** Exposed so other server-side signers (e.g. the SEP-10 JWT) share the same secret. */
+export function getAuthSecret(): string {
+  return getSecret();
+}
 function getSecret(): string {
   if (cachedSecret) return cachedSecret;
   const s = process.env.SIGNET_AUTH_SECRET;
