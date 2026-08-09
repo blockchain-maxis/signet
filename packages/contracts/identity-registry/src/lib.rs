@@ -20,15 +20,33 @@
 //! and per-call cost stay constant regardless of how many handles exist.
 
 use soroban_sdk::{
-    contract, contracterror, contractimpl, contracttype, symbol_short, Address, Env, String,
+    contract, contracterror, contractimpl, contracttype, symbol_short, Address, Env, String, Vec,
 };
 
 /// Maximum handle length in bytes. Handles are short, URL-safe identifiers.
 const MAX_HANDLE_LEN: u32 = 32;
+/// Maximum number of handles in a single batch resolve call.
+const MAX_BATCH_SIZE: u32 = 100;
 /// Bump persistent entries by ~30 days (at ~5s ledgers) on access.
 const BUMP_LEDGERS: u32 = 518_400;
 /// Threshold below which an accessed entry gets bumped.
 const BUMP_THRESHOLD: u32 = 86_400;
+
+/// Handles that collide with the web app's top-level routes (see `apps/web/app`)
+/// and must never be claimable, or a profile would shadow an app page. All are
+/// lowercase, matching the `[a-z0-9_-]` charset enforced by `validate_handle`.
+const RESERVED_HANDLES: [&str; 10] = [
+    "p",
+    "api",
+    "app",
+    "admin",
+    "docs",
+    "handles",
+    "how-it-works",
+    "profile",
+    "robots",
+    "sitemap",
+];
 
 #[contracttype]
 #[derive(Clone)]
@@ -54,6 +72,8 @@ pub enum Error {
     NotOwner = 5,
     InvalidHandle = 6,
     WalletAlreadyBound = 7,
+    HandleReserved = 8,
+    BatchTooLarge = 9,
 }
 
 #[contract]
@@ -77,6 +97,9 @@ impl IdentityRegistry {
         Self::require_initialized(&env)?;
         wallet.require_auth();
         validate_handle(&handle)?;
+        if is_reserved_handle(&handle) {
+            return Err(Error::HandleReserved);
+        }
 
         let owner_key = DataKey::Owner(handle.clone());
         if env.storage().persistent().has(&owner_key) {
@@ -105,12 +128,48 @@ impl IdentityRegistry {
         Ok(())
     }
 
+    /// Transfer a handle to a new wallet. Requires authentication from the current owner.
+    /// Fails if the handle is not found or if the target wallet already holds a handle.
+    pub fn transfer_handle(env: Env, handle: String, new_wallet: Address) -> Result<(), Error> {
+        Self::require_initialized(&env)?;
+        let current_owner =
+            Self::resolve(env.clone(), handle.clone()).ok_or(Error::HandleNotFound)?;
+        current_owner.require_auth();
+
+        let new_wallet_key = DataKey::Handle(new_wallet.clone());
+        if env.storage().persistent().has(&new_wallet_key) {
+            return Err(Error::WalletAlreadyBound);
+        }
+
+        let owner_key = DataKey::Owner(handle.clone());
+        let current_owner_key = DataKey::Handle(current_owner.clone());
+
+        env.storage().persistent().remove(&current_owner_key);
+
+        env.storage().persistent().set(&owner_key, &new_wallet);
+        env.storage().persistent().set(&new_wallet_key, &handle);
+
+        env.storage()
+            .persistent()
+            .extend_ttl(&owner_key, BUMP_THRESHOLD, BUMP_LEDGERS);
+        env.storage()
+            .persistent()
+            .extend_ttl(&new_wallet_key, BUMP_THRESHOLD, BUMP_LEDGERS);
+
+        env.events().publish(
+            (soroban_sdk::Symbol::new(&env, "transferred"), handle),
+            (current_owner, new_wallet),
+        );
+
+        Ok(())
+    }
+
     /// Release a handle. Only the owning wallet may call this.
     pub fn release(env: Env, handle: String) -> Result<(), Error> {
         Self::require_initialized(&env)?;
         let wallet = Self::resolve(env.clone(), handle.clone()).ok_or(Error::HandleNotFound)?;
         wallet.require_auth();
-        Self::remove_binding(&env, &handle, &wallet);
+        Self::remove_binding(&env, &handle, &wallet, symbol_short!("released"));
         Ok(())
     }
 
@@ -123,7 +182,7 @@ impl IdentityRegistry {
             .ok_or(Error::NotInitialized)?;
         admin.require_auth();
         let wallet = Self::resolve(env.clone(), handle.clone()).ok_or(Error::HandleNotFound)?;
-        Self::remove_binding(&env, &handle, &wallet);
+        Self::remove_binding(&env, &handle, &wallet, symbol_short!("revoked"));
         Ok(())
     }
 
@@ -161,6 +220,23 @@ impl IdentityRegistry {
         env.storage().instance().get(&DataKey::Count).unwrap_or(0)
     }
 
+    /// Resolve multiple handles to their owning wallets, positionally.
+    ///
+    /// Returns `None` for any handle that is not currently bound. Rejects
+    /// batches larger than [`MAX_BATCH_SIZE`].
+    pub fn resolve_batch(env: Env, handles: Vec<String>) -> Result<Vec<Option<Address>>, Error> {
+        let len = handles.len();
+        if len > MAX_BATCH_SIZE {
+            return Err(Error::BatchTooLarge);
+        }
+        let mut results: Vec<Option<Address>> = Vec::new(&env);
+        for handle in handles.iter() {
+            let addr = Self::resolve(env.clone(), handle);
+            results.push_back(addr);
+        }
+        Ok(results)
+    }
+
     // ── internal ────────────────────────────────────────────────────────────
 
     fn require_initialized(env: &Env) -> Result<(), Error> {
@@ -171,7 +247,12 @@ impl IdentityRegistry {
         }
     }
 
-    fn remove_binding(env: &Env, handle: &String, wallet: &Address) {
+    fn remove_binding(
+        env: &Env,
+        handle: &String,
+        wallet: &Address,
+        event_name: soroban_sdk::Symbol,
+    ) {
         env.storage()
             .persistent()
             .remove(&DataKey::Owner(handle.clone()));
@@ -185,7 +266,7 @@ impl IdentityRegistry {
             .set(&DataKey::Count, &count.saturating_sub(1));
 
         env.events()
-            .publish((symbol_short!("released"), handle.clone()), wallet.clone());
+            .publish((event_name, handle.clone()), wallet.clone());
     }
 }
 
@@ -205,6 +286,25 @@ fn validate_handle(handle: &String) -> Result<(), Error> {
         }
     }
     Ok(())
+}
+
+/// True when `handle` matches a reserved app-route name (see `RESERVED_HANDLES`).
+/// Runs after `validate_handle`, so the handle is already known to be within
+/// length and charset — a byte compare against each reserved name suffices.
+fn is_reserved_handle(handle: &String) -> bool {
+    let len = handle.len() as usize;
+    if len == 0 || len > MAX_HANDLE_LEN as usize {
+        return false;
+    }
+    let mut buf = [0u8; MAX_HANDLE_LEN as usize];
+    handle.copy_into_slice(&mut buf[..len]);
+    let bytes = &buf[..len];
+    for reserved in RESERVED_HANDLES.iter() {
+        if bytes == reserved.as_bytes() {
+            return true;
+        }
+    }
+    false
 }
 
 mod test;

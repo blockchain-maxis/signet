@@ -9,7 +9,9 @@ test('landing page renders the hero', async ({ page }) => {
 });
 
 test('health endpoint reports ok or degraded', async ({ request }) => {
-  const res = await request.get('/health');
+  // The route handler lives at /api/health; a bare /health falls through
+  // middleware to the marketing root and returns HTML.
+  const res = await request.get('/api/health');
   expect(res.ok()).toBeTruthy();
   const body = await res.json();
   expect(['ok', 'degraded']).toContain(body.status);
@@ -34,4 +36,12 @@ test('dashboard shows the sign-in wall when unauthenticated', async ({ page }) =
 test('how-it-works page renders', async ({ page }) => {
   await page.goto('/how-it-works');
   await expect(page.getByText(/Phase 2/i).first()).toBeVisible();
+});
+
+test('handles directory lists the curated handles and links to profiles', async ({ page }) => {
+  await page.goto('/handles');
+  await expect(page.getByRole('heading', { name: 'Handles' })).toBeVisible();
+  const link = page.getByRole('link', { name: '@aquawolf' });
+  await expect(link).toBeVisible();
+  await expect(link).toHaveAttribute('href', '/p/aquawolf');
 });

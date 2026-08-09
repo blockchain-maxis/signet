@@ -1,3 +1,5 @@
+import { DEMO_PROFILES } from '@signet/types';
+
 export interface SeedProfile {
   handle: string;
   displayName: string;
@@ -6,29 +8,15 @@ export interface SeedProfile {
 }
 
 /**
- * Curated Phase-1 demo profiles. These are synthetic Stellar **testnet**
- * accounts — generated for the demo and owned by no one — mirroring the static
- * `/p/{handle}` pages (`apps/web/public/data/profiles.json`). Using synthetic
- * accounts avoids attributing invented personas to real wallets. Keep the two
- * sets in sync until the on-chain Identity Registry replaces curation in Phase 2.
+ * Curated Phase-1 demo profiles, derived from the single shared source in
+ * `@signet/types` (`DEMO_PROFILES`) so the addresses live in exactly one place
+ * and can't drift from the web app's `/p/{handle}` manifest
+ * (`apps/web/lib/profiles.ts`). These are synthetic Stellar **testnet** accounts,
+ * owned by no one, and are replaced by the on-chain Identity Registry in Phase 2.
  */
-export const seedProfiles: SeedProfile[] = [
-  {
-    handle: 'aquawolf',
-    displayName: 'Aqua Wolf',
-    bio: 'Demo persona · Soroban DeFi builder exercising Blend-style collateral flows on testnet.',
-    wallets: ['GASAAEJC6P5UZGRLYJ2I2KYLR7RXGF44JZXDYGCFBN7T5VIHECUUEMCD'],
-  },
-  {
-    handle: 'sorobuilder',
-    displayName: 'Soro Builder',
-    bio: 'Demo persona · DEX trader running Soroswap-style swaps on testnet.',
-    wallets: ['GBVBJEP2BSKHW6YBFCZR2HJKHZDLJOU7ZKTH2HSNUUQY322RWLURH3EQ'],
-  },
-  {
-    handle: 'stellardev',
-    displayName: 'Stellar Dev',
-    bio: 'Demo persona · token operations and transfers on Stellar testnet.',
-    wallets: ['GBNOH2NKPHZYOWF2LHLSZ27R54NMCH66KPBEEY6MCE4FM5V6PNZVHZKL'],
-  },
-];
+export const seedProfiles: SeedProfile[] = DEMO_PROFILES.map((profile) => ({
+  handle: profile.handle,
+  displayName: profile.name,
+  bio: profile.bio,
+  wallets: [profile.wallet],
+}));
