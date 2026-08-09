@@ -9,7 +9,9 @@ test('landing page renders the hero', async ({ page }) => {
 });
 
 test('health endpoint reports ok or degraded', async ({ request }) => {
-  const res = await request.get('/health');
+  // The route handler lives at /api/health; a bare /health falls through
+  // middleware to the marketing root and returns HTML.
+  const res = await request.get('/api/health');
   expect(res.ok()).toBeTruthy();
   const body = await res.json();
   expect(['ok', 'degraded']).toContain(body.status);
