@@ -1,4 +1,5 @@
 import { rpc, scValToNative, xdr } from '@stellar/stellar-sdk';
+import { ALLOW_HTTP, REGISTRY_CONTRACT_ID, SOROBAN_RPC_URL, isRegistryConfigured } from './chain.ts';
 import { isValidHandle, listHandles as listCuratedHandles } from './profiles.ts';
 
 /**
@@ -23,20 +24,15 @@ export type DirectoryEntry = { handle: string; wallet: string };
 
 type RawEvent = { kind: 'claimed' | 'released'; handle: string; wallet: string };
 
-const CONTRACT_ID =
-  process.env.REGISTRY_CONTRACT_ID ?? process.env.NEXT_PUBLIC_IDENTITY_REGISTRY_ID ?? '';
-const RPC_URL =
-  process.env.SOROBAN_RPC_URL ??
-  process.env.NEXT_PUBLIC_SOROBAN_RPC_URL ??
-  'https://soroban-testnet.stellar.org';
 /** How far back to scan on every request (no cursor persisted between requests). */
 const EVENT_WINDOW_LEDGERS = Number(process.env.REGISTRY_EVENT_WINDOW_LEDGERS ?? 17_280);
 /** Safety cap so a slow/unreachable RPC can't turn this into an unbounded loop. */
 const MAX_PAGES = 50;
 
-export function isRegistryConfigured(): boolean {
-  return CONTRACT_ID.length > 0;
-}
+// Re-exported so existing `lib/directory` importers keep their entry point;
+// the registry/RPC configuration itself now lives in `lib/chain.ts`, shared
+// with profile resolution.
+export { isRegistryConfigured };
 
 /**
  * Decode a raw contract event into a binding change, or null if it isn't
@@ -85,7 +81,7 @@ export async function fetchLiveDirectory(): Promise<DirectoryEntry[] | null> {
   if (!isRegistryConfigured()) return null;
 
   try {
-    const server = new rpc.Server(RPC_URL, { allowHttp: RPC_URL.startsWith('http://') });
+    const server = new rpc.Server(SOROBAN_RPC_URL, { allowHttp: ALLOW_HTTP });
     const { sequence: latestLedger } = await server.getLatestLedger();
     const startLedger = Math.max(1, latestLedger - EVENT_WINDOW_LEDGERS);
 
@@ -95,12 +91,12 @@ export async function fetchLiveDirectory(): Promise<DirectoryEntry[] | null> {
     for (let page = 0; page < MAX_PAGES; page++) {
       const res = cursor
         ? await server.getEvents({
-            filters: [{ type: 'contract', contractIds: [CONTRACT_ID] }],
+            filters: [{ type: 'contract', contractIds: [REGISTRY_CONTRACT_ID] }],
             cursor,
             limit: 200,
           })
         : await server.getEvents({
-            filters: [{ type: 'contract', contractIds: [CONTRACT_ID] }],
+            filters: [{ type: 'contract', contractIds: [REGISTRY_CONTRACT_ID] }],
             startLedger,
             limit: 200,
           });
