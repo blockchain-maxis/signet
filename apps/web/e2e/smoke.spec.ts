@@ -49,6 +49,17 @@ test('the handle directory never presents demo personas as on-chain bindings', a
   await expect(page.getByText(/handles? currently bound on the Identity Registry/i)).toHaveCount(0);
 });
 
+test('closing CTA is a real connect-wallet button, not a dead link', async ({ page }) => {
+  await page.goto('/');
+  // The closing section, anchored by its headline.
+  const close = page.locator('section', { hasText: 'Create your record.' });
+  // Regression guard: this CTA used to be a plain <a href="#"> with no handler.
+  await expect(close.locator('a[href="#"]')).toHaveCount(0);
+  // It now renders the shared ConnectWallet control, wired to connect + claim
+  // exactly like the hero CTA (accessible name "Connect wallet" when signed out).
+  await expect(close.getByRole('button', { name: /connect wallet/i })).toBeVisible();
+});
+
 test('how-it-works page renders', async ({ page }) => {
   await page.goto('/how-it-works');
   await expect(page.getByText(/Phase 2/i).first()).toBeVisible();
