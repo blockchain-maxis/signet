@@ -197,7 +197,7 @@ export function Profile() {
                   className="border border-[#3d3a33] px-2.5 py-1 text-[10px] uppercase tracking-[0.2em] text-[#8a8779]"
                   style={{ fontFamily: "var(--font-mono)" }}
                 >
-                  Verified · Mainnet
+                  Verified · On-chain
                 </span>
                 <span
                   className="border border-[#8b1a1a] px-2.5 py-1 text-[10px] uppercase tracking-[0.2em] text-[#c2410c]"
