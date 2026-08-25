@@ -16,6 +16,8 @@
  * importing it lazily.
  */
 
+import { assertNetworkUrls } from './network-guard.ts';
+
 export const REGISTRY_CONTRACT_ID =
   process.env.REGISTRY_CONTRACT_ID ?? process.env.NEXT_PUBLIC_IDENTITY_REGISTRY_ID ?? '';
 
@@ -24,12 +26,17 @@ export const SOROBAN_RPC_URL =
   process.env.NEXT_PUBLIC_SOROBAN_RPC_URL ??
   'https://soroban-testnet.stellar.org';
 
-const NETWORK = (process.env.NEXT_PUBLIC_STELLAR_NETWORK ?? 'testnet').toLowerCase();
+export const STELLAR_NETWORK = (process.env.NEXT_PUBLIC_STELLAR_NETWORK ?? 'testnet').toLowerCase();
 
 export const NETWORK_PASSPHRASE =
-  NETWORK === 'mainnet' || NETWORK === 'public'
+  STELLAR_NETWORK === 'mainnet' || STELLAR_NETWORK === 'public'
     ? 'Public Global Stellar Network ; September 2015'
     : 'Test SDF Network ; September 2015';
+
+// Fail fast if the network and the RPC endpoint disagree (e.g. network flipped
+// to mainnet but SOROBAN_RPC_URL left at its testnet default) — otherwise every
+// signed transaction fails confusingly against the wrong network.
+assertNetworkUrls(STELLAR_NETWORK, [{ label: 'SOROBAN_RPC_URL', url: SOROBAN_RPC_URL }]);
 
 /** Plain http endpoints (local quickstart) need `allowHttp` on the rpc client. */
 export const ALLOW_HTTP = SOROBAN_RPC_URL.startsWith('http://');

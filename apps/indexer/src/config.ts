@@ -1,3 +1,5 @@
+import { assertNetworkUrls } from './network-guard.js';
+
 export interface IndexerConfig {
   databaseUrl: string;
   network: string;
@@ -22,11 +24,23 @@ export function loadConfig(): IndexerConfig {
   const databaseUrl = process.env.DATABASE_URL;
   if (!databaseUrl) throw new Error('[indexer] DATABASE_URL is required');
 
+  const network    = process.env.INDEXER_NETWORK     ?? 'testnet';
+  const horizonUrl = process.env.INDEXER_HORIZON_URL ?? 'https://horizon-testnet.stellar.org';
+  const rpcUrl     = process.env.INDEXER_RPC_URL     ?? 'https://soroban-testnet.stellar.org';
+
+  // Fail fast if the network and endpoints disagree (e.g. INDEXER_NETWORK flipped
+  // to mainnet but INDEXER_RPC_URL/INDEXER_HORIZON_URL left at their testnet
+  // defaults) — otherwise the indexer silently reads the wrong chain.
+  assertNetworkUrls(network, [
+    { label: 'INDEXER_RPC_URL', url: rpcUrl },
+    { label: 'INDEXER_HORIZON_URL', url: horizonUrl },
+  ]);
+
   return {
     databaseUrl,
-    network:         process.env.INDEXER_NETWORK          ?? 'testnet',
-    horizonUrl:      process.env.INDEXER_HORIZON_URL      ?? 'https://horizon-testnet.stellar.org',
-    rpcUrl:          process.env.INDEXER_RPC_URL          ?? 'https://soroban-testnet.stellar.org',
+    network,
+    horizonUrl,
+    rpcUrl,
     tickIntervalMs:  Number(process.env.INDEXER_TICK_INTERVAL_MS ?? 30_000),
     logLevel:        process.env.INDEXER_LOG_LEVEL        ?? 'info',
     reseed:          process.argv.includes('--reseed'),

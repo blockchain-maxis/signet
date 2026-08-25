@@ -13,6 +13,8 @@
 
 import type { Operation } from '../profiles.ts';
 import { logger } from '../logger.ts';
+import { STELLAR_NETWORK } from '../chain.ts';
+import { assertNetworkUrls } from '../network-guard.ts';
 
 /**
  * Horizon base URL. Prefers the explicit env var, then falls back to the
@@ -24,6 +26,10 @@ const HORIZON_URL =
   process.env.HORIZON_URL ??
   process.env.NEXT_PUBLIC_HORIZON_URL ??
   'https://horizon-testnet.stellar.org';
+
+// Fail fast if the network and Horizon endpoint disagree (e.g. network flipped
+// to mainnet but HORIZON_URL left at its testnet default).
+assertNetworkUrls(STELLAR_NETWORK, [{ label: 'HORIZON_URL', url: HORIZON_URL }]);
 
 /** Maximum operations to retrieve per wallet (2 pages × 200). */
 const MAX_RECORDS = 400;
