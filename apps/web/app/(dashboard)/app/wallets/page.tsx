@@ -1,6 +1,7 @@
 import { currentAddress } from '@/lib/server/session';
 import { getAccountWallets } from '@/lib/server/account';
 import { isRegistryConfigured, lookupWallet } from '@/lib/server/registry-read';
+import { stellarExpertAccountUrl } from '@/lib/network';
 
 function truncate(a: string): string {
   return a.length > 18 ? `${a.slice(0, 8)}…${a.slice(-6)}` : a;
@@ -8,8 +9,6 @@ function truncate(a: string): string {
 
 const mono = { fontFamily: 'var(--font-mono)' } as const;
 const display = { fontFamily: 'var(--font-display)' } as const;
-const NETWORK = (process.env.NEXT_PUBLIC_STELLAR_NETWORK ?? 'testnet').toLowerCase();
-const EXPLORER = NETWORK === 'mainnet' || NETWORK === 'public' ? 'public' : 'testnet';
 
 export default async function WalletsPage() {
   const address = await currentAddress();
@@ -71,7 +70,7 @@ export default async function WalletsPage() {
                 </span>
               </div>
               <a
-                href={`https://stellar.expert/explorer/${EXPLORER}/account/${w.pubkey}`}
+                href={stellarExpertAccountUrl(w.pubkey)}
                 target="_blank"
                 rel="noopener noreferrer"
                 className="text-[10px] uppercase tracking-[0.2em] text-[#8b1a1a] transition-colors hover:text-[#c2410c]"

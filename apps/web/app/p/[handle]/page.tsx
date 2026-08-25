@@ -1,6 +1,7 @@
 import { notFound } from 'next/navigation';
 import { SignetMonogram } from '../../(marketing)/components/signet-monogram';
 import { getProfile, getOperations, listAllHandles, computeStats } from '@/lib/profiles';
+import { STELLAR_EXPLORER, STELLAR_NETWORK_NAME } from '@/lib/network';
 import OperationsList from './operations-list';
 import { CopyAddress } from './copy-address';
 
@@ -22,10 +23,6 @@ export const dynamicParams = true;
 // value captured on first render. Short enough to feel live, long enough that
 // a shared profile link doesn't re-query Postgres on every view.
 export const revalidate = 60;
-
-// Curated demo profiles use synthetic data on Stellar testnet. Handles bound
-// through the on-chain Identity Registry resolve live against the same network.
-const NETWORK = 'testnet';
 
 function truncate(str: string, head: number, tail: number): string {
   if (str.length <= head + tail + 3) return str;
@@ -102,7 +99,7 @@ export default async function ProfilePage({ params }: { params: Promise<{ handle
             className="text-[11px] uppercase tracking-[0.26em] text-[#5e5b51]"
             style={{ fontFamily: 'var(--font-mono)' }}
           >
-            {isDemo ? 'Profile · Stellar Testnet · Demo' : 'Profile · Stellar Testnet'}
+            {isDemo ? 'Profile · Stellar Testnet · Demo' : `Profile · Stellar ${STELLAR_NETWORK_NAME}`}
           </div>
 
           <h1
@@ -166,7 +163,7 @@ export default async function ProfilePage({ params }: { params: Promise<{ handle
                   explorer link would land on an empty account page. */}
               {isDemo ? null : (
                 <a
-                  href={`https://stellar.expert/explorer/${NETWORK}/account/${profile.wallet}`}
+                  href={`https://stellar.expert/explorer/${STELLAR_EXPLORER}/account/${profile.wallet}`}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="text-[10px] uppercase tracking-[0.2em] text-[#8b1a1a] transition-colors hover:text-[#c2410c]"
@@ -243,9 +240,9 @@ export default async function ProfilePage({ params }: { params: Promise<{ handle
                 <>
                   This handle is{' '}
                   <strong className="text-[#8a8779]">bound on-chain</strong> — the handle→wallet
-                  binding above was read live from the Identity Registry contract on Stellar
-                  testnet, not curated. Any Soroban invocations listed come from the indexed
-                  ledger and are independently verifiable on Stellar Expert.
+                  binding above was read live from the Identity Registry contract on Stellar{' '}
+                  {STELLAR_NETWORK_NAME}, not curated. Any Soroban invocations listed come from the
+                  indexed ledger and are independently verifiable on Stellar Expert.
                 </>
               )}
             </p>
@@ -271,7 +268,7 @@ export default async function ProfilePage({ params }: { params: Promise<{ handle
               <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[#8b1a1a] opacity-60" />
               <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-[#8b1a1a]" />
             </span>
-            {isDemo ? 'Stellar testnet · demo' : 'Stellar testnet'}
+            {isDemo ? 'Stellar testnet · demo' : `Stellar ${STELLAR_NETWORK_NAME.toLowerCase()}`}
           </span>
         </div>
         <div

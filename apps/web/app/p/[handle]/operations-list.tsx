@@ -2,6 +2,7 @@
 
 import { useState, useCallback } from 'react';
 import type { Operation } from '@/lib/profiles';
+import { stellarExpertTxUrl } from '@/lib/network';
 
 function truncate(str: string, head: number, tail: number): string {
   if (str.length <= head + tail + 3) return str;
@@ -16,13 +17,6 @@ function resolveFunction(op: Operation): string {
   if (op.decoded_function && op.decoded_function !== '?') return op.decoded_function;
   if (op.function && !op.function.startsWith('HostFunction')) return op.function;
   return 'invoke_contract';
-}
-
-// Demo profiles use synthetic data on Stellar testnet.
-const NETWORK = 'testnet';
-
-function stellarExpertTx(hash: string): string {
-  return `https://stellar.expert/explorer/${NETWORK}/tx/${hash}`;
 }
 
 interface OperationsListProps {
@@ -138,7 +132,7 @@ export default function OperationsList({ handle, initialOperations, total, isDem
                     </span>
                   ) : (
                     <a
-                      href={stellarExpertTx(op.transaction_hash)}
+                      href={stellarExpertTxUrl(op.transaction_hash)}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="whitespace-nowrap text-[10px] uppercase tracking-[0.18em] text-[#8b1a1a] transition-colors hover:text-[#c2410c]"
