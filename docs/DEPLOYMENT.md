@@ -374,7 +374,91 @@ stellar contract invoke \
 
 ---
 
-## 10. Related docs
+## 10. Going to mainnet
+
+Everything above targets **testnet**. `infra/deploy-contract.sh` is
+network-agnostic, so `NETWORK=mainnet ./infra/deploy-contract.sh` works
+mechanically — but mainnet moves **real value and real reputation**, and the
+Identity Registry is immutable, so clear these gates first.
+
+> **Two hard gates before any mainnet deploy** (see [`SECURITY.md`](../SECURITY.md)):
+>
+> 1. **Audit the contract.** The Identity Registry has not been through a
+>    third-party security audit, and it is **immutable** — a bug shipped to
+>    mainnet cannot be patched in place. That audit is a hard prerequisite for
+>    mainnet, not a nice-to-have.
+> 2. **Rotate the admin to a multisig.** `initialize` sets a single admin key
+>    (the deployer by default). Before going live, move moderation authority to a
+>    multisig Stellar account with `set_admin`, so no single key can be lost or
+>    compromised. See
+>    [`packages/contracts/identity-registry/README.md`](../packages/contracts/identity-registry/README.md).
+
+### 10a. Mainnet environment values
+
+The same variables as testnet (section 6), pointed at the public network. Note
+there is **no public mainnet Soroban RPC** — it is a paid/self-hosted provider,
+so `NEXT_PUBLIC_SOROBAN_RPC_URL` is your provider endpoint, not an SDF host.
+
+| Variable | Mainnet value |
+| --- | --- |
+| `NEXT_PUBLIC_STELLAR_NETWORK` | `mainnet` |
+| `NEXT_PUBLIC_SOROBAN_RPC_URL` / `SOROBAN_RPC_URL` | your paid provider URL (QuickNode, Blockdaemon, Validation Cloud, self-hosted — no public host) |
+| `NEXT_PUBLIC_HORIZON_URL` / `HORIZON_URL` | `https://horizon.stellar.org` |
+| `NEXT_PUBLIC_IDENTITY_REGISTRY_ID` / `INDEXER_REGISTRY_CONTRACT_ID` | `C…` from the mainnet deploy below |
+| network passphrase (CLI) | `Public Global Stellar Network ; September 2015` |
+
+The indexer equivalents (`INDEXER_NETWORK=mainnet`, `INDEXER_RPC_URL`,
+`INDEXER_HORIZON_URL`) take the same values.
+
+### 10b. Deploy to mainnet
+
+The deploy key must be a **real, funded** account — mainnet has no Friendbot, so
+buy and transfer XLM to cover the deploy + `initialize` fees. Then:
+
+```bash
+STELLAR_ACCOUNT=deployer NETWORK=mainnet ./infra/deploy-contract.sh
+```
+
+Manual variant (mirrors section 5 with the mainnet RPC + passphrase):
+
+```bash
+WASM=packages/contracts/target/wasm32v1-none/release/identity_registry.wasm
+ACCOUNT=deployer
+RPC=https://your-mainnet-rpc-provider.example   # your paid provider — no public host
+PASS="Public Global Stellar Network ; September 2015"
+
+CONTRACT_ID="$(stellar contract deploy \
+  --wasm "$WASM" --source "$ACCOUNT" \
+  --rpc-url "$RPC" --network-passphrase "$PASS")"
+
+stellar contract invoke --id "$CONTRACT_ID" --source "$ACCOUNT" \
+  --rpc-url "$RPC" --network-passphrase "$PASS" \
+  -- initialize --admin "$(stellar keys address "$ACCOUNT")"
+```
+
+### 10c. Rotate the admin to a multisig
+
+Once the deploy is verified, hand moderation authority to a multisig account (the
+current admin must authorize the call):
+
+```bash
+stellar contract invoke --id "$CONTRACT_ID" --source "$ACCOUNT" \
+  --rpc-url "$RPC" --network-passphrase "$PASS" \
+  -- set_admin --new_admin G…your-multisig-address…
+```
+
+### 10d. Rollback on mainnet
+
+The rollback matrix in section 9 applies, with one caveat sharpened by real
+value: the Identity Registry is **immutable on mainnet too**. "Deploy a new
+contract id" strands every **real** handle→wallet binding on the old contract —
+users must re-claim on the new one — and there is no in-place fix. This is
+exactly why the audit and multisig gates above are non-negotiable: on mainnet you
+cannot deploy your way out of a contract bug or a lost admin key.
+
+---
+
+## 11. Related docs
 
 | Doc | Purpose |
 | --- | --- |
