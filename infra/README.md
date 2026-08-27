@@ -2,6 +2,10 @@
 
 Local development infrastructure.
 
+The indexer worker runs against this Postgres — see
+[`docs/INDEXER.md`](../docs/INDEXER.md) for its runbook (workers, cursors, logs,
+restart/backfill procedures and troubleshooting).
+
 ## Postgres
 
 A single Postgres 16 container for local dev.

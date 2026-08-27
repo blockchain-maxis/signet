@@ -2,6 +2,10 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
+<<<<<<< HEAD
+=======
+import { HANDLE_MAX_LEN, isReservedHandle, isValidHandle } from '@signet/types';
+>>>>>>> a40558934a1f3b68953239174253051bbe3a7109
 import { connectWallet, disconnectWallet, getConnectedAddress } from '@/lib/wallet';
 import { claimHandle, isRegistryConfigured, RegistryNotConfiguredError } from '@/lib/registry';
 
@@ -9,6 +13,7 @@ function truncate(addr: string): string {
   return addr.length > 12 ? `${addr.slice(0, 5)}…${addr.slice(-4)}` : addr;
 }
 
+<<<<<<< HEAD
 const HANDLE_PATTERN = /^[a-z0-9_-]{1,32}$/;
 
 function validateHandle(handle: string): string | null {
@@ -17,6 +22,19 @@ function validateHandle(handle: string): string | null {
     if (handle.length > 32) return 'Handle must be 32 characters or less';
     return 'Handle can only contain lowercase letters, numbers, underscores, and hyphens';
   }
+=======
+function validateHandle(handle: string): string | null {
+  if (!handle) return 'Handle is required';
+  if (!isValidHandle(handle)) {
+    if (handle.length > HANDLE_MAX_LEN) {
+      return `Handle must be ${HANDLE_MAX_LEN} characters or less`;
+    }
+    return 'Handle can only contain lowercase letters, numbers, underscores, and hyphens';
+  }
+  // Caught here rather than on-chain: `claim` rejects reserved names with
+  // HandleReserved, so submitting would cost a fee to learn the same thing.
+  if (isReservedHandle(handle)) return 'That handle is reserved for a Signet route';
+>>>>>>> a40558934a1f3b68953239174253051bbe3a7109
   return null;
 }
 
@@ -43,7 +61,9 @@ export function ConnectWallet({
   const [validationError, setValidationError] = useState<string | null>(null);
 
   useEffect(() => {
-    getConnectedAddress().then(setAddress).catch(() => {});
+    getConnectedAddress()
+      .then(setAddress)
+      .catch(() => {});
   }, []);
 
   async function onConnect() {
@@ -73,7 +93,11 @@ export function ConnectWallet({
 
   async function onSubmitClaim() {
     if (!address || !handle) return;
+<<<<<<< HEAD
     
+=======
+
+>>>>>>> a40558934a1f3b68953239174253051bbe3a7109
     const error = validateHandle(handle);
     if (error) {
       setValidationError(error);
@@ -86,9 +110,15 @@ export function ConnectWallet({
       const { hash } = await claimHandle(handle, address);
       setStatus(`Claimed! tx ${truncate(hash)}`);
       setShowClaimForm(false);
+<<<<<<< HEAD
       // Navigate to the profile page on success
       setTimeout(() => {
         router.push(`/profile/${handle}`);
+=======
+      // Navigate to the public profile page on success
+      setTimeout(() => {
+        router.push(`/p/${handle}`);
+>>>>>>> a40558934a1f3b68953239174253051bbe3a7109
       }, 1500);
     } catch (err) {
       if (err instanceof RegistryNotConfiguredError) {
@@ -125,6 +155,17 @@ export function ConnectWallet({
         : truncate(address)
       : 'Connect wallet';
 
+<<<<<<< HEAD
+=======
+  const actionLabel = busy
+    ? `${variant === 'cta' ? 'Claiming handle' : 'Connecting wallet'}…`
+    : address
+      ? variant === 'cta'
+        ? 'Claim your handle'
+        : `Disconnect ${address}`
+      : 'Connect wallet';
+
+>>>>>>> a40558934a1f3b68953239174253051bbe3a7109
   // Show claim form
   if (showClaimForm && address) {
     return (
@@ -137,7 +178,11 @@ export function ConnectWallet({
             placeholder="your-handle"
             disabled={busy}
             className="rounded border border-[#8b1a1a] bg-[#f5f4ee] px-3 py-2 text-sm font-mono text-[#1a1816] placeholder:text-[#8a8779] focus:outline-none focus:ring-2 focus:ring-[#8b1a1a] disabled:opacity-50"
+<<<<<<< HEAD
             maxLength={32}
+=======
+            maxLength={HANDLE_MAX_LEN}
+>>>>>>> a40558934a1f3b68953239174253051bbe3a7109
             autoFocus
             onKeyDown={(e) => {
               if (e.key === 'Enter' && !validationError && handle) {
@@ -173,6 +218,11 @@ export function ConnectWallet({
         </div>
         {status && (
           <span
+<<<<<<< HEAD
+=======
+            role="status"
+            aria-live="polite"
+>>>>>>> a40558934a1f3b68953239174253051bbe3a7109
             className="max-w-[260px] text-[10px] leading-tight text-[#8a8779]"
             style={{ fontFamily: 'var(--font-mono)' }}
           >
@@ -189,7 +239,8 @@ export function ConnectWallet({
         type="button"
         onClick={variant === 'cta' ? onClaimClick : address ? onDisconnect : onConnect}
         disabled={busy}
-        className={className}
+        className={`${className} focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b1a1a] focus-visible:ring-offset-2 focus-visible:ring-offset-[#0a0908]`}
+        aria-label={actionLabel}
         aria-busy={busy}
       >
         {variant === 'cta' ? (
@@ -208,6 +259,8 @@ export function ConnectWallet({
       </button>
       {status && (
         <span
+          role="status"
+          aria-live="polite"
           className="max-w-[260px] text-[10px] leading-tight text-[#8a8779]"
           style={{ fontFamily: 'var(--font-mono)' }}
         >

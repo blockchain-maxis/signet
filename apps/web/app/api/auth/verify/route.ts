@@ -1,15 +1,35 @@
 import { NextResponse } from 'next/server';
-import { verifyChallenge, verifySignature, issueSession, SESSION_COOKIE } from '@/lib/auth';
+import {
+  redeemChallenge,
+  issueSession,
+  SESSION_COOKIE,
+  type ChallengeOutcome,
+} from '@/lib/auth';
 import { isValidStellarAddress } from '@/lib/stellar-address';
 import { isSameOrigin } from '@/lib/security';
+import { LIMITS, enforceRateLimit } from '@/lib/rate-limit-http';
 import { logger } from '@/lib/logger';
 
 export const runtime = 'nodejs';
+
+/**
+ * All four failures are 401s. The distinct messages are for the operator and
+ * for a legitimate client deciding whether to restart the flow — "already used"
+ * means fetch a new challenge, "bad signature" means the wallet signed wrong.
+ */
+const CHALLENGE_ERRORS: Record<Exclude<ChallengeOutcome, 'ok'>, string> = {
+  'invalid-challenge': 'Challenge invalid or expired',
+  'bad-signature': 'Bad signature',
+  replayed: 'Challenge has already been used',
+};
 
 export async function POST(req: Request) {
   if (!isSameOrigin(req)) {
     return NextResponse.json({ error: 'Cross-origin request rejected' }, { status: 403 });
   }
+  // Ahead of the signature check: verification is the expensive part.
+  const limited = await enforceRateLimit(req, 'auth:verify', LIMITS.authVerify);
+  if (limited) return limited;
   const { address, message, signature } = (await req.json().catch(() => ({}))) as {
     address?: string;
     message?: string;
@@ -19,12 +39,10 @@ export async function POST(req: Request) {
   if (!address || !message || !signature || !isValidStellarAddress(address)) {
     return NextResponse.json({ error: 'Missing or invalid fields' }, { status: 400 });
   }
-  if (!verifyChallenge(address, message)) {
-    return NextResponse.json({ error: 'Challenge invalid or expired' }, { status: 401 });
-  }
-  if (!(await verifySignature(address, message, signature))) {
-    logger.warn({ address }, 'auth.signatureRejected');
-    return NextResponse.json({ error: 'Bad signature' }, { status: 401 });
+  const outcome = await redeemChallenge(address, message, signature);
+  if (outcome !== 'ok') {
+    logger.warn({ address, outcome }, 'auth.challengeRejected');
+    return NextResponse.json({ error: CHALLENGE_ERRORS[outcome] }, { status: 401 });
   }
 
   const res = NextResponse.json({ ok: true, address });

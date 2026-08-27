@@ -21,7 +21,10 @@ export default defineConfig({
   projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
   webServer: {
     command: `pnpm --filter @signet/web start -p ${PORT}`,
-    url: `http://localhost:${PORT}/health`,
+    // Must be a route that really exists: `/health` is not a route, so
+    // middleware treats it as a handle and it now correctly 404s, which would
+    // stall the readiness probe until the timeout.
+    url: `http://localhost:${PORT}/api/health`,
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,
   },

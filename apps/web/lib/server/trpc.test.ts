@@ -7,14 +7,17 @@ import { issueSession, SESSION_COOKIE } from '../auth.ts';
 // Integration test over the full API stack: input validation → rate-limit +
 // logging middleware → profile data layer. Uses the synthetic testnet fixtures
 // in public/data (cwd is apps/web when the test runs).
+// Uses the platform header rather than `x-forwarded-for`: a bare X-Forwarded-For
+// is client-supplied and deliberately ignored (see `clientIp`), so it would put
+// every caller here in one shared rate-limit bucket.
 function caller(ip: string) {
-  return appRouter.createCaller(createContext(new Headers({ 'x-forwarded-for': ip })));
+  return appRouter.createCaller(createContext(new Headers({ 'x-vercel-forwarded-for': ip })));
 }
 
 /** Caller with a valid session cookie (and optional same-origin headers). */
 function authedCaller(ip: string, address: string, extra: Record<string, string> = {}) {
   const headers = new Headers({
-    'x-forwarded-for': ip,
+    'x-vercel-forwarded-for': ip,
     cookie: `${SESSION_COOKIE}=${issueSession(address)}`,
     ...extra,
   });
@@ -58,7 +61,11 @@ test('account.me returns the signed-in address', async () => {
   __resetRateLimit();
   const res = await authedCaller('10.0.2.2', 'GTESTADDRESS').account.me();
   assert.equal(res.address, 'GTESTADDRESS');
-  assert.equal(res.handle, null); // no database configured under test
+  // Neither a database nor a registry contract id is configured under test,
+  // so there is nothing to resolve the handle from.
+  assert.equal(res.handle, null);
+  assert.equal(res.dbConfigured, false);
+  assert.equal(res.editable, false);
 });
 
 test('account.update is rejected without a session', async () => {
@@ -91,4 +98,114 @@ test('rate limiter blocks a caller after the window max', async () => {
     }
   }
   assert.ok(blocked, 'expected rate limiting to trigger within 65 calls');
+});
+
+test('registry.resolve rejects a malformed handle', async () => {
+  __resetRateLimit();
+  await assert.rejects(() => caller('10.0.0.10').registry.resolve({ handle: 'BAD HANDLE!' }));
+});
+
+test('registry.resolve returns null when the registry is unconfigured', async () => {
+  __resetRateLimit();
+  const res = await caller('10.0.0.11').registry.resolve({ handle: 'aquawolf' });
+  assert.equal(res, null);
+});
+
+test('registry.resolve normalises the handle to lowercase', async () => {
+  __resetRateLimit();
+  const res = await caller('10.0.0.12').registry.resolve({ handle: 'AQUAWOLF' });
+  assert.equal(res, null);
+});
+
+test('registry.lookup rejects a malformed wallet address', async () => {
+  __resetRateLimit();
+  await assert.rejects(
+    () => caller('10.0.0.13').registry.lookup({ wallet: 'not-a-valid-address' }),
+  );
+});
+
+test('registry.lookup accepts a valid G… address', async () => {
+  __resetRateLimit();
+  const res = await caller('10.0.0.14').registry.lookup({
+    wallet: 'GDWUSKGGFDI4FRXK5EBTRECZSVQSSWJHHJOGH6JWG3AUMFFMQ435DIAG',
+  });
+  assert.equal(res, null);
+});
+
+test('registry.lookup accepts a valid C… address', async () => {
+  __resetRateLimit();
+  const res = await caller('10.0.0.15').registry.lookup({
+    wallet: 'CADQOBYHA4DQOBYHA4DQOBYHA4DQOBYHA4DQOBYHA4DQOBYHA4DQP5KR',
+  });
+  assert.equal(res, null);
+});
+
+test('registry.lookup soft-fails on a correctly-shaped address with a bad checksum', async () => {
+  __resetRateLimit();
+  // Passes the charset/length guard but is not a real StrKey. Encoding it
+  // throws inside the SDK; the read must absorb that rather than 500.
+  const res = await caller('10.0.0.17').registry.lookup({
+    wallet: 'GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA2',
+  });
+  assert.equal(res, null);
+});
+
+test('registry.count reports null — not zero — when the registry is unconfigured', async () => {
+  __resetRateLimit();
+  const res = await caller('10.0.0.16').registry.count();
+  // A registry we cannot read is not an empty registry. Callers rendering this
+  // as "0 handles bound" would be asserting on-chain state nobody observed.
+  assert.deepEqual(res, { count: null });
+});
+
+// ── error codes ───────────────────────────────────────────────────────────
+// Every rejection below used to surface as INTERNAL_SERVER_ERROR / HTTP 500,
+// because the procedures threw bare Errors.
+
+async function codeOf(fn: () => Promise<unknown>): Promise<string | undefined> {
+  try {
+    await fn();
+  } catch (err) {
+    return (err as { code?: string }).code;
+  }
+  return undefined;
+}
+
+test('a missing session is UNAUTHORIZED, not an internal error', async () => {
+  __resetRateLimit();
+  assert.equal(await codeOf(() => caller('10.0.3.1').account.me()), 'UNAUTHORIZED');
+});
+
+test('a cross-origin mutation is FORBIDDEN', async () => {
+  __resetRateLimit();
+  const c = authedCaller('10.0.3.2', 'GTESTADDRESS', {
+    host: 'signet.dev',
+    origin: 'https://evil.example',
+  });
+  assert.equal(
+    await codeOf(() => c.account.update({ displayName: 'x', bio: null })),
+    'FORBIDDEN',
+  );
+});
+
+test('malformed input is BAD_REQUEST', async () => {
+  __resetRateLimit();
+  assert.equal(
+    await codeOf(() => caller('10.0.3.3').profile.byHandle({ handle: 'BAD HANDLE!' })),
+    'BAD_REQUEST',
+  );
+  assert.equal(
+    await codeOf(() => caller('10.0.3.4').registry.lookup({ wallet: 'nope' })),
+    'BAD_REQUEST',
+  );
+});
+
+test('exceeding the rate limit is TOO_MANY_REQUESTS', async () => {
+  __resetRateLimit();
+  const c = caller('10.0.3.5');
+  let code: string | undefined;
+  for (let i = 0; i < 65 && !code; i++) {
+    code = await codeOf(() => c.health());
+  }
+  assert.equal(code, 'TOO_MANY_REQUESTS');
 });

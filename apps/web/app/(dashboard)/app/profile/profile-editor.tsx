@@ -25,10 +25,18 @@ export function ProfileEditor() {
       .query()
       .then((me) => {
         if (!active) return;
+        if (!me.dbConfigured) {
+          setStatus('error');
+          setMessage('Profile editing requires a configured database.');
+          return;
+        }
         setHandle(me.handle);
         setDisplayName(me.displayName ?? '');
         setBio(me.bio ?? '');
-        setStatus(me.handle ? 'ready' : 'no-profile');
+        // A handle can be resolved from the registry before the indexer has
+        // created the profile row backing these fields — `editable`, not the
+        // handle, is what says there is something here to write to.
+        setStatus(me.editable ? 'ready' : 'no-profile');
       })
       .catch(() => active && setStatus('error'));
     return () => {
@@ -56,13 +64,27 @@ export function ProfileEditor() {
     return <p className="text-[14px] text-[#8a8779]">Loading…</p>;
   }
   if (status === 'error') {
-    return <p className="text-[14px] text-[#b8654a]">Could not load your profile.</p>;
+    return (
+      <p className="max-w-[640px] text-[14px] leading-[1.7] text-[#b8654a]">
+        {message ?? 'Could not load your profile.'}
+      </p>
+    );
   }
   if (status === 'no-profile') {
     return (
       <p className="max-w-[640px] text-[14px] leading-[1.7] text-[#8a8779]">
-        No profile is bound to this wallet yet. Claim a handle on-chain via the Identity
-        Registry, and the indexer will create your profile — then you can edit it here.
+        {handle ? (
+          <>
+            Handle <span className="text-[#b8b5a8]">@{handle}</span> is bound to this wallet
+            on-chain, but the indexer hasn&apos;t created your profile record yet. Editing unlocks
+            once the claim is synced.
+          </>
+        ) : (
+          <>
+            No profile is bound to this wallet yet. Claim a handle on-chain via the Identity
+            Registry, and the indexer will create your profile — then you can edit it here.
+          </>
+        )}
       </p>
     );
   }
@@ -72,7 +94,11 @@ export function ProfileEditor() {
     'w-full border border-[#1f1d19] bg-transparent px-4 py-3 text-[14px] text-[#f5f4ee] outline-none focus:border-[#5e5b51]';
 
   return (
-    <form onSubmit={save} className="max-w-[560px] space-y-7" style={{ fontFamily: 'var(--font-mono)' }}>
+    <form
+      onSubmit={save}
+      className="max-w-[560px] space-y-7"
+      style={{ fontFamily: 'var(--font-mono)' }}
+    >
       <p className="text-[13px] text-[#8a8779]">
         Editing <code className="text-[#b8b5a8]">/p/{handle}</code>
       </p>

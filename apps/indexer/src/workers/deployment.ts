@@ -2,28 +2,41 @@ import type { Horizon } from '@stellar/stellar-sdk';
 import { prisma } from '../db.js';
 import { logger } from '../logger.js';
 import { extractContractAddress, sleep } from '../stellar.js';
+import { withRetry } from '../retry.js';
 import type { IndexerConfig } from '../config.js';
 
 const RATE_LIMIT_DELAY_MS = 100;
+const RETRY_LABEL = 'deployments.horizon';
+
+export interface DeploymentResult {
+  highestLedger: number;
+  walletsScanned: number;
+  contractsFound: number;
+}
 
 export async function runDeploymentWorker(
   horizon: Horizon.Server,
   config: IndexerConfig,
-): Promise<number> {
+): Promise<DeploymentResult> {
   const wallets = await prisma.wallet.findMany();
   let highestLedger = 0;
+  let contractsFound = 0;
 
   for (const wallet of wallets) {
-    logger.info({ pubkey: wallet.pubkey }, 'deployments.scanning');
+    logger.debug({ pubkey: wallet.pubkey }, 'deployments.scanning');
     let newCount = 0;
 
     try {
-      const ops = await horizon
-        .operations()
-        .forAccount(wallet.pubkey)
-        .order('desc')
-        .limit(200)
-        .call();
+      const ops = await withRetry(
+        () =>
+          horizon
+            .operations()
+            .forAccount(wallet.pubkey)
+            .order('desc')
+            .limit(200)
+            .call(),
+        { label: RETRY_LABEL },
+      );
 
       await sleep(RATE_LIMIT_DELAY_MS);
 
@@ -55,7 +68,10 @@ export async function runDeploymentWorker(
         let contractAddress: string | null = null;
 
         try {
-          const tx = await horizon.transactions().transaction(txHash).call();
+          const tx = await withRetry(
+            () => horizon.transactions().transaction(txHash).call(),
+            { label: RETRY_LABEL },
+          );
           contractAddress = extractContractAddress(tx.result_meta_xdr);
           const ledgerSeq = tx.ledger_attr;
           if (typeof ledgerSeq === 'number' && ledgerSeq > highestLedger) {
@@ -76,7 +92,7 @@ export async function runDeploymentWorker(
               },
             });
             newCount++;
-            logger.info(
+            logger.debug(
               { pubkey: wallet.pubkey, contract: contractAddress },
               'deployments.found',
             );
@@ -95,8 +111,9 @@ export async function runDeploymentWorker(
       );
     }
 
-    logger.info({ pubkey: wallet.pubkey, new: newCount }, 'deployments.walletDone');
+    contractsFound += newCount;
+    logger.debug({ pubkey: wallet.pubkey, new: newCount }, 'deployments.walletDone');
   }
 
-  return highestLedger;
+  return { highestLedger, walletsScanned: wallets.length, contractsFound };
 }

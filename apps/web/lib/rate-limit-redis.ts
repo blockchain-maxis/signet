@@ -1,3 +1,4 @@
+import { logger } from './logger.ts';
 import type { RateLimitResult, RateLimitStore } from './rate-limit.ts';
 
 /**
@@ -15,11 +16,12 @@ import type { RateLimitResult, RateLimitStore } from './rate-limit.ts';
  * Redis blip degrades to "unlimited" rather than taking the API down.
  */
 export class UpstashRateLimitStore implements RateLimitStore {
-  constructor(
-    private readonly url: string,
-    private readonly token: string,
-  ) {
+  private readonly url: string;
+  private readonly token: string;
+
+  constructor(url: string, token: string) {
     this.url = url.replace(/\/$/, '');
+    this.token = token;
   }
 
   async hit(key: string, max: number, windowMs: number): Promise<RateLimitResult> {
@@ -41,7 +43,7 @@ export class UpstashRateLimitStore implements RateLimitStore {
           ['PTTL', namespaced],
         ]),
       });
-      if (!res.ok) return this.allow(max, windowMs);
+      if (!res.ok) return this.allow(max, windowMs, `http ${res.status}`);
 
       const body = (await res.json()) as Array<{ result?: number; error?: string }>;
       const count = Number(body[0]?.result ?? 0);
@@ -53,13 +55,21 @@ export class UpstashRateLimitStore implements RateLimitStore {
         remaining: Math.max(0, max - count),
         resetMs,
       };
-    } catch {
-      return this.allow(max, windowMs);
+    } catch (err) {
+      return this.allow(max, windowMs, err instanceof Error ? err.message : 'unknown error');
     }
   }
 
-  /** Fail-open result — never block legitimate traffic on a backend hiccup. */
-  private allow(max: number, windowMs: number): RateLimitResult {
+  /**
+   * Fail-open result — never block legitimate traffic on a backend hiccup.
+   *
+   * Logged rather than silent: while this path is being taken, rate limiting is
+   * effectively off, and a sustained Upstash outage would otherwise remove it
+   * across the whole deployment with nothing to show for it. Alert on
+   * `ratelimit.failOpen`.
+   */
+  private allow(max: number, windowMs: number, reason: string): RateLimitResult {
+    logger.warn({ reason }, 'ratelimit.failOpen');
     return { ok: true, remaining: max - 1, resetMs: windowMs };
   }
 }

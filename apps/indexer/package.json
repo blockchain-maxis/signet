@@ -2,6 +2,7 @@
   "name": "@signet/indexer",
   "version": "0.0.0",
   "private": true,
+  "license": "Apache-2.0",
   "type": "module",
   "scripts": {
     "dev": "tsx watch src/index.ts",
@@ -14,7 +15,7 @@
   "dependencies": {
     "@signet/db": "workspace:*",
     "@signet/types": "workspace:*",
-    "@stellar/stellar-sdk": "^15.1.0"
+    "@stellar/stellar-sdk": "^16.1.0"
   },
   "devDependencies": {
     "@types/node": "^20.16.0",

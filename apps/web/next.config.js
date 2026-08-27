@@ -1,22 +1,8 @@
-// Content-Security-Policy. Allows the inline styles the app relies on (React
-// `style={}` + framer-motion) and the Google Fonts CDN used in globals.css.
-// connect-src covers the Stellar RPC/Horizon/Expert endpoints the client calls.
-// NOTE: script-src keeps 'unsafe-inline' for Next's bootstrap scripts — tighten
-// to a nonce-based policy (via middleware) as a follow-up.
-const csp = [
-  "default-src 'self'",
-  "script-src 'self' 'unsafe-inline'",
-  "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
-  "font-src 'self' https://fonts.gstatic.com",
-  "img-src 'self' data: https:",
-  "connect-src 'self' https://*.stellar.org https://stellar.expert",
-  "frame-ancestors 'none'",
-  "base-uri 'self'",
-  "form-action 'self'",
-].join('; ');
-
+// The Content-Security-Policy is set per request in `middleware.ts` (see
+// `lib/csp.ts`) so `script-src` can carry a fresh nonce instead of
+// `'unsafe-inline'`. The static, non-nonce headers below apply to every route,
+// including static assets the middleware matcher skips.
 const securityHeaders = [
-  { key: 'Content-Security-Policy', value: csp },
   { key: 'Strict-Transport-Security', value: 'max-age=63072000; includeSubDomains; preload' },
   { key: 'X-Frame-Options', value: 'DENY' },
   { key: 'X-Content-Type-Options', value: 'nosniff' },

@@ -1,10 +1,11 @@
-import { initTRPC } from '@trpc/server';
+import { initTRPC, TRPCError } from '@trpc/server';
 import { getProfile, getOperations, listHandles, isValidHandle, computeStats } from '../profiles.ts';
 import { logger } from '../logger.ts';
 import { rateLimit } from '../rate-limit.ts';
 import { verifySession, SESSION_COOKIE } from '../auth.ts';
-import { isSameOriginHeaders } from '../security.ts';
+import { clientIp, isSameOriginHeaders } from '../security.ts';
 import { getAccount, updateAccount, normalizeAccountUpdate } from './account.ts';
+import { boundCount, lookupWallet, resolveHandle } from './registry-read.ts';
 
 /**
  * tRPC server setup.
@@ -22,11 +23,7 @@ export interface Context {
 
 export function createContext(headers: Headers): Context {
   const requestId = headers.get('x-request-id') ?? globalThis.crypto.randomUUID();
-  const ip =
-    headers.get('x-forwarded-for')?.split(',')[0]?.trim() ??
-    headers.get('x-real-ip') ??
-    'unknown';
-  return { headers, requestId, ip };
+  return { headers, requestId, ip: clientIp(headers) };
 }
 
 const t = initTRPC.context<Context>().create();
@@ -44,12 +41,20 @@ const observed = t.procedure.use(async ({ ctx, path, type, next }) => {
   return res;
 });
 
-/** Per-ip rate limit on top of logging. */
+/**
+ * Per-ip rate limit on top of logging.
+ *
+ * Failures here (and in `protectedProcedure` below) are raised as `TRPCError`
+ * rather than bare `Error`s: tRPC maps an unrecognised throw to
+ * `INTERNAL_SERVER_ERROR`, which reported every rate-limit and auth rejection
+ * as an HTTP 500. Clients could not tell "sign in again" from "back off" from
+ * "the server broke", and every expected rejection polluted 5xx monitoring.
+ */
 const publicProcedure = observed.use(async ({ ctx, path, next }) => {
   const { ok, remaining } = await rateLimit(`${ctx.ip}:${path}`);
   if (!ok) {
     logger.warn({ requestId: ctx.requestId, path, ip: ctx.ip }, 'trpc.rateLimited');
-    throw new Error('Too many requests');
+    throw new TRPCError({ code: 'TOO_MANY_REQUESTS', message: 'Too many requests' });
   }
   void remaining;
   return next();
@@ -77,18 +82,31 @@ function sessionAddress(headers: Headers): string | null {
  */
 const protectedProcedure = publicProcedure.use(async ({ ctx, type, next }) => {
   if (type === 'mutation' && !isSameOriginHeaders(ctx.headers)) {
-    throw new Error('Cross-origin request rejected');
+    throw new TRPCError({ code: 'FORBIDDEN', message: 'Cross-origin request rejected' });
   }
   const address = sessionAddress(ctx.headers);
-  if (!address) throw new Error('Unauthorized');
+  if (!address) throw new TRPCError({ code: 'UNAUTHORIZED', message: 'Unauthorized' });
   return next({ ctx: { ...ctx, address } });
 });
 
 /** Lightweight validator: ensures a well-formed handle without a schema lib. */
 function handleInput(raw: unknown): { handle: string } {
   const handle = String((raw as { handle?: unknown })?.handle ?? '').toLowerCase();
-  if (!isValidHandle(handle)) throw new Error('Invalid handle');
+  if (!isValidHandle(handle)) {
+    throw new TRPCError({ code: 'BAD_REQUEST', message: 'Invalid handle' });
+  }
   return { handle };
+}
+
+/** Stellar account address: G… or C… followed by 55 base32 chars. */
+const STELLAR_ADDR_RE = /^[GC][A-Z2-7]{55}$/;
+
+function walletInput(raw: unknown): { wallet: string } {
+  const wallet = String((raw as { wallet?: unknown })?.wallet ?? '');
+  if (!STELLAR_ADDR_RE.test(wallet)) {
+    throw new TRPCError({ code: 'BAD_REQUEST', message: 'Invalid wallet address' });
+  }
+  return { wallet };
 }
 
 /** Procedures backing the public-facing profile surface. */
@@ -117,10 +135,37 @@ const accountRouter = router({
     .mutation(({ ctx, input }) => updateAccount(ctx.address, input)),
 });
 
+/**
+ * On-chain identity registry reads (handle → wallet, wallet → handle, count).
+ *
+ * These ask the contract directly through `registry-read`'s view simulations
+ * rather than reconstructing state from the event stream. The event scan only
+ * sees a bounded ledger window, so it silently missed any binding older than
+ * that window — `count` in particular reported 0 against a registry whose own
+ * `count()` was non-zero. It was also three paginated RPC round trips to
+ * answer what one simulation answers.
+ */
+const registryRouter = router({
+  resolve: publicProcedure.input(handleInput).query(async ({ input }) => {
+    const wallet = await resolveHandle(input.handle);
+    return wallet ? { handle: input.handle, wallet } : null;
+  }),
+
+  lookup: publicProcedure.input(walletInput).query(async ({ input }) => {
+    const handle = await lookupWallet(input.wallet);
+    return handle ? { handle, wallet: input.wallet } : null;
+  }),
+
+  // `null` means the registry could not be read; callers must not render that
+  // as an empty registry. See `boundCount`.
+  count: publicProcedure.query(async () => ({ count: await boundCount() })),
+});
+
 export const appRouter = router({
   health: publicProcedure.query(() => ({ ok: true, service: 'signet', ts: Date.now() })),
   profile: profileRouter,
   account: accountRouter,
+  registry: registryRouter,
 });
 
 export type AppRouter = typeof appRouter;

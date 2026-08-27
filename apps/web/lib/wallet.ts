@@ -100,26 +100,27 @@ export async function signMessage(message: string, address: string): Promise<str
 }
 
 /**
- * Sign-In With Stellar: connect (if needed), fetch a server challenge, sign it,
- * and exchange it for a session cookie. Returns the authenticated address.
+ * Sign-in via SEP-10 Stellar Web Authentication: connect (if needed), fetch a
+ * challenge transaction from `/api/auth/sep10`, sign it with the wallet, and
+ * exchange it for a session cookie. Returns the authenticated address.
+ *
+ * The older custom message-signing flow (`/api/auth/{challenge,verify}`)
+ * still exists server-side for any client mid-migration to this one, but the
+ * app's own UI goes through SEP-10 exclusively now.
  */
 export async function signIn(): Promise<string> {
   const address = (await getConnectedAddress()) ?? (await connectWallet());
 
-  const chalRes = await fetch('/api/auth/challenge', {
-    method: 'POST',
-    headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ address }),
-  });
+  const chalRes = await fetch(`/api/auth/sep10?account=${encodeURIComponent(address)}`);
   if (!chalRes.ok) throw new Error('Could not start sign-in');
-  const { message } = (await chalRes.json()) as { message: string };
+  const { transaction } = (await chalRes.json()) as { transaction: string };
 
-  const signature = await signMessage(message, address);
+  const signedTransaction = await signTransaction(transaction, address);
 
-  const verifyRes = await fetch('/api/auth/verify', {
+  const verifyRes = await fetch('/api/auth/sep10', {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
-    body: JSON.stringify({ address, message, signature }),
+    body: JSON.stringify({ transaction: signedTransaction }),
   });
   if (!verifyRes.ok) {
     const { error } = (await verifyRes.json().catch(() => ({}))) as { error?: string };
