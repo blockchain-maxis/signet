@@ -16,7 +16,7 @@ export function Hero() {
 
   return (
     <div ref={containerRef} className="relative min-h-screen overflow-hidden">
-      {/* Vignette -- hero only */}
+      {/* Vignette — hero only */}
       <div
         className="pointer-events-none fixed inset-0 z-20"
         style={{
@@ -57,9 +57,9 @@ export function Hero() {
       {/* Hero */}
       <motion.section
         style={{ opacity: heroFade }}
-        className="relative z-10 mx-auto grid max-w-[1480px] grid-cols-1 items-center gap-12 px-8 pb-32 pt-8 md:min-h-calc(100vh-220px) md:grid-cols-[1.15fr_1fr] md:gap-10 md:px-14 md:pb-16 md:pt-4 lg:gap-20"
+        className="relative z-10 mx-auto grid max-w-[1480px] grid-cols-1 items-center gap-12 px-8 pb-32 pt-8 md:min-h-[calc(100vh-220px)] md:grid-cols-[1.15fr_1fr] md:gap-10 md:px-14 md:pb-16 md:pt-4 lg:gap-20"
       >
-        {/* LEFT -- copy */}
+        {/* LEFT — copy */}
         <div className="relative">
           <motion.div
             initial={{ opacity: 0, y: 6 }}
@@ -80,7 +80,7 @@ export function Hero() {
           </motion.div>
 
           <h1
-            style={ {
+            style={{
               fontFamily: 'var(--font-display)',
               fontWeight: 700,
               lineHeight: '0.96',
@@ -139,7 +139,7 @@ export function Hero() {
           >
             <ConnectWallet
               variant="cta"
-              className="group inline-flex items-center gap-3 bg-[#f5f4ee] px-7 py-4 text-[12px] font-medium uppercase tracking-[0.18em] text-[#0a0908] transition-all duration-300 hover:bg-['#c2410c'] hover:text-[#f5f4ee] disabled:opacity-60"
+              className="group inline-flex items-center gap-3 bg-[#f5f4ee] px-7 py-4 text-[12px] font-medium uppercase tracking-[0.18em] text-[#0a0908] transition-all duration-300 hover:bg-[#c2410c] hover:text-[#f5f4ee] disabled:opacity-60"
             />
             <a
               href="/p/aquawolf"
@@ -149,7 +149,7 @@ export function Hero() {
               <span className="border-b border-[#3d3a33] pb-1 transition-colors group-hover:border-[#f5f4ee]">
                 Browse the registry
               </span>
-              <span className="text-[#5e5b51]">↑</span>
+              <span className="text-[#5e5b51]">↗</span>
             </a>
           </motion.div>
 
@@ -165,10 +165,10 @@ export function Hero() {
           </motion.div>
         </div>
 
-        {/* RIGHT -- the seal */}
+        {/* RIGHT — the seal */}
         <motion.div
           style={{ scale: sealScale, opacity: sealOpacity }}
-          className="relative mx-auto flex aspect-square w-full max-w-[340px] items-center justify-center md:max-w-[560px] md:justify-self"
+          className="relative mx-auto flex aspect-square w-full max-w-[340px] items-center justify-center md:max-w-[560px] md:justify-self-end"
         >
           <Seal scrollRotate={sealScrollRotate} />
         </motion.div>
