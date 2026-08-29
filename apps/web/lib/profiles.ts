@@ -315,10 +315,40 @@ export async function safeChainProfile(handle: string): Promise<Profile | null> 
   }
 }
 
+/** Maps a Prisma `Operation` row to the Horizon-shaped `Operation` the UI uses. */
+function mapDbOperation(op: {
+  id: string;
+  type: string;
+  function: string | null;
+  decodedFunction: string | null;
+  sourceAccount: string | null;
+  createdAt: Date;
+  transactionHash: string | null;
+  successful: boolean;
+  balanceChanges: unknown;
+}): Operation {
+  return {
+    id: op.id,
+    type: op.type,
+    function: op.function ?? undefined,
+    decoded_function: op.decodedFunction ?? undefined,
+    source_account: op.sourceAccount ?? undefined,
+    created_at: op.createdAt.toISOString(),
+    transaction_hash: op.transactionHash ?? undefined,
+    transaction_successful: op.successful,
+    asset_balance_changes:
+      (op.balanceChanges as unknown as Operation['asset_balance_changes']) ?? undefined,
+  };
+}
+
 /**
  * Best-effort lookup of indexer-populated operations for a handle. Returns null
  * on any failure (no DB, unreachable, error) so `getOperations` falls back to
  * the static JSON. Maps DB rows to the Horizon-shaped `Operation` the UI uses.
+ *
+ * Capped at 100 rows — this powers dashboard stats and OG images, which only
+ * need a representative recent sample, not the full history. Callers that
+ * need real pagination over the complete set must use `getPagedOperations`.
  */
 export async function safeDbOperations(handle: string): Promise<Operation[] | null> {
   if (!process.env.DATABASE_URL || !isValidHandle(handle)) return null;
@@ -336,18 +366,58 @@ export async function safeDbOperations(handle: string): Promise<Operation[] | nu
     return profile.wallets
       .flatMap((w) => w.operations)
       .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
-      .map((op) => ({
-        id: op.id,
-        type: op.type,
-        function: op.function ?? undefined,
-        decoded_function: op.decodedFunction ?? undefined,
-        source_account: op.sourceAccount ?? undefined,
-        created_at: op.createdAt.toISOString(),
-        transaction_hash: op.transactionHash ?? undefined,
-        transaction_successful: op.successful,
-        asset_balance_changes:
-          (op.balanceChanges as unknown as Operation['asset_balance_changes']) ?? undefined,
-      }));
+      .map(mapDbOperation);
+  } catch {
+    return null;
+  }
+}
+
+export interface PagedOperations {
+  data: Operation[];
+  /** True count of operations backing this handle, not capped to a page. */
+  total: number;
+}
+
+/**
+ * Paginated, DB-backed lookup of every operation for a handle — unlike
+ * `safeDbOperations`, this is not capped at 100 rows. `offset`/`limit` are
+ * pushed into the query via `skip`/`take` and `total` comes from a real
+ * `count`, so a caller paging past the first 100 rows still gets its data and
+ * an honest total instead of an empty page with a stale count.
+ *
+ * Returns null when there's no database, the handle doesn't resolve to a
+ * profile in it, or the query fails — callers fall back to `getOperations`
+ * (Horizon / static demo JSON) in that case, same as `safeDbOperations`.
+ */
+export async function getPagedOperations(
+  handle: string,
+  offset: number,
+  limit: number,
+): Promise<PagedOperations | null> {
+  if (!process.env.DATABASE_URL || !isValidHandle(handle)) return null;
+  try {
+    const { prisma } = await import('@signet/db');
+    const profile = await prisma.profile.findUnique({
+      where: { handle: handle.toLowerCase() },
+      include: { wallets: { select: { id: true } } },
+    });
+    if (!profile) return null;
+
+    const walletIds = profile.wallets.map((w) => w.id);
+    if (walletIds.length === 0) return { data: [], total: 0 };
+
+    const where = { walletId: { in: walletIds } };
+    const [rows, total] = await Promise.all([
+      prisma.operation.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        skip: offset,
+        take: limit,
+      }),
+      prisma.operation.count({ where }),
+    ]);
+
+    return { data: rows.map(mapDbOperation), total };
   } catch {
     return null;
   }

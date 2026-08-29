@@ -4,6 +4,7 @@ import {
   isValidHandle,
   getProfile,
   getOperations,
+  getPagedOperations,
   listHandles,
   listAllHandles,
   safeChainHandles,
@@ -98,4 +99,14 @@ test('computeStats returns zeroed stats for missing or empty operations', () => 
 test('getOperations returns an array (possibly empty) for any handle', async () => {
   assert.ok(Array.isArray(await getOperations('aquawolf')));
   assert.deepEqual(await getOperations('does-not-exist'), []);
+});
+
+test('getPagedOperations is a no-op without a DATABASE_URL', async () => {
+  // No DATABASE_URL configured in this test environment, so the DB layer
+  // must no-op rather than throwing, letting the route fall back cleanly.
+  assert.equal(await getPagedOperations('aquawolf', 0, 25), null);
+});
+
+test('getPagedOperations rejects invalid handles without a DB round trip', async () => {
+  assert.equal(await getPagedOperations('../../etc/passwd', 0, 25), null);
 });
