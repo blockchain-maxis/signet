@@ -2,8 +2,12 @@ import type { Handle, ProfileResponse, RegistryEntry, RegistryCount } from '@sig
 import { ApiError, NetworkError, NotFoundError } from './errors.ts';
 
 export interface SignetClientOptions {
-  /** Base URL of a Signet deployment, e.g. https://signet.dev */
-  baseUrl?: string;
+  /**
+   * Base URL of a Signet deployment, e.g. `http://localhost:3000` for a local
+   * dev server. Required: there is no hosted public deployment yet, so a
+   * default would silently point at a host that doesn't serve the API.
+   */
+  baseUrl: string;
   /** Optional fetch implementation (for tests / non-browser runtimes). */
   fetch?: typeof fetch;
   /**
@@ -49,8 +53,8 @@ export class SignetClient {
   private readonly timeoutMs: number;
   private readonly maxRetries: number;
 
-  constructor(options: SignetClientOptions = {}) {
-    this.baseUrl = (options.baseUrl ?? 'https://signet.dev').replace(/\/$/, '');
+  constructor(options: SignetClientOptions) {
+    this.baseUrl = options.baseUrl.replace(/\/$/, '');
     this.fetchImpl = options.fetch ?? globalThis.fetch;
     this.timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
     this.maxRetries = options.maxRetries ?? DEFAULT_MAX_RETRIES;

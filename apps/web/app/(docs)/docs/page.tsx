@@ -77,7 +77,7 @@ export default function DocsPage() {
         >
 {`import { SignetClient } from '@signet/sdk';
 
-const signet = new SignetClient({ baseUrl: 'https://signet.dev' });
+const signet = new SignetClient({ baseUrl: 'https://your-deployment.example' });
 const profile = await signet.getProfile('aquawolf');
 // → { handle, profile, stats: { invocations, uniqueFunctions } }`}
         </pre>
