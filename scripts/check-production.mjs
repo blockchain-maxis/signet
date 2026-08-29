@@ -37,24 +37,16 @@ if (!HANDLE) {
   process.exit(1);
 }
 
-// One retry after a pause: a cold serverless start or transient network blip
-// should not page anyone, but two failures a minute apart is a real signal.
 async function request(path) {
-  for (let attempt = 1; ; attempt += 1) {
-    try {
-      const res = await fetch(`${BASE}${path}`, {
-        redirect: 'follow',
-        headers: { 'user-agent': 'signet-production-check' },
-        signal: AbortSignal.timeout(20_000),
-      });
-      const body = await res.text();
-      if (res.status >= 500 && attempt === 1) throw new Error(`HTTP ${res.status}`);
-      return { status: res.status, body };
-    } catch (err) {
-      if (attempt >= 2) return { error: err.message ?? String(err) };
-      console.log(`  … ${path} failed (${err.message}), retrying in 30s`);
-      await new Promise((r) => setTimeout(r, 30_000));
-    }
+  try {
+    const res = await fetch(`${BASE}${path}`, {
+      redirect: 'follow',
+      headers: { 'user-agent': 'signet-production-check' },
+      signal: AbortSignal.timeout(20_000),
+    });
+    return { status: res.status, body: await res.text() };
+  } catch (err) {
+    return { error: err.message ?? String(err) };
   }
 }
 
@@ -81,15 +73,27 @@ const checks = [
 
 console.log(`Checking production site ${BASE}\n`);
 
+// One retry after a pause, for ANY failed check — a network error, a 5xx, or
+// a response that didn't look like the page (a health probe reporting
+// `degraded` while a scaled-to-zero database wakes up is exactly this shape).
+// A cold start or transient blip should not page anyone; two failures a
+// minute apart is a real signal.
 let failures = 0;
 for (const { path, expect } of checks) {
-  const r = await request(path);
-  if (r.error) {
-    console.error(`✗ ${path}: unreachable — ${r.error}`);
-    failures += 1;
-  } else if (!expect(r)) {
-    const detail = path === '/api/health' ? ` body: ${r.body.slice(0, 200)}` : '';
-    console.error(`✗ ${path}: HTTP ${r.status} — response did not look like the page.${detail}`);
+  let r = await request(path);
+  let ok = !r.error && expect(r);
+  if (!ok) {
+    console.log(`  … ${path} failed first attempt, retrying in 30s`);
+    await new Promise((resolve) => setTimeout(resolve, 30_000));
+    r = await request(path);
+    ok = !r.error && expect(r);
+  }
+  if (!ok) {
+    const detail = r.error
+      ? `unreachable — ${r.error}`
+      : `HTTP ${r.status} — response did not look like the page.` +
+        (path === '/api/health' ? ` body: ${r.body.slice(0, 200)}` : '');
+    console.error(`✗ ${path}: ${detail}`);
     failures += 1;
   } else {
     console.log(`✓ ${path}: HTTP ${r.status}`);
