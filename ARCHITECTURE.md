@@ -151,6 +151,12 @@ and skipped without advancing the relevant cursor, so the next tick retries.
   `/api/auth/verify` issues a `SameSite=Lax` session cookie
   ([`apps/web/lib/auth.ts`](apps/web/lib/auth.ts)); mutations additionally
   enforce a same-origin check as CSRF defense.
+- Sessions are stateless HMACs, so **revocation** is a separate mechanism
+  ([`apps/web/lib/session-revocation.ts`](apps/web/lib/session-revocation.ts)):
+  a short list, keyed by address or session id, held in the same shared store
+  as the sign-in nonces. Each instance caches the whole list and refreshes it
+  every ten seconds, so verifying a session stays a local check rather than a
+  per-request store read. See [`SECURITY.md`](SECURITY.md) for the levers.
 
 ---
 
@@ -218,7 +224,7 @@ variable there is listed below so docs and the example file stay in lockstep
 | `NEXT_PUBLIC_APP_URL` | web | Public site origin |
 | `NEXT_PUBLIC_ROOT_DOMAIN` | web | Root domain for routing |
 | `SIGNET_AUTH_SECRET` | web (SIWS) | ≥16 chars in production |
-| `SIGNET_SESSIONS_VALID_AFTER` | web (SIWS) | Unix ms; bump to revoke all sessions |
+| `SIGNET_SESSIONS_VALID_AFTER` | web (SIWS) | Unix ms; bump to revoke all sessions (per-address and per-session revocation is in `session-revocation.ts`) |
 | `NEXT_PUBLIC_STELLAR_NETWORK` | web (wallet kit) | Client network label |
 | `NEXT_PUBLIC_SOROBAN_RPC_URL` | web (claims) | Browser-side RPC |
 | `NEXT_PUBLIC_IDENTITY_REGISTRY_ID` | web, indexer fallback | Empty → claim UI shows Phase 2 |

@@ -22,21 +22,60 @@ mitigation for confirmed high-severity issues within 30 days.
   the app refuses the dev fallback when `NODE_ENV=production`. Rotate it to
   invalidate sessions going forward.
 
-- **`SIGNET_SESSIONS_VALID_AFTER`** — set this to a Unix epoch timestamp in
-  milliseconds to reject all sessions **issued before** that moment. Use it
-  right after rotating `SIGNET_AUTH_SECRET` (or after a suspected leak) to
-  force every existing session to be re-authenticated. The variable is checked
-  on every request, so no restart is needed.
-  
-  Copy-paste command to revoke all sessions right now:
-  
+### Revoking sessions
+
+Sessions are stateless HMAC cookies with a seven-day lifetime, so revocation is
+an explicit act. Three levers, narrowest first — reach for the global one only
+when the thing that leaked is global.
+
+**One session.** `POST /api/auth/logout` revokes the session id it is signing
+out, so a cookie copied off the device before sign-out stops working too. An
+operator can revoke a session id directly:
+
+```bash
+pnpm --filter @signet/web run revoke:sessions -- --session <session id>
+```
+
+**One address.** The response to a single compromised wallet:
+
+```bash
+pnpm --filter @signet/web run revoke:sessions -- GABC…
+```
+
+Every session for that address stops working; every other user is unaffected.
+The wallet can sign in again immediately — this is a revocation, not a ban.
+Users can do the same for themselves from **Settings → Other devices**, which
+signs out every device except the one they are on
+(`POST /api/auth/revoke {"scope":"others"}`, or `{"scope":"all"}` to include
+the current one).
+
+Both are recorded in the shared store (see `UPSTASH_REDIS_REST_URL` below) and
+picked up by running instances within ten seconds — no restart, no redeploy, no
+env change. Each instance caches the whole list in memory and refreshes it on
+that interval, so this adds no per-request round trip. If the store cannot be
+read, the last known list is used for up to a minute and after that **every**
+session is rejected: an unreadable revocation list must not silently mean
+"nobody is revoked".
+
+> Without `UPSTASH_REDIS_REST_URL` / `UPSTASH_REDIS_REST_TOKEN` the list is
+> per-instance, which is correct on a single long-lived server and wrong on a
+> multi-replica or serverless deploy — a revocation would bind only on the
+> instance that recorded it. Set them there. The CLI refuses to run without
+> them rather than reporting a revocation the app never sees.
+
+**Everyone.** **`SIGNET_SESSIONS_VALID_AFTER`** — set this to a Unix epoch
+timestamp in milliseconds to reject all sessions **issued before** that moment.
+This is the right lever for exactly one situation: `SIGNET_AUTH_SECRET` leaked
+or was rotated, so every session really is suspect. The variable is checked on
+every request, so no restart is needed.
+
   ```bash
   export SIGNET_SESSIONS_VALID_AFTER=$(node -e "console.log(Date.now())")
   ```
-  
+
   For Docker Compose deployments, set the variable in your environment or
   `.env` file and recreate the containers:
-  
+
   ```bash
   SIGNET_SESSIONS_VALID_AFTER=$(node -e "console.log(Date.now())") docker compose up -d --force-recreate
   ```

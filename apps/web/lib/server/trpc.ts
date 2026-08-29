@@ -63,7 +63,7 @@ const publicProcedure = observed.use(async ({ ctx, path, next }) => {
 export { publicProcedure };
 
 /** Read + verify the session cookie from the request headers (returns the G… address). */
-function sessionAddress(headers: Headers): string | null {
+async function sessionAddress(headers: Headers): Promise<string | null> {
   const cookie = headers.get('cookie');
   if (!cookie) return null;
   const prefix = `${SESSION_COOKIE}=`;
@@ -84,7 +84,7 @@ const protectedProcedure = publicProcedure.use(async ({ ctx, type, next }) => {
   if (type === 'mutation' && !isSameOriginHeaders(ctx.headers)) {
     throw new TRPCError({ code: 'FORBIDDEN', message: 'Cross-origin request rejected' });
   }
-  const address = sessionAddress(ctx.headers);
+  const address = await sessionAddress(ctx.headers);
   if (!address) throw new TRPCError({ code: 'UNAUTHORIZED', message: 'Unauthorized' });
   return next({ ctx: { ...ctx, address } });
 });

@@ -29,6 +29,8 @@ export const LIMITS = {
   authVerify: 15,
   /** Cheap, but the entry point to the sign-in flow. */
   authChallenge: 20,
+  /** Sign-out-everywhere: authenticated and rare, so a tight bucket is plenty. */
+  authRevoke: 10,
   /** Plain reads; generous, still bounded. */
   read: 60,
 } as const;
