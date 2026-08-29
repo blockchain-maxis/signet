@@ -3,14 +3,11 @@
 import { useState, useCallback } from 'react';
 import type { Operation } from '@/lib/profiles';
 import { stellarExpertTxUrl } from '@/lib/network';
+import { formatDate } from '@/lib/format-date';
 
 function truncate(str: string, head: number, tail: number): string {
   if (str.length <= head + tail + 3) return str;
   return `${str.slice(0, head)}...${str.slice(-tail)}`;
-}
-
-function fmtDate(iso: string): string {
-  return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 }
 
 function resolveFunction(op: Operation): string {
@@ -119,7 +116,7 @@ export default function OperationsList({ handle, initialOperations, total, isDem
                   className="hidden text-[11px] text-[#5e5b51] md:block whitespace-nowrap"
                   style={{ fontFamily: 'var(--font-mono)' }}
                 >
-                  {fmtDate(op.created_at)}
+                  {formatDate(op.created_at)}
                 </span>
                 {op.transaction_hash ? (
                   isDemo ? (
