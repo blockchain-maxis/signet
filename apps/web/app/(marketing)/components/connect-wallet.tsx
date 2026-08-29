@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { HANDLE_MAX_LEN, isReservedHandle, isValidHandle } from '@signet/types';
 import { connectWallet, disconnectWallet, getConnectedAddress } from '@/lib/wallet';
 import { claimHandle, isRegistryConfigured, RegistryNotConfiguredError } from '@/lib/registry';
+import { STELLAR_NETWORK } from '@/lib/network';
 
 function truncate(addr: string): string {
   return addr.length > 12 ? `${addr.slice(0, 5)}…${addr.slice(-4)}` : addr;
@@ -242,7 +243,7 @@ export function ConnectWallet({
       )}
       {!isRegistryConfigured() && variant === 'nav' && address && (
         <span className="text-[9px] text-[#5e5b51]" style={{ fontFamily: 'var(--font-mono)' }}>
-          connected · testnet
+          connected · {STELLAR_NETWORK}
         </span>
       )}
     </span>

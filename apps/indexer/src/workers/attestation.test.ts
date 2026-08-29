@@ -4,10 +4,12 @@ import { Address, Keypair, nativeToScVal, rpc, xdr } from '@stellar/stellar-sdk'
 import {
   decodeEvent,
   applyAttestation,
+  reconcileAgainstChain,
   runAttestationWorker,
   type AttestationStore,
   type CursorStore,
 } from './attestation.ts';
+import type { RegistryReader } from '../registry-read.ts';
 
 function topics(kind: string, handle: string): xdr.ScVal[] {
   return [nativeToScVal(kind, { type: 'symbol' }), nativeToScVal(handle, { type: 'string' })];
@@ -47,13 +49,19 @@ test('decodeEvent ignores unrelated or malformed events', () => {
   assert.equal(decodeEvent([nativeToScVal('claimed', { type: 'symbol' })], walletVal(pk)), null);
 });
 
-function recordingStore(): { store: AttestationStore; calls: any[] } {
+function recordingStore(
+  profiles: { handle: string; wallets: { pubkey: string; source: string }[] }[] = [],
+): { store: AttestationStore; calls: any[] } {
   const calls: any[] = [];
   const store: AttestationStore = {
     profile: {
       upsert: async (a) => {
         calls.push(['profile.upsert', a]);
         return { id: 'p1' };
+      },
+      findMany: async (a) => {
+        calls.push(['profile.findMany', a]);
+        return profiles;
       },
     },
     wallet: {
@@ -333,4 +341,131 @@ test('runAttestationWorker does not move cursor on fetch error', async () => {
   assert.equal(upsertCalls.length, 0, 'cursor should not advance on error');
   // Stored cursor should still be 100.
   assert.equal(cursor.saved?.lastLedger, 100);
+});
+
+
+// ─── Reconcile tests (issue #189) ───────────────────────────────────────────
+
+/** A RegistryReader answering from a fixed handle→wallet map. */
+function fakeReader(
+  bindings: Record<string, string | null>,
+  chainCount: number | null = null,
+): { reader: RegistryReader; resolveCalls: string[][] } {
+  const resolveCalls: string[][] = [];
+  return {
+    reader: {
+      resolveMany: async (handles) => {
+        resolveCalls.push(handles);
+        return handles.map((h) => bindings[h] ?? null);
+      },
+      count: async () => chainCount ?? Object.values(bindings).filter(Boolean).length,
+    },
+    resolveCalls,
+  };
+}
+
+test('an unservable cursor window reconciles from contract state instead of reading events', async () => {
+  // Cursor at 1000, tip at 20000, window 8000: getEvents would return an
+  // error-free empty page and the gap would vanish. The worker must not even
+  // ask — it sweeps known handles through resolve and jumps the cursor to the
+  // tip only after the sweep succeeds.
+  const pk = Keypair.random().publicKey();
+  let getEventsCalled = false;
+  const server = {
+    getLatestLedger: async () => ({ sequence: 20_000 }),
+    getEvents: async () => {
+      getEventsCalled = true;
+      return { latestLedger: 20_000, events: [] };
+    },
+  } as unknown as rpc.Server;
+
+  const cursor = recordingCursorStore({ lastLedger: 1000 });
+  const { store, calls } = recordingStore([
+    { handle: 'alice', wallets: [] }, // claimed during the lost window
+    { handle: 'aquawolf', wallets: [{ pubkey: 'GCURATED', source: 'curated' }] },
+  ]);
+  const { reader } = fakeReader({ alice: pk, aquawolf: null });
+
+  const result = await runAttestationWorker(
+    server,
+    { registryContractId: 'C…REGISTRY', eventWindowLedgers: 8000, network: 'testnet' } as any,
+    cursor.store,
+    store,
+    reader,
+  );
+
+  assert.equal(getEventsCalled, false, 'events must not be read from an unservable window');
+  assert.equal(result.reconciled?.candidates, 2);
+  assert.equal(result.reconciled?.bound, 1);
+  // alice's lost claim was re-learned from state…
+  assert.ok(
+    calls.some((c: any[]) => c[0] === 'wallet.upsert' && c[1].where.pubkey === pk),
+    'expected the lost claim to be applied from contract state',
+  );
+  // …the curated demo wallet was left alone…
+  assert.ok(
+    !calls.some((c: any[]) => c[0] === 'wallet.deleteMany' && c[1].where.pubkey === 'GCURATED'),
+    'curated wallets must never be reconciled away',
+  );
+  // …and the cursor resumed from the tip.
+  assert.equal(cursor.saved?.lastLedger, 20_000);
+});
+
+test('reconcile heals a transfer and drops released on-chain bindings', async () => {
+  const newOwner = Keypair.random().publicKey();
+  const { store, calls } = recordingStore([
+    { handle: 'moved', wallets: [{ pubkey: 'GOLDOWNER', source: 'onchain' }] },
+    { handle: 'gone', wallets: [{ pubkey: 'GRELEASED', source: 'onchain' }] },
+  ]);
+  const { reader } = fakeReader({ moved: newOwner, gone: null });
+
+  const stats = await reconcileAgainstChain(store, reader);
+
+  assert.equal(stats.bound, 1);
+  assert.equal(stats.removed, 2);
+  // The transferred handle now points at its new owner, and the old row went.
+  assert.ok(calls.some((c: any[]) => c[0] === 'wallet.upsert' && c[1].where.pubkey === newOwner));
+  assert.ok(
+    calls.some((c: any[]) => c[0] === 'wallet.deleteMany' && c[1].where.pubkey === 'GOLDOWNER'),
+  );
+  assert.ok(
+    calls.some((c: any[]) => c[0] === 'wallet.deleteMany' && c[1].where.pubkey === 'GRELEASED'),
+  );
+});
+
+test('reconcile raises when the chain counts bindings the database has never seen', async () => {
+  const pk = Keypair.random().publicKey();
+  const { store } = recordingStore([{ handle: 'known', wallets: [] }]);
+  // Chain says 3 handles are bound; we could only confirm 1 → 2 unknown.
+  const { reader } = fakeReader({ known: pk }, 3);
+
+  const stats = await reconcileAgainstChain(store, reader);
+  assert.equal(stats.bound, 1);
+  assert.equal(stats.unknownOnChain, 2);
+});
+
+test('a reconcile failure leaves the cursor untouched for a retry', async () => {
+  const server = {
+    getLatestLedger: async () => ({ sequence: 20_000 }),
+    getEvents: async () => ({ latestLedger: 20_000, events: [] }),
+  } as unknown as rpc.Server;
+  const cursor = recordingCursorStore({ lastLedger: 1000 });
+  const { store } = recordingStore([{ handle: 'x', wallets: [] }]);
+  const reader: RegistryReader = {
+    resolveMany: async () => {
+      throw new Error('rpc down');
+    },
+    count: async () => null,
+  };
+
+  const result = await runAttestationWorker(
+    server,
+    { registryContractId: 'C…REGISTRY', eventWindowLedgers: 8000, network: 'testnet' } as any,
+    cursor.store,
+    store,
+    reader,
+  );
+
+  assert.equal(result.reconciled, undefined);
+  assert.equal(cursor.saved?.lastLedger, 1000, 'cursor must not move past an unreconciled gap');
 });

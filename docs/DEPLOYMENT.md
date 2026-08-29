@@ -328,7 +328,8 @@ curl -sS -o /dev/null -w "%{http_code}\n" "$BASE/"
 curl -sS -o /dev/null -w "%{http_code}\n" "$BASE/p/aquawolf"
 curl -sS -o /dev/null -w "%{http_code}\n" "$BASE/how-it-works"
 
-# Health probe — expect JSON status "ok" (db may be "skipped" without DATABASE_URL)
+# Health probe — expect JSON status "ok". Each dependency is reported
+# separately under `checks`; an unconfigured one reads "skipped".
 curl -sS "$BASE/api/health"
 ```
 
@@ -337,7 +338,7 @@ curl -sS "$BASE/api/health"
 | `GET /` | HTTP 200, landing HTML |
 | `GET /p/aquawolf` | HTTP 200, demo profile renders |
 | `GET /how-it-works` | HTTP 200 |
-| `GET /api/health` | JSON `status` is `ok` (or `degraded` only if DB is configured and down) |
+| `GET /api/health` | JSON `status` is `ok`. `degraded` means a configured dependency is down — read `checks.db` (Postgres) and `checks.registry` (Soroban RPC + registry contract) to see which |
 | Claim lands on-chain | With `NEXT_PUBLIC_IDENTITY_REGISTRY_ID` set: connect a funded testnet wallet, claim an unused handle, then `resolve` returns the G… address (below) |
 | Claim disabled honestly | With registry id **unset**: UI shows Phase 2 / not-configured, not a hard crash |
 
@@ -369,6 +370,7 @@ stellar contract invoke \
 | **Web (Netlify / Vercel)** | Redeploy the previous successful deploy from the host UI (Netlify Deploys → Publish deploy / Vercel Deployments → Promote). Instant traffic switch; no chain interaction. |
 | **Env misconfiguration** | Revert bad env vars in the host, then redeploy or restart so Next picks up `NEXT_PUBLIC_*` at build time. Server-only secrets (`SIGNET_AUTH_SECRET`, `DATABASE_URL`) apply on the next instance boot. |
 | **Auth secret leak** | Set a new `SIGNET_AUTH_SECRET` and set `SIGNET_SESSIONS_VALID_AFTER` to current epoch-ms to invalidate old cookies (see [`SECURITY.md`](../SECURITY.md)). |
+| **One compromised wallet** | `pnpm --filter @signet/web run revoke:sessions -- G…` revokes that address' sessions only; running instances honour it within ten seconds. Do **not** reach for `SIGNET_SESSIONS_VALID_AFTER`, which signs out every user (see [`SECURITY.md`](../SECURITY.md)). |
 | **Identity Registry** | The contract is **immutable** (no upgrade path). You cannot patch wasm in place. Deploy a new contract id, point `NEXT_PUBLIC_IDENTITY_REGISTRY_ID` / `INDEXER_REGISTRY_CONTRACT_ID` at it, and redeploy web + restart indexer. Old bindings stay on the old contract unless users re-claim. Do not improvise this: [`CONTRACT_MIGRATION.md`](CONTRACT_MIGRATION.md) has the full runbook — when a migration is and is not the answer, how the binding set is reconstructed, the cutover order (including resetting the attestation cursor), and what users have to do. Prefer a fresh testnet deploy over trying to “fix” production wasm. |
 | **Indexer / DB** | Stop the worker; restore Postgres from backup if migrations or data are bad; run `pnpm db:deploy` only forward. Image tags include git SHA via `deploy.yml` for pin-and-revert. |
 
@@ -467,3 +469,57 @@ cannot deploy your way out of a contract bug or a lost admin key.
 | [`SECURITY.md`](../SECURITY.md) | Operator hardening (secrets, sessions, CSP) |
 | [`infra/README.md`](../infra/README.md) | Local Postgres |
 | [`packages/contracts/identity-registry/README.md`](../packages/contracts/identity-registry/README.md) | Contract interface |
+
+---
+
+## 11. Keeping the instance alive (and restoring it after archival)
+
+The registry's admin address and handle counter live in **instance storage**,
+which archives when its TTL lapses — and an archived instance fails **every**
+entry point, `claim` included, so the contract cannot bootstrap itself back
+into liveness through normal use. The bindings themselves live in persistent
+storage with independent TTLs and stay perfectly alive; the registry merely
+*looks* bricked until someone restores the instance.
+
+Every **invoked** call — writes, and since the read-bump change also `resolve`,
+`lookup`, `is_bound`, `count` and `resolve_batch` — extends the instance TTL by
+roughly 30 days. Two sharp edges remain:
+
+- **Simulated reads extend nothing.** The web app's registry reads are view
+  simulations, whose footprints are discarded. A deployment whose only chain
+  traffic is the website reading it is, from the instance's point of view,
+  silent.
+- **Deployments predating the read-bump** (including the pinned testnet
+  registry) extend only on writes — a quiet month with no claims is enough to
+  archive them, and claim volume is lowest exactly when a registry is newest.
+
+### Keep-alive
+
+Run a TTL extension on a schedule (monthly is comfortable against a ~30-day
+window). It is a host operation — it works the same for any deployed wasm and
+costs a normal fee:
+
+```bash
+stellar contract extend   --id "$CONTRACT_ID"   --ledgers-to-extend 518400   --source "$ACCOUNT"   --rpc-url "$RPC"   --network-passphrase "$PASS"
+# 518400 ledgers ≈ 30 days at ~5s/ledger — the same window the contract's own
+# bumps use.
+```
+
+Any invoked read works as a lighter-weight alternative on current wasm (the
+`count` invocation from section 5 doubles as a keep-alive), but `extend` is the
+version that never depends on which wasm is deployed.
+
+### Restoring an archived instance
+
+If the instance has already archived (calls fail with an archived/expired
+entry error, while `resolve` simulations may still show bindings):
+
+```bash
+stellar contract restore   --id "$CONTRACT_ID"   --source "$ACCOUNT"   --rpc-url "$RPC"   --network-passphrase "$PASS"
+```
+
+Then immediately run the keep-alive `extend` above — restoration brings the
+entry back at the minimum TTL, not a comfortable one. Bindings whose own
+persistent entries archived are a separate matter: restoring the instance does
+not resurrect them, and a binding nobody has touched in ~30 days needs its own
+`restore` with the specific storage key before it resolves again.

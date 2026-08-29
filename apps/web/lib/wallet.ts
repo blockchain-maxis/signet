@@ -133,3 +133,20 @@ export async function signOut(): Promise<void> {
   await fetch('/api/auth/logout', { method: 'POST' });
   await disconnectWallet();
 }
+
+/**
+ * Sign this wallet out of every *other* device, keeping this one signed in.
+ * Throws with the server's message so the caller can show why nothing changed
+ * — a revocation that silently failed is the one failure mode worth surfacing.
+ */
+export async function signOutOtherSessions(): Promise<void> {
+  const res = await fetch('/api/auth/revoke', {
+    method: 'POST',
+    headers: { 'content-type': 'application/json' },
+    body: JSON.stringify({ scope: 'others' }),
+  });
+  if (!res.ok) {
+    const { error } = (await res.json().catch(() => ({}))) as { error?: string };
+    throw new Error(error ?? 'Could not sign out your other devices');
+  }
+}

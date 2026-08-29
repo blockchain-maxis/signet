@@ -229,6 +229,7 @@ impl IdentityRegistry {
 
     /// Resolve a handle to its owning wallet, if bound.
     pub fn resolve(env: Env, handle: String) -> Option<Address> {
+        Self::bump_instance(&env);
         let key = DataKey::Owner(handle);
         let res: Option<Address> = env.storage().persistent().get(&key);
         if res.is_some() {
@@ -241,6 +242,7 @@ impl IdentityRegistry {
 
     /// Reverse lookup: the handle a wallet owns, if any.
     pub fn lookup(env: Env, wallet: Address) -> Option<String> {
+        Self::bump_instance(&env);
         let key = DataKey::Handle(wallet);
         let res: Option<String> = env.storage().persistent().get(&key);
         if res.is_some() {
@@ -253,11 +255,19 @@ impl IdentityRegistry {
 
     /// Whether a handle is currently bound.
     pub fn is_bound(env: Env, handle: String) -> bool {
+        Self::bump_instance(&env);
         env.storage().persistent().has(&DataKey::Owner(handle))
     }
 
-    /// Number of currently-bound handles. O(1); enumerate via the event stream.
+    /// The binding counter: an O(1) UPPER BOUND on bound handles, not a live
+    /// total. It is adjusted on `claim` and in `remove_binding`, but a binding
+    /// whose persistent entries archive unaccessed runs no contract code, so
+    /// nothing ever subtracts it — the counter can only drift upward, and
+    /// there is no on-chain list to derive a true total from (enumerate via
+    /// the event stream). Callers must present it as "recorded", never as
+    /// "currently bound"; only `resolve` proves a specific binding is live.
     pub fn count(env: Env) -> u32 {
+        Self::bump_instance(&env);
         env.storage().instance().get(&DataKey::Count).unwrap_or(0)
     }
 
@@ -287,8 +297,13 @@ impl IdentityRegistry {
     /// eventually archive, at which point `require_initialized` fails and every
     /// state-changing call reverts until someone restores it — the registry
     /// would look bricked while its bindings were still perfectly alive.
-    /// Called from every write path, so any activity keeps the whole registry
-    /// resident for the same window as a binding.
+    /// Called from every entry point, reads included: a registry that people
+    /// only *use* (resolve, lookup) during a quiet month with no claims must
+    /// not archive out from under them, and claim volume is lowest exactly
+    /// when the contract is newest. Reads count only when *invoked*, though —
+    /// a simulated read discards its footprint and extends nothing — so a
+    /// deployment whose traffic is all view-simulations still needs the
+    /// keep-alive in the deployment runbook.
     fn bump_instance(env: &Env) {
         env.storage()
             .instance()
@@ -364,4 +379,5 @@ fn is_reserved_handle(handle: &String) -> bool {
     false
 }
 
+mod property_test;
 mod test;

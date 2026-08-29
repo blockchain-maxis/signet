@@ -6,7 +6,8 @@ Rust/Soroban smart contracts for Signet, managed as a Cargo workspace
 ## Crates
 
 - [`identity-registry`](./identity-registry) — binds a Stellar wallet to a
-  Signet identity via signed, on-chain claims. Implemented; 13 tests.
+  Signet identity via signed, on-chain claims. Implemented; unit tests over
+  known cases plus property tests (see [Testing](#testing)).
 
 ## Prerequisites
 
@@ -34,6 +35,29 @@ cargo build \
   --manifest-path packages/contracts/identity-registry/Cargo.toml \
   --target wasm32v1-none --release
 ```
+
+## Testing
+
+Two layers, both in the `contracts` CI job's `cargo test` run:
+
+- **Unit tests** (`identity-registry/src/test.rs`) — known cases: each
+  entrypoint's happy path, each error, and the auth requirements. Each one also
+  writes a committed snapshot under `identity-registry/test_snapshots/`, so a
+  change in observable behaviour (an SDK or protocol upgrade included) shows up
+  as a reviewable diff.
+- **Property tests** (`identity-registry/src/property_test.rs`) — the *rules*
+  those cases are examples of, checked by `proptest` against generated input:
+  handle validation against an independent oracle over arbitrary byte strings,
+  `resolve_batch` either side of `MAX_BATCH_SIZE`, and the invariant that
+  `count` equals the number of live bindings after any sequence of
+  claim / release / transfer / revoke. These run with snapshot capture off —
+  a file per generated case would be hundreds of them, differing every run.
+
+`proptest` is a dev-dependency, so none of this reaches the deployment wasm.
+
+When a property fails, proptest shrinks the input to a minimal counter-example
+and records its seed in `identity-registry/proptest-regressions/`. Commit that
+file: it turns the failure into a permanent regression case.
 
 ## Size budget
 
