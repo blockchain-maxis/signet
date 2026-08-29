@@ -1,0 +1,35 @@
+name: Production Check
+
+# The one job that requests the DEPLOYED site. CI's e2e suite runs against a
+# local build, so environment variables, the middleware CSP, the real RPC and
+# the CDN are all untested until someone loads production — this job is that
+# someone, on a schedule. Like demo-data-check it is deliberately NOT on
+# pull_request, so it can never block a merge; a failed scheduled run notifies
+# via GitHub's failed-workflow email to the workflow author/watchers.
+
+on:
+  schedule:
+    - cron: '41 */6 * * *'
+  workflow_dispatch: {}
+  push:
+    branches: [main]
+    paths:
+      - 'scripts/check-production.mjs'
+      - '.github/workflows/production-check.yml'
+
+jobs:
+  production-site:
+    name: Production site serves
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+
+      - name: Request the production site
+        run: node --experimental-strip-types scripts/check-production.mjs
+        env:
+          # Override with a repo variable if the deployment ever moves.
+          PRODUCTION_URL: ${{ vars.PRODUCTION_URL || 'https://signet-web-pearl.vercel.app' }}
