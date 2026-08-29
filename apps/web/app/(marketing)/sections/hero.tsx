@@ -150,7 +150,7 @@ export function Hero() {
               <span className="border-b border-[#3d3a33] pb-1 transition-colors group-hover:border-[#f5f4ee]">
                 Browse the registry
               </span>
-              <span className="text-[#5e5b51]">→</span>
+              <span className="text-[#5e5b51]">↗</span>
             </a>
           </motion.div>
 
