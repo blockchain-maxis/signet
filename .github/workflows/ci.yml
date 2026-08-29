@@ -9,6 +9,7 @@ jobs:
   docs:
     name: docs links · env · scripts
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7
 
@@ -25,6 +26,7 @@ jobs:
   web:
     name: lint • typecheck • test • build
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v7
 
@@ -53,6 +55,7 @@ jobs:
   contracts:
     name: soroban contract tests
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v7
 
@@ -103,6 +106,7 @@ jobs:
   e2e:
     name: e2e smoke tests
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v7
 
@@ -140,6 +144,7 @@ jobs:
   security:
     name: dependency audit
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
 
