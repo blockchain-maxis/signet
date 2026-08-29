@@ -8,10 +8,10 @@
  * to `'self'` — no `'unsafe-inline'` in `script-src`.
  *
  * `style-src` intentionally keeps `'unsafe-inline'`: the app relies on inline
- * React `style={}` and framer-motion styles (and the Google Fonts stylesheet),
- * which cannot be nonced. Inline styles are far lower risk than inline scripts
- * (no script execution), so this is an accepted, documented exception — dropping
- * it would require refactoring every inline style in the UI.
+ * React `style={}` and framer-motion styles, which cannot be nonced. Inline
+ * styles are far lower risk than inline scripts (no script execution), so this
+ * is an accepted, documented exception — dropping it would require refactoring
+ * every inline style in the UI.
  */
 
 export interface CspOptions {
@@ -37,8 +37,8 @@ export function buildCsp(nonce: string, { dev = false }: CspOptions = {}): strin
     `script-src ${scriptSrc}`,
     // See file header: inline styles can't be nonced, so 'unsafe-inline' stays
     // for style-src only. This is the documented, accepted exception.
-    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
-    "font-src 'self' https://fonts.gstatic.com",
+    "style-src 'self' 'unsafe-inline'",
+    "font-src 'self'",
     "img-src 'self' data: https:",
     // connect-src covers the Stellar RPC / Horizon / Expert endpoints the client
     // calls. The wallet modules registered today (Freighter, xBull, Albedo,
