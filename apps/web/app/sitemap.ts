@@ -7,6 +7,7 @@ export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   const now = new Date();
   const staticRoutes: MetadataRoute.Sitemap = [
     { url: `${BASE}/`, lastModified: now, priority: 1 },
+    { url: `${BASE}/handles`, lastModified: now, priority: 0.8 },
     { url: `${BASE}/how-it-works`, lastModified: now, priority: 0.7 },
     { url: `${BASE}/docs`, lastModified: now, priority: 0.5 },
   ];
