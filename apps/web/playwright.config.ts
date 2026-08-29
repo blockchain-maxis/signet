@@ -27,5 +27,14 @@ export default defineConfig({
     url: `http://localhost:${PORT}/api/health`,
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,
+    env: {
+      // `next start` runs with NODE_ENV=production, where both auth secrets are
+      // REQUIRED — without them every sign-in 503s and the auth specs cannot
+      // run. These are e2e-only throwaways, committed on purpose: they gate a
+      // localhost test server, never a deployment (real values come from the
+      // deployment environment, which never reads this file).
+      SIGNET_AUTH_SECRET: 'signet-e2e-only-session-secret',
+      SEP10_SIGNING_SECRET: 'SD2H7CMH7XEAMXE5LZGYYJB6IU3XTPPLWZESDK3HB6KSRBVLXJQUB7SO',
+    },
   },
 });
