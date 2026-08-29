@@ -2,10 +2,24 @@ import type { Metadata } from 'next';
 import { headers } from 'next/headers';
 import './globals.css';
 
+const title = 'Signet';
+const description = 'A verifiable developer career record built on Stellar/Soroban.';
+
 export const metadata: Metadata = {
   metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'),
-  title: 'Signet',
-  description: 'A verifiable developer career record built on Stellar/Soroban.',
+  title,
+  description,
+  openGraph: {
+    title,
+    description,
+    siteName: title,
+    type: 'website',
+  },
+  twitter: {
+    card: 'summary_large_image',
+    title,
+    description,
+  },
 };
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
