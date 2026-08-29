@@ -166,6 +166,13 @@ export function ConnectWallet({
               {validationError}
             </span>
           )}
+          <span
+            className="max-w-[260px] text-[10px] leading-tight text-[#8a8779]"
+            style={{ fontFamily: 'var(--font-mono)' }}
+          >
+            The registry contract is immutable. If it is ever replaced, handles
+            are re-claimed on the new one — held for your wallet, one signature.
+          </span>
           <div className="flex gap-2">
             <button
               type="button"

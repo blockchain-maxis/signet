@@ -14,6 +14,13 @@
 //! revoked by the registry admin for moderation. Every state change emits an
 //! event the Signet indexer consumes to resolve identities.
 //!
+//! There is no upgradeability: the deployed wasm is immutable, so nobody —
+//! maintainers included — can rewrite the rule above after the fact. The price
+//! is that a defect cannot be patched in place; it is recovered by deploying a
+//! new contract and migrating bindings to it, which users complete by signing
+//! one `claim` on the new registry. That procedure is written down in
+//! `docs/CONTRACT_MIGRATION.md` rather than improvised during an incident.
+//!
 //! Enumeration of all handles is intentionally **off-chain**: the indexer
 //! reconstructs the set from the `claimed`/`released` event stream. The
 //! contract keeps only an O(1) `count` rather than an on-chain list, so storage

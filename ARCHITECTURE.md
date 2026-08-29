@@ -160,7 +160,7 @@ and skipped without advancing the relevant cursor, so the next tick retries.
 | --- | --- | --- |
 | `apps/web` | Next.js App Router — marketing, profiles, dashboard, tRPC API, SIWS auth | Netlify |
 | `apps/indexer` | Long-running worker: attestation + deployment + operations + activity | Container (GHCR image) |
-| `packages/contracts/identity-registry` | Soroban `claim`/`release`/`admin_revoke` registry; emits the event stream | Stellar network |
+| `packages/contracts/identity-registry` | Soroban `claim`/`release`/`admin_revoke` registry; emits the event stream. Immutable — a defect is recovered by migrating to a new contract, per [`docs/CONTRACT_MIGRATION.md`](docs/CONTRACT_MIGRATION.md) | Stellar network |
 | `packages/db` | Prisma schema + client (`Profile`, `Wallet`, `Contract`, `Operation`, `ContractSnapshot`, `IndexerCursor`) | PostgreSQL |
 | `packages/sdk` | External SDK over the tRPC API | consumer apps |
 | `packages/types` / `packages/ui` | Shared TypeScript types / React components | — |

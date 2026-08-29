@@ -57,6 +57,20 @@ export default function DocsPage() {
           off-chain admin minting identities.
         </p>
 
+        <H>If the registry is ever replaced</H>
+        <p className="mt-4 text-[14px] leading-[1.7] text-[#b8b5a8]">
+          The registry contract is <strong>immutable</strong> — the same property
+          that stops anyone rewriting the rule above also means a defect in it
+          cannot be patched. Recovery is a new contract, and because a binding
+          can only be created by the wallet that signs for it, bindings do not
+          move across by decree: you would <strong>re-claim your handle</strong>{' '}
+          on the new registry with one signature. Your handle is held for your
+          wallet during a grace period, so the move is not a race, and your
+          profile and history — both derived from the wallet, not the registry
+          entry — come back unchanged. The procedure is public in{' '}
+          <code>docs/CONTRACT_MIGRATION.md</code>.
+        </p>
+
         <H>Reading a profile</H>
         <p className="mt-4 text-[14px] leading-[1.7] text-[#b8b5a8]">
           Every profile lives at{' '}

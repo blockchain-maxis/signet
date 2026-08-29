@@ -47,3 +47,9 @@ mitigation for confirmed high-severity issues within 30 days.
   feasible.
 - The Identity Registry contract is **immutable** (no upgrade path) and uses a
   single admin key — use a multisig for the admin and audit before mainnet.
+  A defect found after deployment cannot be patched; recovery is a new contract
+  and a coordinated cutover, written up in advance in
+  [`docs/CONTRACT_MIGRATION.md`](docs/CONTRACT_MIGRATION.md). One of its
+  preconditions — keeping binding snapshots, because Soroban RPC's event window
+  is measured in hours — has to be in place **before** an incident, not during
+  one.
