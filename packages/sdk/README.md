@@ -20,9 +20,8 @@ pnpm add @signet/sdk      # npm install @signet/sdk / yarn add @signet/sdk
 
 ## Quickstart
 
-The SDK talks to a Signet deployment. There is no hosted public deployment yet — the
-default `baseUrl` (`https://signet.dev`) does **not** currently serve the API — so point
-it at a local server:
+The SDK talks to a Signet deployment. There is no hosted public deployment yet, so
+`baseUrl` is a required option — point it at a local server:
 
 ```bash
 git clone https://github.com/blockchain-maxis/signet && cd signet
@@ -60,11 +59,11 @@ through the same procedures and the same response shapes.
 
 Everything below is exported from the package root.
 
-### `new SignetClient(options?)`
+### `new SignetClient(options)`
 
 | Option | Type | Default | Notes |
 |--------|------|---------|-------|
-| `baseUrl` | `string` | `'https://signet.dev'` | Origin of a Signet deployment. A trailing slash is stripped, so `https://x.dev/` and `https://x.dev` behave identically. The SDK appends `/api/trpc/…` itself — don't include a path. |
+| `baseUrl` | `string` | *(required)* | Origin of a Signet deployment, e.g. `http://localhost:3000`. There is no hosted public deployment yet, so this has no default. A trailing slash is stripped, so `https://x.dev/` and `https://x.dev` behave identically. The SDK appends `/api/trpc/…` itself — don't include a path. |
 | `fetch` | `typeof fetch` | `globalThis.fetch` | Override for tests, proxies, or runtimes without a global `fetch`. |
 
 **Throws** `Error('[signet] no fetch implementation available; pass options.fetch')` from
@@ -116,9 +115,41 @@ const res = await signet.getProfile('aquawolf');
 Lists every handle the deployment can serve: the curated static manifest, or the
 on-chain-bound handles once a database is configured.
 
+### `client.resolveHandle(handle)`
+
+| | |
+|--|--|
+| **Parameters** | `handle: Handle` |
+| **Returns** | `Promise<RegistryEntry \| null>` — `null` if the handle isn't bound. |
+| **Requests** | `GET {baseUrl}/api/trpc/registry.resolve?input={"handle":"…"}` |
+
+Resolves a handle to its on-chain-bound wallet address via the Identity Registry.
+
+### `client.lookupWallet(wallet)`
+
+| | |
+|--|--|
+| **Parameters** | `wallet: string` — a Stellar `G…` account address. |
+| **Returns** | `Promise<RegistryEntry \| null>` — `null` if the wallet has no bound handle. |
+| **Requests** | `GET {baseUrl}/api/trpc/registry.lookup?input={"wallet":"…"}` |
+
+Reverse lookup of `resolveHandle`: given a wallet, find the handle bound to it.
+
+### `client.countRegistryEntries()`
+
+| | |
+|--|--|
+| **Parameters** | none |
+| **Returns** | `Promise<RegistryCount>` — `{ count: 0 }` on any failure, never throws. |
+| **Requests** | `GET {baseUrl}/api/trpc/registry.count` |
+
+Total number of handle ↔ wallet bindings currently on the Identity Registry.
+
 ### Types
 
-Re-exported from `@signet/types`, so integrators depend on `@signet/sdk` alone.
+Re-exported from `@signet/types`, so integrators depend on `@signet/sdk` alone. This is
+a deliberately curated subset — only the types that appear in the signatures above — not
+everything `@signet/types` exports; see [`src/types.ts`](src/types.ts) for why.
 
 ```ts
 type Handle = string;
@@ -145,12 +176,20 @@ interface ProfileResponse {
   stats: ProfileStats;
 }
 
+/** A single handle ↔ wallet binding from the on-chain registry. */
+interface RegistryEntry {
+  handle: Handle;
+  wallet: StellarAddress;
+}
+
+interface RegistryCount {
+  count: number;
+}
+
 interface SignetClientOptions {
   baseUrl?: string;
   fetch?: typeof fetch;
 }
-
-const SIGNET_TYPES_VERSION: string; // '0.1.0'
 ```
 
 ## Errors and rate limits
@@ -182,7 +221,7 @@ cache results client-side rather than fetching per render.
 
 ```ts
 const client = new SignetClient({
-  baseUrl: 'https://signet.dev',
+  baseUrl: 'http://localhost:3000',
   fetch: async () => ({ ok: true, json: async () => ({ result: { data: fixture } }) }) as Response,
 });
 ```

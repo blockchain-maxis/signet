@@ -1,6 +1,7 @@
 import { currentAddress } from '@/lib/server/session';
 import { getAccount } from '@/lib/server/account';
 import { SignOutButton } from './sign-out-button';
+import { SignOutOthersButton } from './sign-out-others-button';
 
 const mono = { fontFamily: 'var(--font-mono)' } as const;
 const display = { fontFamily: 'var(--font-display)' } as const;
@@ -31,6 +32,20 @@ export default async function SettingsPage() {
         </p>
         <div className="mt-5">
           <SignOutButton />
+        </div>
+      </div>
+
+      <div className="mt-10">
+        <div className="text-[10px] uppercase tracking-[0.22em] text-[#5e5b51]" style={mono}>
+          Other devices
+        </div>
+        <p className="mt-2 max-w-[560px] text-[13px] leading-[1.7] text-[#8a8779]" style={mono}>
+          Signs this wallet out of every other browser and device, and leaves this one signed in.
+          Use it if you signed in somewhere you no longer control. Anything signed out this way has
+          to sign the challenge again to come back.
+        </p>
+        <div className="mt-5">
+          <SignOutOthersButton />
         </div>
       </div>
     </section>

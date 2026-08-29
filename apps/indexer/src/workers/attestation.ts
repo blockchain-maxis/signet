@@ -1,6 +1,7 @@
 import { rpc, scValToNative, xdr } from '@stellar/stellar-sdk';
 import { prisma } from '../db.js';
 import { logger } from '../logger.js';
+import { createRegistryReader, type RegistryReader } from '../registry-read.js';
 import type { IndexerConfig } from '../config.js';
 
 /**
@@ -35,6 +36,9 @@ export interface AttestationStore {
       update: Record<string, unknown>;
       create: { handle: string };
     }): Promise<{ id: string }>;
+    findMany(args: {
+      select: { handle: true; wallets: { select: { pubkey: true; source: true } } };
+    }): Promise<{ handle: string; wallets: { pubkey: string; source: string }[] }[]>;
   };
   wallet: {
     upsert(args: {
@@ -106,6 +110,74 @@ export async function applyAttestation(
   }
 }
 
+/** What a reconcile pass did, for the tick log and for tests. */
+export interface ReconcileStats {
+  /** Handles the database knew about (curated + previously indexed). */
+  candidates: number;
+  /** Candidates the chain confirms as bound right now. */
+  bound: number;
+  /** Stale on-chain wallet rows removed (released, revoked, or transferred away). */
+  removed: number;
+  /** The registry's own count(), when readable. */
+  chainCount: number | null;
+  /** chainCount minus confirmed candidates - bindings the database has never seen. */
+  unknownOnChain: number;
+}
+
+/**
+ * Rebuild binding state from the CONTRACT instead of the event stream.
+ *
+ * Events are only served inside the RPC's retention window; contract state has
+ * no such horizon. Sweeping every handle the database knows about through
+ * `resolve` re-learns claims the lost window contained (for known handles),
+ * heals transfers, and drops bindings that were released or revoked - all
+ * idempotent, all without a manual database edit.
+ *
+ * What it cannot do is NAME a handle the database has never seen. The
+ * `count()` cross-check below at least detects that such handles exist, so the
+ * loss is raised loudly instead of passing silently.
+ */
+export async function reconcileAgainstChain(
+  store: AttestationStore,
+  reader: RegistryReader,
+): Promise<ReconcileStats> {
+  const profiles = await store.profile.findMany({
+    select: { handle: true, wallets: { select: { pubkey: true, source: true } } },
+  });
+  const resolved = await reader.resolveMany(profiles.map((p) => p.handle));
+
+  let bound = 0;
+  let removed = 0;
+  for (let i = 0; i < profiles.length; i++) {
+    const profile = profiles[i]!;
+    const wallet = resolved[i] ?? null;
+    // Curated demo wallets are not on-chain claims; only rows the indexer
+    // itself attested may be reconciled away.
+    const onchain = profile.wallets.filter((w) => w.source === 'onchain');
+    if (wallet) {
+      bound++;
+      await applyAttestation(store, { kind: 'claimed', handle: profile.handle, wallet });
+      for (const w of onchain) {
+        // The handle resolves to a different wallet now - a transfer the
+        // event stream never told us about (or that fell in the lost window).
+        if (w.pubkey !== wallet) {
+          await store.wallet.deleteMany({ where: { pubkey: w.pubkey } });
+          removed++;
+        }
+      }
+    } else {
+      for (const w of onchain) {
+        await store.wallet.deleteMany({ where: { pubkey: w.pubkey } });
+        removed++;
+      }
+    }
+  }
+
+  const chainCount = await reader.count();
+  const unknownOnChain = chainCount === null ? 0 : Math.max(0, chainCount - bound);
+  return { candidates: profiles.length, bound, removed, chainCount, unknownOnChain };
+}
+
 /**
  * Run the attestation worker tick.
  *
@@ -115,13 +187,17 @@ export async function applyAttestation(
  *                    Tests inject a mock to verify cursor resumption.
  * @param eventStore  Optional event store (defaults to the real Prisma client).
  *                    Tests inject a mock to verify events are applied only once.
+ * @param registryReader Optional contract-state reader (defaults to view
+ *                    simulations against `server`). Tests inject a fake to
+ *                    drive the reconcile path.
  */
 export async function runAttestationWorker(
   server: rpc.Server,
   config: IndexerConfig,
   cursorStore?: CursorStore,
   eventStore?: AttestationStore,
-): Promise<{ eventsDecoded: number }> {
+  registryReader?: RegistryReader,
+): Promise<{ eventsDecoded: number; reconciled?: ReconcileStats }> {
   if (!config.registryContractId) {
     logger.debug({}, 'attestation.skip — no registry contract configured');
     return { eventsDecoded: 0 };
@@ -132,12 +208,53 @@ export async function runAttestationWorker(
 
   // Resume from the cursor, or start `eventWindowLedgers` back on first run.
   const cursor = await store.indexerCursor.findUnique({ where: { id: CURSOR_ID } });
+  const { sequence: latest } = await server.getLatestLedger();
   let startLedger: number;
   if (cursor && cursor.lastLedger > 0) {
     startLedger = cursor.lastLedger + 1;
+
+    // The RPC only serves events inside its retention window, and past it the
+    // response is a normal 200 with `events: []` - not an error, so there is
+    // nothing to catch and the gap would be skipped silently while the cursor
+    // jumped to the tip. If the indexer was down long enough that our resume
+    // point is no longer safely servable (`eventWindowLedgers` is deliberately
+    // inside the observed retention floor), reading events cannot recover the
+    // gap. Reconcile against contract state instead, then resume from the tip.
+    if (latest - startLedger > config.eventWindowLedgers) {
+      const reader =
+        registryReader ?? createRegistryReader(server, config.registryContractId, config.network);
+      try {
+        const stats = await reconcileAgainstChain(evStore, reader);
+        await store.indexerCursor.upsert({
+          where: { id: CURSOR_ID },
+          update: { lastLedger: latest },
+          create: { id: CURSOR_ID, lastLedger: latest },
+        });
+        if (stats.unknownOnChain > 0) {
+          // The registry says more handles are bound than we could confirm:
+          // handles claimed in the lost window that the database has never
+          // seen. Only an archival-RPC backfill (docs/INDEXER.md) can name
+          // them - or the counter itself has drifted upward after archival.
+          logger.error(
+            { ...stats, startLedger, latest },
+            'attestation.reconcile.countMismatch - bindings exist on-chain that the database has never seen',
+          );
+        } else {
+          logger.warn(
+            { ...stats, startLedger, latest },
+            'attestation.reconciled - cursor fell outside event retention; state rebuilt from the contract',
+          );
+        }
+        return { eventsDecoded: 0, reconciled: stats };
+      } catch (err) {
+        // Leave the cursor untouched: reconcile is retried next tick, and a
+        // transient RPC failure must not turn into a silent skip-to-tip.
+        logger.error({ error: String(err), startLedger, latest }, 'attestation.reconcileFailed');
+        return { eventsDecoded: 0 };
+      }
+    }
   } else {
-    const { sequence } = await server.getLatestLedger();
-    startLedger = Math.max(1, sequence - config.eventWindowLedgers);
+    startLedger = Math.max(1, latest - config.eventWindowLedgers);
   }
 
   let applied = 0;

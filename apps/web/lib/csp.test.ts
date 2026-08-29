@@ -1,6 +1,12 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { buildCsp, generateNonce } from './csp.ts';
+import {
+  CSP_REPORT_GROUP,
+  CSP_REPORT_PATH,
+  buildCsp,
+  buildReportingEndpoints,
+  generateNonce,
+} from './csp.ts';
 
 /** Pull a single directive (e.g. `script-src`) out of a CSP header value. */
 function directive(csp: string, name: string): string {
@@ -38,6 +44,30 @@ test('the policy carries the expected hardening directives', () => {
   ]) {
     assert.ok(csp.includes(d), `expected policy to include: ${d}`);
   }
+});
+
+test('the policy reports violations through both report-uri and report-to', () => {
+  const csp = buildCsp('n');
+  assert.equal(directive(csp, 'report-uri'), `report-uri ${CSP_REPORT_PATH}`);
+  assert.equal(directive(csp, 'report-to'), `report-to ${CSP_REPORT_GROUP}`);
+});
+
+test('an explicit report target overrides the default collector', () => {
+  const csp = buildCsp('n', { reportUri: 'https://collector.example/csp' });
+  assert.equal(directive(csp, 'report-uri'), 'report-uri https://collector.example/csp');
+  // The group name is header-bound, not URL-bound, so it never changes.
+  assert.equal(directive(csp, 'report-to'), `report-to ${CSP_REPORT_GROUP}`);
+});
+
+test('an empty report target builds a policy with no reporting directives', () => {
+  const csp = buildCsp('n', { reportUri: '' });
+  assert.doesNotMatch(csp, /report-uri/);
+  assert.doesNotMatch(csp, /report-to/);
+});
+
+test('the Reporting-Endpoints value quotes the URL under the policy group', () => {
+  assert.equal(buildReportingEndpoints('https://x.example/r'), `${CSP_REPORT_GROUP}="https://x.example/r"`);
+  assert.equal(buildReportingEndpoints(), `${CSP_REPORT_GROUP}="${CSP_REPORT_PATH}"`);
 });
 
 test('generateNonce returns a fresh value each call', () => {

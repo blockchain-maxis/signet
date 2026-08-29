@@ -2,6 +2,7 @@ import { notFound } from 'next/navigation';
 import { SignetMonogram } from '../../(marketing)/components/signet-monogram';
 import { getProfile, getOperations, listAllHandles, computeStats } from '@/lib/profiles';
 import { STELLAR_EXPLORER, STELLAR_NETWORK_NAME } from '@/lib/network';
+import { formatDate } from '@/lib/format-date';
 import OperationsList from './operations-list';
 import { CopyAddress } from './copy-address';
 
@@ -27,10 +28,6 @@ export const revalidate = 60;
 function truncate(str: string, head: number, tail: number): string {
   if (str.length <= head + tail + 3) return str;
   return `${str.slice(0, head)}...${str.slice(-tail)}`;
-}
-
-function fmtDate(iso: string): string {
-  return new Date(iso).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 }
 
 export async function generateMetadata({ params }: { params: Promise<{ handle: string }> }) {
@@ -184,8 +181,8 @@ export default async function ProfilePage({ params }: { params: Promise<{ handle
               { label: 'Reputation', value: `${stats.reputation}` },
               { label: 'Soroban invocations', value: String(stats.invocations) },
               { label: 'Unique functions called', value: String(stats.uniqueFunctions) },
-              { label: 'First activity', value: oldest ? new Date(oldest.created_at).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }) : '—' },
-              { label: 'Latest activity', value: newest ? fmtDate(newest.created_at) : '—' },
+              { label: 'First activity', value: oldest ? formatDate(oldest.created_at, { day: undefined }) : '—' },
+              { label: 'Latest activity', value: newest ? formatDate(newest.created_at) : '—' },
             ].map(({ label, value }) => (
               <div key={label} className="flex flex-col justify-center bg-[#0a0908] px-6 py-6">
                 <span
