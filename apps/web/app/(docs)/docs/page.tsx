@@ -77,7 +77,7 @@ export default function DocsPage() {
         >
 {`import { SignetClient } from '@signet/sdk';
 
-const signet = new SignetClient({ baseUrl: 'https://signet.dev' });
+const signet = new SignetClient({ baseUrl: 'https://your-deployment.example' });
 const profile = await signet.getProfile('aquawolf');
 // → { handle, profile, stats: { invocations, uniqueFunctions } }`}
         </pre>
@@ -89,9 +89,13 @@ const profile = await signet.getProfile('aquawolf');
             on-chain activity, public profiles and SDK.
           </li>
           <li>
-            <strong>Phase 2:</strong> self-sovereign claims via the on-chain
-            Identity Registry, the indexer populating full deployment history,
-            and the developer dashboard.
+            <strong>Phase 2 (live):</strong> self-sovereign claims via the
+            on-chain Identity Registry, and the developer dashboard at{' '}
+            <code>/app</code>.
+          </li>
+          <li>
+            <strong>Phase 2 (in progress):</strong> the indexer populating full
+            deployment history.
           </li>
         </ul>
 
