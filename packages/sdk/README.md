@@ -20,9 +20,8 @@ pnpm add @signet/sdk      # npm install @signet/sdk / yarn add @signet/sdk
 
 ## Quickstart
 
-The SDK talks to a Signet deployment. There is no hosted public deployment yet — the
-default `baseUrl` (`https://signet.dev`) does **not** currently serve the API — so point
-it at a local server:
+The SDK talks to a Signet deployment. There is no hosted public deployment yet, so
+`baseUrl` is a required option — point it at a local server:
 
 ```bash
 git clone https://github.com/blockchain-maxis/signet && cd signet
@@ -60,11 +59,11 @@ through the same procedures and the same response shapes.
 
 Everything below is exported from the package root.
 
-### `new SignetClient(options?)`
+### `new SignetClient(options)`
 
 | Option | Type | Default | Notes |
 |--------|------|---------|-------|
-| `baseUrl` | `string` | `'https://signet.dev'` | Origin of a Signet deployment. A trailing slash is stripped, so `https://x.dev/` and `https://x.dev` behave identically. The SDK appends `/api/trpc/…` itself — don't include a path. |
+| `baseUrl` | `string` | *(required)* | Origin of a Signet deployment, e.g. `http://localhost:3000`. There is no hosted public deployment yet, so this has no default. A trailing slash is stripped, so `https://x.dev/` and `https://x.dev` behave identically. The SDK appends `/api/trpc/…` itself — don't include a path. |
 | `fetch` | `typeof fetch` | `globalThis.fetch` | Override for tests, proxies, or runtimes without a global `fetch`. |
 
 **Throws** `Error('[signet] no fetch implementation available; pass options.fetch')` from
@@ -182,7 +181,7 @@ cache results client-side rather than fetching per render.
 
 ```ts
 const client = new SignetClient({
-  baseUrl: 'https://signet.dev',
+  baseUrl: 'http://localhost:3000',
   fetch: async () => ({ ok: true, json: async () => ({ result: { data: fixture } }) }) as Response,
 });
 ```

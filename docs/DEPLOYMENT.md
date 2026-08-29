@@ -328,7 +328,8 @@ curl -sS -o /dev/null -w "%{http_code}\n" "$BASE/"
 curl -sS -o /dev/null -w "%{http_code}\n" "$BASE/p/aquawolf"
 curl -sS -o /dev/null -w "%{http_code}\n" "$BASE/how-it-works"
 
-# Health probe — expect JSON status "ok" (db may be "skipped" without DATABASE_URL)
+# Health probe — expect JSON status "ok". Each dependency is reported
+# separately under `checks`; an unconfigured one reads "skipped".
 curl -sS "$BASE/api/health"
 ```
 
@@ -337,7 +338,7 @@ curl -sS "$BASE/api/health"
 | `GET /` | HTTP 200, landing HTML |
 | `GET /p/aquawolf` | HTTP 200, demo profile renders |
 | `GET /how-it-works` | HTTP 200 |
-| `GET /api/health` | JSON `status` is `ok` (or `degraded` only if DB is configured and down) |
+| `GET /api/health` | JSON `status` is `ok`. `degraded` means a configured dependency is down — read `checks.db` (Postgres) and `checks.registry` (Soroban RPC + registry contract) to see which |
 | Claim lands on-chain | With `NEXT_PUBLIC_IDENTITY_REGISTRY_ID` set: connect a funded testnet wallet, claim an unused handle, then `resolve` returns the G… address (below) |
 | Claim disabled honestly | With registry id **unset**: UI shows Phase 2 / not-configured, not a hard crash |
 

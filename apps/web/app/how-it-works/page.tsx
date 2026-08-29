@@ -72,26 +72,29 @@ export default function HowItWorksPage() {
         </Section>
 
         <Section title="What's live today">
-          The demo profiles at{' '}
+          The <strong className="text-[#f5f4ee]">Identity Registry</strong> is deployed and
+          initialized on Stellar testnet, and handle-to-wallet bindings are claimed on-chain: a
+          wallet owner authorizes a <code
+            className="px-1.5 py-0.5 bg-[#1f1d19] border border-[#3d3a33] text-[#b8b5a8] text-[13px]"
+            style={{ fontFamily: 'var(--font-mono)' }}
+          >claim(handle, wallet)</code> call, and Soroban requires a valid signature from that
+          wallet&apos;s key, so no off-chain admin can mint an identity. Profiles at{' '}
           <code
             className="px-1.5 py-0.5 bg-[#1f1d19] border border-[#3d3a33] text-[#b8b5a8] text-[13px]"
             style={{ fontFamily: 'var(--font-mono)' }}
           >
             /p/{'{handle}'}
           </code>{' '}
-          currently render synthetic data on Stellar testnet to demonstrate the interface —
-          invocations, function calls, token balance changes. In production each profile shows a
-          real wallet&apos;s Soroban activity pulled from the public ledger via the Horizon API.
-          The handle-to-wallet mapping is curated today; cryptographic binding via the on-chain
-          Identity Registry is planned for Phase 2.
+          and the <code
+            className="px-1.5 py-0.5 bg-[#1f1d19] border border-[#3d3a33] text-[#b8b5a8] text-[13px]"
+            style={{ fontFamily: 'var(--font-mono)' }}
+          >/handles</code> directory read those bindings live from the registry. The demo
+          profiles linked below are a separate, explicitly-labelled preview — curated personas
+          rendering synthetic testnet activity to demonstrate the interface — and are not
+          themselves chain-bound handles.
         </Section>
 
         <Section title="What's coming">
-          <span className="block mb-3">
-            <strong className="text-[#f5f4ee]">On-chain identity registry (Soroban).</strong>{' '}
-            A cryptographic binding of profile to wallet, written on-chain so anyone can verify
-            independently. No Signet server in the trust chain.
-          </span>
           <span className="block mb-3">
             <strong className="text-[#f5f4ee]">Indexer service.</strong>{' '}
             Continuous monitoring of registered wallets, capturing deployments and invocations in

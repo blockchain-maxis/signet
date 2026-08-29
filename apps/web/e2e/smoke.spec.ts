@@ -69,7 +69,7 @@ test('closing CTA is a real connect-wallet button, not a dead link', async ({ pa
 
 test('how-it-works page renders', async ({ page }) => {
   await page.goto('/how-it-works');
-  await expect(page.getByText(/Phase 2/i).first()).toBeVisible();
+  await expect(page.getByRole('heading', { level: 1, name: /How Signet works/i })).toBeVisible();
 });
 
 test('handles directory lists the curated handles and links to profiles', async ({ page }) => {
