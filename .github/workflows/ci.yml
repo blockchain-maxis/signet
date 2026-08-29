@@ -22,6 +22,12 @@ jobs:
       - name: Check docs drift
         run: node scripts/check-docs.mjs
 
+      # Fails when the contract's Error enum (packages/contracts/identity-registry/src/lib.rs)
+      # and its hand-mirrored TypeScript messages (apps/web/lib/contract-errors.ts)
+      # drift apart. Pure regex parsing — no Rust toolchain needed.
+      - name: Check contract error sync
+        run: node scripts/check-contract-errors.mjs
+
   web:
     name: lint • typecheck • test • build
     runs-on: ubuntu-latest
