@@ -39,10 +39,6 @@ const CONTRACT_ID =
 const RPC_URL = process.env.SOROBAN_RPC_URL ?? 'https://soroban-testnet.stellar.org';
 const NETWORK_PASSPHRASE = 'Test SDF Network ; September 2015';
 
-// Unique per run: permanent registry, no second claim for the same name.
-// base36 millis + entropy stays comfortably inside the 32-char handle limit.
-const HANDLE = `e2e-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
-
 function handleArg(h: string): xdr.ScVal {
   return nativeToScVal(h, { type: 'string' });
 }
@@ -97,6 +93,10 @@ test.describe('claim → resolve → profile (live testnet)', () => {
   test.setTimeout(240_000);
 
   test('a freshly claimed handle renders its claiming wallet on /p/{handle}', async ({ page }) => {
+    // Unique per ATTEMPT, not per run: a retry after a claim that stuck (e.g.
+    // the release in the finally block failed) must not re-claim the same
+    // name. base36 millis + entropy stays inside the 32-char handle limit.
+    const HANDLE = `e2e-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
     const kp = Keypair.random();
     const wallet = kp.publicKey();
     const server = new rpc.Server(RPC_URL, { allowHttp: RPC_URL.startsWith('http://') });
