@@ -17,9 +17,6 @@ const nextConfig = {
   // Workspace packages are consumed as TypeScript source, so Next must
   // transpile them.
   transpilePackages: ['@signet/types', '@signet/ui', '@signet/sdk', '@signet/db'],
-  // Fonts are loaded via @import in globals.css (not next/font), so there is no
-  // build-time font download to optimize — the former `optimizeFonts` flag was
-  // removed in Next 15.
   async headers() {
     return [{ source: '/:path*', headers: securityHeaders }];
   },
