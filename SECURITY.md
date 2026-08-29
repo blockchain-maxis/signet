@@ -42,8 +42,16 @@ mitigation for confirmed high-severity issues within 30 days.
   ```
 - The default rate limiter is per-instance; back it with a shared store
   (`setRateLimitStore`) for multi-instance deployments.
-- Security headers (CSP, HSTS, …) are set in `apps/web/next.config.js`. The CSP
-  still allows inline scripts for Next's bootstrap — tighten to nonce-based when
-  feasible.
+- Security headers (HSTS, …) are set in `apps/web/next.config.js`; the CSP is
+  built per request in `apps/web/middleware.ts` so `script-src` carries a fresh
+  nonce instead of `'unsafe-inline'`.
+
+- **CSP violation reporting.** The policy points `report-uri` and `report-to`
+  at `POST /api/csp-report`, which logs every violation as a structured
+  `csp.violation` line. A blocked request is otherwise invisible — the page
+  just renders with something missing — so watch that event after any policy
+  change, and alert on it if you have a log pipeline. To send reports to an
+  external collector instead, pass its URL as `reportUri` to `buildCsp` in the
+  middleware.
 - The Identity Registry contract is **immutable** (no upgrade path) and uses a
   single admin key — use a multisig for the admin and audit before mainnet.
