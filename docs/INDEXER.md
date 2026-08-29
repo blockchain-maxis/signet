@@ -88,8 +88,16 @@ out to overstate what a single `getEvents` call actually returns: bisecting agai
 `https://soroban-testnet.stellar.org` found the practical limit is roughly **10,700 ledgers
 (~15h)** — past that, `startLedger` still returns a valid `200 OK` with `events: []`, not an
 error. **There is nothing to catch.** A window sized to the advertised 24h looks correct and
-silently drops everything older than the actual ~15h floor; the worker still advances its
-cursor to `latestLedger` afterward, so the gap is not retried — it's gone.
+silently drops everything older than the actual ~15h floor.
+
+For a *resuming* worker this is no longer fatal: when the stored cursor has fallen further
+behind the tip than `INDEXER_EVENT_WINDOW_LEDGERS`, the worker does not read events at all —
+it **reconciles against contract state** instead (sweeps every handle the database knows
+through `resolve`, applying claims, transfers and releases idempotently), cross-checks the
+registry's `count()` and logs an error naming the shortfall when bindings exist on-chain
+that the database has never seen, then resumes the cursor from the tip. Recovery needs no
+manual database edit. What the sweep cannot do is *name* a handle the database has never
+seen — recovering those still takes the archival-RPC backfill below.
 
 `8000` leaves real margin below that floor. **A first run therefore only sees the last ~11
 hours of claims** — bindings older than the window are not reconstructed, and cannot be, from
@@ -267,6 +275,12 @@ cursor past the gap anyway. Point `INDEXER_RPC_URL` at an archival provider befo
 this past the ~8000 default. Re-applying already-seen events is harmless. Remember the
 200-events-per-call ceiling too: for a busy backfill, step the cursor forward in chunks
 rather than one huge window.
+
+Note that deleting the cursor is only needed to recover handles the database has **never
+seen**. For everything else — a worker that was simply down too long — the automatic
+reconcile sweep (see §Cold start) already rebuilds the bindings from contract state on the
+next tick, and its `count()` cross-check tells you whether an archival backfill is worth
+the trouble.
 
 **Full rebuild** (local only):
 
