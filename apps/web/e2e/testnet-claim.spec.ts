@@ -102,12 +102,17 @@ test.describe('claim → resolve → profile (live testnet)', () => {
     const server = new rpc.Server(RPC_URL, { allowHttp: RPC_URL.startsWith('http://') });
     const contract = new Contract(CONTRACT_ID);
 
-    // Fund the claiming account. Friendbot occasionally hiccups; one retry.
+    // Fund the claiming account. Friendbot occasionally hiccups — as an HTTP
+    // error or as a network-level rejection — so both shapes get the one retry.
     for (let attempt = 1; ; attempt += 1) {
-      const res = await fetch(`https://friendbot.stellar.org/?addr=${wallet}`);
-      if (res.ok) break;
-      if (attempt >= 2) throw new Error(`friendbot failed: HTTP ${res.status}`);
-      await new Promise((r) => setTimeout(r, 5000));
+      try {
+        const res = await fetch(`https://friendbot.stellar.org/?addr=${wallet}`);
+        if (res.ok) break;
+        throw new Error(`friendbot failed: HTTP ${res.status}`);
+      } catch (err) {
+        if (attempt >= 2) throw err;
+        await new Promise((r) => setTimeout(r, 5000));
+      }
     }
 
     try {

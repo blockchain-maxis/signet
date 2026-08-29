@@ -12,6 +12,15 @@ on:
   schedule:
     - cron: '29 7 * * 1,4'
   workflow_dispatch: {}
+  # Also on pushes to main that touch the check itself, so a broken edit fails
+  # on the merge that introduced it rather than days later on schedule. Costs
+  # one real testnet claim per matching merge — friendbot-funded, and these
+  # paths change rarely.
+  push:
+    branches: [main]
+    paths:
+      - 'apps/web/e2e/testnet-claim.spec.ts'
+      - '.github/workflows/testnet-e2e.yml'
 
 jobs:
   testnet-claim:
