@@ -249,7 +249,13 @@ impl IdentityRegistry {
         env.storage().persistent().has(&DataKey::Owner(handle))
     }
 
-    /// Number of currently-bound handles. O(1); enumerate via the event stream.
+    /// The binding counter: an O(1) UPPER BOUND on bound handles, not a live
+    /// total. It is adjusted on `claim` and in `remove_binding`, but a binding
+    /// whose persistent entries archive unaccessed runs no contract code, so
+    /// nothing ever subtracts it — the counter can only drift upward, and
+    /// there is no on-chain list to derive a true total from (enumerate via
+    /// the event stream). Callers must present it as "recorded", never as
+    /// "currently bound"; only `resolve` proves a specific binding is live.
     pub fn count(env: Env) -> u32 {
         env.storage().instance().get(&DataKey::Count).unwrap_or(0)
     }

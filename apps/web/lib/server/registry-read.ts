@@ -169,9 +169,15 @@ export async function lookupWallet(
 }
 
 /**
- * Number of currently-bound handles, or `null` when the registry could not be
- * read at all (not configured, not deployed, RPC unreachable, malformed
- * response).
+ * The registry's own `count()` — an upper bound on bound handles, or `null`
+ * when the registry could not be read at all (not configured, not deployed,
+ * RPC unreachable, malformed response).
+ *
+ * An upper bound because the counter cannot self-correct downward: it is
+ * adjusted on claim and release, but a binding whose persistent storage
+ * lapses unaccessed runs no contract code, so nothing ever subtracts it.
+ * Treat a specific handle's `resolveHandle` as the only proof a binding is
+ * live; treat this number as "recorded", never "currently bound".
  *
  * The null is load-bearing: "we could not ask" and "the answer is zero" are
  * different facts, and a UI that renders the first as the second is asserting

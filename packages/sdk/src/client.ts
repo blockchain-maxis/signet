@@ -156,7 +156,11 @@ export class SignetClient {
     return this.queryNullable<RegistryEntry>('registry.lookup', { wallet });
   }
 
-  /** Return the total number of registered handle ↔ wallet bindings. */
+  /**
+   * Return the registry's own binding counter — an upper bound, not a live
+   * total: a binding that lapses from on-chain storage unaccessed is never
+   * subtracted. Resolve a specific handle to prove a binding is live.
+   */
   async countRegistryEntries(): Promise<RegistryCount> {
     return (await this.query<RegistryCount>('registry.count', undefined)) ?? { count: 0 };
   }

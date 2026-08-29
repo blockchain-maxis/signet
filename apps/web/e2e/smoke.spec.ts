@@ -45,7 +45,10 @@ test('the handle directory never presents demo personas as on-chain bindings', a
   await expect(previews.getByText('@aquawolf')).toBeVisible();
 
   // The count in the caption comes from the contract, so with no registry
-  // configured it must not claim any binding at all.
+  // configured it must not claim any recorded binding at all (the caption
+  // says "recorded by", deliberately not "currently bound on" — the counter
+  // is an upper bound that cannot self-correct after storage archival).
+  await expect(page.getByText(/handles? recorded by the Identity Registry/i)).toHaveCount(0);
   await expect(page.getByText(/handles? currently bound on the Identity Registry/i)).toHaveCount(0);
 });
 
