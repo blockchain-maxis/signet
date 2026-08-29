@@ -50,9 +50,18 @@ test('the claim form validates the handle as you type', async ({ page }) => {
 test('submitting while the registry is unconfigured shows the honest Phase 2 state', async ({
   page,
 }) => {
-  // The e2e build ships without NEXT_PUBLIC_IDENTITY_REGISTRY_ID, so the claim
-  // path must fail up front with the "coming soon" status — not a broken
-  // button, not a thrown error, and no wallet signing attempted.
+  // The CI e2e build ships without NEXT_PUBLIC_IDENTITY_REGISTRY_ID, so the
+  // claim path must fail up front with the "coming soon" status — not a broken
+  // button, not a thrown error, and no wallet signing attempted. The message
+  // renders only when the BUILD baked no registry id, so skip when this
+  // environment has one (a dev box with the testnet registry in .env.local;
+  // CI the day Phase 2 configures it). Best-effort heuristic: the runner env
+  // can diverge from what the build baked — a loud failure here then means
+  // "your build and shell disagree about the registry", which is worth hearing.
+  test.skip(
+    !!process.env.NEXT_PUBLIC_IDENTITY_REGISTRY_ID,
+    'registry configured — the unconfigured Phase 2 state cannot render',
+  );
   await openClaimForm(page);
   await page.getByPlaceholder('your-handle').fill('e2e-tester');
   await page.getByRole('button', { name: 'Claim', exact: true }).click();
