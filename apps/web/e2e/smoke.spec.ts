@@ -8,6 +8,13 @@ test('landing page renders the hero', async ({ page }) => {
   await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
 });
 
+test('landing page contains #claim anchor for cross-site claim links', async ({ page }) => {
+  await page.goto('/');
+  const claimSection = page.locator('#claim');
+  await expect(claimSection).toBeAttached();
+  await expect(claimSection.getByRole('button', { name: /connect wallet|claim your handle/i })).toBeVisible();
+});
+
 test('health endpoint reports ok or degraded', async ({ request }) => {
   // The route handler lives at /api/health; a bare /health falls through
   // middleware to the marketing root and returns HTML.
