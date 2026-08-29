@@ -27,5 +27,21 @@ export default defineConfig({
     url: `http://localhost:${PORT}/api/health`,
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,
+    env: {
+      // The opt-in testnet spec (e2e/testnet-claim.spec.ts) needs the server's
+      // chain fallback pointed at the registry it claims on. These are
+      // server-side vars read at request time, so no rebuild is needed — and
+      // they are passed only when that spec is enabled, keeping the default
+      // e2e run hermetic (no registry, no RPC traffic).
+      ...(process.env.SIGNET_TESTNET_E2E
+        ? {
+            REGISTRY_CONTRACT_ID:
+              process.env.REGISTRY_CONTRACT_ID ??
+              'CASFJHI5PQSRWS7JV25CF7FOMRKIVBP3RXRP3E2GH2CV4BCAG7FUJRCN',
+            SOROBAN_RPC_URL:
+              process.env.SOROBAN_RPC_URL ?? 'https://soroban-testnet.stellar.org',
+          }
+        : {}),
+    },
   },
 });

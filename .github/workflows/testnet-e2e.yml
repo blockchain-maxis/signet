@@ -1,0 +1,54 @@
+name: Testnet E2E
+
+# The claim → resolve → profile seam test, against the live testnet registry
+# (e2e/testnet-claim.spec.ts). It funds an account via friendbot and submits a
+# real claim transaction, so it is opt-in everywhere: the spec self-skips
+# without SIGNET_TESTNET_E2E, the ordinary CI e2e job never sets it, and this
+# workflow — like demo-data-check — runs on a schedule and on demand,
+# deliberately NOT on pull_request, so chain weather can never block a merge.
+# A failed scheduled run notifies via GitHub's failed-workflow email.
+
+on:
+  schedule:
+    - cron: '29 7 * * 1,4'
+  workflow_dispatch: {}
+
+jobs:
+  testnet-claim:
+    name: claim → resolve → profile on testnet
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: pnpm/action-setup@v6.0.9
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Cache Playwright browsers
+        uses: actions/cache@v6
+        id: pw-cache
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-chromium-${{ hashFiles('apps/web/package.json') }}
+
+      - name: Install Playwright browsers
+        if: steps.pw-cache.outputs.cache-hit != 'true'
+        run: pnpm --filter @signet/web exec playwright install --with-deps chromium
+
+      - name: Install Playwright browser deps (cached hit)
+        if: steps.pw-cache.outputs.cache-hit == 'true'
+        run: pnpm --filter @signet/web exec playwright install-deps chromium
+
+      - name: Build web app
+        run: pnpm --filter @signet/web build
+
+      - name: Run the testnet claim spec
+        run: pnpm --filter @signet/web exec playwright test e2e/testnet-claim.spec.ts
+        env:
+          SIGNET_TESTNET_E2E: '1'
