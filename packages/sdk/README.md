@@ -116,9 +116,41 @@ const res = await signet.getProfile('aquawolf');
 Lists every handle the deployment can serve: the curated static manifest, or the
 on-chain-bound handles once a database is configured.
 
+### `client.resolveHandle(handle)`
+
+| | |
+|--|--|
+| **Parameters** | `handle: Handle` |
+| **Returns** | `Promise<RegistryEntry \| null>` — `null` if the handle isn't bound. |
+| **Requests** | `GET {baseUrl}/api/trpc/registry.resolve?input={"handle":"…"}` |
+
+Resolves a handle to its on-chain-bound wallet address via the Identity Registry.
+
+### `client.lookupWallet(wallet)`
+
+| | |
+|--|--|
+| **Parameters** | `wallet: string` — a Stellar `G…` account address. |
+| **Returns** | `Promise<RegistryEntry \| null>` — `null` if the wallet has no bound handle. |
+| **Requests** | `GET {baseUrl}/api/trpc/registry.lookup?input={"wallet":"…"}` |
+
+Reverse lookup of `resolveHandle`: given a wallet, find the handle bound to it.
+
+### `client.countRegistryEntries()`
+
+| | |
+|--|--|
+| **Parameters** | none |
+| **Returns** | `Promise<RegistryCount>` — `{ count: 0 }` on any failure, never throws. |
+| **Requests** | `GET {baseUrl}/api/trpc/registry.count` |
+
+Total number of handle ↔ wallet bindings currently on the Identity Registry.
+
 ### Types
 
-Re-exported from `@signet/types`, so integrators depend on `@signet/sdk` alone.
+Re-exported from `@signet/types`, so integrators depend on `@signet/sdk` alone. This is
+a deliberately curated subset — only the types that appear in the signatures above — not
+everything `@signet/types` exports; see [`src/types.ts`](src/types.ts) for why.
 
 ```ts
 type Handle = string;
@@ -145,12 +177,20 @@ interface ProfileResponse {
   stats: ProfileStats;
 }
 
+/** A single handle ↔ wallet binding from the on-chain registry. */
+interface RegistryEntry {
+  handle: Handle;
+  wallet: StellarAddress;
+}
+
+interface RegistryCount {
+  count: number;
+}
+
 interface SignetClientOptions {
   baseUrl?: string;
   fetch?: typeof fetch;
 }
-
-const SIGNET_TYPES_VERSION: string; // '0.1.0'
 ```
 
 ## Errors and rate limits
