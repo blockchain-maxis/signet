@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { rateLimit, __resetRateLimit } from './rate-limit.ts';
+import { rateLimit, __resetRateLimit, getRateLimitStoreStatus, setRateLimitStore } from './rate-limit.ts';
 
 test('allows up to the max then blocks within the window', async () => {
   __resetRateLimit();
@@ -33,4 +33,20 @@ test('window resets after expiry', async () => {
     /* spin briefly past the 1ms window */
   }
   assert.equal((await rateLimit('w', 1, 1)).ok, true);
+});
+
+test('getRateLimitStoreStatus reports memory when running the per-instance fallback', async () => {
+  __resetRateLimit();
+  assert.equal(await getRateLimitStoreStatus(), 'memory');
+});
+
+test('getRateLimitStoreStatus reflects a shared backend\'s ping() result', async (t) => {
+  t.after(() => __resetRateLimit());
+  const hit = async () => ({ ok: true, remaining: 0, resetMs: 0 });
+
+  setRateLimitStore({ hit, ping: async () => true });
+  assert.equal(await getRateLimitStoreStatus(), 'up');
+
+  setRateLimitStore({ hit, ping: async () => false });
+  assert.equal(await getRateLimitStoreStatus(), 'down');
 });

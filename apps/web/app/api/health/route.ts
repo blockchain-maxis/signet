@@ -1,4 +1,6 @@
 import { NextResponse } from 'next/server';
+import { getNonceStoreStatus } from '@/lib/nonce-store';
+import { getRateLimitStoreStatus } from '@/lib/rate-limit';
 
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
@@ -26,15 +28,25 @@ async function checkDb(): Promise<'up' | 'down' | 'skipped'> {
 }
 
 export async function GET() {
-  const db = await checkDb();
-  const status = db === 'down' ? 'degraded' : 'ok';
+  const [db, nonceStore, rateLimitStore] = await Promise.all([
+    checkDb(),
+    getNonceStoreStatus(),
+    getRateLimitStoreStatus(),
+  ]);
+
+  // The nonce store fails closed — `down` means sign-in is refused for
+  // everyone right now, a real outage. The rate limiter fails open, so its
+  // `down` is a silent security degradation rather than an outage; it's
+  // reported but doesn't flip the overall status.
+  const status = db === 'down' || nonceStore === 'down' ? 'degraded' : 'ok';
+
   return NextResponse.json(
     {
       status,
       service: 'signet-web',
       ts: new Date().toISOString(),
       uptimeSeconds: Math.round(process.uptime()),
-      checks: { db },
+      checks: { db, nonceStore, rateLimitStore },
     },
     { headers: { 'cache-control': 'no-store' } },
   );
