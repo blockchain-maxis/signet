@@ -31,6 +31,13 @@ export const LIMITS = {
   authChallenge: 20,
   /** Plain reads; generous, still bounded. */
   read: 60,
+  /**
+   * Browser-posted CSP violation reports. A genuinely broken directive can fire
+   * once per blocked subresource, so the ceiling is high enough that a real
+   * page's first load reports in full, and still bounded — the endpoint is
+   * unauthenticated and its payload is attacker-influenceable.
+   */
+  cspReport: 120,
 } as const;
 
 const WINDOW_MS = 60_000;

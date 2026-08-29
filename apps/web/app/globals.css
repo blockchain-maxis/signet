@@ -2,14 +2,15 @@
 @tailwind components;
 @tailwind utilities;
 
-/* IBM Plex fonts loaded at runtime from Google Fonts CDN */
-@import url('https://fonts.googleapis.com/css2?family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap');
-
-/* CSS custom properties matching the next/font/google variable names used throughout the codebase */
+/* --font-display and --font-mono are set on <html> by next/font in
+   app/layout.tsx, which self-hosts the IBM Plex files at build time. --font-body
+   reuses the same IBM Plex Sans variable as --font-display, matching the prior
+   single-typeface setup. The fallback stacks below only apply before those
+   variables are defined (e.g. if a class ever renders outside the root layout). */
 :root {
-  --font-display: 'IBM Plex Sans', ui-sans-serif, system-ui, sans-serif;
-  --font-body: 'IBM Plex Sans', ui-sans-serif, system-ui, sans-serif;
-  --font-mono: 'IBM Plex Mono', ui-monospace, 'Cascadia Code', 'Source Code Pro', Menlo, Consolas, monospace;
+  --font-display: ui-sans-serif, system-ui, sans-serif;
+  --font-body: var(--font-display);
+  --font-mono: ui-monospace, 'Cascadia Code', 'Source Code Pro', Menlo, Consolas, monospace;
 }
 
 /* Respect the OS reduced-motion setting: collapse CSS transitions/animations to

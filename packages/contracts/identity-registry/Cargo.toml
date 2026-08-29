@@ -13,3 +13,5 @@ soroban-sdk = { workspace = true }
 
 [dev-dependencies]
 soroban-sdk = { workspace = true, features = ["testutils"] }
+# Property/fuzz testing. Dev-only, so it never reaches the deployed wasm.
+proptest = { workspace = true }
