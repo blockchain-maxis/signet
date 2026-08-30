@@ -4,10 +4,15 @@ import { verifyCliLinkToken } from '@/lib/cli-auth';
 import { prisma } from '@signet/db';
 import { logger } from '@/lib/logger';
 import { consumeNonce } from '@/lib/nonce-store';
+import { enforceRateLimit, LIMITS } from '@/lib/rate-limit-http';
+import { rateLimit } from '@/lib/rate-limit';
 
 export const runtime = 'nodejs';
 
 export async function POST(req: Request) {
+  const ipLimited = await enforceRateLimit(req, 'cli:pair:complete', LIMITS.cliPairComplete);
+  if (ipLimited) return ipLimited;
+
   const { token, signature } = await req.json().catch(() => ({}));
 
   if (!token || !signature) {
@@ -20,6 +25,16 @@ export async function POST(req: Request) {
   }
 
   const { pubkey, profileId } = validToken;
+
+  const { ok, resetMs } = await rateLimit(`http:cli:pair:complete:pubkey:${pubkey}`, LIMITS.cliPairComplete);
+  if (!ok) {
+    const retryAfter = Math.max(1, Math.ceil(resetMs / 1000));
+    logger.warn({ pubkey, retryAfter }, 'cli.rateLimitedPubkey');
+    return NextResponse.json(
+      { error: 'Too many requests' },
+      { status: 429, headers: { 'retry-after': String(retryAfter), 'cache-control': 'no-store' } }
+    );
+  }
 
   // Verify the signature. The CLI signed the raw token string.
   const isSignatureValid = await verifySignature(pubkey, token, signature);

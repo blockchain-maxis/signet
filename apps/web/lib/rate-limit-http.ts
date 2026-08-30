@@ -31,6 +31,11 @@ export const LIMITS = {
   authChallenge: 20,
   /** Sign-out-everywhere: authenticated and rare, so a tight bucket is plenty. */
   authRevoke: 10,
+  /**
+   * CLI pairing completion. Needs an IP limit to prevent general spam, and
+   * a pubkey limit to prevent oracle enumeration of linked keys.
+   */
+  cliPairComplete: 10,
   /** Plain reads; generous, still bounded. */
   read: 60,
   /**
