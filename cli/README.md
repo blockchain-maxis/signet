@@ -7,8 +7,35 @@ between orchestration/UX (Go, here) and anything that must execute Soroban
 semantics (Rust, `packages/contracts`).
 
 This module is currently a scaffold: the command tree, configuration, and
-identity resolution exist, but the actual subcommands (linking a wallet,
-managing keys, talking to a deployment) land in follow-up issues.
+identity resolution exist, and `link` validates its inputs and reports a
+structured result, but it doesn't yet perform a real on-chain claim or call a
+deployment's HTTP API — that (along with local key management) lands in
+follow-up issues once `internal/keys`/`internal/spec` are implemented.
+
+## Commands
+
+### `signet link <handle>`
+
+```bash
+signet link aquawolf --public-key GASAAEJC6P5UZGRLYJ2I2KYLR7RXGF44JZXDYGCFBN7T5VIHECUUEMCD
+# Linked aquawolf to GASAAEJC6P5UZGRLYJ2I2KYLR7RXGF44JZXDYGCFBN7T5VIHECUUEMCD (testnet)
+```
+
+`--json` writes a single JSON object to stdout instead — `{handle, publicKey,
+network, status}` — and suppresses the human-readable summary entirely, so a
+CI pipeline can parse the result without scraping text that's free to change
+between releases:
+
+```bash
+signet link aquawolf --public-key GASAAEJC6P5UZGRLYJ2I2KYLR7RXGF44JZXDYGCFBN7T5VIHECUUEMCD --json
+# {"handle":"aquawolf","publicKey":"GASAAEJC6P5UZGRLYJ2I2KYLR7RXGF44JZXDYGCFBN7T5VIHECUUEMCD","network":"testnet","status":"ok"}
+```
+
+On an invalid handle or public key, stdout stays empty (in both modes) and
+the error goes to stderr with a non-zero exit code — stdout is always safe
+to parse as either the one JSON object or nothing at all.
+
+`--network` defaults to `testnet`; pass `--network mainnet` for mainnet.
 
 ## Configuration
 
@@ -76,6 +103,6 @@ GOOS=linux  GOARCH=amd64 go build -o bin/signet-linux-amd64  ./cmd/signet
 | `cmd/signet` | `main.go` — the binary's entrypoint |
 | `internal/cmd` | Cobra command tree |
 | `internal/config` | Resolves `--url`/`--source`/`SIGNET_URL`/the config file into the settings a run uses |
-| `internal/link` | Bind a wallet to a Signet handle (scaffolded, not yet implemented) |
+| `internal/link` | `signet link` — validates a handle/public key and reports a structured result; the actual on-chain claim / API call is not yet implemented |
 | `internal/keys` | Local signing key management (scaffolded, not yet implemented) |
 | `internal/spec` | Typed request/response models for a Signet deployment's HTTP API (scaffolded, not yet implemented) |
