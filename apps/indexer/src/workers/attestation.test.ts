@@ -128,6 +128,22 @@ test('applyAttestation moves the binding on transfer', async () => {
   assert.equal(calls[1][1].create.profileId, 'p1');
 });
 
+test('claim then transfer sequence leaves the new wallet as the final owner', async () => {
+  const { store, calls } = recordingStore();
+
+  await applyAttestation(store, { kind: 'claimed', handle: 'aquawolf', wallet: 'GOLD' });
+  await applyAttestation(store, {
+    kind: 'transferred',
+    handle: 'aquawolf',
+    wallet: 'GNEW',
+    from: 'GOLD',
+  });
+
+  const upserts = calls.filter((c: any[]) => c[0] === 'wallet.upsert');
+  assert.deepEqual(upserts.map((c) => c[1].where.pubkey), ['GOLD', 'GNEW']);
+  assert.ok(calls.some((c: any[]) => c[0] === 'wallet.deleteMany' && c[1].where.pubkey === 'GOLD'));
+});
+
 // ─── Cursor resumption tests ────────────────────────────────────────────────
 
 /**
