@@ -43,6 +43,19 @@ test('decodeEvent decodes a revoked event', () => {
   });
 });
 
+test('decodeEvent decodes a transferred event', () => {
+  const oldOwner = Keypair.random().publicKey();
+  const newOwner = Keypair.random().publicKey();
+  const value = xdr.ScVal.scvVec([new Address(oldOwner).toScVal(), new Address(newOwner).toScVal()]);
+
+  assert.deepEqual(decodeEvent(topics('transferred', 'aquawolf'), value), {
+    kind: 'transferred',
+    handle: 'aquawolf',
+    wallet: newOwner,
+    from: oldOwner,
+  });
+});
+
 test('decodeEvent ignores unrelated or malformed events', () => {
   const pk = Keypair.random().publicKey();
   assert.equal(decodeEvent(topics('transfer', 'x'), walletVal(pk)), null);
@@ -96,6 +109,23 @@ test('applyAttestation removes the binding on release', async () => {
   assert.equal(calls.length, 1);
   assert.equal(calls[0][0], 'wallet.deleteMany');
   assert.equal(calls[0][1].where.pubkey, 'GWALLET');
+});
+
+test('applyAttestation moves the binding on transfer', async () => {
+  const { store, calls } = recordingStore();
+  await applyAttestation(store, {
+    kind: 'transferred',
+    handle: 'aquawolf',
+    wallet: 'GNEW',
+    from: 'GOLD',
+  });
+
+  assert.equal(calls.length, 2);
+  assert.equal(calls[0][0], 'wallet.deleteMany');
+  assert.equal(calls[0][1].where.pubkey, 'GOLD');
+  assert.equal(calls[1][0], 'wallet.upsert');
+  assert.equal(calls[1][1].where.pubkey, 'GNEW');
+  assert.equal(calls[1][1].create.profileId, 'p1');
 });
 
 // ─── Cursor resumption tests ────────────────────────────────────────────────

@@ -67,6 +67,15 @@ test('reduceBindings lets a handle be re-claimed after release', () => {
   assert.equal(bound[0]!.wallet, 'GBBB');
 });
 
+test('reduceBindings updates the handle owner on transfer', () => {
+  const events = [
+    { kind: 'claimed' as const, handle: 'aquawolf', wallet: 'GOLD' },
+    { kind: 'transferred' as const, handle: 'aquawolf', wallet: 'GNEW', from: 'GOLD' },
+  ];
+  const bound = reduceBindings(events);
+  assert.deepEqual(bound, [{ handle: 'aquawolf', wallet: 'GNEW' }]);
+});
+
 test('reduceBindings sorts alphabetically for stable pagination', () => {
   const events = [
     { kind: 'claimed' as const, handle: 'zeta', wallet: 'GAAA' },
