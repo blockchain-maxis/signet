@@ -28,6 +28,15 @@ model Wallet {
   source     String   @default("curated")
   isPrimary  Boolean  @default(false)
 
+  // Set when a wallet is (re-)linked (apps/web/lib/server/account.ts's
+  // linkDeployWallet) so the indexer picks it up promptly instead of waiting
+  // out the rest of the current tick interval — see index.ts's idle-sleep
+  // loop, which polls for this and starts the next tick early when it's set.
+  // Cleared once the deployment worker has scanned the wallet. A plain
+  // timestamp column rather than a queue table: relinking just overwrites it,
+  // so repeated links can never accumulate duplicate trigger state.
+  indexRequestedAt DateTime?
+
   profile    Profile  @relation(fields: [profileId], references: [id], onDelete: Cascade)
   contracts  Contract[]
   operations Operation[]
