@@ -9,7 +9,7 @@ import { boundCount, resolveHandle, type RegistryReadOptions } from './server/re
  * Two different reads, for two different jobs:
  *
  *   1. **Discovery** — `fetchLiveDirectory` reconstructs handles from the
- *      Identity Registry's `claimed`/`released` event stream over Soroban
+ *      Identity Registry's `claimed`/`released`/`revoked` event stream over Soroban
  *      RPC. This is how a handle nobody has told us about gets found. A
  *      public RPC endpoint only serves events within a bounded, empirically
  *      narrower-than-advertised window (see `EVENT_WINDOW_LEDGERS` below), so
@@ -33,7 +33,7 @@ import { boundCount, resolveHandle, type RegistryReadOptions } from './server/re
 
 export type DirectoryEntry = { handle: string; wallet: string };
 
-type RawEvent = { kind: 'claimed' | 'released'; handle: string; wallet: string };
+type RawEvent = { kind: 'claimed' | 'released' | 'revoked'; handle: string; wallet: string };
 
 /**
  * How far back to scan on every request (no cursor persisted between requests).
@@ -66,12 +66,17 @@ export { isRegistryConfigured };
  * apps/indexer/src/workers/attestation.ts's `decodeEvent` — duplicated
  * rather than shared, since the web app and the indexer are separately
  * deployable services with no shared stellar-events package yet.
+ *
+ * The contract publishes:
+ *   topics = [ symbol("claimed"|"released"|"revoked"), string(handle) ], data = address(wallet)
+ * `revoked` (emitted by `admin_revoke`) unbinds the handle just like
+ * `released`; omitting it left revoked handles rendering in the directory.
  */
 export function decodeEvent(topics: xdr.ScVal[], value: xdr.ScVal): RawEvent | null {
   try {
     if (topics.length < 2) return null;
     const kind = scValToNative(topics[0]!) as string;
-    if (kind !== 'claimed' && kind !== 'released') return null;
+    if (kind !== 'claimed' && kind !== 'released' && kind !== 'revoked') return null;
     const handle = String(scValToNative(topics[1]!));
     const wallet = String(scValToNative(value));
     if (!handle || !wallet || !isValidHandle(handle)) return null;
@@ -83,12 +88,14 @@ export function decodeEvent(topics: xdr.ScVal[], value: xdr.ScVal): RawEvent | n
 
 /**
  * Reduce an ordered (oldest → newest) event list to the currently-bound
- * set. A `released` always wins over any earlier `claimed` for the same
- * handle; the reverse is true too if a handle gets claimed again later.
+ * set. A `released` or `revoked` always wins over any earlier `claimed` for
+ * the same handle; the reverse is true too if a handle gets claimed again
+ * later.
  */
 export function reduceBindings(events: RawEvent[]): DirectoryEntry[] {
   const bound = new Map<string, string>();
   for (const ev of events) {
+    // `claimed` binds; `released` and `revoked` both unbind.
     if (ev.kind === 'claimed') bound.set(ev.handle, ev.wallet);
     else bound.delete(ev.handle);
   }
