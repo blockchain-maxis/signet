@@ -58,6 +58,34 @@ jobs:
       - name: Build
         run: pnpm build
 
+  cli:
+    name: signet CLI (Go)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: cli
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: cli/go.mod
+
+      - name: Build
+        run: go build ./...
+
+      - name: Vet
+        run: go vet ./...
+
+      - name: Test
+        run: go test ./...
+
+      - uses: golangci/golangci-lint-action@v6
+        with:
+          version: latest
+          working-directory: cli
+
   contracts:
     name: soroban contract tests
     runs-on: ubuntu-latest
