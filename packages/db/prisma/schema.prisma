@@ -92,3 +92,35 @@ model IndexerCursor {
   lastLedger Int      @default(0)
   updatedAt  DateTime @updatedAt
 }
+
+/// A `signet link` pairing session — the fallback path used when the CLI
+/// cannot receive a loopback callback (remote SSH sessions, dev containers
+/// with unmapped ports, locked-down corporate browsers). See
+/// apps/web/lib/server/cli-pairing.ts for the full protocol: the CLI mints a
+/// session and proves control of `publicKey` via a signed nonce, a signed-in
+/// browser tab approves the link, and the CLI collects the result either by
+/// polling `pollToken` or by a human typing `completionCode` back into the
+/// terminal. `status` moves pending -> approved -> consumed; consumption is
+/// single-use by construction (see `consumeApproved`'s conditional update).
+model CliPairing {
+  id             String   @id @default(cuid())
+  /// Short human-facing code; identifies the session in the browser approval URL.
+  pairingCode    String   @unique
+  /// Long opaque secret returned only to the CLI, used to poll for completion.
+  pollToken      String   @unique
+  /// Random value the CLI must sign with `publicKey` to prove key ownership.
+  nonce          String
+  /// Set once approved; a human types this into the CLI as the manual fallback to polling.
+  completionCode String?  @unique
+  publicKey      String
+  network        String
+  /// Set once `nonce` has been signed correctly — required before approval.
+  proven         Boolean  @default(false)
+  /// pending | approved | consumed
+  status         String   @default("pending")
+  /// The profile the wallet was linked to, set on approval.
+  profileId      String?
+  expiresAt      DateTime
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+}

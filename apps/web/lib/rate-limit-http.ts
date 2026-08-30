@@ -40,6 +40,16 @@ export const LIMITS = {
    * unauthenticated and its payload is attacker-influenceable.
    */
   cspReport: 120,
+  /** Mints a DB row per call — the CLI calls this once per `signet link` attempt. */
+  cliPairStart: 10,
+  /** Verifies a signature per call, same cost class as `sep10`. */
+  cliPairProof: 15,
+  /** Polled every ~2s for up to the pairing TTL; budget comfortably above that cadence. */
+  cliPairStatus: 40,
+  /** The manual-code fallback: one human-driven submission per pairing, rare. */
+  cliPairComplete: 10,
+  /** Authenticated, and only ever called once per approval click. */
+  cliPairApprove: 10,
 } as const;
 
 const WINDOW_MS = 60_000;
