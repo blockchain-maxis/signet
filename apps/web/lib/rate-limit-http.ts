@@ -40,6 +40,10 @@ export const LIMITS = {
    * unauthenticated and its payload is attacker-influenceable.
    */
   cspReport: 120,
+  /** `signet link` session creation — one per CLI invocation, so a tight bucket. */
+  linkDevice: 10,
+  /** Approving a `signet link` pairing code in the browser. */
+  linkApprove: 10,
 } as const;
 
 const WINDOW_MS = 60_000;

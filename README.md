@@ -62,6 +62,7 @@ id configured, the page says so rather than presenting the manifest as registry 
 - **Wallet connect + claim flow — live** — `Connect wallet` / `Claim your handle` use Stellar Wallets Kit and submit a real on-chain `claim` against the deployed registry (`apps/web/lib/{wallet,registry}.ts`) whenever `NEXT_PUBLIC_IDENTITY_REGISTRY_ID` is set. With no contract id configured, `claimHandle` throws `RegistryNotConfiguredError` and the UI shows an honest "Phase 2" message rather than a broken button.
 - **Public handle directory** — `/handles` rebuilds the currently-bound set from the registry's `claimed`/`released` event stream over Soroban RPC, with no database in the path (`apps/web/lib/directory.ts`).
 - **Real API + SDK** — tRPC `profile.byHandle` / `profile.list` / `health`; `@signet/sdk` fetches them. Both covered by tests.
+- **Terminal linking (`signet link`)** — a `@signet/cli` command that prints a pairing code + approval URL, keeps the terminal live while waiting, and times out on the pairing code's own TTL with retry instructions and the manual URL — see [`docs/CLI.md`](docs/CLI.md).
 - **CI gates** lint · typecheck · test · build, plus a Rust contract job.
 
 ## What's coming next (Phase 2)
@@ -168,6 +169,7 @@ set from the event stream.
 | `packages/contracts` | Soroban Rust contracts |
 | `packages/db` | Prisma schema + generated client |
 | `packages/sdk` | External SDK for integrators |
+| `packages/cli` | `signet` terminal CLI (link a machine via browser approval) |
 | `packages/types` | Shared TypeScript types |
 | `packages/ui` | Shared React components |
 | `infra` | Local dev infra (Docker Postgres) |
@@ -180,6 +182,7 @@ set from the event stream.
 | `pnpm --filter @signet/web dev` | Run web app only (no DB required for demo) |
 | `pnpm --filter @signet/web build` | Build web app |
 | `pnpm --filter @signet/web typecheck` | Typecheck web app |
+| `pnpm --filter @signet/cli link` | Run `signet link` against the local web app (see [`docs/CLI.md`](docs/CLI.md)) |
 | `pnpm db:up` / `db:down` | Start / stop local Postgres |
 | `pnpm db:migrate` | Run Prisma migrations |
 | `pnpm test` | All TypeScript tests via Turborepo |
@@ -189,7 +192,7 @@ set from the event stream.
 
 | Suite | Count |
 |-------|-------|
-| `pnpm test` | **208** — `@signet/web` 137 · `@signet/indexer` 36 · `@signet/sdk` 26 · `@signet/types` 9 (`ui`, `db` have no tests yet) |
+| `pnpm test` | **324** — `@signet/web` 213 · `@signet/indexer` 47 · `@signet/cli` 27 · `@signet/sdk` 28 · `@signet/types` 9 (`ui`, `db` have no tests yet) |
 | `cargo test` | **30** — `packages/contracts/identity-registry` |
 
 Both are CI gates ([`ci.yml`](.github/workflows/ci.yml)), alongside `lint`,
@@ -199,5 +202,5 @@ Both are CI gates ([`ci.yml`](.github/workflows/ci.yml)), alongside `lint`,
 
 Signet is licensed under the Apache License 2.0 — see [`LICENSE`](LICENSE) for the
 full text. This covers every workspace package (`@signet/sdk`, `@signet/types`,
-`@signet/ui`, `@signet/db`, `@signet/web`, `@signet/indexer`) and the Soroban
-`identity-registry` contract.
+`@signet/ui`, `@signet/db`, `@signet/web`, `@signet/indexer`, `@signet/cli`)
+and the Soroban `identity-registry` contract.

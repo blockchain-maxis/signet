@@ -1,6 +1,11 @@
 // Shared domain types for Signet. Kept framework-agnostic so every package
 // (web, indexer, sdk, contracts tooling) can depend on a single source.
 
+// Terminal-linking defaults — pairing-code TTL and CLI poll interval. Single
+// source of truth so the pairing code's lifecycle and the `signet link` wait
+// stay consistent (see `link.ts`).
+export { LINK_PAIR_TTL_MS, LINK_POLL_INTERVAL_MS } from './link.ts';
+
 // Handle validity and reservation rules, mirrored from the on-chain registry.
 export {
   HANDLE_MAX_LEN,

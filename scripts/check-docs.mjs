@@ -153,6 +153,8 @@ const NOT_ENV_IDENTIFIERS = new Set([
   'BASE_FEE', // @stellar/stellar-sdk constant
   'MAX_BATCH_SIZE', // identity-registry contract constant
   'MAX_HANDLE_LEN', // identity-registry contract constant
+  'LINK_PAIR_TTL_MS', // packages/types — terminal-linking TTL
+  'LINK_POLL_INTERVAL_MS', // packages/types — terminal-linking poll interval
 ]);
 
 /** Backticked SCREAMING_SNAKE with an underscore — typical env var citation. */
