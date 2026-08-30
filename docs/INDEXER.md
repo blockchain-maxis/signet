@@ -95,9 +95,12 @@ behind the tip than `INDEXER_EVENT_WINDOW_LEDGERS`, the worker does not read eve
 it **reconciles against contract state** instead (sweeps every handle the database knows
 through `resolve`, applying claims, transfers and releases idempotently), cross-checks the
 registry's `count()` and logs an error naming the shortfall when bindings exist on-chain
-that the database has never seen, then resumes the cursor from the tip. Recovery needs no
-manual database edit. What the sweep cannot do is *name* a handle the database has never
-seen — recovering those still takes the archival-RPC backfill below.
+that the database has never seen, then resumes the cursor from the near edge of the
+servable window — so the next tick replays the still-readable tail of events
+(idempotently) and picks up claims of handles the sweep could not know about. Recovery
+needs no manual database edit. What remains unrecoverable from this endpoint is a
+never-seen handle claimed in the truly unservable middle of the gap — those take the
+archival-RPC backfill below, and the `count()` cross-check tells you whether any exist.
 
 `8000` leaves real margin below that floor. **A first run therefore only sees the last ~11
 hours of claims** — bindings older than the window are not reconstructed, and cannot be, from
