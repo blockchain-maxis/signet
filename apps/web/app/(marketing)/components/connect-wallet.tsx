@@ -99,7 +99,9 @@ export function ConnectWallet({
       }, 1500);
     } catch (err) {
       if (err instanceof RegistryNotConfiguredError) {
-        setStatus('On-chain claim launches in Phase 2 — registry not yet deployed.');
+        setStatus(
+          'On-chain claim is unavailable — this deployment is not configured against an Identity Registry contract.',
+        );
       } else {
         setStatus(err instanceof Error ? err.message : 'Claim failed');
       }

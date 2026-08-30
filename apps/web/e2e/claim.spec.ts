@@ -67,7 +67,7 @@ test('submitting while the registry is unconfigured shows the honest Phase 2 sta
   await page.getByRole('button', { name: 'Claim', exact: true }).click();
 
   await expect(page.getByRole('status')).toContainText(
-    'On-chain claim launches in Phase 2 — registry not yet deployed.',
+    'On-chain claim is unavailable — this deployment is not configured against an Identity Registry contract.',
   );
 });
 
