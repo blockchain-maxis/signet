@@ -15,7 +15,8 @@ model Profile {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  wallets     Wallet[]
+  wallets       Wallet[]
+  pairingStates PairingState[]
 
   @@index([handle])
 }
@@ -91,4 +92,32 @@ model IndexerCursor {
   id         String   @id @default("main")
   lastLedger Int      @default(0)
   updatedAt  DateTime @updatedAt
+}
+
+// CLI device-pairing state (`POST /api/cli/pair/{start,approve,complete}`).
+//
+// Binds a CLI-held deploy account to a browser-authenticated profile without
+// either side ever seeing the other's credentials: `start` mints this row,
+// `approve` (browser, session-authenticated) records *which* profile is
+// pairing, `complete` (CLI, SEP-10-authenticated) proves *which* wallet and
+// writes it. `status` only ever moves forward: pending -> approved ->
+// completed; `complete` conditions its update on `status = 'approved'` so two
+// concurrent completions of the same pairing cannot both succeed.
+model PairingState {
+  id          String    @id @default(cuid())
+  /// pending | approved | completed
+  status      String    @default("pending")
+  /// The network passphrase the CLI declared at `start`, checked again at
+  /// `complete` against the deployment's actual configured network.
+  network     String
+  /// Set by `approve` — the profile the signed-in browser session belongs to.
+  profileId   String?
+  createdAt   DateTime  @default(now())
+  expiresAt   DateTime
+  approvedAt  DateTime?
+  completedAt DateTime?
+
+  profile     Profile?  @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@index([status])
 }
