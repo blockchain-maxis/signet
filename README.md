@@ -104,6 +104,13 @@ prerequisites, deploy key + Friendbot, wasm build, `infra/deploy-contract.sh`,
 statement, an itemized budget, dated milestones through 2027-04-30, and a
 fix-log of resolved issues with the tests that keep them closed.
 
+Design notes for roadmap items, written before the code so the shape is settled
+first:
+
+| Note | Item |
+|------|------|
+| [`docs/CONTRACT_SANDBOX_DESIGN.md`](docs/CONTRACT_SANDBOX_DESIGN.md) | Running a deployed contract's functions from a profile — RPC simulation first, embedded host second |
+
 ## Architecture
 
 **See [`ARCHITECTURE.md`](ARCHITECTURE.md)** for the real data flows
