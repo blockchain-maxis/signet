@@ -29,6 +29,13 @@ jobs:
       - name: Check contract error sync
         run: node scripts/check-contract-errors.mjs
 
+      # Fails when the generated Go mirror of WALLET_SOURCES
+      # (packages/types/generated/wallet_source.go) drifts from its TypeScript
+      # source of truth (packages/types/src/wallet-source.ts). No Go toolchain
+      # needed — it just regenerates in memory and diffs.
+      - name: Check wallet source Go sync
+        run: node scripts/check-wallet-source-go.mjs
+
   web:
     name: lint • typecheck • test • build
     runs-on: ubuntu-latest

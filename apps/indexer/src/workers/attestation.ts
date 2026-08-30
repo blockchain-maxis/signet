@@ -1,4 +1,5 @@
 import { rpc, scValToNative, xdr } from '@stellar/stellar-sdk';
+import type { WalletSource } from '@signet/types';
 import { prisma } from '../db.js';
 import { logger } from '../logger.js';
 import { createRegistryReader, type RegistryReader } from '../registry-read.js';
@@ -38,13 +39,13 @@ export interface AttestationStore {
     }): Promise<{ id: string }>;
     findMany(args: {
       select: { handle: true; wallets: { select: { pubkey: true; source: true } } };
-    }): Promise<{ handle: string; wallets: { pubkey: string; source: string }[] }[]>;
+    }): Promise<{ handle: string; wallets: { pubkey: string; source: WalletSource }[] }[]>;
   };
   wallet: {
     upsert(args: {
       where: { pubkey: string };
-      update: Record<string, unknown>;
-      create: Record<string, unknown>;
+      update: { profileId: string; source: WalletSource; isPrimary: boolean };
+      create: { pubkey: string; profileId: string; source: WalletSource; isPrimary: boolean };
     }): Promise<unknown>;
     deleteMany(args: { where: { pubkey: string } }): Promise<unknown>;
   };

@@ -10,6 +10,7 @@ import {
   type CursorStore,
 } from './attestation.ts';
 import type { RegistryReader } from '../registry-read.ts';
+import type { WalletSource } from '@signet/types';
 
 function topics(kind: string, handle: string): xdr.ScVal[] {
   return [nativeToScVal(kind, { type: 'symbol' }), nativeToScVal(handle, { type: 'string' })];
@@ -50,7 +51,7 @@ test('decodeEvent ignores unrelated or malformed events', () => {
 });
 
 function recordingStore(
-  profiles: { handle: string; wallets: { pubkey: string; source: string }[] }[] = [],
+  profiles: { handle: string; wallets: { pubkey: string; source: WalletSource }[] }[] = [],
 ): { store: AttestationStore; calls: any[] } {
   const calls: any[] = [];
   const store: AttestationStore = {
