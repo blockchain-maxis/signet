@@ -49,6 +49,17 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: 'Token has already been used' }, { status: 401 });
   }
 
+  // Check if wallet is already linked
+  const existing = await prisma.wallet.findUnique({ where: { pubkey } });
+  if (existing) {
+    if (existing.profileId === profileId) {
+      logger.info({ pubkey, profileId }, 'cli.linkedWallet.noop');
+      return NextResponse.json({ ok: true });
+    }
+    logger.warn({ pubkey, attemptedProfileId: profileId, existingProfileId: existing.profileId }, 'cli.linkedWallet.refused');
+    return NextResponse.json({ error: 'Wallet is already linked to a profile' }, { status: 409 });
+  }
+
   try {
     await prisma.wallet.create({
       data: {
@@ -60,6 +71,7 @@ export async function POST(req: Request) {
     });
     logger.info({ pubkey, profileId }, 'cli.linkedWallet');
   } catch (error: any) {
+    // This should theoretically not be hit unless there's a race condition
     if (error.code === 'P2002') {
       return NextResponse.json({ error: 'Wallet is already linked to a profile' }, { status: 409 });
     }

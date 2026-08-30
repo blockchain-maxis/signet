@@ -22,6 +22,14 @@ mitigation for confirmed high-severity issues within 30 days.
   the app refuses the dev fallback when `NODE_ENV=production`. Rotate it to
   invalidate sessions going forward.
 
+### Deploy Key Re-attachment Policy
+
+When a deploy wallet is already attached to a profile, attempting to link it again via the CLI follows this policy to prevent hijacking and enumeration:
+
+1. **Same Profile:** If the wallet is being linked to the same profile it is already attached to (and proof of key control is provided via a valid signature), the operation is a **no-op**. It succeeds but makes no changes to the database.
+2. **Different Profile:** If the wallet is being linked to a different profile (and proof of key control is provided), the operation is **refused** with a `409` status code. The error message is intentionally generic (`Wallet is already linked to a profile`) to avoid leaking which profile currently holds the wallet. To move a key, a user must explicitly remove it from the old profile first.
+3. **No Proof:** If an invalid signature or no signature is provided, the request is **refused** (`401`) before the attachment check occurs.
+
 ### Revoking sessions
 
 Sessions are stateless HMAC cookies with a seven-day lifetime, so revocation is
