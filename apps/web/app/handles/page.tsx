@@ -3,7 +3,7 @@ import { listDirectory } from '@/lib/directory';
 
 export const metadata = {
   title: 'Handles · Signet',
-  description: 'Every handle currently bound on the Signet Identity Registry.',
+  description: 'Every handle recorded on the Signet Identity Registry.',
 };
 
 const PAGE_SIZE = 24;

@@ -124,9 +124,14 @@ None
 ### Output
 
 ```ts
-{ count: number }
+{ count: number | null }
 ```
-Number of claimed handles; `0` when the directory is unreachable.
+
+The registry's own binding counter — an upper bound, not a live total (a
+binding that archives unaccessed is never subtracted). `null` means the
+registry could not be read, which is not the same as zero; the TypeScript
+SDK's `countRegistryEntries()` coerces a failed query to `{ count: 0 }`,
+so prefer this endpoint where the distinction matters.
 
 ---
 

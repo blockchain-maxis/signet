@@ -64,7 +64,8 @@ enum DataKey {
     Owner(String),
     /// wallet `Address` -> handle.
     Handle(Address),
-    /// Count of currently-bound handles (O(1); enumeration is via events).
+    /// The binding counter (O(1); enumeration is via events). An upper
+    /// bound, not a live total - see [`IdentityRegistry::count`].
     Count,
 }
 
