@@ -162,3 +162,61 @@ export async function updateAccount(address: string, update: AccountUpdate): Pro
     editable: true,
   };
 }
+
+/**
+ * Minimal slice of the Prisma client `unlinkWallet` touches. Declaring it as
+ * an interface (mirroring the indexer worker stores) lets tests inject a
+ * lightweight mock instead of depending on a real database, which is how the
+ * cross-profile refusal below is exercised.
+ */
+export interface WalletStore {
+  wallet: {
+    findUnique(args: {
+      where: { pubkey: string };
+      select: { profileId: true; isPrimary: true };
+    }): Promise<{ profileId: string; isPrimary: boolean } | null>;
+    delete(args: { where: { pubkey: string } }): Promise<unknown>;
+  };
+}
+
+/**
+ * Remove a wallet binding from the signed-in account's own profile.
+ *
+ * Two refusals guard this: the primary wallet is the handle→wallet claim
+ * itself, so removing it is a registry operation (release/transfer on-chain),
+ * never a dashboard edit; and a wallet bound to a *different* profile is
+ * refused with the same "not found" message a nonexistent pubkey gets, so one
+ * signed-in wallet can never delete — or even confirm the existence of —
+ * another profile's binding.
+ */
+export async function unlinkWallet(
+  address: string,
+  pubkey: string,
+  store?: WalletStore,
+): Promise<void> {
+  const db = store ?? ((await getPrisma()) as unknown as WalletStore | null);
+  if (!db) {
+    throw new Error('Wallet unlinking requires a configured database');
+  }
+
+  const caller = await db.wallet.findUnique({
+    where: { pubkey: address },
+    select: { profileId: true, isPrimary: true },
+  });
+  if (!caller) {
+    throw new Error('No profile is bound to this wallet yet — claim a handle on-chain first');
+  }
+
+  const target = await db.wallet.findUnique({
+    where: { pubkey },
+    select: { profileId: true, isPrimary: true },
+  });
+  if (!target || target.profileId !== caller.profileId) {
+    throw new Error('Wallet not found');
+  }
+  if (target.isPrimary) {
+    throw new Error('Cannot unlink the primary wallet — releasing it is a registry operation');
+  }
+
+  await db.wallet.delete({ where: { pubkey } });
+}

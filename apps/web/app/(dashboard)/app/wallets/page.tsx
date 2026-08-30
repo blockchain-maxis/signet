@@ -2,6 +2,7 @@ import { currentAddress } from '@/lib/server/session';
 import { getAccountWallets } from '@/lib/server/account';
 import { isRegistryConfigured, lookupWallet } from '@/lib/server/registry-read';
 import { stellarExpertAccountUrl } from '@/lib/network';
+import { UnlinkWalletButton } from './unlink-wallet-button';
 
 function truncate(a: string): string {
   return a.length > 18 ? `${a.slice(0, 8)}…${a.slice(-6)}` : a;
@@ -69,15 +70,21 @@ export default async function WalletsPage() {
                   {w.source === 'onchain' ? '● on-chain' : '○ curated'}
                 </span>
               </div>
-              <a
-                href={stellarExpertAccountUrl(w.pubkey)}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-[10px] uppercase tracking-[0.2em] text-[#8b1a1a] transition-colors hover:text-[#c2410c]"
-                style={mono}
-              >
-                Explorer ↗
-              </a>
+              <div className="flex items-center gap-6">
+                <a
+                  href={stellarExpertAccountUrl(w.pubkey)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-[10px] uppercase tracking-[0.2em] text-[#8b1a1a] transition-colors hover:text-[#c2410c]"
+                  style={mono}
+                >
+                  Explorer ↗
+                </a>
+                {/* The primary wallet is the handle's on-chain claim; unlinking
+                    it is a registry operation (release/transfer), not a
+                    dashboard edit, so no button is offered for it here. */}
+                {!w.isPrimary && <UnlinkWalletButton pubkey={w.pubkey} />}
+              </div>
             </div>
           ))
         )}

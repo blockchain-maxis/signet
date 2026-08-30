@@ -4,7 +4,7 @@ import { logger } from '../logger.ts';
 import { rateLimit } from '../rate-limit.ts';
 import { verifySession, SESSION_COOKIE } from '../auth.ts';
 import { clientIp, isSameOriginHeaders } from '../security.ts';
-import { getAccount, updateAccount, normalizeAccountUpdate } from './account.ts';
+import { getAccount, unlinkWallet, updateAccount, normalizeAccountUpdate } from './account.ts';
 import { boundCount, lookupWallet, resolveHandle } from './registry-read.ts';
 
 /**
@@ -133,6 +133,14 @@ const accountRouter = router({
   update: protectedProcedure
     .input(normalizeAccountUpdate)
     .mutation(({ ctx, input }) => updateAccount(ctx.address, input)),
+
+  // Removes a wallet from the caller's own profile. `unlinkWallet` itself
+  // refuses the primary wallet and any wallet bound to a different profile
+  // (see account.ts); `protectedProcedure` supplies the session + same-origin
+  // guard every other mutation here gets.
+  unlinkWallet: protectedProcedure
+    .input(walletInput)
+    .mutation(({ ctx, input }) => unlinkWallet(ctx.address, input.wallet)),
 });
 
 /**
