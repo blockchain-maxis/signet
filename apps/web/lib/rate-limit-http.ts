@@ -25,6 +25,10 @@ import { clientIp } from './security.ts';
 export const LIMITS = {
   /** Signs a transaction per call — the most expensive unauthenticated path. */
   sep10: 12,
+  /** Unauthenticated CLI pairing initialization. */
+  'cli:pair:start': 12,
+  /** Ed25519 signature verification step for CLI pairing. */
+  'cli:pair:complete': 12,
   /** Verifies a signature per call. */
   authVerify: 15,
   /** Cheap, but the entry point to the sign-in flow. */
