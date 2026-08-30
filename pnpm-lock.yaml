@@ -38,6 +38,12 @@ importers:
         specifier: ^8.10.0
         version: 8.59.3(eslint@9.39.4(jiti@1.21.7))(typescript@5.9.3)
 
+  apps/cli:
+    devDependencies:
+      typescript:
+        specifier: ^5.6.3
+        version: 5.9.3
+
   apps/indexer:
     dependencies:
       '@signet/db':
