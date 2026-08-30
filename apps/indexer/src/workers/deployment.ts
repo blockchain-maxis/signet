@@ -14,11 +14,49 @@ export interface DeploymentResult {
   contractsFound: number;
 }
 
+/** A tracked wallet, as far as this worker is concerned. */
+export interface DeploymentWallet {
+  id: string;
+  pubkey: string;
+}
+
+/** Fields written to a `Contract` row on create. */
+export interface ContractCreate {
+  address: string;
+  walletId: string;
+  deployerPubkey: string;
+  deployedAt: Date;
+  deployTxHash: string;
+  network: string;
+}
+
+/**
+ * The persistence surface this worker needs. Declaring it as an interface
+ * (mirroring `OperationsStore` in operations.ts) is what lets a test seed a
+ * contract already recorded under one wallet and verify a second wallet's
+ * scan does not re-insert or re-attribute it — see deployment.test.ts — which
+ * is exactly the scenario a profile with more than one linked wallet can hit.
+ */
+export interface DeploymentStore {
+  wallet: { findMany: () => Promise<DeploymentWallet[]> };
+  contract: {
+    findFirst: (args: {
+      where: { deployTxHash: string } | { address: string };
+    }) => Promise<{ id: string } | null>;
+    upsert: (args: {
+      where: { address: string };
+      update: Record<string, never>;
+      create: ContractCreate;
+    }) => Promise<unknown>;
+  };
+}
+
 export async function runDeploymentWorker(
   horizon: Horizon.Server,
   config: IndexerConfig,
+  store: DeploymentStore = prisma as unknown as DeploymentStore,
 ): Promise<DeploymentResult> {
-  const wallets = await prisma.wallet.findMany();
+  const wallets = await store.wallet.findMany();
   let highestLedger = 0;
   let contractsFound = 0;
 
@@ -57,11 +95,12 @@ export async function runDeploymentWorker(
         const txHash = op.transaction_hash;
         if (!txHash) continue;
 
-        // Skip if we already have a contract from this tx
-        const existing = await prisma.contract.findFirst({
+        // Cheap guard, before the transaction is even fetched: skip a
+        // create-contract op already turned into a Contract row.
+        const existingByTx = await store.contract.findFirst({
           where: { deployTxHash: txHash },
         });
-        if (existing) continue;
+        if (existingByTx) continue;
 
         // Fetch transaction to parse contract address from result meta
         await sleep(RATE_LIMIT_DELAY_MS);
@@ -79,7 +118,30 @@ export async function runDeploymentWorker(
           }
 
           if (contractAddress) {
-            await prisma.contract.upsert({
+            // `Contract.address` carries the real uniqueness constraint, and
+            // it's the identifier guaranteed not to collide once a profile
+            // holds more than one linked wallet: the same contract can be
+            // reached from more than one wallet's scan path, each surfacing
+            // its own transaction hash for whatever operation led here.
+            // Deduping on `deployTxHash` alone would re-insert — or, via a
+            // careless upsert `update`, silently re-attribute — a contract
+            // already recorded under a different wallet. The upsert below is
+            // additionally safe on its own (its `where` is the address, and
+            // `update: {}` never changes an existing row's attribution), but
+            // this check is what keeps a re-discovery from even attempting
+            // the write, logging as new, or double-counting `contractsFound`.
+            const existingByAddress = await store.contract.findFirst({
+              where: { address: contractAddress },
+            });
+            if (existingByAddress) {
+              logger.debug(
+                { pubkey: wallet.pubkey, contract: contractAddress },
+                'deployments.alreadyRecorded',
+              );
+              continue;
+            }
+
+            await store.contract.upsert({
               where:  { address: contractAddress },
               update: {},
               create: {
