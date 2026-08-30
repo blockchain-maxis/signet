@@ -20,9 +20,10 @@ import type { IndexerConfig } from '../config.js';
 const CURSOR_ID = 'attestation';
 
 export type AttestationEvent = {
-  kind: 'claimed' | 'released' | 'revoked';
+  kind: 'claimed' | 'released' | 'revoked' | 'transferred';
   handle: string;
   wallet: string;
+  from?: string;
 };
 
 /**
@@ -72,16 +73,26 @@ export interface CursorStore {
  * event isn't one we care about (wrong topic, malformed payload).
  *
  * The contract publishes:
- *   topics = [ symbol("claimed"|"released"|"revoked"), string(handle) ],  data = address(wallet)
+ *   topics = [ symbol("claimed"|"released"|"revoked"|"transferred"), string(handle) ],
+ *   data = address(wallet) for single-wallet events and [old_owner, new_wallet] for transfer.
  */
 export function decodeEvent(topics: xdr.ScVal[], value: xdr.ScVal): AttestationEvent | null {
   try {
     if (topics.length < 2) return null;
     const kind = scValToNative(topics[0]!) as string;
-    if (kind !== 'claimed' && kind !== 'released' && kind !== 'revoked') return null;
     const handle = String(scValToNative(topics[1]!));
+    if (!handle) return null;
+
+    if (kind === 'transferred') {
+      const pair = scValToNative(value) as unknown[] | null;
+      const [from, wallet] = Array.isArray(pair) ? pair : [];
+      if (!from || !wallet) return null;
+      return { kind, handle, wallet: String(wallet), from: String(from) };
+    }
+
+    if (kind !== 'claimed' && kind !== 'released' && kind !== 'revoked') return null;
     const wallet = String(scValToNative(value));
-    if (!handle || !wallet) return null;
+    if (!wallet) return null;
     return { kind, handle, wallet };
   } catch {
     return null;
@@ -99,6 +110,20 @@ export async function applyAttestation(
       update: {},
       create: { handle: ev.handle },
     });
+    await store.wallet.upsert({
+      where: { pubkey: ev.wallet },
+      update: { profileId: profile.id, source: 'onchain', isPrimary: true },
+      create: { pubkey: ev.wallet, profileId: profile.id, source: 'onchain', isPrimary: true },
+    });
+  } else if (ev.kind === 'transferred') {
+    const profile = await store.profile.upsert({
+      where: { handle: ev.handle },
+      update: {},
+      create: { handle: ev.handle },
+    });
+    if (ev.from) {
+      await store.wallet.deleteMany({ where: { pubkey: ev.from } });
+    }
     await store.wallet.upsert({
       where: { pubkey: ev.wallet },
       update: { profileId: profile.id, source: 'onchain', isPrimary: true },

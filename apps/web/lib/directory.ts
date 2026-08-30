@@ -33,7 +33,7 @@ import { boundCount, resolveHandle, type RegistryReadOptions } from './server/re
 
 export type DirectoryEntry = { handle: string; wallet: string };
 
-type RawEvent = { kind: 'claimed' | 'released'; handle: string; wallet: string };
+type RawEvent = { kind: 'claimed' | 'released' | 'transferred'; handle: string; wallet: string; from?: string };
 
 /**
  * How far back to scan on every request (no cursor persisted between requests).
@@ -71,10 +71,19 @@ export function decodeEvent(topics: xdr.ScVal[], value: xdr.ScVal): RawEvent | n
   try {
     if (topics.length < 2) return null;
     const kind = scValToNative(topics[0]!) as string;
-    if (kind !== 'claimed' && kind !== 'released') return null;
     const handle = String(scValToNative(topics[1]!));
+    if (!handle || !isValidHandle(handle)) return null;
+
+    if (kind === 'transferred') {
+      const pair = scValToNative(value) as unknown[] | null;
+      const [from, wallet] = Array.isArray(pair) ? pair : [];
+      if (!from || !wallet) return null;
+      return { kind, handle, wallet: String(wallet), from: String(from) };
+    }
+
+    if (kind !== 'claimed' && kind !== 'released') return null;
     const wallet = String(scValToNative(value));
-    if (!handle || !wallet || !isValidHandle(handle)) return null;
+    if (!wallet) return null;
     return { kind, handle, wallet };
   } catch {
     return null;
@@ -84,12 +93,13 @@ export function decodeEvent(topics: xdr.ScVal[], value: xdr.ScVal): RawEvent | n
 /**
  * Reduce an ordered (oldest → newest) event list to the currently-bound
  * set. A `released` always wins over any earlier `claimed` for the same
- * handle; the reverse is true too if a handle gets claimed again later.
+ * handle; a `transferred` updates the owner to the new wallet; the reverse is
+ * true too if a handle gets claimed again later.
  */
 export function reduceBindings(events: RawEvent[]): DirectoryEntry[] {
   const bound = new Map<string, string>();
   for (const ev of events) {
-    if (ev.kind === 'claimed') bound.set(ev.handle, ev.wallet);
+    if (ev.kind === 'claimed' || ev.kind === 'transferred') bound.set(ev.handle, ev.wallet);
     else bound.delete(ev.handle);
   }
   return [...bound.entries()]
