@@ -84,8 +84,10 @@ export default async function WalletsPage() {
       </div>
 
       <p className="mt-4 max-w-[640px] text-[12px] leading-[1.7] text-[#5e5b51]" style={mono}>
-        To link an additional wallet, claim a handle from it in the Identity Registry — bindings are
-        created on-chain, never from this dashboard.
+        Your handle is bound to one primary wallet on-chain — claiming again from another wallet
+        creates a separate, unrelated profile rather than adding to this one. To attach an
+        additional deploy wallet to this profile, run{' '}
+        <code className="text-[#b8b5a8]">npx @signet/cli link</code> from the terminal.
       </p>
     </section>
   );
