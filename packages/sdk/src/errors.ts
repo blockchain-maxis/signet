@@ -1,7 +1,7 @@
-/**
+/*
  * Typed SDE errors, so callers can distinguish "not found" from "network down"
- * from a server error instead of catching a bare `Error`. All extend
- * `SignetError`, so `catch (e) / if (e instanceof SignetError) … matches any`
+ * from a server error instead of catching a bare Error. All extend
+ * SignetError, so catch (e) / if (e instanceof SignetError) … matches any`
  */
  
  export class SignetError extends Error {
