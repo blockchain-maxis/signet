@@ -7,7 +7,7 @@ import { createCliLinkToken } from '@/lib/cli-auth';
 const display = { fontFamily: 'var(--font-display)' } as const;
 const mono = { fontFamily: 'var(--font-mono)' } as const;
 
-export default async function ApproveCliPage(props: { searchParams: Promise<{ pubkey?: string; callback?: string }> }) {
+export default async function ApproveCliPage(props: { searchParams: Promise<{ pubkey?: string; callback?: string; state?: string }> }) {
   const searchParams = await props.searchParams;
   const address = await currentAddress();
   if (!address) {
@@ -15,7 +15,7 @@ export default async function ApproveCliPage(props: { searchParams: Promise<{ pu
   }
 
   const account = await getAccount(address);
-  const { pubkey, callback } = searchParams;
+  const { pubkey, callback, state } = searchParams;
 
   if (!pubkey || !callback) {
     return (
@@ -76,6 +76,7 @@ export default async function ApproveCliPage(props: { searchParams: Promise<{ pu
           const callbackUrl = new URL(callback);
           callbackUrl.searchParams.set('token', token);
           callbackUrl.searchParams.set('handle', account.handle || '');
+          if (state) callbackUrl.searchParams.set('state', state);
           redirect(callbackUrl.toString());
         }}>
           <Button type="submit" className="w-full justify-center">Approve Link</Button>
@@ -84,3 +85,4 @@ export default async function ApproveCliPage(props: { searchParams: Promise<{ pu
     </section>
   );
 }
+

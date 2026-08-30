@@ -12,6 +12,9 @@ import { Keypair } from '@stellar/stellar-sdk';
 dotenv.config({ path: resolve(process.cwd(), '../../.env') });
 dotenv.config({ path: resolve(process.cwd(), '.env') });
 
+import { randomBytes } from 'node:crypto';
+import { createLoopbackServer } from './loopback.js';
+
 const program = new Command();
 
 program
@@ -47,39 +50,12 @@ program
     
     console.log(`Linking deploy key (source: ${options.source}, ${pubkey})...`);
     
-    const server = createServer();
+    const state = randomBytes(32).toString('hex');
+    const { port, server, tokenPromise } = await createLoopbackServer(state);
     
-    const tokenPromise = new Promise<{ token: string; handle: string }>((resolvePromise, rejectPromise) => {
-      server.on('request', (req, res) => {
-        try {
-          const url = new URL(req.url || '', `http://localhost:${(server.address() as any).port}`);
-          if (url.pathname === '/callback') {
-            const token = url.searchParams.get('token');
-            const handle = url.searchParams.get('handle');
-            
-            if (!token || !handle) {
-              res.writeHead(400, { 'Content-Type': 'text/html' });
-              res.end('<html><body><h1>Error</h1><p>Missing token or handle.</p></body></html>');
-              return rejectPromise(new Error('Missing token or handle in callback'));
-            }
-            
-            res.writeHead(200, { 'Content-Type': 'text/html' });
-            res.end('<html><body><h1>Approved!</h1><p>You can close this window and return to your terminal.</p><script>window.close()</script></body></html>');
-            resolvePromise({ token, handle });
-          } else {
-            res.writeHead(404);
-            res.end();
-          }
-        } catch (e) {
-          rejectPromise(e);
-        }
-      });
-    });
-
-    server.listen(0, async () => {
-      const port = (server.address() as any).port;
+    server.listen(port, async () => {
       const callbackUrl = `http://localhost:${port}/callback`;
-      const approveUrl = `${options.appUrl}/app/cli/approve?pubkey=${pubkey}&callback=${encodeURIComponent(callbackUrl)}`;
+      const approveUrl = `${options.appUrl}/app/cli/approve?pubkey=${pubkey}&callback=${encodeURIComponent(callbackUrl)}&state=${state}`;
       
       console.log(`Opening approval link in your browser:`);
       console.log(approveUrl);
