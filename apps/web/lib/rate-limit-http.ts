@@ -36,6 +36,8 @@ export const LIMITS = {
    * a pubkey limit to prevent oracle enumeration of linked keys.
    */
   cliPairComplete: 10,
+  /** CLI pairing code issuance. */
+  cliPairStart: 20,
   /** Plain reads; generous, still bounded. */
   read: 60,
   /**
