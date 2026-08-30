@@ -242,6 +242,65 @@ export async function safeDbProfile(handle: string): Promise<Profile | null> {
   }
 }
 
+// --- Write path -----------------------------------------------------------
+//
+// Everything above degrades: no `DATABASE_URL` means `safeDbProfile` /
+// `safeDbOperations` return null and the caller falls through to the chain or
+// the curated demo data. That is right for reads — a preview deployment with
+// nothing provisioned still renders.
+//
+// It is exactly wrong for writes. A wallet link is a `Wallet` row; with no
+// database there is nowhere to put it, and the same fall-through would make
+// the link *appear* to succeed while persisting nothing. A link that silently
+// persists nothing is worse than a refusal: the developer believes they are
+// linked, the CLI believes it, and the next command that needs the binding
+// fails somewhere far away from the cause.
+//
+// So the write path fails closed, loudly, and says whose problem it is.
+
+/** Machine-readable code for a write refused because no database is provisioned. */
+export const DATABASE_REQUIRED_CODE = 'database_required';
+
+/**
+ * Whether a database is configured for this deployment.
+ *
+ * Only checks configuration, not reachability: an unreachable database is a
+ * different failure with a different fix, and reporting it as "not configured"
+ * would send an operator to the wrong runbook.
+ */
+export function isDatabaseConfigured(): boolean {
+  return Boolean(process.env.DATABASE_URL);
+}
+
+/**
+ * Thrown by write paths that cannot proceed without a database.
+ *
+ * Carries `isConfigurationError` so a client can classify it without parsing
+ * prose. Nothing the user did caused this, and nothing they can do fixes it —
+ * telling them their wallet or signature was bad would send them to debug the
+ * one thing that is working.
+ */
+export class DatabaseRequiredError extends Error {
+  readonly code = DATABASE_REQUIRED_CODE;
+
+  readonly isConfigurationError = true;
+
+  constructor(operation: string) {
+    super(
+      `${operation} requires a database. This Signet deployment has no DATABASE_URL ` +
+        `configured, so there is nowhere to persist the result. This is a deployment ` +
+        `configuration problem, not a problem with your account — see docs/CLI.md ` +
+        `and issue #191.`,
+    );
+    this.name = 'DatabaseRequiredError';
+  }
+}
+
+/** Throw unless a database is configured. Call before any write. */
+export function requireDatabase(operation: string): void {
+  if (!isDatabaseConfigured()) throw new DatabaseRequiredError(operation);
+}
+
 /**
  * A Stellar `Address`: either a `G…` account or a `C…` contract StrKey. The
  * registry binds a handle to an `Address`, so a contract-controlled identity
