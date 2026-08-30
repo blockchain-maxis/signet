@@ -1,4 +1,5 @@
 import type { Handle, ProfileResponse, RegistryEntry, RegistryCount } from '@signet/types';
+import type { WhoAMI } from './types.ts';
 import { ApiError, NetworkError, NotFoundError } from './errors.ts';
 
 export interface SignetClientOptions {
@@ -8,6 +9,12 @@ export interface SignetClientOptions {
    * default would silently point at a host that doesn't serve the API.
    */
   baseUrl: string;
+  /**
+   * Public key of the deploy identity this client is configured as. When set,
+   * `whoami()` can look up the handle it currently resolves to. This must be a
+   * public key — never pass (or log) the corresponding secret key.
+   */
+  publicKey?: string;
   /** Optional fetch implementation (for tests / non-browser runtimes). */
   fetch?: typeof fetch;
   /**
@@ -19,13 +26,13 @@ export interface SignetClientOptions {
   /**
    * How many times to retry a failed request (default 2, so up to 3 attempts).
    * Retries cover 5xx responses and network/timeout failures, with exponential
-   * backoff (200ms, 400ms, 800ms …, capped at 5s). A 404 and any other 4xx are
+   * backoff (200ms, 400ms, 800ms ‬, capped at 5s). A 404 and any other 4xx are
    * answers, not glitches, so they are never retried. Set to 0 to disable.
    */
   maxRetries?: number;
 }
 
-/** Per-attempt timeout, in milliseconds. */
+/**Per-attempt timeout, in milliseconds. */
 const DEFAULT_TIMEOUT_MS = 10_000;
 /** Retries after the initial attempt. */
 const DEFAULT_MAX_RETRIES = 2;
@@ -47,14 +54,16 @@ function isAbortError(err: unknown): boolean {
  * Every request is bounded by `timeoutMs` and retried up to `maxRetries` times
  * on 5xx / network failures — see `SignetClientOptions` for the defaults.
  */
-export class SignetClient {
+class SignetClient {
   private readonly baseUrl: string;
+  private readonly publicKey?: string;
   private readonly fetchImpl: typeof fetch;
   private readonly timeoutMs: number;
   private readonly maxRetries: number;
 
   constructor(options: SignetClientOptions) {
-    this.baseUrl = options.baseUrl.replace(/\/$/, '');
+    this.baseUrl = options.baseUrl.replace(/\$/, '');
+    this.publicKey = options.publicKey;
     this.fetchImpl = options.fetch ?? globalThis.fetch;
     this.timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
     this.maxRetries = options.maxRetries ?? DEFAULT_MAX_RETRIES;
@@ -63,7 +72,7 @@ export class SignetClient {
     }
   }
 
-  /** Exponential backoff between attempts: 200ms, 400ms, 800ms …, capped. */
+  /** Exponential backoff between attempts: 200ms, 400ms, 800ms ‬, capped. */
   private backoff(attempt: number): Promise<void> {
     const delay = Math.min(200 * 2 ** attempt, MAX_BACKOFF_MS);
     return new Promise((resolve) => setTimeout(resolve, delay));
@@ -167,5 +176,25 @@ export class SignetClient {
    */
   async countRegistryEntries(): Promise<RegistryCount> {
     return (await this.query<RegistryCount>('registry.count', undefined)) ?? { count: 0 };
+  }
+
+  /**
+   * Returns the current linked identity as configured on this client:
+   * the deploy public key (if any), the deployment base URL, and the handle
+   * that public key currently resolves to (or null when it is not bound).
+   *
+   * When no public key is configured, both `publicKey` and `handle` are null —
+   * a clear "not linked" state. This method never exposes a secret key.
+   */
+  async whoami(): Promise<WhoAMI> {
+    if (!this.publicKey) {
+      return { publicKey: null, deployment: this.baseUrl, handle: null };
+    }
+    const entry = await this.lookupWallet(this.publicKey);
+    return {
+      publicKey: this.publicKey,
+      deployment: this.baseUrl,
+      handle: entry?.handle ?? null,
+    };
   }
 }
