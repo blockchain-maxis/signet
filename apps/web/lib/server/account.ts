@@ -136,6 +136,124 @@ export function normalizeAccountUpdate(raw: unknown): AccountUpdate {
   };
 }
 
+/**
+ * `pubkey` is already bound to a different profile than the one being linked
+ * to. `Wallet.pubkey` is `@unique`, so a deploy wallet can only ever belong
+ * to one profile — this is the caller's mistake (or someone else's wallet),
+ * not a transient failure.
+ */
+export class WalletAlreadyLinkedError extends Error {
+  readonly pubkey: string;
+
+  constructor(pubkey: string) {
+    super(`Wallet ${pubkey} is already linked to a different profile`);
+    this.name = 'WalletAlreadyLinkedError';
+    this.pubkey = pubkey;
+  }
+}
+
+/** True for a Prisma unique-constraint violation (error code P2002). */
+function isUniqueConstraintViolation(err: unknown): boolean {
+  return (
+    typeof err === 'object' &&
+    err !== null &&
+    'code' in err &&
+    (err as { code?: unknown }).code === 'P2002'
+  );
+}
+
+function toLinkedWallet(wallet: { pubkey: string; isPrimary: boolean; source: string; attestedAt: Date }): LinkedWallet {
+  return {
+    pubkey: wallet.pubkey,
+    isPrimary: wallet.isPrimary,
+    source: wallet.source,
+    attestedAt: wallet.attestedAt.toISOString().slice(0, 10),
+  };
+}
+
+/**
+ * The persistence surface `linkDeployWallet` needs — mirrors the injectable-
+ * store pattern the indexer workers use (e.g. `DeploymentStore` in
+ * `apps/indexer/src/workers/deployment.ts`), for the same reason: it's what
+ * lets the idempotent-re-link and typed-conflict paths be tested without a
+ * real database.
+ */
+export interface LinkWalletStore {
+  wallet: {
+    findUnique(args: {
+      where: { pubkey: string };
+    }): Promise<{ pubkey: string; profileId: string; isPrimary: boolean; source: string; attestedAt: Date } | null>;
+    create(args: {
+      data: { pubkey: string; profileId: string; source: string; isPrimary: boolean; attestedAt: Date };
+    }): Promise<{ pubkey: string; isPrimary: boolean; source: string; attestedAt: Date }>;
+    update(args: {
+      where: { pubkey: string };
+      data: { attestedAt: Date; source: string };
+    }): Promise<{ pubkey: string; isPrimary: boolean; source: string; attestedAt: Date }>;
+  };
+}
+
+/**
+ * Attach a deploy wallet to a profile — the writer `getAccountWallets`'s read
+ * path has been waiting on. Never touches `isPrimary`: that binding is the
+ * handle's own on-chain claim, changed only via the Identity Registry
+ * (release/transfer), never by linking an additional wallet here.
+ *
+ * Idempotent: re-linking the same `pubkey` to the same `profileId` updates
+ * `attestedAt`/`source` on the existing row rather than duplicating it.
+ * Linking a `pubkey` already bound to a *different* profile throws
+ * `WalletAlreadyLinkedError` instead — checked up front, and re-checked if a
+ * concurrent write wins the race between that check and the insert, since
+ * `Wallet.pubkey`'s uniqueness is what both properties (idempotent / typed
+ * conflict) ultimately rest on.
+ */
+export async function linkDeployWallet(
+  profileId: string,
+  pubkey: string,
+  source: string,
+  store?: LinkWalletStore,
+): Promise<LinkedWallet> {
+  const db = store ?? ((await getPrisma()) as unknown as LinkWalletStore | null);
+  if (!db) {
+    throw new Error('Linking a wallet requires a configured database');
+  }
+
+  const existing = await db.wallet.findUnique({ where: { pubkey } });
+  if (existing) {
+    if (existing.profileId !== profileId) {
+      throw new WalletAlreadyLinkedError(pubkey);
+    }
+    const updated = await db.wallet.update({
+      where: { pubkey },
+      data: { attestedAt: new Date(), source },
+    });
+    return toLinkedWallet(updated);
+  }
+
+  try {
+    const created = await db.wallet.create({
+      data: { pubkey, profileId, source, isPrimary: false, attestedAt: new Date() },
+    });
+    return toLinkedWallet(created);
+  } catch (err) {
+    if (!isUniqueConstraintViolation(err)) throw err;
+
+    // Lost a race: another write linked this pubkey between the check above
+    // and this create. Re-read once to resolve it the same way the
+    // up-front check would have.
+    const raced = await db.wallet.findUnique({ where: { pubkey } });
+    if (!raced) throw err; // deleted again in between — vanishingly unlikely; surface the original error
+    if (raced.profileId !== profileId) {
+      throw new WalletAlreadyLinkedError(pubkey);
+    }
+    const updated = await db.wallet.update({
+      where: { pubkey },
+      data: { attestedAt: new Date(), source },
+    });
+    return toLinkedWallet(updated);
+  }
+}
+
 /** Update the signed-in wallet's profile presentation fields. */
 export async function updateAccount(address: string, update: AccountUpdate): Promise<Account> {
   const prisma = await getPrisma();
