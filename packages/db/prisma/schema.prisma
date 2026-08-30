@@ -28,6 +28,23 @@ model Wallet {
   source     String   @default("curated")
   isPrimary  Boolean  @default(false)
 
+  // Per-wallet deployment-worker backfill state. The IndexerCursor row below
+  // ("main") only tracks forward-scanning progress for the indexer as a
+  // whole; it says nothing about how far back into *this* wallet's own
+  // Horizon history the deployment worker has walked. Without this, a wallet
+  // linked after others either gets re-scanned from the top every tick
+  // (wasteful, rate-limited) or has its older history silently skipped once
+  // some other global position has moved past it — neither is correct.
+  //
+  // deploymentCursor is the Horizon paging_token of the oldest operation the
+  // deployment worker has walked back to so far; null means backfill hasn't
+  // started (or the wallet is new). deploymentBackfilledAt is set once the
+  // worker has walked all the way back — Horizon returned an empty page —
+  // after which the worker only needs to check the newest activity each tick,
+  // not resume a backward walk.
+  deploymentCursor       String?
+  deploymentBackfilledAt DateTime?
+
   profile    Profile  @relation(fields: [profileId], references: [id], onDelete: Cascade)
   contracts  Contract[]
   operations Operation[]
