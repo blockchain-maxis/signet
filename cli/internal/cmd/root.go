@@ -36,6 +36,8 @@ instance) over its HTTP API.`,
 	root.Version = fmt.Sprintf("%s (commit %s)", version, commit)
 	root.SetVersionTemplate("signet version {{.Version}}\n")
 
+	root.AddCommand(newIdentityCmd())
+
 	return root
 }
 
