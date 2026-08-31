@@ -1,7 +1,8 @@
 import Link from 'next/link';
 import { currentAddress } from '@/lib/server/session';
-import { getAccount } from '@/lib/server/account';
+import { getAccount, getAccountWallets } from '@/lib/server/account';
 import { getOperations, computeStats } from '@/lib/profiles';
+import { LinkDeployWalletPrompt } from '../components/link-deploy-wallet-prompt';
 
 function truncate(a: string): string {
   return a.length > 16 ? `${a.slice(0, 7)}…${a.slice(-5)}` : a;
@@ -14,6 +15,8 @@ export default async function DashboardPage() {
   const address = await currentAddress();
   const account = address ? await getAccount(address) : null;
   const stats = account?.handle ? computeStats(await getOperations(account.handle)) : null;
+  const wallets = account?.handle && address ? await getAccountWallets(address) : [];
+  const hasDeployWallet = wallets.some((w) => !w.isPrimary);
 
   return (
     <section>
@@ -59,6 +62,10 @@ export default async function DashboardPage() {
           )}
         </div>
       </div>
+
+      {/* Explains an empty-looking profile: the claiming wallet is rarely the
+          deploy wallet, and nothing renders until one is linked. */}
+      {account?.handle && !hasDeployWallet && <LinkDeployWalletPrompt />}
 
       {/* On-chain stats (only once a handle is claimed) */}
       {stats && (

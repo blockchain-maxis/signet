@@ -2,6 +2,7 @@ import { currentAddress } from '@/lib/server/session';
 import { getAccountWallets } from '@/lib/server/account';
 import { isRegistryConfigured, lookupWallet } from '@/lib/server/registry-read';
 import { stellarExpertAccountUrl } from '@/lib/network';
+import { LinkDeployWalletPrompt } from '../../components/link-deploy-wallet-prompt';
 
 function truncate(a: string): string {
   return a.length > 18 ? `${a.slice(0, 8)}…${a.slice(-6)}` : a;
@@ -83,10 +84,15 @@ export default async function WalletsPage() {
         )}
       </div>
 
-      <p className="mt-4 max-w-[640px] text-[12px] leading-[1.7] text-[#5e5b51]" style={mono}>
-        To link an additional wallet, claim a handle from it in the Identity Registry — bindings are
-        created on-chain, never from this dashboard.
-      </p>
+      {wallets.length > 0 && !wallets.some((w) => !w.isPrimary) ? (
+        <LinkDeployWalletPrompt />
+      ) : (
+        <p className="mt-4 max-w-[640px] text-[12px] leading-[1.7] text-[#5e5b51]" style={mono}>
+          Your handle&apos;s primary binding is claimed on-chain via the Identity Registry and can&apos;t
+          be changed from this dashboard. Additional deploy wallets are linked with{' '}
+          <code>npx @signet/cli link</code>.
+        </p>
+      )}
     </section>
   );
 }
