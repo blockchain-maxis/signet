@@ -15,6 +15,8 @@
  * can't answer: no `DATABASE_URL`, or a claim the indexer hasn't synced yet.
  */
 
+import type { WalletSource } from '@signet/types';
+
 import { lookupWallet, type RegistryReadOptions } from './registry-read.ts';
 
 export interface Account {
@@ -40,8 +42,12 @@ export interface AccountUpdate {
 export interface LinkedWallet {
   pubkey: string;
   isPrimary: boolean;
-  /** 'onchain' once attested via the Identity Registry, else 'curated'. */
-  source: string;
+  /**
+   * How the binding was established. Stored as a plain string, so a row
+   * written by a newer build can carry a source this one does not know -
+   * render it through `describeWalletSource` rather than comparing strings.
+   */
+  source: WalletSource | (string & {});
   attestedAt: string;
 }
 

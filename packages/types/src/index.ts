@@ -12,6 +12,10 @@ export {
 } from './handle.ts';
 export type { ReservedHandle } from './handle.ts';
 
+// Wallet provenance — one vocabulary for every surface that renders a binding.
+export { WALLET_SOURCES, describeWalletSource, isWalletSource } from './wallet.ts';
+export type { WalletSource, WalletSourceDescriptor } from './wallet.ts';
+
 export type Handle = string;
 
 /** A Stellar account or contract address (G… / C…). */

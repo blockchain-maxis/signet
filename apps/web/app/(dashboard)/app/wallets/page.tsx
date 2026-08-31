@@ -2,10 +2,16 @@ import { currentAddress } from '@/lib/server/session';
 import { getAccountWallets } from '@/lib/server/account';
 import { isRegistryConfigured, lookupWallet } from '@/lib/server/registry-read';
 import { stellarExpertAccountUrl } from '@/lib/network';
+import { walletSourceBadge } from '@/lib/wallet-source';
 
 function truncate(a: string): string {
   return a.length > 18 ? `${a.slice(0, 8)}…${a.slice(-6)}` : a;
 }
+
+// Provenance comes from the shared source vocabulary, never a string
+// comparison: the old binary ternary rendered a CLI-linked wallet as
+// "curated", which is the one thing a cryptographically proven link is not.
+const badgeFor = walletSourceBadge;
 
 const mono = { fontFamily: 'var(--font-mono)' } as const;
 const display = { fontFamily: 'var(--font-display)' } as const;
@@ -61,12 +67,11 @@ export default async function WalletsPage() {
                   </span>
                 )}
                 <span
-                  className={`text-[9px] uppercase tracking-[0.18em] ${
-                    w.source === 'onchain' ? 'text-emerald-500' : 'text-[#5e5b51]'
-                  }`}
+                  className={`text-[9px] uppercase tracking-[0.18em] ${badgeFor(w.source).className}`}
                   style={mono}
+                  title={badgeFor(w.source).description}
                 >
-                  {w.source === 'onchain' ? '● on-chain' : '○ curated'}
+                  {badgeFor(w.source).text}
                 </span>
               </div>
               <a
