@@ -11,6 +11,7 @@ Signet is a verifiable developer career record built on Stellar/Soroban. Develop
 | **Web app** (`apps/web`) | Netlify ([`netlify.toml`](netlify.toml)) | Deployed — landing, `/how-it-works`, `/handles`, tRPC API, SIWS auth, demo profiles |
 | **Indexer** (`apps/indexer`) | GHCR image, opt-in [`deploy.yml`](.github/workflows/deploy.yml) | Code-complete, not provisioned — needs a Postgres to point at |
 | **PostgreSQL** (`packages/db`) | — | Prisma schema + migrations committed; no hosted instance |
+| **CLI** (`npx @signet/cli link`) | npm | Not shipped — terminal deploy-wallet linking is in progress; see `docs/CLI.md` |
 
 Point the app at the deployed registry with:
 
@@ -67,7 +68,8 @@ id configured, the page says so rather than presenting the manifest as registry 
 ## What's coming next (Phase 2)
 
 - **Mainnet deploy** of the Identity Registry (testnet is live — see [Status](#status)), plus a contract audit before it.
-- **Run the indexer** against a Postgres instance to populate full deployment/activity history; `/p` already has a DB-with-static-fallback loader (`safeDbProfile`).
+- **Terminal deploy-wallet linking** — `npx @signet/cli link` binds the wallet you run `stellar contract deploy` from to your claimed handle, proving control of the key from your terminal. This is the step that turns a claimed handle into an indexed profile: a handle claimed with a browser wallet points at an address that has usually deployed nothing, so the profile renders empty until a deploy wallet is linked. Not shipped yet — the full flow is specified in `docs/CLI.md`.
+- **Run the indexer** against a Postgres instance to populate full deployment/activity history; `/p` already has a DB-with-static-fallback loader (`safeDbProfile`). Once a deploy wallet is linked, the indexer attributes every contract it has deployed and invoked to that profile.
 - **Self-sovereign bindings** replace the curated `DEMO_PROFILES` mapping as claims land on the deployed registry.
 - **Developer dashboard** (`/app/*`) — currently an honest read-only preview pending wallet auth.
 - **Reputation scoring** — attestations, TVL tracking, incident records.

@@ -96,6 +96,21 @@ export default function HowItWorksPage() {
 
         <Section title="What's coming">
           <span className="block mb-3">
+            <strong className="text-[#f5f4ee]">Terminal wallet linking.</strong>{' '}
+            <code
+              className="px-1.5 py-0.5 bg-[#1f1d19] border border-[#3d3a33] text-[#b8b5a8] text-[13px]"
+              style={{ fontFamily: 'var(--font-mono)' }}
+            >npx @signet/cli link</code>{' '}
+            binds the deploy wallet you ship contracts from to your claimed handle, proving control
+            of the key from your terminal. It is the step that turns a claimed handle into an indexed
+            profile — a handle claimed with a browser wallet points at an address that has usually
+            deployed nothing, so the profile stays empty until a deploy wallet is linked. The full
+            flow will be documented in <code
+              className="px-1.5 py-0.5 bg-[#1f1d19] border border-[#3d3a33] text-[#b8b5a8] text-[13px]"
+              style={{ fontFamily: 'var(--font-mono)' }}
+            >docs/CLI.md</code>.
+          </span>
+          <span className="block mb-3">
             <strong className="text-[#f5f4ee]">Indexer service.</strong>{' '}
             Continuous monitoring of registered wallets, capturing deployments and invocations in
             near real-time with full historical coverage.
