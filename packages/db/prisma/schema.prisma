@@ -28,6 +28,20 @@ model Wallet {
   source     String   @default("curated")
   isPrimary  Boolean  @default(false)
 
+  // Deployment backfill (see apps/indexer/src/workers/deployment.ts). A fresh
+  // wallet only ever gets its most recent 200 operations scanned unless this
+  // walk exists, which leaves a profile with real deploy history looking
+  // empty. operationsCursor is the paging_token the backward (desc) walk has
+  // reached so far; null once backfillComplete (nothing left to resume).
+  // operationsWatermark is the newest paging_token ever observed for this
+  // wallet, captured once on the walk's very first page — it's where the
+  // ordinary forward (asc) catch-up scan resumes from once backfill
+  // completes, so operations that landed *during* a still-running backfill
+  // are never skipped.
+  operationsCursor    String?
+  operationsWatermark String?
+  backfillComplete    Boolean  @default(false)
+
   profile    Profile  @relation(fields: [profileId], references: [id], onDelete: Cascade)
   contracts  Contract[]
   operations Operation[]

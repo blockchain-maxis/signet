@@ -22,7 +22,7 @@ is caught by the tick, logged as `tick.error`, and the loop continues.
 |---|--------|------|-------|--------|
 | 0 | **seed** | Once at startup, only when the `main` cursor row is missing or `--reseed` was passed | the hard-coded list in [`src/seed-data.ts`](../apps/indexer/src/seed-data.ts) | `Profile`, `Wallet` (`source: 'curated'`) |
 | 1 | **attestation** | Every tick, **skipped entirely** when no registry contract id is configured | Soroban RPC `getEvents` on the Identity Registry | `Profile`, `Wallet` (`source: 'onchain'`), cursor `attestation` |
-| 2 | **deployment** | Every tick | Horizon `/accounts/{pubkey}/operations` for every `Wallet` row (200 most recent, desc), plus a transaction fetch per contract-creation op | `Contract` |
+| 2 | **deployment** | Every tick | Horizon `/accounts/{pubkey}/operations`, paged (200/page, up to 10 pages/wallet/tick) for every `Wallet` row, plus a transaction fetch per contract-creation op | `Contract`, `Wallet` (`operationsCursor`/`operationsWatermark`/`backfillComplete`) |
 | 3 | **activity** | Every tick | Horizon `/accounts/{contract}/transactions` for every `Contract` whose newest snapshot is older than 5 min | `ContractSnapshot` |
 | 4 | **operations** | Every tick | Horizon `/accounts/{pubkey}/operations` for every `Wallet` (50 most recent, desc) | `Operation` |
 
@@ -39,6 +39,14 @@ Notes that matter in production:
   operation id). Re-running over the same ledger range cannot duplicate rows.
 - **`released` / `revoked` events delete the `Wallet` row**, which cascades to that
   wallet's `Contract`, `Operation` and snapshot rows. The `Profile` row survives.
+- **A newly linked wallet is fully backfilled, not just its most recent 200 operations.**
+  Until `Wallet.backfillComplete` is true, the deployment worker walks backward (desc)
+  from `operationsCursor`, up to 10 pages (2,000 operations) per wallet per tick — a
+  wallet with more history just takes more ticks, resuming exactly where the last tick
+  left off rather than restarting. `operationsWatermark` is captured once, from the very
+  first page ever fetched, and is what the *next* worker phase (after `backfillComplete`
+  flips true) resumes forward (asc) scans from, so operations that land while a backfill
+  is still catching up on history are never skipped.
 
 ### The registry event contract
 
