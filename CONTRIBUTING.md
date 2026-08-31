@@ -9,6 +9,9 @@ pass, commit conventions, and how issue points work.
 - **Node 22+**
 - **pnpm 9** (`packageManager` is pinned to `pnpm@9.12.0`; `corepack enable` will
   use the right version automatically)
+- **Go** (version pinned in `cli/go.mod`) — only if you touch the `signet` CLI
+  under `cli/`; [`golangci-lint`](https://golangci-lint.run/usage/install/) too,
+  if you want to run its lint gate locally rather than waiting for CI
 - **Rust** with the `wasm32v1-none` target — only if you touch the Soroban
   contracts under `packages/contracts` (`rustup target add wasm32v1-none`)
 - **Docker** — only if you run the indexer or the database locally
@@ -45,6 +48,21 @@ is merged.** Prefer scoping to the package you changed for a faster loop.
 | Typecheck | `pnpm typecheck` | `pnpm --filter @signet/web typecheck` |
 | Test | `pnpm test` | `pnpm --filter @signet/web test` |
 | Build | `pnpm build` | `pnpm --filter @signet/web build` |
+
+Those `pnpm` commands only cover the TypeScript workspace. **The CLI (`cli/`,
+Go) has its own CI job and is not part of `pnpm lint`/`pnpm test`/etc.** — the
+root `Makefile` is the one entrypoint that covers both:
+
+```bash
+make build   # ts-build + go-build
+make test    # ts-test + go-test
+make lint    # ts-lint + go-lint (needs golangci-lint on PATH)
+make fmt     # gofmt -w cli/
+make check-fmt   # fails if cli/ isn't gofmt'd, without rewriting anything
+```
+
+Run just the Go side with `make go-build` / `make go-test` / `make go-lint` /
+`make go-fmt`, or `cd cli && go test ./...` directly.
 
 **Soroban contracts** (`packages/contracts`) have a separate CI job — run it
 locally when you touch Rust:
