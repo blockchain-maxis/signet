@@ -352,3 +352,69 @@ export async function safeDbOperations(handle: string): Promise<Operation[] | nu
     return null;
   }
 }
+
+/**
+ * Best-effort database aggregation for stats across all operations of a profile.
+ * Computes exact count of successful invocations and distinct functions across
+ * the full database set rather than truncating at the paginated 100-row slice.
+ */
+export async function safeDbProfileStats(handle: string): Promise<ProfileStats | null> {
+  if (!process.env.DATABASE_URL || !isValidHandle(handle)) return null;
+  try {
+    const { prisma } = await import('@signet/db');
+    const profile = await prisma.profile.findUnique({
+      where: { handle: handle.toLowerCase() },
+      select: { id: true, wallets: { select: { id: true } } },
+    });
+    if (!profile || profile.wallets.length === 0) return null;
+    const walletIds = profile.wallets.map((w) => w.id);
+
+    const [invocations, distinctOps] = await Promise.all([
+      prisma.operation.count({
+        where: {
+          walletId: { in: walletIds },
+          successful: true,
+        },
+      }),
+      prisma.operation.findMany({
+        where: {
+          walletId: { in: walletIds },
+          successful: true,
+        },
+        select: {
+          function: true,
+          decodedFunction: true,
+        },
+        distinct: ['function', 'decodedFunction'],
+      }),
+    ]);
+
+    const uniqueFunctions = new Set(
+      distinctOps.map((op) => op.decodedFunction ?? op.function ?? 'invoke_contract'),
+    ).size;
+
+    const reputation = Math.min(
+      100,
+      Math.min(60, invocations * 6) + Math.min(40, uniqueFunctions * 10),
+    );
+
+    return { invocations, uniqueFunctions, reputation };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Get profile stats computed from database aggregate queries over the full dataset
+ * where available, falling back to memory compute over the supplied operations array.
+ */
+export async function getProfileStats(
+  handle: string,
+  operations?: Operation[] | null,
+): Promise<ProfileStats> {
+  const dbStats = await safeDbProfileStats(handle);
+  if (dbStats) return dbStats;
+  const ops = operations ?? (await getOperations(handle));
+  return computeStats(ops);
+}
+

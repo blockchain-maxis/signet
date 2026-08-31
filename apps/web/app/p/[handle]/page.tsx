@@ -1,6 +1,6 @@
 import { notFound } from 'next/navigation';
 import { SignetMonogram } from '../../(marketing)/components/signet-monogram';
-import { getProfile, getOperations, listAllHandles, computeStats } from '@/lib/profiles';
+import { getProfile, getOperations, listAllHandles, getProfileStats } from '@/lib/profiles';
 import { STELLAR_EXPLORER, STELLAR_NETWORK_NAME } from '@/lib/network';
 import { formatDate } from '@/lib/format-date';
 import OperationsList from './operations-list';
@@ -45,7 +45,7 @@ export default async function ProfilePage({ params }: { params: Promise<{ handle
   if (!profile) notFound();
 
   const operations = await getOperations(handle);
-  const stats = computeStats(operations);
+  const stats = await getProfileStats(handle, operations);
   const oldest = operations[operations.length - 1];
   const newest = operations[0];
   // A curated demo profile and a handle actually bound on-chain render through

@@ -10,6 +10,7 @@ import {
   safeChainProfile,
   decodeResolvedAddress,
   computeStats,
+  getProfileStats,
 } from './profiles.ts';
 
 test('isValidHandle accepts the registry charset', () => {
@@ -95,7 +96,28 @@ test('computeStats returns zeroed stats for missing or empty operations', () => 
   assert.deepEqual(computeStats([]), { invocations: 0, uniqueFunctions: 0, reputation: 0 });
 });
 
+test('computeStats scores successful invocations and unique function diversity', () => {
+  const ops = [
+    { id: '1', type: 'invoke', function: 'mint', created_at: '2026-08-30T00:00:00Z', transaction_successful: true },
+    { id: '2', type: 'invoke', function: 'transfer', created_at: '2026-08-30T01:00:00Z', transaction_successful: true },
+    { id: '3', type: 'invoke', function: 'transfer', created_at: '2026-08-30T02:00:00Z', transaction_successful: false },
+  ];
+  const stats = computeStats(ops);
+  assert.equal(stats.invocations, 2);
+  assert.equal(stats.uniqueFunctions, 2);
+  assert.equal(stats.reputation, 2 * 6 + 2 * 10);
+});
+
 test('getOperations returns an array (possibly empty) for any handle', async () => {
   assert.ok(Array.isArray(await getOperations('aquawolf')));
   assert.deepEqual(await getOperations('does-not-exist'), []);
 });
+
+test('getProfileStats computes stats for a known handle', async () => {
+  const stats = await getProfileStats('aquawolf');
+  assert.ok(typeof stats.invocations === 'number');
+  assert.ok(typeof stats.uniqueFunctions === 'number');
+  assert.ok(typeof stats.reputation === 'number');
+  assert.ok(stats.reputation >= 0 && stats.reputation <= 100);
+});
+

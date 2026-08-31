@@ -1,5 +1,5 @@
 import { initTRPC, TRPCError } from '@trpc/server';
-import { getProfile, getOperations, listHandles, isValidHandle, computeStats } from '../profiles.ts';
+import { getProfile, getOperations, listHandles, isValidHandle, getProfileStats } from '../profiles.ts';
 import { logger } from '../logger.ts';
 import { rateLimit } from '../rate-limit.ts';
 import { verifySession, SESSION_COOKIE } from '../auth.ts';
@@ -120,7 +120,7 @@ const profileRouter = router({
     return {
       handle: input.handle,
       profile,
-      stats: computeStats(operations),
+      stats: await getProfileStats(input.handle, operations),
       operations,
     };
   }),
