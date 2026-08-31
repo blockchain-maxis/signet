@@ -8,11 +8,36 @@
  * to `'self'` — no `'unsafe-inline'` in `script-src`.
  *
  * `style-src` intentionally keeps `'unsafe-inline'`: the app relies on inline
- * React `style={}` and framer-motion styles (and the Google Fonts stylesheet),
- * which cannot be nonced. Inline styles are far lower risk than inline scripts
- * (no script execution), so this is an accepted, documented exception — dropping
- * it would require refactoring every inline style in the UI.
+ * React `style={}` and framer-motion styles, which cannot be nonced. Inline
+ * styles are far lower risk than inline scripts (no script execution), so this
+ * is an accepted, documented exception — dropping it would require refactoring
+ * every inline style in the UI.
+ *
+ * The policy also **reports itself**. A CSP failure is invisible by design: the
+ * browser blocks the request and the page renders with something quietly
+ * missing, so without reporting the first signal of a bad policy is a user
+ * complaint. Both reporting mechanisms are emitted, because no single one is
+ * universally supported:
+ *
+ *   • `report-uri` — deprecated, but the only directive Firefox and Safari
+ *     honour today.
+ *   • `report-to` — the Reporting API replacement Chromium uses. It names a
+ *     group defined by the `Reporting-Endpoints` response header, which
+ *     `middleware.ts` sets alongside the policy.
+ *
+ * Both point at the same collector (`/api/csp-report` by default), so a browser
+ * that supports either one is heard.
  */
+
+/** Route that collects violation reports (see `app/api/csp-report/route.ts`). */
+export const CSP_REPORT_PATH = '/api/csp-report';
+
+/**
+ * Reporting API group name shared by the `report-to` directive and the
+ * `Reporting-Endpoints` header. The two must agree or Chromium silently drops
+ * every report, so the name lives here once.
+ */
+export const CSP_REPORT_GROUP = 'csp-endpoint';
 
 export interface CspOptions {
   /**
@@ -20,10 +45,19 @@ export interface CspOptions {
    * `eval`, which needs `'unsafe-eval'`. Production never does.
    */
   dev?: boolean;
+  /**
+   * Where violations are reported. Defaults to the app's own collector; pass
+   * an absolute URL to send them straight to an external collector instead.
+   * Pass an empty string to build a policy with no reporting at all.
+   */
+  reportUri?: string;
 }
 
 /** Build the CSP header value for a request, binding `script-src` to `nonce`. */
-export function buildCsp(nonce: string, { dev = false }: CspOptions = {}): string {
+export function buildCsp(
+  nonce: string,
+  { dev = false, reportUri = CSP_REPORT_PATH }: CspOptions = {},
+): string {
   const scriptSrc = [
     "'self'",
     `'nonce-${nonce}'`,
@@ -37,8 +71,8 @@ export function buildCsp(nonce: string, { dev = false }: CspOptions = {}): strin
     `script-src ${scriptSrc}`,
     // See file header: inline styles can't be nonced, so 'unsafe-inline' stays
     // for style-src only. This is the documented, accepted exception.
-    "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
-    "font-src 'self' https://fonts.gstatic.com",
+    "style-src 'self' 'unsafe-inline'",
+    "font-src 'self'",
     "img-src 'self' data: https:",
     // connect-src covers the Stellar RPC / Horizon / Expert endpoints the client
     // calls. The wallet modules registered today (Freighter, xBull, Albedo,
@@ -51,7 +85,19 @@ export function buildCsp(nonce: string, { dev = false }: CspOptions = {}): strin
     "frame-ancestors 'none'",
     "base-uri 'self'",
     "form-action 'self'",
+    // See file header: both directives, same collector, so every engine reports.
+    ...(reportUri ? [`report-uri ${reportUri}`, `report-to ${CSP_REPORT_GROUP}`] : []),
   ].join('; ');
+}
+
+/**
+ * Value for the `Reporting-Endpoints` response header, which is what gives the
+ * `report-to` group above an actual URL. The header takes a structured-fields
+ * dictionary, whose values are quoted strings — an unquoted URL is a parse
+ * error and the whole header is discarded.
+ */
+export function buildReportingEndpoints(reportUri: string = CSP_REPORT_PATH): string {
+  return `${CSP_REPORT_GROUP}="${reportUri}"`;
 }
 
 /** A per-request nonce (base64), generated with the Edge-safe Web Crypto API. */

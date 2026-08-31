@@ -19,6 +19,8 @@ export interface RateLimitResult {
 
 export interface RateLimitStore {
   hit(key: string, max: number, windowMs: number): Promise<RateLimitResult>;
+  /** Reachability probe for `/health`. Only shared backends implement this — its absence means memory. */
+  ping?(): Promise<boolean>;
 }
 
 type Entry = { count: number; reset: number };
@@ -82,6 +84,17 @@ export async function rateLimit(
 ): Promise<RateLimitResult> {
   await ensureStore();
   return store.hit(key, max, windowMs);
+}
+
+/**
+ * Backend state for `/health`: `memory` when running the per-instance
+ * fallback (no shared store configured), `up`/`down` when a shared backend is
+ * configured but is (or isn't) actually reachable right now.
+ */
+export async function getRateLimitStoreStatus(): Promise<'up' | 'down' | 'memory'> {
+  await ensureStore();
+  if (!store.ping) return 'memory';
+  return (await store.ping()) ? 'up' : 'down';
 }
 
 /** Test-only: reset to a fresh in-memory store and re-enable auto-detection. */

@@ -85,3 +85,26 @@ test('hit() fails open when fetch throws (network error)', async (t) => {
 
   assert.equal(result.ok, true);
 });
+
+test('ping() reports true on a PONG reply', async (t) => {
+  const fetchMock = mockPipeline([{ result: 'PONG' }]);
+  t.after(() => fetchMock.mock.restore());
+
+  assert.equal(await new UpstashRateLimitStore('https://example.upstash.io', 'tok').ping(), true);
+});
+
+test('ping() reports false when the HTTP response is not ok', async (t) => {
+  const fetchMock = mockPipeline([], false);
+  t.after(() => fetchMock.mock.restore());
+
+  assert.equal(await new UpstashRateLimitStore('https://example.upstash.io', 'tok').ping(), false);
+});
+
+test('ping() reports false when fetch throws (network error)', async (t) => {
+  const fetchMock = mock.method(globalThis, 'fetch', async () => {
+    throw new Error('ECONNREFUSED');
+  });
+  t.after(() => fetchMock.mock.restore());
+
+  assert.equal(await new UpstashRateLimitStore('https://example.upstash.io', 'tok').ping(), false);
+});

@@ -96,11 +96,11 @@ export default function HandleNotFound() {
 
       <div className="flex flex-col items-center gap-4">
         <Link
-          href="/reserve"
+          href="/#claim"
           className="inline-flex items-center gap-2 border px-6 py-3 text-sm font-mono uppercase tracking-widest transition-colors hover:bg-[#8b1a1a] hover:border-[#8b1a1a]"
           style={{ borderColor: "#8b1a1a", color: "#f5f4ee" }}
         >
-          Available · Reserve this handle →
+          Available · Claim this handle →
         </Link>
         <Link
           href="/"

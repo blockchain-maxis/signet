@@ -22,7 +22,7 @@ function truncate(a: string): string {
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   const token = (await cookies()).get(SESSION_COOKIE)?.value;
-  const address = verifySession(token);
+  const address = await verifySession(token);
 
   return (
     <div className="min-h-screen bg-[#0a0908] text-[#f5f4ee]">

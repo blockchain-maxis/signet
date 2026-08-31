@@ -2,7 +2,7 @@
 
 use super::*;
 use soroban_sdk::{
-    testutils::{Address as _, Events},
+    testutils::{storage::Instance, Address as _, Events, Ledger},
     Address, Env, String, Vec,
 };
 
@@ -399,7 +399,10 @@ fn initialize_requires_admin_auth() {
 
     let auths = env.auths();
     assert_eq!(auths.len(), 1);
-    assert_eq!(auths[0].0, admin, "initialize must be authorized by the admin");
+    assert_eq!(
+        auths[0].0, admin,
+        "initialize must be authorized by the admin"
+    );
 }
 
 #[test]
@@ -458,4 +461,80 @@ fn set_admin_emits_event() {
     client.set_admin(&Address::generate(&env));
     // Asserted immediately: `env.events()` only reflects the last invocation.
     assert!(!env.events().all().events().is_empty());
+}
+
+// ── instance TTL (issue #187) ───────────────────────────────────────────────
+
+/// The instance TTL as seen from inside the contract, in ledgers-remaining.
+fn instance_ttl(env: &Env, client: &IdentityRegistryClient) -> u32 {
+    env.as_contract(&client.address, || env.storage().instance().get_ttl())
+}
+
+/// Age the ledger until the instance TTL is below the bump threshold — the
+/// point where the next `bump_instance` actually extends rather than no-ops —
+/// while staying safely short of archival.
+fn age_instance_to_threshold(env: &Env) {
+    env.ledger().with_mut(|li| {
+        li.sequence_number += BUMP_LEDGERS - BUMP_THRESHOLD + 1;
+    });
+}
+
+/// Claim a handle, age the instance to the bump threshold, run `read`, and
+/// assert the read extended the instance TTL like a write would.
+fn assert_read_bumps_instance(read: impl Fn(&Env, &IdentityRegistryClient, &Address)) {
+    let (env, client, _admin) = setup();
+    let wallet = Address::generate(&env);
+    client.claim(&String::from_str(&env, "aquawolf"), &wallet);
+
+    age_instance_to_threshold(&env);
+    assert!(
+        instance_ttl(&env, &client) < BUMP_THRESHOLD,
+        "fixture: instance must be below the bump threshold before the read"
+    );
+
+    read(&env, &client, &wallet);
+    assert_eq!(
+        instance_ttl(&env, &client),
+        BUMP_LEDGERS,
+        "read entry point did not extend the instance TTL"
+    );
+}
+
+#[test]
+fn every_read_keeps_the_instance_alive() {
+    // A registry that people only USE — resolve, lookup, is_bound, count —
+    // during a quiet month with no claims must not archive out from under
+    // them. Each read entry point must extend the instance TTL exactly like
+    // the writes do. (Invoked reads only: simulations discard footprints, so
+    // the deployment runbook's keep-alive covers view-only deployments.)
+    assert_read_bumps_instance(|env, c, _| {
+        c.resolve(&String::from_str(env, "aquawolf"));
+    });
+    assert_read_bumps_instance(|_, c, wallet| {
+        c.lookup(wallet);
+    });
+    assert_read_bumps_instance(|env, c, _| {
+        c.is_bound(&String::from_str(env, "aquawolf"));
+    });
+    assert_read_bumps_instance(|_, c, _| {
+        c.count();
+    });
+    assert_read_bumps_instance(|env, c, _| {
+        let mut batch: Vec<String> = Vec::new(env);
+        batch.push_back(String::from_str(env, "aquawolf"));
+        c.resolve_batch(&batch);
+    });
+}
+
+#[test]
+fn a_missed_read_still_keeps_the_instance_alive() {
+    // The bump must not depend on the read finding anything: an unbound
+    // resolve or is_bound is still someone using the registry.
+    let (env, client, _admin) = setup();
+
+    age_instance_to_threshold(&env);
+    assert!(instance_ttl(&env, &client) < BUMP_THRESHOLD);
+
+    assert_eq!(client.resolve(&String::from_str(&env, "nobody-here")), None);
+    assert_eq!(instance_ttl(&env, &client), BUMP_LEDGERS);
 }

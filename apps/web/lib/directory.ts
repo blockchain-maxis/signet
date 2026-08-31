@@ -16,8 +16,8 @@ import { boundCount, resolveHandle, type RegistryReadOptions } from './server/re
  *      it sees only bindings claimed inside that window.
  *   2. **Confirmation** — `listDirectory` then asks the contract directly,
  *      via `resolveHandle`, whether each candidate is *actually* bound right
- *      now, and takes the authoritative total from the registry's own
- *      `count()`.
+ *      now, and reads the registry's own `count()` as an upper bound on the
+ *      total (see `boundTotal` for why it is a bound, not a truth).
  *
  * The second step is what keeps the page honest. Event-stream discovery
  * alone both under-reports (a handle claimed before the window is invisible)
@@ -154,10 +154,15 @@ export interface Directory {
   /** Bound entries first, then unconfirmed previews; alphabetical within each. */
   entries: DirectoryListing[];
   /**
-   * The registry's own `count()` — the authoritative number of bound
-   * handles. `null` when the registry could not be read at all (not
-   * deployed, not configured, RPC down), which is *not* the same as zero
-   * and must not be rendered as one.
+   * The registry's own `count()` — an UPPER BOUND on bound handles, not an
+   * authoritative total. The counter is adjusted on claim and release, but a
+   * binding whose persistent storage lapses unaccessed emits no event and
+   * runs no code, so nothing ever subtracts it: the counter drifts upward
+   * permanently and cannot self-correct. Only a `resolve` proves a specific
+   * binding is live (that is what `entries[].bound` carries). `null` when
+   * the registry could not be read at all (not deployed, not configured,
+   * RPC down), which is *not* the same as zero and must not be rendered as
+   * one.
    */
   boundTotal: number | null;
 }
