@@ -71,6 +71,12 @@ id configured, the page says so rather than presenting the manifest as registry 
 - **Self-sovereign bindings** replace the curated `DEMO_PROFILES` mapping as claims land on the deployed registry.
 - **Developer dashboard** (`/app/*`) — currently an honest read-only preview pending wallet auth.
 - **Reputation scoring** — attestations, TVL tracking, incident records.
+- **Developer CLI** — a Go binary that pairs a deploy account to a profile
+  (`POST /api/cli/pair/*`) and, later, a contract sandbox for testing a
+  deployed contract's functions. The sandbox needs `soroban-env-host`
+  (Rust-only), bridged from the Go CLI as a subprocess — see
+  [`docs/CLI_RUST_BRIDGE.md`](docs/CLI_RUST_BRIDGE.md) for that design ahead
+  of any Rust code landing.
 
 ## Run locally
 
