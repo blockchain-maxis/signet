@@ -29,6 +29,8 @@ export interface NonceStore {
    * had — or if freshness could not be established at all.
    */
   consume(nonce: string, ttlMs: number): Promise<boolean>;
+  /** Reachability probe for `/health`. Only shared backends implement this — its absence means memory. */
+  ping?(): Promise<boolean>;
 }
 
 /**
@@ -96,6 +98,25 @@ export class UpstashNonceStore implements NonceStore {
       return false;
     }
   }
+
+  /** Cheap reachability probe for `/health` — a bare `PING`, no key writes. */
+  async ping(): Promise<boolean> {
+    try {
+      const res = await fetch(`${this.url}/pipeline`, {
+        method: 'POST',
+        headers: {
+          authorization: `Bearer ${this.token}`,
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify([['PING']]),
+      });
+      if (!res.ok) return false;
+      const body = (await res.json()) as Array<{ result?: unknown; error?: string }>;
+      return body[0]?.result === 'PONG';
+    } catch {
+      return false;
+    }
+  }
 }
 
 let store: NonceStore = new MemoryNonceStore();
@@ -127,6 +148,19 @@ function ensureStore(): Promise<void> {
 export async function consumeNonce(nonce: string, ttlMs: number): Promise<boolean> {
   await ensureStore();
   return store.consume(nonce, ttlMs);
+}
+
+/**
+ * Backend state for `/health`: `memory` when running the per-instance
+ * fallback (no shared store configured — replay protection does not span
+ * instances), `up`/`down` when a shared backend is configured but is (or
+ * isn't) actually reachable right now. `down` here means sign-in is currently
+ * failing closed for every caller, since this store fails closed by design.
+ */
+export async function getNonceStoreStatus(): Promise<'up' | 'down' | 'memory'> {
+  await ensureStore();
+  if (!store.ping) return 'memory';
+  return (await store.ping()) ? 'up' : 'down';
 }
 
 /** Test-only: reset to a fresh in-memory store and re-enable auto-detection. */

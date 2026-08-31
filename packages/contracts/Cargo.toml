@@ -4,6 +4,7 @@ members = ["identity-registry"]
 
 [workspace.dependencies]
 soroban-sdk = "27"
+proptest = "1"
 
 [profile.release]
 opt-level = "z"

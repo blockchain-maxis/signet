@@ -37,17 +37,24 @@ export default async function HandlesPage({
   const pageEntries = bound.slice(start, start + PAGE_SIZE);
 
   // `boundTotal` is null when the registry could not be read at all. Saying
-  // "0 handles" there would assert an on-chain fact we never observed.
+  // "0 handles" there would assert an on-chain fact we never observed. And when
+  // it IS readable, it is the registry's own counter — an upper bound, not the
+  // number "currently bound": a binding that lapses from storage unaccessed is
+  // never subtracted, so the counter can only drift upward. "Recorded" is the
+  // claim the page can actually stand behind.
   const caption =
     boundTotal === null
       ? 'The Identity Registry is not readable from this deployment yet, so no on-chain bindings can be shown.'
-      : `${boundTotal} handle${boundTotal === 1 ? '' : 's'} currently bound on the Identity Registry.`;
+      : `${boundTotal} handle${boundTotal === 1 ? '' : 's'} recorded by the Identity Registry.`;
 
-  // The count comes from the contract; the list is assembled from the
-  // registry's recent event stream, which a public RPC only retains for a
-  // bounded window. So the count can legitimately exceed what is listable, and
-  // the page has to say which of the two situations it is in rather than
-  // reporting "nobody has claimed a handle" over a registry that has some.
+  // The count comes from the contract's counter; the list is assembled from
+  // the registry's recent event stream, which a public RPC only retains for a
+  // bounded window. So the counter can exceed what is listable for two
+  // reasons the page cannot tell apart — bindings claimed before the event
+  // window, and bindings that lapsed from storage without the counter ever
+  // noticing — and the copy below must not collapse both into "exist
+  // on-chain", nor report "nobody has claimed a handle" over a registry whose
+  // counter says otherwise.
   const unlisted = boundTotal === null ? 0 : Math.max(0, boundTotal - bound.length);
   const emptyState =
     boundTotal === null
@@ -55,7 +62,7 @@ export default async function HandlesPage({
       : boundTotal === 0
         ? { message: 'Nobody has bound a handle yet.', invite: true }
         : {
-            message: `${boundTotal} handle${boundTotal === 1 ? ' is' : 's are'} bound on-chain, but ${boundTotal === 1 ? 'it was not' : 'none were'} claimed recently enough to appear in the registry's event window. Resolve a handle directly to confirm a binding.`,
+            message: `The registry's counter records ${boundTotal} handle${boundTotal === 1 ? '' : 's'}, but ${boundTotal === 1 ? 'it was not' : 'none were'} claimed recently enough to appear in the event window. Resolve a handle directly to confirm a live binding.`,
             invite: false,
           };
 
@@ -147,9 +154,10 @@ export default async function HandlesPage({
 
             {unlisted > 0 && (
               <p className="mt-4 text-[12px] leading-[1.7] text-[#5e5b51]">
-                {unlisted} further binding{unlisted === 1 ? '' : 's'} exist on-chain but predate the
-                registry&apos;s event window, so {unlisted === 1 ? 'it is' : 'they are'} not listed
-                here.
+                The registry&apos;s counter records {unlisted} further binding
+                {unlisted === 1 ? '' : 's'} not verifiable here — claimed before the
+                registry&apos;s event window, or lapsed from storage without the counter
+                noticing. Resolve a handle directly to confirm {unlisted === 1 ? 'it' : 'one'}.
               </p>
             )}
 

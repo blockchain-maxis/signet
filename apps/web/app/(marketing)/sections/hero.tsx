@@ -132,10 +132,11 @@ export function Hero() {
           </motion.p>
 
           <motion.div
+            id="claim"
             initial={{ opacity: 0, y: 6 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.8, delay: 1, ease: [0.16, 1, 0.3, 1] }}
-            className="mt-12 flex flex-wrap items-center gap-5"
+            className="mt-12 flex flex-wrap items-center gap-5 scroll-mt-24"
           >
             <ConnectWallet
               variant="cta"

@@ -1,9 +1,26 @@
 import type { Metadata } from 'next';
 import { headers } from 'next/headers';
+import { IBM_Plex_Sans, IBM_Plex_Mono } from 'next/font/google';
 import './globals.css';
 
 const title = 'Signet';
 const description = 'A verifiable developer career record built on Stellar/Soroban.';
+
+// Self-hosted at build time by next/font — no runtime request to Google Fonts,
+// so page text no longer waits on a third-party stylesheet + font fetch.
+const ibmPlexSans = IBM_Plex_Sans({
+  subsets: ['latin'],
+  weight: ['400', '500', '600', '700'],
+  variable: '--font-display',
+  display: 'swap',
+});
+
+const ibmPlexMono = IBM_Plex_Mono({
+  subsets: ['latin'],
+  weight: ['400', '500'],
+  variable: '--font-mono',
+  display: 'swap',
+});
 
 export const metadata: Metadata = {
   metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000'),
@@ -32,7 +49,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   await headers();
 
   return (
-    <html lang="en">
+    <html lang="en" className={`${ibmPlexSans.variable} ${ibmPlexMono.variable}`}>
       <body>{children}</body>
     </html>
   );

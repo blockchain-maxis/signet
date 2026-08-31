@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server';
 import { RESERVED_HANDLES, isValidHandle } from '@signet/types';
-import { buildCsp, generateNonce } from './lib/csp';
+import { CSP_REPORT_PATH, buildCsp, buildReportingEndpoints, generateNonce } from './lib/csp';
 
 /**
  * Subdomain routing with a path-based fallback.
@@ -146,7 +146,11 @@ export function middleware(req: NextRequest): NextResponse {
   // what lets Next.js stamp the nonce onto its own inline bootstrap/flight
   // scripts, so `script-src` needs no `'unsafe-inline'`.
   const nonce = generateNonce();
-  const csp = buildCsp(nonce, { dev: process.env.NODE_ENV !== 'production' });
+  // Absolute, so the policy reports to the host the page was actually served
+  // from — a root-relative report target is resolved per document, which on the
+  // handle subdomains would scatter reports across origins.
+  const reportUri = new URL(CSP_REPORT_PATH, req.nextUrl.origin).toString();
+  const csp = buildCsp(nonce, { dev: process.env.NODE_ENV !== 'production', reportUri });
 
   const requestHeaders = new Headers(req.headers);
   requestHeaders.set('x-nonce', nonce);
@@ -163,6 +167,9 @@ export function middleware(req: NextRequest): NextResponse {
   }
 
   response.headers.set('Content-Security-Policy', csp);
+  // Gives the policy's `report-to` group a URL. Without this header Chromium
+  // parses the directive and then has nowhere to send anything.
+  response.headers.set('Reporting-Endpoints', buildReportingEndpoints(reportUri));
   return response;
 }
 

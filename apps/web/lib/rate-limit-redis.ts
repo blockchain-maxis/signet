@@ -60,6 +60,25 @@ export class UpstashRateLimitStore implements RateLimitStore {
     }
   }
 
+  /** Cheap reachability probe for `/health` — a bare `PING`, no key writes. */
+  async ping(): Promise<boolean> {
+    try {
+      const res = await fetch(`${this.url}/pipeline`, {
+        method: 'POST',
+        headers: {
+          authorization: `Bearer ${this.token}`,
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify([['PING']]),
+      });
+      if (!res.ok) return false;
+      const body = (await res.json()) as Array<{ result?: unknown; error?: string }>;
+      return body[0]?.result === 'PONG';
+    } catch {
+      return false;
+    }
+  }
+
   /**
    * Fail-open result — never block legitimate traffic on a backend hiccup.
    *

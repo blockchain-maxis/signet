@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { HANDLE_MAX_LEN, isReservedHandle, isValidHandle } from '@signet/types';
 import { connectWallet, disconnectWallet, getConnectedAddress } from '@/lib/wallet';
 import { claimHandle, isRegistryConfigured, RegistryNotConfiguredError } from '@/lib/registry';
+import { STELLAR_NETWORK } from '@/lib/network';
 
 function truncate(addr: string): string {
   return addr.length > 12 ? `${addr.slice(0, 5)}…${addr.slice(-4)}` : addr;
@@ -166,6 +167,13 @@ export function ConnectWallet({
               {validationError}
             </span>
           )}
+          <span
+            className="max-w-[260px] text-[10px] leading-tight text-[#8a8779]"
+            style={{ fontFamily: 'var(--font-mono)' }}
+          >
+            The registry contract is immutable. If it is ever replaced, handles
+            are re-claimed on the new one — held for your wallet, one signature.
+          </span>
           <div className="flex gap-2">
             <button
               type="button"
@@ -235,7 +243,7 @@ export function ConnectWallet({
       )}
       {!isRegistryConfigured() && variant === 'nav' && address && (
         <span className="text-[9px] text-[#5e5b51]" style={{ fontFamily: 'var(--font-mono)' }}>
-          connected · testnet
+          connected · {STELLAR_NETWORK}
         </span>
       )}
     </span>

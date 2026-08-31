@@ -8,6 +8,13 @@ test('landing page renders the hero', async ({ page }) => {
   await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
 });
 
+test('landing page contains #claim anchor for cross-site claim links', async ({ page }) => {
+  await page.goto('/');
+  const claimSection = page.locator('#claim');
+  await expect(claimSection).toBeAttached();
+  await expect(claimSection.getByRole('button', { name: /connect wallet|claim your handle/i })).toBeVisible();
+});
+
 test('health endpoint reports ok or degraded', async ({ request }) => {
   // The route handler lives at /api/health; a bare /health falls through
   // middleware to the marketing root and returns HTML.
@@ -45,7 +52,10 @@ test('the handle directory never presents demo personas as on-chain bindings', a
   await expect(previews.getByText('@aquawolf')).toBeVisible();
 
   // The count in the caption comes from the contract, so with no registry
-  // configured it must not claim any binding at all.
+  // configured it must not claim any recorded binding at all (the caption
+  // says "recorded by", deliberately not "currently bound on" — the counter
+  // is an upper bound that cannot self-correct after storage archival).
+  await expect(page.getByText(/handles? recorded by the Identity Registry/i)).toHaveCount(0);
   await expect(page.getByText(/handles? currently bound on the Identity Registry/i)).toHaveCount(0);
 });
 
@@ -62,7 +72,7 @@ test('closing CTA is a real connect-wallet button, not a dead link', async ({ pa
 
 test('how-it-works page renders', async ({ page }) => {
   await page.goto('/how-it-works');
-  await expect(page.getByText(/Phase 2/i).first()).toBeVisible();
+  await expect(page.getByRole('heading', { level: 1, name: /How Signet works/i })).toBeVisible();
 });
 
 test('handles directory lists the curated handles and links to profiles', async ({ page }) => {

@@ -23,6 +23,15 @@ and for claiming. For the contract's own source see
 | **Deployed** | 2026-07-09 |
 | **Status** | Deployed and initialized. No mainnet deployment yet. |
 
+> **Pin the id, but expect it to change.** The contract is immutable, so a defect
+> in it is fixed by deploying a *new* contract id and migrating bindings to it —
+> there is no in-place upgrade that would keep this id valid. Reading a
+> superseded registry fails silently: `resolve` returns the old answer, or
+> `null`, with no error to catch. Treat the contract id as configuration, not a
+> constant, and watch this section. The migration procedure, including what
+> integrators are told and when, is
+> [`CONTRACT_MIGRATION.md`](CONTRACT_MIGRATION.md).
+
 ```bash
 npm install @stellar/stellar-sdk    # v15.x — the version this repo pins
 ```
