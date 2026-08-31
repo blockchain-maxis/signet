@@ -12,6 +12,15 @@ export {
 } from './handle.ts';
 export type { ReservedHandle } from './handle.ts';
 
+// Pairing audit trail — one event vocabulary for the web tier and the indexer.
+export { PAIRING_EVENTS, PairingSecretLeakError, pairingEvent } from './pairing.ts';
+export type {
+  PairingEvent,
+  PairingEventInput,
+  PairingEventName,
+  PairingOutcome,
+} from './pairing.ts';
+
 export type Handle = string;
 
 /** A Stellar account or contract address (G… / C…). */

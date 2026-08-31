@@ -1,4 +1,5 @@
 import { rpc, scValToNative, xdr } from '@stellar/stellar-sdk';
+import { pairingEvent, type PairingOutcome } from '@signet/types';
 import { prisma } from '../db.js';
 import { logger } from '../logger.js';
 import { createRegistryReader, type RegistryReader } from '../registry-read.js';
@@ -18,6 +19,21 @@ import type { IndexerConfig } from '../config.js';
  */
 
 const CURSOR_ID = 'attestation';
+
+/**
+ * Emit one pairing audit event.
+ *
+ * Linking is how an account becomes attributed to a person, so every stage of
+ * it is logged at `info` - a disputed binding has to be investigable later,
+ * and a `debug`-level trail is one that production has switched off. The
+ * builder in `@signet/types` decides what may appear in the line, so key
+ * material cannot reach a log even by accident.
+ */
+function logPairing(outcome: PairingOutcome, input: Parameters<typeof pairingEvent>[1]): void {
+  const { name, fields } = pairingEvent(outcome, { source: 'attestation-worker', ...input });
+  if (outcome === 'rejected') logger.warn(fields, name);
+  else logger.info(fields, name);
+}
 
 export type AttestationEvent = {
   kind: 'claimed' | 'released' | 'revoked';
@@ -104,10 +120,13 @@ export async function applyAttestation(
       update: { profileId: profile.id, source: 'onchain', isPrimary: true },
       create: { pubkey: ev.wallet, profileId: profile.id, source: 'onchain', isPrimary: true },
     });
-  } else {
-    // released / revoked → drop the binding (the wallet row carries the link).
-    await store.wallet.deleteMany({ where: { pubkey: ev.wallet } });
+    logPairing('completed', { handle: ev.handle, wallet: ev.wallet });
+    return;
   }
+
+  // released / revoked → drop the binding (the wallet row carries the link).
+  await store.wallet.deleteMany({ where: { pubkey: ev.wallet } });
+  logPairing('unlinked', { handle: ev.handle, wallet: ev.wallet, reason: ev.kind });
 }
 
 /** What a reconcile pass did, for the tick log and for tests. */
@@ -163,12 +182,24 @@ export async function reconcileAgainstChain(
         if (w.pubkey !== wallet) {
           await store.wallet.deleteMany({ where: { pubkey: w.pubkey } });
           removed++;
+          logPairing('unlinked', {
+            handle: profile.handle,
+            wallet: w.pubkey,
+            reason: 'transferred',
+            source: 'reconcile',
+          });
         }
       }
     } else {
       for (const w of onchain) {
         await store.wallet.deleteMany({ where: { pubkey: w.pubkey } });
         removed++;
+        logPairing('unlinked', {
+          handle: profile.handle,
+          wallet: w.pubkey,
+          reason: 'no-longer-bound',
+          source: 'reconcile',
+        });
       }
     }
   }
@@ -270,7 +301,18 @@ export async function runAttestationWorker(
 
     for (const e of res.events) {
       const decoded = decodeEvent(e.topic, e.value);
-      if (!decoded) continue;
+      if (!decoded) {
+        // A registry event this build cannot read is still a pairing the audit
+        // trail should show an attempt at, rather than a silent `continue`.
+        logPairing('rejected', { ledger: e.ledger, reason: 'undecodable-event' });
+        continue;
+      }
+      logPairing('started', {
+        handle: decoded.handle,
+        wallet: decoded.wallet,
+        reason: decoded.kind,
+        ledger: e.ledger,
+      });
       await applyAttestation(evStore, decoded);
       applied++;
       logger.debug(

@@ -469,3 +469,119 @@ test('a reconcile failure leaves the cursor untouched for a retry', async () => 
   assert.equal(result.reconciled, undefined);
   assert.equal(cursor.saved?.lastLedger, 1000, 'cursor must not move past an unreconciled gap');
 });
+
+// ── pairing audit trail ───────────────────────────────────────────────────
+
+/**
+ * Captures the JSON log lines the worker writes, so the audit trail can be
+ * asserted on. The logger writes straight to the streams, so that is where the
+ * capture goes - intercepting `console` would silently record nothing.
+ */
+function captureLogLines(): { lines: Record<string, unknown>[]; restore: () => void } {
+  const lines: Record<string, unknown>[] = [];
+  const realOut = process.stdout.write.bind(process.stdout);
+  const realErr = process.stderr.write.bind(process.stderr);
+
+  const record = (chunk: unknown): boolean => {
+    for (const part of String(chunk).split('\n')) {
+      if (!part.trim()) continue;
+      try {
+        lines.push(JSON.parse(part) as Record<string, unknown>);
+      } catch {
+        /* not a structured line; the audit trail only cares about the JSON ones */
+      }
+    }
+    return true;
+  };
+
+  process.stdout.write = record as typeof process.stdout.write;
+  process.stderr.write = record as typeof process.stderr.write;
+
+  return {
+    lines,
+    restore: () => {
+      process.stdout.write = realOut;
+      process.stderr.write = realErr;
+    },
+  };
+}
+
+test('a completed link is recorded with its handle and public wallet', async () => {
+  const { store } = recordingStore();
+  const capture = captureLogLines();
+  try {
+    await applyAttestation(store, { kind: 'claimed', handle: 'aquawolf', wallet: 'GWALLET' });
+  } finally {
+    capture.restore();
+  }
+
+  const event = capture.lines.find((l) => l.msg === 'pairing.linkCompleted');
+  assert.ok(event, 'expected a pairing.linkCompleted line');
+  assert.equal(event.handle, 'aquawolf');
+  assert.equal(event.wallet, 'GWALLET');
+  assert.equal(event.outcome, 'completed');
+  assert.equal(event.source, 'attestation-worker');
+  assert.equal(event.lvl, 'info', 'the audit trail must survive a production log level');
+});
+
+test('an unlink records why the binding went away', async () => {
+  const { store } = recordingStore();
+  const capture = captureLogLines();
+  try {
+    await applyAttestation(store, { kind: 'revoked', handle: 'aquawolf', wallet: 'GWALLET' });
+  } finally {
+    capture.restore();
+  }
+
+  const event = capture.lines.find((l) => l.msg === 'pairing.unlinked');
+  assert.ok(event, 'expected a pairing.unlinked line');
+  assert.equal(event.handle, 'aquawolf');
+  assert.equal(event.wallet, 'GWALLET');
+  assert.equal(event.reason, 'revoked');
+});
+
+test('reconcile records the bindings it drops, and why', async () => {
+  const { store } = recordingStore([
+    { handle: 'moved', wallets: [{ pubkey: 'GOLDOWNER', source: 'onchain' }] },
+    { handle: 'gone', wallets: [{ pubkey: 'GRELEASED', source: 'onchain' }] },
+  ]);
+  const reader: RegistryReader = {
+    resolveMany: async () => ['GNEWOWNER', null],
+    count: async () => 1,
+  };
+
+  const capture = captureLogLines();
+  try {
+    await reconcileAgainstChain(store, reader);
+  } finally {
+    capture.restore();
+  }
+
+  const unlinked = capture.lines.filter((l) => l.msg === 'pairing.unlinked');
+  const reasons = new Map(unlinked.map((l) => [l.wallet, l.reason]));
+
+  assert.equal(reasons.get('GOLDOWNER'), 'transferred');
+  assert.equal(reasons.get('GRELEASED'), 'no-longer-bound');
+  for (const line of unlinked) {
+    assert.equal(line.source, 'reconcile', 'a rebuild pass must be distinguishable from the event stream');
+  }
+});
+
+test('the audit trail never carries key material', async () => {
+  const { store } = recordingStore();
+  const capture = captureLogLines();
+  try {
+    await applyAttestation(store, { kind: 'claimed', handle: 'aquawolf', wallet: 'GWALLET' });
+    await applyAttestation(store, { kind: 'released', handle: 'aquawolf', wallet: 'GWALLET' });
+  } finally {
+    capture.restore();
+  }
+
+  const pairingLines = capture.lines.filter((l) => String(l.msg).startsWith('pairing.'));
+  assert.ok(pairingLines.length >= 2);
+  for (const line of pairingLines) {
+    const serialized = JSON.stringify(line);
+    assert.doesNotMatch(serialized, /\bS[A-Z2-7]{55}\b/, 'a secret seed reached the log');
+    assert.doesNotMatch(serialized, /secret|seed|signature|passphrase/i);
+  }
+});

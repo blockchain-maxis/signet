@@ -211,12 +211,40 @@ wedged or dead. That line is the single best thing to alert on.
 | `attestation.done` | debug | Event window processed; `throughLedger` is the new cursor. | Confirms the cursor is advancing. |
 | `attestation.applied` | debug | One binding applied. | — |
 | `attestation.fetchFailed` | **error** | RPC call failed; cursor left in place, window retried next tick. | Isolated → ignore. Repeating → §6. |
+| `pairing.linkStarted` | info | A registry event named a handle↔wallet pairing and is about to be applied. | The head of the audit trail for one binding. |
+| `pairing.linkCompleted` | info | The binding was written. Carries `handle` and the public `wallet`. | Retain these — this is how an account becomes attributed to a person. |
+| `pairing.unlinked` | info | A binding was dropped. `reason` is `released`, `revoked`, `transferred` or `no-longer-bound`. | Expected after a release; unexpected ones are worth investigating with the `wallet` field. |
+| `pairing.linkRejected` | **warn** | A registry event could not be decoded, so no pairing was applied. `reason: undecodable-event`. | Repeating → the contract emits a shape this build does not know; check the registry version. |
 | `deployments.txFetchFailed` | **warn** | One transaction couldn't be fetched; that contract is skipped this tick. | Self-heals; a permanent one means the tx is outside Horizon's retention. |
 | `deployments.scanFailed` / `operations.scanFailed` | **error** | Horizon scan failed for one wallet. Other wallets still run. | §6 — usually a missing account or a 429. |
 | `activity.queryFailed` | **warn** | No transactions readable for a contract; a snapshot with **zero counts is still written**. | Watch for zeroed snapshots on a contract you know is active. |
 | `tick.error` | **error** | An exception escaped a worker; this tick is abandoned, the loop continues. | Read the `error` field; persistent → restart. |
 | `indexer.shutdown` / `indexer.stopping` | info | Signal received / loop exited. | — |
 | `[indexer] fatal: …` | plain stderr | Startup failure. **The process exits 1.** | §6. |
+
+
+### The pairing audit trail
+
+Linking is the operation most worth an audit trail: it is how an account
+becomes attributed to a person, so a disputed or hijacked binding has to be
+investigable after the fact. Every stage emits one line at `info` — not
+`debug`, which production commonly switches off:
+
+```json
+{"lvl":"info","msg":"pairing.linkCompleted","outcome":"completed","source":"attestation-worker","handle":"aquawolf","wallet":"GASA…EMCD"}
+```
+
+`source` distinguishes the event stream (`attestation-worker`) from a
+rebuild-from-contract pass (`reconcile`). The fields are built by
+`pairingEvent` in `@signet/types`, which **refuses** to emit a line containing
+key material — a field named like a secret, or any value shaped like a Stellar
+secret seed, throws rather than being logged. The trail records what is already
+public: the handle, the wallet's public address, and the outcome.
+
+The web tier reports whether pairing is operational at all: `GET /api/health`
+carries `checks.pairing`, which is `down` when either the registry or Postgres
+is — a binding is proved on-chain and served from the database, so it needs
+both.
 
 ---
 
