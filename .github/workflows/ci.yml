@@ -56,6 +56,12 @@ jobs:
       - name: Lint
         run: pnpm lint
 
+      # Advisory for now (does not fail the build) — the repo has pre-existing
+      # formatting drift from before this check existed. Flip to blocking once
+      # a follow-up reformat lands.
+      - name: Format check
+        run: pnpm format:check || true
+
       - name: Typecheck
         run: pnpm typecheck
 

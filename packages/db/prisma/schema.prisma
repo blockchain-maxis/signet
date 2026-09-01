@@ -16,8 +16,6 @@ model Profile {
   updatedAt   DateTime @updatedAt
 
   wallets     Wallet[]
-
-  @@index([handle])
 }
 
 model Wallet {
@@ -38,7 +36,6 @@ model Wallet {
   operations Operation[]
 
   @@index([profileId])
-  @@index([pubkey])
 }
 
 // Soroban operations (invocations) attributed to a wallet, populated by the
