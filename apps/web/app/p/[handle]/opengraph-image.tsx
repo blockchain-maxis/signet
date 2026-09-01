@@ -1,5 +1,5 @@
 import { ImageResponse } from 'next/og';
-import { getProfile, getOperations, computeStats } from '@/lib/profiles';
+import { getProfile, getOperationsResult, computeStats, formatCount } from '@/lib/profiles';
 
 export const runtime = 'nodejs';
 export const size = { width: 1200, height: 630 };
@@ -10,7 +10,11 @@ export const contentType = 'image/png';
 export default async function OgImage({ params }: { params: Promise<{ handle: string }> }) {
   const { handle } = await params;
   const profile = await getProfile(handle);
-  const stats = profile ? computeStats(await getOperations(handle)) : null;
+  const result = profile ? await getOperationsResult(handle) : null;
+  const stats = result ? computeStats(result.operations) : null;
+  // A capped record renders as "412+" rather than "412": the card is the most
+  // widely reshared surface, so it must not state a lower bound as a total.
+  const truncated = result?.truncated ?? false;
   const name = profile?.name ?? handle;
 
   return new ImageResponse(
@@ -44,11 +48,15 @@ export default async function OgImage({ params }: { params: Promise<{ handle: st
             <span style={{ color: '#5e5b51' }}>REPUTATION</span>
           </div>
           <div style={{ display: 'flex', flexDirection: 'column' }}>
-            <span style={{ fontSize: 56, color: '#f5f4ee' }}>{stats?.invocations ?? 0}</span>
+            <span style={{ fontSize: 56, color: '#f5f4ee' }}>
+              {formatCount(stats?.invocations ?? 0, truncated)}
+            </span>
             <span style={{ color: '#5e5b51' }}>INVOCATIONS</span>
           </div>
           <div style={{ display: 'flex', flexDirection: 'column' }}>
-            <span style={{ fontSize: 56, color: '#f5f4ee' }}>{stats?.uniqueFunctions ?? 0}</span>
+            <span style={{ fontSize: 56, color: '#f5f4ee' }}>
+              {formatCount(stats?.uniqueFunctions ?? 0, truncated)}
+            </span>
             <span style={{ color: '#5e5b51' }}>FUNCTIONS</span>
           </div>
         </div>

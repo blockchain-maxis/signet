@@ -41,9 +41,14 @@ A well-formed handle: 1–32 chars of `[a-z0-9_-]`. Validated by `handleInput()`
   profile: Profile;
   stats: ProfileStats;
   operations: Operation[];
+  truncated: boolean;
+  cap: number | null;
+  source: 'database' | 'horizon' | 'demo' | 'none';
 } | null
 ```
 Profile fields: `name`, `wallet`, `bio`, `joined`. Stats: `invocations`, `uniqueFunctions`, `reputation` (0–100).
+
+The operations window is bounded by the layer that answered (`source`). When `truncated` is true the record is partial: `cap` is the limit that cut it short, `operations` holds only the most recent ones, and every count in `stats` is a lower bound rather than a total. Clients must not present a truncated record as a complete one.
 
 ---
 
