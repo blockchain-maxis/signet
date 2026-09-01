@@ -192,7 +192,12 @@ function docForOutput(path: string): string {
       '```ts\n{ handle: string; wallet: string } | null\n```\n' +
       '`null` when the on-chain directory is unreachable or the wallet holds no handle.',
     'registry.count':
-      '```ts\n{ count: number }\n```\nNumber of claimed handles; `0` when the directory is unreachable.',
+      '```ts\n{ count: number | null }\n```\n' +
+      "The registry's own binding counter — an upper bound, not a live total (a\n" +
+      'binding that archives unaccessed is never subtracted). `null` means the\n' +
+      'registry could not be read, which is not the same as zero; the TypeScript\n' +
+      "SDK's `countRegistryEntries()` coerces a failed query to `{ count: 0 }`,\n" +
+      'so prefer this endpoint where the distinction matters.',
   };
   return map[path];
 }

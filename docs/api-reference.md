@@ -131,7 +131,6 @@ None
 ```ts
 { count: number | null }
 ```
-
 The registry's own binding counter — an upper bound, not a live total (a
 binding that archives unaccessed is never subtracted). `null` means the
 registry could not be read, which is not the same as zero; the TypeScript
