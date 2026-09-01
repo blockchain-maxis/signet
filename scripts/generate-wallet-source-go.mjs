@@ -30,8 +30,12 @@ export function parseWalletSources(source, file) {
 }
 
 export function renderGo(values) {
+  // gofmt aligns the columns of a const block, so pad the identifiers here —
+  // otherwise `gofmt -l` flags this file the moment the Go CLI's lint job runs
+  // over it, and the fix would have to be hand-edited into generated output.
+  const width = Math.max(...values.map((v) => goIdent(v).length));
   const constLines = values
-    .map((v) => `\t${goIdent(v)} WalletSource = "${v}"`)
+    .map((v) => `\t${goIdent(v).padEnd(width)} WalletSource = "${v}"`)
     .join('\n');
   const sliceLines = values.map((v) => `\t${goIdent(v)},`).join('\n');
 

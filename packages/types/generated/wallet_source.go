@@ -11,7 +11,7 @@ type WalletSource string
 const (
 	WalletSourceCurated WalletSource = "curated"
 	WalletSourceOnchain WalletSource = "onchain"
-	WalletSourceCli WalletSource = "cli"
+	WalletSourceCli     WalletSource = "cli"
 )
 
 // WalletSources lists every allowed WalletSource value.
