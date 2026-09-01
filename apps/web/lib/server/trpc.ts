@@ -1,5 +1,11 @@
 import { initTRPC, TRPCError } from '@trpc/server';
-import { getProfile, getOperations, listHandles, isValidHandle, computeStats } from '../profiles.ts';
+import {
+  getProfile,
+  getOperationsResult,
+  listHandles,
+  isValidHandle,
+  computeStats,
+} from '../profiles.ts';
 import { logger } from '../logger.ts';
 import { rateLimit } from '../rate-limit.ts';
 import { verifySession, SESSION_COOKIE } from '../auth.ts';
@@ -116,12 +122,18 @@ const profileRouter = router({
   byHandle: publicProcedure.input(handleInput).query(async ({ input }) => {
     const profile = await getProfile(input.handle);
     if (!profile) return null;
-    const operations = await getOperations(input.handle);
+    const { operations, truncated, cap, source } = await getOperationsResult(input.handle);
     return {
       handle: input.handle,
       profile,
       stats: computeStats(operations),
       operations,
+      // The operations window is bounded, so consumers get the completeness of
+      // the read alongside it: `truncated` means `operations` and every count
+      // derived from it are lower bounds, not totals.
+      truncated,
+      cap,
+      source,
     };
   }),
 });

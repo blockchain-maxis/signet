@@ -33,6 +33,12 @@ assertNetworkUrls(STELLAR_NETWORK, [{ label: 'HORIZON_URL', url: HORIZON_URL }])
 
 /** Maximum operations to retrieve per wallet (2 pages × 200). */
 const MAX_RECORDS = 400;
+/**
+ * The cap, exported so callers can name the exact number in the UI. A record
+ * that stops at this many operations is partial, and every surface that shows
+ * it has to say so — see `HorizonOperationsResult.truncated`.
+ */
+export const HORIZON_MAX_RECORDS = MAX_RECORDS;
 /** Records per Horizon page (max allowed by Horizon is 200). */
 const PAGE_LIMIT = 200;
 /** Cache TTL in seconds — 5 minutes balances freshness vs. Horizon rate limits. */
@@ -91,15 +97,36 @@ function mapRecord(record: HorizonOperationRecord): Operation {
 }
 
 /**
+ * The outcome of a Horizon fetch: the operations, plus whether the walk was
+ * cut short by `MAX_RECORDS`.
+ *
+ * `truncated` is the honest half of the result. Horizon paging is capped as a
+ * politeness measure, so an account busier than the cap yields a partial
+ * history — and a partial history presented as a complete one is a lie about
+ * the developer's record. Callers must carry this flag through to whatever
+ * they render.
+ */
+export interface HorizonOperationsResult {
+  /** The `invoke_host_function` operations retrieved, newest first. */
+  operations: Operation[];
+  /** True when the cap stopped the walk while Horizon still had more records. */
+  truncated: boolean;
+  /** Raw-operation cap that produced the truncation. */
+  cap: number;
+}
+
+/**
  * Fetch `invoke_host_function` operations for a Stellar account from Horizon.
  *
- * Returns an array of operations on success, or null on any failure (network
- * error, non-200 status, malformed JSON, invalid account). The caller is
- * expected to degrade gracefully when null is returned.
+ * Returns a `HorizonOperationsResult` on success, or null on any failure
+ * (network error, non-200 status, malformed JSON, invalid account). The caller
+ * is expected to degrade gracefully when null is returned.
  *
  * @param wallet - The Stellar account ID (G…) to query.
  */
-export async function fetchHorizonOperations(wallet: string): Promise<Operation[] | null> {
+export async function fetchHorizonOperations(
+  wallet: string,
+): Promise<HorizonOperationsResult | null> {
   // Basic sanity-check: Stellar account IDs start with G and are 56 chars.
   if (!wallet || !/^G[A-Z0-9]{55}$/.test(wallet)) return null;
 
@@ -110,6 +137,7 @@ export async function fetchHorizonOperations(wallet: string): Promise<Operation[
     const allRecords: HorizonOperationRecord[] = [];
     let nextUrl: string | null = firstPageUrl;
     let pages = 0;
+    let truncated = false;
     const maxPages = Math.ceil(MAX_RECORDS / PAGE_LIMIT);
 
     while (nextUrl && pages < maxPages) {
@@ -135,21 +163,24 @@ export async function fetchHorizonOperations(wallet: string): Promise<Operation[
       const records = page._embedded?.records ?? [];
       allRecords.push(...records);
 
-      // Advance to the next page only if this one was full (implies more data).
+      // A short page means Horizon has nothing left — the record is complete.
       if (records.length < PAGE_LIMIT) break;
       nextUrl = page._links?.next?.href ?? null;
       pages++;
+      // The page was full and Horizon offered another one, but we have spent
+      // our page budget: there is more history than we are returning.
+      if (nextUrl && pages >= maxPages) truncated = true;
     }
 
     // Filter to only Soroban smart-contract invocations.
     const invocations = allRecords.filter((r) => r.type === 'invoke_host_function');
 
     logger.info(
-      { wallet, total: allRecords.length, invocations: invocations.length },
+      { wallet, total: allRecords.length, invocations: invocations.length, truncated },
       'horizon: fetched operations',
     );
 
-    return invocations.map(mapRecord);
+    return { operations: invocations.map(mapRecord), truncated, cap: MAX_RECORDS };
   } catch (err) {
     logger.error(
       { wallet, err: String(err) },

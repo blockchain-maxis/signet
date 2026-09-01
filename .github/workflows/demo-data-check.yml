@@ -1,10 +1,16 @@
 name: Demo Data Check
 
-# Non-blocking guard: verifies each demo wallet in the profile fixtures still
-# resolves on Horizon, so a dead demo persona surfaces visibly instead of
-# silently breaking its profile page. It runs on a schedule and on demand, and
-# on pushes to main that touch the demo data — deliberately NOT on pull_request,
-# so it can never block a merge.
+# Non-blocking guard over the demo personas in `DEMO_PROFILES`. It runs on a
+# schedule and on demand, and on pushes to main that touch the demo data —
+# deliberately NOT on pull_request, so it can never block a merge.
+#
+# What makes it fail is scoped so that a red run means something CHANGED:
+# a malformed or duplicated persona address, or an activity fixture whose
+# `source_account` no longer matches its persona. Horizon resolution is
+# reported but advisory, because the demo accounts have never been funded on
+# testnet — a known gap tracked by issue #56. Once #56 lands and the personas
+# are backed by real accounts, set the repository variable
+# DEMO_WALLETS_REQUIRE_HORIZON to `1` and a 404 fails this workflow again.
 
 on:
   schedule:
@@ -20,7 +26,7 @@ on:
 
 jobs:
   demo-wallets:
-    name: Demo wallets resolve on Horizon
+    name: Demo data is consistent
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
@@ -29,9 +35,12 @@ jobs:
         with:
           node-version: 22
 
-      - name: Check demo wallets resolve on Horizon
+      - name: Check demo personas
         run: node --experimental-strip-types scripts/check-demo-wallets.mjs
         env:
           # Demo data is synthetic Stellar testnet; override with a repo variable
           # if the demo personas are ever backed on another network.
           HORIZON_URL: ${{ vars.DEMO_HORIZON_URL || 'https://horizon-testnet.stellar.org' }}
+          # Flip this repo variable to `1` once the personas are real accounts
+          # (issue #56), so a wallet that stops resolving fails the run again.
+          DEMO_WALLETS_REQUIRE_HORIZON: ${{ vars.DEMO_WALLETS_REQUIRE_HORIZON }}

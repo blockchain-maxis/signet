@@ -161,8 +161,16 @@ function docForOutput(path: string): string {
       '  profile: Profile;\n' +
       '  stats: ProfileStats;\n' +
       '  operations: Operation[];\n' +
+      '  truncated: boolean;\n' +
+      '  cap: number | null;\n' +
+      "  source: 'database' | 'horizon' | 'demo' | 'none';\n" +
       '} | null\n```\n' +
-      'Profile fields: `name`, `wallet`, `bio`, `joined`. Stats: `invocations`, `uniqueFunctions`, `reputation` (0–100).',
+      'Profile fields: `name`, `wallet`, `bio`, `joined`. Stats: `invocations`, `uniqueFunctions`, `reputation` (0–100).\n\n' +
+      'The operations window is bounded by the layer that answered (`source`). ' +
+      'When `truncated` is true the record is partial: `cap` is the limit that ' +
+      'cut it short, `operations` holds only the most recent ones, and every ' +
+      'count in `stats` is a lower bound rather than a total. Clients must not ' +
+      'present a truncated record as a complete one.',
     'account.me':
       '```ts\n{\n' +
       '  address: string;\n' +
@@ -184,7 +192,12 @@ function docForOutput(path: string): string {
       '```ts\n{ handle: string; wallet: string } | null\n```\n' +
       '`null` when the on-chain directory is unreachable or the wallet holds no handle.',
     'registry.count':
-      '```ts\n{ count: number }\n```\nNumber of claimed handles; `0` when the directory is unreachable.',
+      '```ts\n{ count: number | null }\n```\n' +
+      "The registry's own binding counter — an upper bound, not a live total (a\n" +
+      'binding that archives unaccessed is never subtracted). `null` means the\n' +
+      'registry could not be read, which is not the same as zero; the TypeScript\n' +
+      "SDK's `countRegistryEntries()` coerces a failed query to `{ count: 0 }`,\n" +
+      'so prefer this endpoint where the distinction matters.',
   };
   return map[path];
 }

@@ -15,6 +15,8 @@
  * can't answer: no `DATABASE_URL`, or a claim the indexer hasn't synced yet.
  */
 
+import { isWalletSource, type WalletSource } from '@signet/types';
+import { logger } from '../logger.ts';
 import { lookupWallet, type RegistryReadOptions } from './registry-read.ts';
 
 export interface Account {
@@ -40,13 +42,22 @@ export interface AccountUpdate {
 export interface LinkedWallet {
   pubkey: string;
   isPrimary: boolean;
-  /** 'onchain' once attested via the Identity Registry, else 'curated'. */
-  source: string;
+  /** 'onchain' once attested via the Identity Registry, else 'curated' or 'cli'. */
+  source: WalletSource;
   attestedAt: string;
 }
 
 const MAX_DISPLAY_NAME = 80;
 const MAX_BIO = 280;
+
+/** Fallback used when a stored `source` value isn't one of the allowed ones. */
+const FALLBACK_WALLET_SOURCE: WalletSource = 'curated';
+
+function toWalletSource(value: string, pubkey: string): WalletSource {
+  if (isWalletSource(value)) return value;
+  logger.warn({ pubkey, source: value }, 'account.unknownWalletSource');
+  return FALLBACK_WALLET_SOURCE;
+}
 
 async function getPrisma() {
   if (!process.env.DATABASE_URL) return null;
@@ -112,7 +123,10 @@ export async function getAccountWallets(address: string): Promise<LinkedWallet[]
   return wallets.map((w) => ({
     pubkey: w.pubkey,
     isPrimary: w.isPrimary,
-    source: w.source,
+    // The database column is an untyped String; validate on read rather than
+    // trust it, so a row written outside this codebase can't smuggle an
+    // unknown provenance value into the UI.
+    source: toWalletSource(w.source, w.pubkey),
     attestedAt: w.attestedAt.toISOString().slice(0, 10),
   }));
 }
