@@ -110,6 +110,16 @@ Each `getEvents` call takes at most **200 events**. A window with more than 200 
 it yields the first 200; the cursor then jumps to `latestLedger`, so **the remainder of
 that window is skipped**. This only bites on a busy backfill, not in steady state.
 
+### Why the web app cares
+
+The public directory at `/handles` reads the bindings this worker writes whenever the web
+app has a `DATABASE_URL`, and falls back to its own cursor-less `getEvents` scan only when
+it does not. That fallback carries the same ~11h horizon described above, with none of the
+accumulation: it re-derives the whole list on every request, so handles claimed before the
+window disappear from the page permanently while the contract's `count()` keeps counting
+them. Provisioning this indexer is what makes the directory durable — see
+[`apps/web/lib/directory.ts`](../apps/web/lib/directory.ts).
+
 ---
 
 ## 3. Configuration
