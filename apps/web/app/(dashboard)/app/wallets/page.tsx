@@ -1,3 +1,4 @@
+import type { WalletSource } from '@signet/types';
 import { currentAddress } from '@/lib/server/session';
 import { getAccountWallets } from '@/lib/server/account';
 import { isRegistryConfigured, lookupWallet } from '@/lib/server/registry-read';
@@ -6,6 +7,13 @@ import { stellarExpertAccountUrl } from '@/lib/network';
 function truncate(a: string): string {
   return a.length > 18 ? `${a.slice(0, 8)}…${a.slice(-6)}` : a;
 }
+
+/** Badge styling for each wallet provenance, keyed by the shared WalletSource type. */
+const SOURCE_BADGE: Record<WalletSource, { label: string; className: string }> = {
+  onchain: { label: '● on-chain', className: 'text-emerald-500' },
+  curated: { label: '○ curated', className: 'text-[#5e5b51]' },
+  cli: { label: '○ cli', className: 'text-[#5e5b51]' },
+};
 
 const mono = { fontFamily: 'var(--font-mono)' } as const;
 const display = { fontFamily: 'var(--font-display)' } as const;
@@ -61,12 +69,10 @@ export default async function WalletsPage() {
                   </span>
                 )}
                 <span
-                  className={`text-[9px] uppercase tracking-[0.18em] ${
-                    w.source === 'onchain' ? 'text-emerald-500' : 'text-[#5e5b51]'
-                  }`}
+                  className={`text-[9px] uppercase tracking-[0.18em] ${SOURCE_BADGE[w.source].className}`}
                   style={mono}
                 >
-                  {w.source === 'onchain' ? '● on-chain' : '○ curated'}
+                  {SOURCE_BADGE[w.source].label}
                 </span>
               </div>
               <a
