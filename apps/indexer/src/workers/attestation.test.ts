@@ -407,8 +407,34 @@ test('an unservable cursor window reconciles from contract state instead of read
     !calls.some((c: any[]) => c[0] === 'wallet.deleteMany' && c[1].where.pubkey === 'GCURATED'),
     'curated wallets must never be reconciled away',
   );
-  // …and the cursor resumed from the tip.
-  assert.equal(cursor.saved?.lastLedger, 20_000);
+  // …and the cursor resumed from the near edge of the servable window, so
+  // the next tick replays the still-readable tail for unknown handles.
+  assert.equal(cursor.saved?.lastLedger, 12_000);
+});
+
+test('reconcile never deletes a wallet another handle re-claimed during the sweep', async () => {
+  // Snapshot says W belongs to a-old; the chain says W now owns b-new.
+  // Processing b-new first upserts W; processing a-old later sees W in its
+  // stale wallet list and must NOT delete the row that upsert re-pointed.
+  const w = Keypair.random().publicKey();
+  const { store, calls } = recordingStore([
+    { handle: 'b-new', wallets: [] },
+    { handle: 'a-old', wallets: [{ pubkey: w, source: 'onchain' }] },
+  ]);
+  const { reader } = fakeReader({ 'b-new': w, 'a-old': null });
+
+  const stats = await reconcileAgainstChain(store, reader);
+
+  assert.equal(stats.bound, 1);
+  assert.ok(
+    calls.some((c: any[]) => c[0] === 'wallet.upsert' && c[1].where.pubkey === w),
+    'expected b-new to claim the wallet',
+  );
+  assert.ok(
+    !calls.some((c: any[]) => c[0] === 'wallet.deleteMany' && c[1].where.pubkey === w),
+    'a stale snapshot link must not delete a wallet the sweep re-bound',
+  );
+  assert.equal(stats.removed, 0);
 });
 
 test('reconcile heals a transfer and drops released on-chain bindings', async () => {

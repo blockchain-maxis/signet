@@ -134,8 +134,17 @@ and skipped without advancing the relevant cursor, so the next tick retries.
   Identity Registry over Soroban RPC), then the curated manifest in
   `apps/web/public/data/`. The chain layer is what lets a handle claimed
   on-chain render before — or entirely without — an indexer sync.
-  `getOperations` is database-then-static (`safeDbOperations`), since activity
-  has no single-call on-chain equivalent.
+  `getOperations` is database-then-Horizon-then-static (`safeDbOperations`,
+  `fetchHorizonOperations`), since activity has no single-call on-chain
+  equivalent.
+- Neither operations layer reads a developer's whole history: the indexer query
+  takes the newest `DB_OPERATIONS_PER_WALLET` rows per wallet and the Horizon
+  walk stops at `HORIZON_MAX_RECORDS`. `getOperationsResult` therefore returns
+  `{ operations, source, truncated, cap }`, and the flag is carried through the
+  profile page, the social card, the dashboard, `GET /api/p/{handle}/operations`
+  (`meta.truncated`, `meta.cap`) and `profile.byHandle`. A truncated record is
+  labelled as partial and its counts render as lower bounds (`412+`), so no
+  surface presents a capped list as a complete career record.
 - Every layer returns `null` rather than throwing when it isn't provisioned —
   no `DATABASE_URL`, no registry contract id, unreachable RPC — so the demo
   routes work with zero provisioning (preview, prod, offline) and automatically
@@ -169,7 +178,7 @@ and skipped without advancing the relevant cursor, so the next tick retries.
 | `packages/contracts/identity-registry` | Soroban `claim`/`release`/`admin_revoke` registry; emits the event stream. Immutable — a defect is recovered by migrating to a new contract, per [`docs/CONTRACT_MIGRATION.md`](docs/CONTRACT_MIGRATION.md) | Stellar network |
 | `packages/db` | Prisma schema + client (`Profile`, `Wallet`, `Contract`, `Operation`, `ContractSnapshot`, `IndexerCursor`) | PostgreSQL |
 | `packages/sdk` | External SDK over the tRPC API | consumer apps |
-| `packages/types` / `packages/ui` | Shared TypeScript types / React components | — |
+| `packages/types` | Shared TypeScript types | — |
 | `infra` | Local Postgres (`docker/docker-compose.yml`) + `deploy-contract.sh` | dev / ops |
 
 ---
@@ -232,7 +241,7 @@ variable there is listed below so docs and the example file stay in lockstep
 | `INDEXER_EVENT_WINDOW_LEDGERS` | indexer attestation | First-run event lookback |
 | `INDEXER_TICK_INTERVAL_MS` | indexer loop | Default `30000` |
 | `REGISTRY_CONTRACT_ID` | web `/handles` | Falls back to `NEXT_PUBLIC_IDENTITY_REGISTRY_ID` |
-| `REGISTRY_EVENT_WINDOW_LEDGERS` | web `/handles` | Per-request event lookback |
+| `REGISTRY_EVENT_WINDOW_LEDGERS` | web `/handles` | Per-request event lookback, used only when no `DATABASE_URL` is configured |
 
 ---
 
