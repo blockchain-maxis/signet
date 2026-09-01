@@ -46,7 +46,10 @@ test('decodeEvent decodes a revoked event', () => {
 test('decodeEvent decodes a transferred event', () => {
   const oldOwner = Keypair.random().publicKey();
   const newOwner = Keypair.random().publicKey();
-  const value = xdr.ScVal.scvVec([new Address(oldOwner).toScVal(), new Address(newOwner).toScVal()]);
+  const value = xdr.ScVal.scvVec([
+    new Address(oldOwner).toScVal(),
+    new Address(newOwner).toScVal(),
+  ]);
 
   assert.deepEqual(decodeEvent(topics('transferred', 'aquawolf'), value), {
     kind: 'transferred',
@@ -120,12 +123,16 @@ test('applyAttestation moves the binding on transfer', async () => {
     from: 'GOLD',
   });
 
-  assert.equal(calls.length, 2);
-  assert.equal(calls[0][0], 'wallet.deleteMany');
-  assert.equal(calls[0][1].where.pubkey, 'GOLD');
-  assert.equal(calls[1][0], 'wallet.upsert');
-  assert.equal(calls[1][1].where.pubkey, 'GNEW');
-  assert.equal(calls[1][1].create.profileId, 'p1');
+  // The handle's profile is upserted first, so a transfer still lands when the
+  // indexer never saw the claim that created it.
+  assert.equal(calls.length, 3);
+  assert.equal(calls[0][0], 'profile.upsert');
+  assert.equal(calls[0][1].where.handle, 'aquawolf');
+  assert.equal(calls[1][0], 'wallet.deleteMany');
+  assert.equal(calls[1][1].where.pubkey, 'GOLD');
+  assert.equal(calls[2][0], 'wallet.upsert');
+  assert.equal(calls[2][1].where.pubkey, 'GNEW');
+  assert.equal(calls[2][1].create.profileId, 'p1');
 });
 
 test('claim then transfer sequence leaves the new wallet as the final owner', async () => {
@@ -140,7 +147,10 @@ test('claim then transfer sequence leaves the new wallet as the final owner', as
   });
 
   const upserts = calls.filter((c: any[]) => c[0] === 'wallet.upsert');
-  assert.deepEqual(upserts.map((c) => c[1].where.pubkey), ['GOLD', 'GNEW']);
+  assert.deepEqual(
+    upserts.map((c) => c[1].where.pubkey),
+    ['GOLD', 'GNEW'],
+  );
   assert.ok(calls.some((c: any[]) => c[0] === 'wallet.deleteMany' && c[1].where.pubkey === 'GOLD'));
 });
 
@@ -388,7 +398,6 @@ test('runAttestationWorker does not move cursor on fetch error', async () => {
   // Stored cursor should still be 100.
   assert.equal(cursor.saved?.lastLedger, 100);
 });
-
 
 // ─── Reconcile tests (issue #189) ───────────────────────────────────────────
 

@@ -1,5 +1,10 @@
 import { rpc, scValToNative, xdr } from '@stellar/stellar-sdk';
-import { ALLOW_HTTP, REGISTRY_CONTRACT_ID, SOROBAN_RPC_URL, isRegistryConfigured } from './chain.ts';
+import {
+  ALLOW_HTTP,
+  REGISTRY_CONTRACT_ID,
+  SOROBAN_RPC_URL,
+  isRegistryConfigured,
+} from './chain.ts';
 import { isValidHandle, listHandles as listCuratedHandles } from './profiles.ts';
 import { boundCount, resolveHandle, type RegistryReadOptions } from './server/registry-read.ts';
 
@@ -49,7 +54,12 @@ import { boundCount, resolveHandle, type RegistryReadOptions } from './server/re
 
 export type DirectoryEntry = { handle: string; wallet: string };
 
-type RawEvent = { kind: 'claimed' | 'released' | 'transferred'; handle: string; wallet: string; from?: string };
+type RawEvent = {
+  kind: 'claimed' | 'released' | 'transferred';
+  handle: string;
+  wallet: string;
+  from?: string;
+};
 
 /**
  * How far back to scan on every request (no cursor persisted between requests).
