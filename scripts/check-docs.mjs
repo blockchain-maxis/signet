@@ -135,6 +135,8 @@ const ENV_ALLOW = new Set([
   'GITHUB_ACTIONS',
   'DEPLOY_ENABLED', // GitHub repo variable, not app env
   'BUDGET_BYTES', // CI workflow env
+  'DEMO_HORIZON_URL', // GitHub repo variable, not app env
+  'DEMO_WALLETS_REQUIRE_HORIZON', // GitHub repo variable, not app env
   'NETWORK', // shell override for deploy-contract.sh
   'STELLAR_ACCOUNT', // shell override for deploy-contract.sh
   'ADMIN_ADDRESS', // shell override for deploy-contract.sh
@@ -155,6 +157,8 @@ const NOT_ENV_IDENTIFIERS = new Set([
   'MAX_HANDLE_LEN', // identity-registry contract constant
   'LINK_PAIR_TTL_MS', // packages/types — terminal-linking TTL
   'LINK_POLL_INTERVAL_MS', // packages/types — terminal-linking poll interval
+  'DB_OPERATIONS_PER_WALLET', // apps/web/lib/profiles.ts — bounded read, not config
+  'HORIZON_MAX_RECORDS', // apps/web/lib/server/horizon.ts — bounded read, not config
 ]);
 
 /** Backticked SCREAMING_SNAKE with an underscore — typical env var citation. */

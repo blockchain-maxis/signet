@@ -171,7 +171,6 @@ set from the event stream.
 | `packages/sdk` | External SDK for integrators |
 | `packages/cli` | `signet` terminal CLI (link a machine via browser approval) |
 | `packages/types` | Shared TypeScript types |
-| `packages/ui` | Shared React components |
 | `infra` | Local dev infra (Docker Postgres) |
 
 ## Scripts
@@ -193,6 +192,7 @@ set from the event stream.
 | Suite | Count |
 |-------|-------|
 | `pnpm test` | **324** — `@signet/web` 213 · `@signet/indexer` 47 · `@signet/cli` 27 · `@signet/sdk` 28 · `@signet/types` 9 (`ui`, `db` have no tests yet) |
+| `pnpm test` | **208** — `@signet/web` 137 · `@signet/indexer` 36 · `@signet/sdk` 26 · `@signet/types` 9 (`db` has no tests yet) |
 | `cargo test` | **30** — `packages/contracts/identity-registry` |
 
 Both are CI gates ([`ci.yml`](.github/workflows/ci.yml)), alongside `lint`,
@@ -204,3 +204,5 @@ Signet is licensed under the Apache License 2.0 — see [`LICENSE`](LICENSE) for
 full text. This covers every workspace package (`@signet/sdk`, `@signet/types`,
 `@signet/ui`, `@signet/db`, `@signet/web`, `@signet/indexer`, `@signet/cli`)
 and the Soroban `identity-registry` contract.
+`@signet/db`, `@signet/web`, `@signet/indexer`) and the Soroban
+`identity-registry` contract.

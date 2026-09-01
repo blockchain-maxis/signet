@@ -524,6 +524,10 @@ fn every_read_keeps_the_instance_alive() {
         batch.push_back(String::from_str(env, "aquawolf"));
         c.resolve_batch(&batch);
     });
+    // Even an EMPTY batch is someone using the registry.
+    assert_read_bumps_instance(|env, c, _| {
+        c.resolve_batch(&Vec::new(env));
+    });
 }
 
 #[test]

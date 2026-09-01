@@ -25,9 +25,24 @@ interface OperationsListProps {
    * Stellar Expert, so their hashes render as plain text instead of a link.
    */
   isDemo?: boolean;
+  /**
+   * True when `total` is a cap rather than the developer's whole history. The
+   * end of the list then means "end of what we hold", not "end of the record",
+   * and says so instead of reading as a complete timeline.
+   */
+  truncated?: boolean;
+  /** The cap behind `truncated`, named in the end-of-list notice. */
+  cap?: number | null;
 }
 
-export default function OperationsList({ handle, initialOperations, total, isDemo = false }: OperationsListProps) {
+export default function OperationsList({
+  handle,
+  initialOperations,
+  total,
+  isDemo = false,
+  truncated = false,
+  cap = null,
+}: OperationsListProps) {
   const [operations, setOperations] = useState<Operation[]>(initialOperations);
   const [offset, setOffset] = useState(initialOperations.length);
   const [loading, setLoading] = useState(false);
@@ -171,6 +186,20 @@ export default function OperationsList({ handle, initialOperations, total, isDem
                   </>
                 )}
               </button>
+            </div>
+          )}
+
+          {/* End of what we hold — never the end of the record when capped. */}
+          {truncated && !hasMore && (
+            <div className="border-t border-[#1f1d19] bg-[#0e0d0b] px-5 py-4">
+              <p
+                className="text-[11px] leading-[1.7] text-amber-300/90"
+                style={{ fontFamily: 'var(--font-mono)' }}
+              >
+                End of the {total} operations retrieved
+                {cap ? ` (capped at the ${cap} most recent)` : ''} — this account has older
+                invocations that are not shown here.
+              </p>
             </div>
           )}
         </>
