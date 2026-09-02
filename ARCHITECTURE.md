@@ -166,6 +166,16 @@ and skipped without advancing the relevant cursor, so the next tick retries.
   as the sign-in nonces. Each instance caches the whole list and refreshes it
   every ten seconds, so verifying a session stays a local check rather than a
   per-request store read. See [`SECURITY.md`](SECURITY.md) for the levers.
+- **CLI device pairing** binds a CLI-held deploy account to a browser-owned
+  handle without either side seeing the other's credentials
+  ([`apps/web/lib/server/pairing.ts`](apps/web/lib/server/pairing.ts)):
+  `POST /api/cli/pair/start` mints a `PairingState`; `POST
+  /api/cli/pair/approve` (browser, session-authenticated) records which
+  profile is pairing; `POST /api/cli/pair/complete` (CLI, authenticated by a
+  signed SEP-10 challenge for the deploy account) writes the `Wallet` row.
+  Both proofs are required — neither side's bare assertion is trusted — and
+  the signed challenge is spent via the same nonce store as sign-in, so a
+  pairing cannot be replayed.
 
 ---
 
