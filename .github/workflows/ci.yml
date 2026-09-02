@@ -29,6 +29,13 @@ jobs:
       - name: Check contract error sync
         run: node scripts/check-contract-errors.mjs
 
+      # Fails when the generated Go mirror of WALLET_SOURCES
+      # (packages/types/generated/wallet_source.go) drifts from its TypeScript
+      # source of truth (packages/types/src/wallet-source.ts). No Go toolchain
+      # needed — it just regenerates in memory and diffs.
+      - name: Check wallet source Go sync
+        run: node scripts/check-wallet-source-go.mjs
+
   web:
     name: lint • typecheck • test • build
     runs-on: ubuntu-latest
@@ -48,6 +55,12 @@ jobs:
 
       - name: Lint
         run: pnpm lint
+
+      # Advisory for now (does not fail the build) — the repo has pre-existing
+      # formatting drift from before this check existed. Flip to blocking once
+      # a follow-up reformat lands.
+      - name: Format check
+        run: pnpm format:check || true
 
       - name: Typecheck
         run: pnpm typecheck
@@ -81,9 +94,14 @@ jobs:
       - name: Test
         run: go test ./...
 
-      - uses: golangci/golangci-lint-action@v6
+      # golangci-lint-action v6 drives golangci-lint v1, whose flags differ from
+      # v2's — and cli/.golangci.yml is a v2 config (`version: "2"`, plus the
+      # v2-only `formatters:` block). Action v8 and a pinned v2 release keep the
+      # two in step; `version: latest` would also silently change what runs here
+      # from one week to the next.
+      - uses: golangci/golangci-lint-action@v8
         with:
-          version: latest
+          version: v2.1.6
           working-directory: cli
 
   contracts:

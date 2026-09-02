@@ -3,7 +3,7 @@ import { listDirectory } from '@/lib/directory';
 
 export const metadata = {
   title: 'Handles · Signet',
-  description: 'Every handle currently bound on the Signet Identity Registry.',
+  description: 'Every handle recorded on the Signet Identity Registry.',
 };
 
 const PAGE_SIZE = 24;
@@ -22,7 +22,7 @@ export default async function HandlesPage({
   const requestedPage = Number(pageParam ?? '1');
   const page = Number.isInteger(requestedPage) && requestedPage > 0 ? requestedPage : 1;
 
-  const { entries, boundTotal } = await listDirectory();
+  const { entries, boundTotal, source } = await listDirectory();
 
   // Only handles the contract confirmed just now may be presented as bound.
   // Everything else is a demo persona and is rendered as such, in its own
@@ -47,22 +47,29 @@ export default async function HandlesPage({
       ? 'The Identity Registry is not readable from this deployment yet, so no on-chain bindings can be shown.'
       : `${boundTotal} handle${boundTotal === 1 ? '' : 's'} recorded by the Identity Registry.`;
 
-  // The count comes from the contract's counter; the list is assembled from
-  // the registry's recent event stream, which a public RPC only retains for a
-  // bounded window. So the counter can exceed what is listable for two
-  // reasons the page cannot tell apart — bindings claimed before the event
-  // window, and bindings that lapsed from storage without the counter ever
-  // noticing — and the copy below must not collapse both into "exist
-  // on-chain", nor report "nobody has claimed a handle" over a registry whose
-  // counter says otherwise.
+  // The count comes from the contract's counter; what the list can contain
+  // depends on which source discovered it. Read from the indexer's database,
+  // nothing ages out — a shortfall means the counter drifted upward over a
+  // lapsed binding, or the indexer has not caught up yet. Read from the event
+  // stream alone, a public RPC only serves roughly the last 11 hours, so
+  // everything claimed before that is invisible and the shortfall grows
+  // without limit as the registry ages. The copy must not collapse those into
+  // one sentence, and must not report "nobody has claimed a handle" over a
+  // registry whose counter says otherwise.
   const unlisted = boundTotal === null ? 0 : Math.max(0, boundTotal - bound.length);
+  const windowed = source === 'events';
+  const shortfallReason = windowed
+    ? "claimed before the registry's event window, or lapsed from storage without the counter noticing"
+    : 'not yet synced by the indexer, or lapsed from storage without the counter noticing';
   const emptyState =
     boundTotal === null
       ? { message: 'No registry is configured for this deployment.', invite: false }
       : boundTotal === 0
         ? { message: 'Nobody has bound a handle yet.', invite: true }
         : {
-            message: `The registry's counter records ${boundTotal} handle${boundTotal === 1 ? '' : 's'}, but ${boundTotal === 1 ? 'it was not' : 'none were'} claimed recently enough to appear in the event window. Resolve a handle directly to confirm a live binding.`,
+            message: windowed
+              ? `The registry's counter records ${boundTotal} handle${boundTotal === 1 ? '' : 's'}, but ${boundTotal === 1 ? 'it was not' : 'none were'} claimed recently enough to appear in the event window. Resolve a handle directly to confirm a live binding.`
+              : `The registry's counter records ${boundTotal} handle${boundTotal === 1 ? '' : 's'}, but none of them resolve right now. Resolve a handle directly to confirm a live binding.`,
             invite: false,
           };
 
@@ -155,9 +162,8 @@ export default async function HandlesPage({
             {unlisted > 0 && (
               <p className="mt-4 text-[12px] leading-[1.7] text-[#5e5b51]">
                 The registry&apos;s counter records {unlisted} further binding
-                {unlisted === 1 ? '' : 's'} not verifiable here — claimed before the
-                registry&apos;s event window, or lapsed from storage without the counter
-                noticing. Resolve a handle directly to confirm {unlisted === 1 ? 'it' : 'one'}.
+                {unlisted === 1 ? '' : 's'} not verifiable here — {shortfallReason}. Resolve a
+                handle directly to confirm {unlisted === 1 ? 'it' : 'one'}.
               </p>
             )}
 
