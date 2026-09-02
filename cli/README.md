@@ -25,6 +25,25 @@ produce a distinct, actionable error naming
 `keys.StellarInstallURL` and the required version — never a raw exec error or
 an unrecognized-flag message pointing at the wrong tool.
 
+## Opening a browser
+
+`internal/browser.OpenOrPrint(out, url, noBrowser)` is what a future
+interactive approval flow (`signet link` opening a page for a human to
+confirm) uses to show that page: it attempts the platform opener (`open` on
+macOS, `xdg-open` on Linux, `rundll32 url.dll,FileProtocolHandler` on
+Windows — Go has no stdlib opener, so this is an explicit per-OS call rather
+than a dependency), and falls back to printing the URL to `out` instead —
+never treating the opener's failure as fatal — when `noBrowser` is set, when
+no display is detected (`DISPLAY`/`WAYLAND_DISPLAY` on Linux; macOS/Windows
+are assumed to always have one), or when the platform opener itself fails to
+launch (e.g. it isn't installed). Both paths reach the developer at exactly
+the same URL.
+
+Not yet wired into any command: `link` doesn't perform a real approval flow
+yet (see "Commands" below), so there's nothing to open a browser to. The
+package is built and tested ahead of that landing, same as `internal/keys`
+and `internal/spec`.
+
 ## Commands
 
 ### `signet link <handle>`
@@ -162,3 +181,4 @@ GOOS=linux  GOARCH=amd64 go build -o bin/signet-linux-amd64  ./cmd/signet
 | `internal/keys` | Resolves a named local identity to its public key, and checks the local `stellar` CLI is present and new enough, by shelling out to it; signing itself is not yet implemented |
 | `internal/spec` | Typed request/response models for a Signet deployment's HTTP API (scaffolded, not yet implemented) |
 | `internal/exitcode` | The exit-code taxonomy (see "Exit codes" above) — its own leaf package so both `internal/cmd` and packages like `internal/keys` can depend on it without a cycle |
+| `internal/browser` | Opens a URL in the default browser for an approval flow, falling back to printing it — not yet wired into any command |

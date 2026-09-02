@@ -141,6 +141,7 @@ const ENV_ALLOW = new Set([
   'STELLAR_ACCOUNT', // shell override for deploy-contract.sh
   'ADMIN_ADDRESS', // shell override for deploy-contract.sh
   'SIGNET_URL', // shell env for the cli/ Go module, not the pnpm workspace's .env
+  'WAYLAND_DISPLAY', // standard desktop-session env var, not app config
   'CLI_RELEASE_ENABLED', // GitHub repo variable, not app env — see release-cli.yml
   'NPM_TOKEN', // GitHub Actions secret, not app env — see release-cli.yml
 ]);
