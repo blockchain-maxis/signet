@@ -140,6 +140,7 @@ const ENV_ALLOW = new Set([
   'NETWORK', // shell override for deploy-contract.sh
   'STELLAR_ACCOUNT', // shell override for deploy-contract.sh
   'ADMIN_ADDRESS', // shell override for deploy-contract.sh
+  'SIGNET_URL', // shell env for the cli/ Go module, not the pnpm workspace's .env
 ]);
 
 /**
