@@ -6,7 +6,7 @@ investigating it changes what should be built. It is the third consumer of the
 shared spec reader that `CONTRACT_DOCS_DESIGN.md` §5 specifies and auto-docs
 builds first; it should not start before that reader exists.
 
-A profile proves *what* an address deployed. To a reader who does not write
+A profile proves _what_ an address deployed. To a reader who does not write
 Rust, a deployed contract is a `C…` string and an operation count. Auto-docs
 turns that into a readable reference. This item asks for the layer above the
 reference: a picture — the contract's call surface, which functions change
@@ -37,7 +37,7 @@ The custom WASM section the shared reader decodes carries the contract's
 
 - **The function inventory** — every callable's name, its typed arguments, and
   its return type. On the registry: `claim(handle: String, wallet: Address) ->
-  Result`, `count() -> u32`, `resolve(handle: String) -> Option`, and five more.
+Result`, `count() -> u32`, `resolve(handle: String) -> Option`, and five more.
 - **The type graph** — user-defined structs, unions and enums, and the edges
   between them: which functions reference which types in their signatures, and
   which types contain fields of other types. This is a real, directed,
@@ -47,7 +47,7 @@ The custom WASM section the shared reader decodes carries the contract's
   `WalletAlreadyBound`, …). It is a property of the contract, not of a single
   function; the spec does not say which function returns which error.
 - **Declared events** — when a contract uses `#[contractevent]`, their topics
-  and payload types appear as spec entries. Which function *emits* a given
+  and payload types appear as spec entries. Which function _emits_ a given
   event is not in the spec.
 - **Build provenance** — `contractmetav0` gives the `soroban-sdk` and `rustc`
   versions. Free once the module is parsed; a signal about a contract's age.
@@ -74,7 +74,7 @@ The mutate/read split has to come from somewhere else:
   state-changing transactions is a mutator; the absence of evidence is not
   evidence of absence.
 - **Return-type / name heuristic (a guess, and must be labelled one).**
-  `get_*` / `is_*` / `-> Option<T>` *suggests* a read. It is wrong often
+  `get_*` / `is_*` / `-> Option<T>` _suggests_ a read. It is wrong often
   enough that shipping it unlabelled would undermine the "derived from the
   deployed code, cannot be wrong" property the whole feature rests on.
 
@@ -98,7 +98,7 @@ What is observable:
   change.
 
 So "state layout" in phase 1 is limited to what the `instance` entry exposes,
-labelled as *observed at ledger N*, not *the contract's schema* — because
+labelled as _observed at ledger N_, not _the contract's schema_ — because
 there is no schema to show.
 
 ### 1.4 Not in the spec: how it relates to contracts it calls
@@ -106,27 +106,27 @@ there is no schema to show.
 `contractspecv0` describes the interface a contract **exposes**, never the
 contracts it **invokes**. Cross-contract call edges come from:
 
-- **Simulation footprint** — other contract *instance* entries that show up in
+- **Simulation footprint** — other contract _instance_ entries that show up in
   the footprint of a simulated call are contracts this one reads or invokes.
   Per-function, and only for the code paths that call arguments exercise.
 - **Transaction meta from the indexer** — `InvokeHostFunction` sub-calls are
   visible in transaction result meta. Aggregated across real activity this
   gives the actual call graph, weighted by how often each edge is taken.
-- **An `Address`-typed argument named `token` or `pool`** is a *hint* a
+- **An `Address`-typed argument named `token` or `pool`** is a _hint_ a
   reader can see in the signature already. It is not an edge and must not be
   drawn as one.
 
 ### 1.5 Summary
 
-| Relationship the item asks for | In the spec? | Otherwise |
-| --- | --- | --- |
-| Call surface — functions, arg & return types | **Yes** | — |
-| Type graph — function → type → type | **Yes** | — |
-| Error surface | Partial — the enum, not the per-function mapping | source, or `errorCases()` |
-| Declared events & payloads | Partial — the declarations, not which function emits them | transaction meta |
-| Which functions mutate vs read | **No** | simulation footprint (`readWrite` empty ⇒ read) |
-| State layout | **No** — Soroban has no declared schema | live `instance` entry; indexed snapshots |
-| Cross-contract call graph | **No** | simulation footprint; indexer transaction meta |
+| Relationship the item asks for               | In the spec?                                              | Otherwise                                       |
+| -------------------------------------------- | --------------------------------------------------------- | ----------------------------------------------- |
+| Call surface — functions, arg & return types | **Yes**                                                   | —                                               |
+| Type graph — function → type → type          | **Yes**                                                   | —                                               |
+| Error surface                                | Partial — the enum, not the per-function mapping          | source, or `errorCases()`                       |
+| Declared events & payloads                   | Partial — the declarations, not which function emits them | transaction meta                                |
+| Which functions mutate vs read               | **No**                                                    | simulation footprint (`readWrite` empty ⇒ read) |
+| State layout                                 | **No** — Soroban has no declared schema                   | live `instance` entry; indexed snapshots        |
+| Cross-contract call graph                    | **No**                                                    | simulation footprint; indexer transaction meta  |
 
 ### 1.6 Consequence: three phases
 
@@ -195,16 +195,16 @@ future light theme, a reader printing a profile) and has to stay correct.
   `--viz-muted`) defined once on the page and redefined per theme. The SVG
   file itself names no hex values.
 - **Never hue alone.** A mutating function is marked by a glyph and a label
-  *and* a colour, so the distinction survives greyscale, colour-blindness, and
+  _and_ a colour, so the distinction survives greyscale, colour-blindness, and
   a theme that drops the accent. This is the same discipline the profile
   page's demo-vs-on-chain badges already follow — icon plus text plus colour,
   not colour alone.
 - **Contrast holds on both grounds.** Text and strokes meet WCAG AA (≥4.5:1
-  for text) against both `#0a0908` and a white ground. Minimum *rendered* text
+  for text) against both `#0a0908` and a white ground. Minimum _rendered_ text
   size 12px; if the diagram would have to shrink text below that to fit, it
   switches to the collapsed view (§3) instead of scaling down.
 - **A non-visual equivalent exists** — the generated docs on the same page
-  *are* it. The `<svg>` carries `role="img"` with a `<title>`/`<desc>`
+  _are_ it. The `<svg>` carries `role="img"` with a `<title>`/`<desc>`
   summarising node and edge counts; the authoritative structure for a screen
   reader is the docs below, and the function links in the diagram point into
   them.
@@ -295,8 +295,8 @@ spec-only layout.
 
 - Every node and every phase-1 edge is derived from the deployed WASM at a
   stated hash. Nothing is inferred, nothing is authored by Signet.
-- Phase-2 marks are labelled *observed via simulation at ledger N*; phase-3
-  edges *from indexed activity, N transactions* — visually distinct from the
+- Phase-2 marks are labelled _observed via simulation at ledger N_; phase-3
+  edges _from indexed activity, N transactions_ — visually distinct from the
   spec-only structure, because they carry a weaker, time-bound guarantee.
 - A demo profile's contracts, if any, are labelled exactly as the rest of a
   demo profile is (`isDemo` in `apps/web/app/p/[handle]/page.tsx`). A diagram
