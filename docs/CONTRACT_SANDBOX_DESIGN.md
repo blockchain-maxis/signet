@@ -5,7 +5,7 @@ follows terminal linking rather than preceding it. The note exists so the shape
 is settled before then — and because investigating it turned up something that
 changes what should be built.
 
-A profile proves *what* a developer deployed. The sandbox lets a visitor find
+A profile proves _what_ a developer deployed. The sandbox lets a visitor find
 out what those contracts actually **do**: pick a function, supply inputs, see the
 outputs and events — with no wallet, no testnet account, and no local toolchain.
 
@@ -20,7 +20,7 @@ outputs and events — with no wallet, no testnet account, and no local toolchai
 
 The roadmap item states that the sandbox "must execute Soroban semantics rather
 than read them, so it needs `soroban-env-host` in Rust behind the bridge." That
-is true of *some* of what a sandbox does. It is not true of most of it, and the
+is true of _some_ of what a sandbox does. It is not true of most of it, and the
 difference is worth a lot of engineering.
 
 **Soroban RPC's `simulateTransaction` already executes a deployed contract's
@@ -29,15 +29,15 @@ functions, against real ledger state, with no wallet and no funded account.**
 Verified, with a `Keypair.random()` that has never existed on any ledger as the
 transaction source:
 
-| Call | Result |
-| ---- | ------ |
-| `count()` — read-only | Executed. Returned `2` — the real number of bindings in the registry, at ledger 4421491. |
+| Call                                               | Result                                                                                                     |
+| -------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| `count()` — read-only                              | Executed. Returned `2` — the real number of bindings in the registry, at ledger 4421491.                   |
 | `claim(handle, wallet)` — mutating, `require_auth` | Simulated with **no error** and returned **1 auth entry** describing the signature that would be required. |
 
 That second row is the surprising one. A state-mutating, authorisation-gated
 function simulates cleanly without a signature, and the response says exactly
 what authorisation the real call would need. A visitor can be shown what a write
-*would* do and what it would ask them to sign, having signed nothing.
+_would_ do and what it would ask them to sign, having signed nothing.
 
 So the sandbox's headline requirement — run a deployed contract's functions with
 no wallet, no testnet account, no local toolchain — is satisfied today by an
@@ -45,7 +45,7 @@ RPC endpoint and the SDK already in `apps/web`.
 
 ### 1.1 What RPC simulation genuinely cannot do
 
-The embedded host is not unnecessary; it is *narrower* than the roadmap item
+The embedded host is not unnecessary; it is _narrower_ than the roadmap item
 assumed. Simulation runs against **the network's current ledger, at the
 network's current protocol, inside the network's resource limits**. It therefore
 cannot:
@@ -162,7 +162,7 @@ The default is a **snapshot of real state at a chosen ledger**, with an optional
 overlay of modified entries. Not an empty ledger.
 
 An empty ledger is the wrong default because almost every interesting question
-is about a contract *as it is*. "What does `release` do for a handle I don't
+is about a contract _as it is_. "What does `release` do for a handle I don't
 own" starts from a registry that already has bindings. Making the visitor
 reconstruct that state before asking anything turns a question into a chore, and
 the reconstruction can be wrong in ways that quietly invalidate the answer.
@@ -290,11 +290,11 @@ author. That constrains every rendering choice.
 This is the part a naive renderer gets wrong. All three come back as an
 untroubled response, and they mean entirely different things:
 
-| Outcome | What it means | How it must read |
-| ------- | ------------- | ---------------- |
-| Read returned a value | The function ran and produced this | The value, plainly |
-| Write simulated cleanly | This *would* succeed, and would require these signatures | Framed as a preview, with the auth entries named — nothing was submitted |
-| Contract returned an error | The function ran and deliberately rejected | The error name and doc — this is the contract working, not the sandbox failing |
+| Outcome                    | What it means                                            | How it must read                                                               |
+| -------------------------- | -------------------------------------------------------- | ------------------------------------------------------------------------------ |
+| Read returned a value      | The function ran and produced this                       | The value, plainly                                                             |
+| Write simulated cleanly    | This _would_ succeed, and would require these signatures | Framed as a preview, with the auth entries named — nothing was submitted       |
+| Contract returned an error | The function ran and deliberately rejected               | The error name and doc — this is the contract working, not the sandbox failing |
 
 The middle row is the one the verified `claim` transcript exposes: a mutating
 function simulated without error and returned one auth entry. Rendering that as
@@ -344,5 +344,5 @@ Rust work rather than to the whole feature.
   until there is traffic.
 - **Is a shareable sandbox result worth building?** A link reproducing a
   function, its inputs and its result would be a good way to show work on a
-  profile — and immediately raises whether a *seeded* result should be shareable
+  profile — and immediately raises whether a _seeded_ result should be shareable
   at all, given §3.2.
