@@ -15,6 +15,8 @@
  * can't answer: no `DATABASE_URL`, or a claim the indexer hasn't synced yet.
  */
 
+import { isWalletSource, type WalletSource } from '@signet/types';
+import { logger } from '../logger.ts';
 import { lookupWallet, type RegistryReadOptions } from './registry-read.ts';
 
 export interface Account {
@@ -40,8 +42,8 @@ export interface AccountUpdate {
 export interface LinkedWallet {
   pubkey: string;
   isPrimary: boolean;
-  /** 'onchain' once attested via the Identity Registry, else 'curated'. */
-  source: string;
+  /** 'onchain' once attested via the Identity Registry, else 'curated' or 'cli'. */
+  source: WalletSource;
   attestedAt: string;
   /**
    * True while the indexer hasn't yet scanned this wallet since it was
@@ -54,6 +56,15 @@ export interface LinkedWallet {
 
 const MAX_DISPLAY_NAME = 80;
 const MAX_BIO = 280;
+
+/** Fallback used when a stored `source` value isn't one of the allowed ones. */
+const FALLBACK_WALLET_SOURCE: WalletSource = 'curated';
+
+function toWalletSource(value: string, pubkey: string): WalletSource {
+  if (isWalletSource(value)) return value;
+  logger.warn({ pubkey, source: value }, 'account.unknownWalletSource');
+  return FALLBACK_WALLET_SOURCE;
+}
 
 async function getPrisma() {
   if (!process.env.DATABASE_URL) return null;
@@ -119,7 +130,10 @@ export async function getAccountWallets(address: string): Promise<LinkedWallet[]
   return wallets.map((w) => ({
     pubkey: w.pubkey,
     isPrimary: w.isPrimary,
-    source: w.source,
+    // The database column is an untyped String; validate on read rather than
+    // trust it, so a row written outside this codebase can't smuggle an
+    // unknown provenance value into the UI.
+    source: toWalletSource(w.source, w.pubkey),
     attestedAt: w.attestedAt.toISOString().slice(0, 10),
     indexingPending: w.indexRequestedAt != null,
   }));
@@ -180,7 +194,10 @@ function toLinkedWallet(wallet: {
   return {
     pubkey: wallet.pubkey,
     isPrimary: wallet.isPrimary,
-    source: wallet.source,
+    // Validated on read for the same reason getAccountWallets does it: the
+    // column is an untyped String, so a row written outside this codebase
+    // cannot smuggle an unknown provenance value into the UI.
+    source: toWalletSource(wallet.source, wallet.pubkey),
     attestedAt: wallet.attestedAt.toISOString().slice(0, 10),
     indexingPending: wallet.indexRequestedAt != null,
   };
@@ -207,16 +224,28 @@ export interface LinkWalletStore {
       data: {
         pubkey: string;
         profileId: string;
-        source: string;
+        source: WalletSource;
         isPrimary: boolean;
         attestedAt: Date;
         indexRequestedAt: Date;
       };
-    }): Promise<{ pubkey: string; isPrimary: boolean; source: string; attestedAt: Date; indexRequestedAt: Date | null }>;
+    }): Promise<{
+      pubkey: string;
+      isPrimary: boolean;
+      source: string;
+      attestedAt: Date;
+      indexRequestedAt: Date | null;
+    }>;
     update(args: {
       where: { pubkey: string };
-      data: { attestedAt: Date; source: string; indexRequestedAt: Date };
-    }): Promise<{ pubkey: string; isPrimary: boolean; source: string; attestedAt: Date; indexRequestedAt: Date | null }>;
+      data: { attestedAt: Date; source: WalletSource; indexRequestedAt: Date };
+    }): Promise<{
+      pubkey: string;
+      isPrimary: boolean;
+      source: string;
+      attestedAt: Date;
+      indexRequestedAt: Date | null;
+    }>;
   };
 }
 
@@ -244,7 +273,7 @@ export interface LinkWalletStore {
 export async function linkDeployWallet(
   profileId: string,
   pubkey: string,
-  source: string,
+  source: WalletSource,
   store?: LinkWalletStore,
 ): Promise<LinkedWallet> {
   const db = store ?? ((await getPrisma()) as unknown as LinkWalletStore | null);
@@ -320,4 +349,62 @@ export async function updateAccount(address: string, update: AccountUpdate): Pro
     dbConfigured: true,
     editable: true,
   };
+}
+
+/**
+ * Minimal slice of the Prisma client `unlinkWallet` touches. Declaring it as
+ * an interface (mirroring the indexer worker stores) lets tests inject a
+ * lightweight mock instead of depending on a real database, which is how the
+ * cross-profile refusal below is exercised.
+ */
+export interface WalletStore {
+  wallet: {
+    findUnique(args: {
+      where: { pubkey: string };
+      select: { profileId: true; isPrimary: true };
+    }): Promise<{ profileId: string; isPrimary: boolean } | null>;
+    delete(args: { where: { pubkey: string } }): Promise<unknown>;
+  };
+}
+
+/**
+ * Remove a wallet binding from the signed-in account's own profile.
+ *
+ * Two refusals guard this: the primary wallet is the handle→wallet claim
+ * itself, so removing it is a registry operation (release/transfer on-chain),
+ * never a dashboard edit; and a wallet bound to a *different* profile is
+ * refused with the same "not found" message a nonexistent pubkey gets, so one
+ * signed-in wallet can never delete — or even confirm the existence of —
+ * another profile's binding.
+ */
+export async function unlinkWallet(
+  address: string,
+  pubkey: string,
+  store?: WalletStore,
+): Promise<void> {
+  const db = store ?? ((await getPrisma()) as unknown as WalletStore | null);
+  if (!db) {
+    throw new Error('Wallet unlinking requires a configured database');
+  }
+
+  const caller = await db.wallet.findUnique({
+    where: { pubkey: address },
+    select: { profileId: true, isPrimary: true },
+  });
+  if (!caller) {
+    throw new Error('No profile is bound to this wallet yet — claim a handle on-chain first');
+  }
+
+  const target = await db.wallet.findUnique({
+    where: { pubkey },
+    select: { profileId: true, isPrimary: true },
+  });
+  if (!target || target.profileId !== caller.profileId) {
+    throw new Error('Wallet not found');
+  }
+  if (target.isPrimary) {
+    throw new Error('Cannot unlink the primary wallet — releasing it is a registry operation');
+  }
+
+  await db.wallet.delete({ where: { pubkey } });
 }

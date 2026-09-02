@@ -1,0 +1,20 @@
+{
+  "name": "@signet/cli-linux-arm64",
+  "version": "0.0.0",
+  "description": "signet CLI prebuilt binary for linux/arm64 — not for direct use, see @signet/cli",
+  "license": "Apache-2.0",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/blockchain-maxis/signet.git",
+    "directory": "cli"
+  },
+  "os": [
+    "linux"
+  ],
+  "cpu": [
+    "arm64"
+  ],
+  "files": [
+    "bin"
+  ]
+}

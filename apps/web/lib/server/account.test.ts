@@ -4,8 +4,10 @@ import { nativeToScVal, type Transaction } from '@stellar/stellar-sdk';
 import {
   getAccount,
   normalizeAccountUpdate,
+  unlinkWallet,
   linkDeployWallet,
   WalletAlreadyLinkedError,
+  type WalletStore,
   type LinkWalletStore,
 } from './account.ts';
 import type { SimulatingServer } from './registry-read.ts';
@@ -173,7 +175,14 @@ test('linkDeployWallet creates a new, non-primary wallet row', async () => {
 test('linkDeployWallet is idempotent: re-linking the same wallet to the same profile does not duplicate', async () => {
   const attestedAt = new Date('2026-01-01T00:00:00Z');
   const { store, rows } = fakeLinkStore([
-    { pubkey: PUBKEY, profileId: 'profile-1', isPrimary: false, source: 'curated', attestedAt, indexRequestedAt: null },
+    {
+      pubkey: PUBKEY,
+      profileId: 'profile-1',
+      isPrimary: false,
+      source: 'curated',
+      attestedAt,
+      indexRequestedAt: null,
+    },
   ]);
 
   const result = await linkDeployWallet('profile-1', PUBKEY, 'cli', store);
@@ -206,7 +215,14 @@ test('linkDeployWallet never sets isPrimary, even on re-link of an existing prim
 
 test('linkDeployWallet throws a typed conflict for a wallet already linked to a different profile', async () => {
   const { store } = fakeLinkStore([
-    { pubkey: PUBKEY, profileId: 'someone-elses-profile', isPrimary: false, source: 'cli', attestedAt: new Date(), indexRequestedAt: null },
+    {
+      pubkey: PUBKEY,
+      profileId: 'someone-elses-profile',
+      isPrimary: false,
+      source: 'cli',
+      attestedAt: new Date(),
+      indexRequestedAt: null,
+    },
   ]);
 
   await assert.rejects(
