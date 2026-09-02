@@ -130,3 +130,89 @@ func TestResolvePublicKeyMissingBinaryCarriesTheConfigurationCode(t *testing.T) 
 		t.Fatalf("error does not wrap exitcode.ErrConfiguration: %v", err)
 	}
 }
+
+// ─── Identity listing and resolution (#253) ─────────────────────────────────
+
+func TestListReturnsEveryIdentity(t *testing.T) {
+	bin := buildFakeStellar(t)
+	t.Setenv("FAKESTELLAR_VERSION", MinimumStellarVersion)
+	t.Setenv("FAKESTELLAR_IDENTITIES", "alice\nbob")
+
+	got, err := List(bin)
+	if err != nil {
+		t.Fatalf("List: %v", err)
+	}
+	if len(got) != 2 || got[0] != "alice" || got[1] != "bob" {
+		t.Fatalf("List = %v, want [alice bob]", got)
+	}
+}
+
+func TestResolvePrefersAnExplicitSourceWithoutListing(t *testing.T) {
+	// No stellar available at all: an explicit --source must not shell out.
+	got, err := Resolve(filepath.Join(t.TempDir(), "not-installed"), "alice", nil)
+	if err != nil {
+		t.Fatalf("Resolve: %v", err)
+	}
+	if got != "alice" {
+		t.Fatalf("Resolve = %q, want alice", got)
+	}
+}
+
+func TestResolvePicksTheSoleIdentity(t *testing.T) {
+	bin := buildFakeStellar(t)
+	t.Setenv("FAKESTELLAR_VERSION", MinimumStellarVersion)
+	t.Setenv("FAKESTELLAR_IDENTITIES", "alice")
+
+	got, err := Resolve(bin, "", nil)
+	if err != nil {
+		t.Fatalf("Resolve: %v", err)
+	}
+	if got != "alice" {
+		t.Fatalf("Resolve = %q, want alice", got)
+	}
+}
+
+func TestResolveReportsNoIdentities(t *testing.T) {
+	bin := buildFakeStellar(t)
+	t.Setenv("FAKESTELLAR_VERSION", MinimumStellarVersion)
+	t.Setenv("FAKESTELLAR_IDENTITIES", "")
+
+	_, err := Resolve(bin, "", nil)
+	if !errors.Is(err, ErrNoIdentities) {
+		t.Fatalf("Resolve error = %v, want ErrNoIdentities", err)
+	}
+}
+
+func TestResolveIsAmbiguousWithoutAPrompt(t *testing.T) {
+	bin := buildFakeStellar(t)
+	t.Setenv("FAKESTELLAR_VERSION", MinimumStellarVersion)
+	t.Setenv("FAKESTELLAR_IDENTITIES", "alice\nbob")
+
+	// A non-interactive caller (CI, --json) passes nil and must get an error
+	// rather than a hanging read on stdin.
+	_, err := Resolve(bin, "", nil)
+	if !errors.Is(err, ErrAmbiguousIdentity) {
+		t.Fatalf("Resolve error = %v, want ErrAmbiguousIdentity", err)
+	}
+}
+
+func TestResolveUsesThePromptWhenSeveralExist(t *testing.T) {
+	bin := buildFakeStellar(t)
+	t.Setenv("FAKESTELLAR_VERSION", MinimumStellarVersion)
+	t.Setenv("FAKESTELLAR_IDENTITIES", "alice\nbob")
+
+	var offered []string
+	got, err := Resolve(bin, "", func(names []string) (string, error) {
+		offered = names
+		return names[1], nil
+	})
+	if err != nil {
+		t.Fatalf("Resolve: %v", err)
+	}
+	if got != "bob" {
+		t.Fatalf("Resolve = %q, want bob", got)
+	}
+	if len(offered) != 2 {
+		t.Fatalf("prompt was offered %v, want both identities", offered)
+	}
+}
