@@ -25,19 +25,20 @@ func newIdentityCmd() *cobra.Command {
 the stellar CLI (stellar keys ls / stellar keys public-key). signet never
 reads a secret key itself.`,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			ctx := cmd.Context()
-			runner := keys.ExecRunner{}
-
-			name, err := keys.Resolve(ctx, runner, source, promptForIdentity(cmd.InOrStdin(), cmd.OutOrStdout()))
+			name, err := keys.Resolve(
+				keys.DefaultBinary,
+				source,
+				promptForIdentity(cmd.InOrStdin(), cmd.OutOrStdout()),
+			)
 			if err != nil {
 				return err
 			}
-			pk, err := keys.PublicKey(ctx, runner, name)
+			pk, err := keys.ResolvePublicKey(keys.DefaultBinary, name)
 			if err != nil {
 				return err
 			}
-			fmt.Fprintf(cmd.OutOrStdout(), "identity: %s\npublicKey: %s\n", name, pk)
-			return nil
+			_, err = fmt.Fprintf(cmd.OutOrStdout(), "identity: %s\npublicKey: %s\n", name, pk)
+			return err
 		},
 	}
 	c.Flags().StringVar(&source, "source", "", "Stellar identity to use (skips the ls/prompt step)")
@@ -50,11 +51,17 @@ reads a secret key itself.`,
 // (see root.go, which only wires this up for a real terminal).
 func promptForIdentity(in io.Reader, out io.Writer) func([]string) (string, error) {
 	return func(names []string) (string, error) {
-		fmt.Fprintln(out, "Multiple Stellar identities found:")
-		for i, name := range names {
-			fmt.Fprintf(out, "  %d) %s\n", i+1, name)
+		if _, err := fmt.Fprintln(out, "Multiple Stellar identities found:"); err != nil {
+			return "", err
 		}
-		fmt.Fprint(out, "Select one: ")
+		for i, name := range names {
+			if _, err := fmt.Fprintf(out, "  %d) %s\n", i+1, name); err != nil {
+				return "", err
+			}
+		}
+		if _, err := fmt.Fprint(out, "Select one: "); err != nil {
+			return "", err
+		}
 
 		scanner := bufio.NewScanner(in)
 		if !scanner.Scan() {

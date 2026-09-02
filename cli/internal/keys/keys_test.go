@@ -1,142 +1,218 @@
 package keys
 
 import (
-	"context"
 	"errors"
-	"strings"
+	"fmt"
+	"os"
+	"os/exec"
+	"path/filepath"
+	"runtime"
+	"sync"
 	"testing"
+
+	"github.com/blockchain-maxis/signet/cli/internal/exitcode"
 )
 
-// fakeRunner is an in-memory Runner — no process spawn — for exercising the
-// parsing/resolution logic in isolation from ExecRunner's os/exec plumbing
-// (that plumbing has its own test, in execrunner_test.go).
-type fakeRunner struct {
-	// responses maps a joined-args key (e.g. "keys ls") to a canned stdout or error.
-	responses map[string]string
-	errs      map[string]error
-	calls     []string
+// buildFakeStellar compiles testdata/fakestellar once per test binary run
+// (guarded by sync.Once) and returns its path — a real, faked `stellar`
+// binary that ResolvePublicKey/CheckStellarCLI shell out to exactly as they
+// would the genuine CLI, per #290's "identity resolution against a faked
+// stellar binary" requirement.
+//
+// The build directory is a plain os.MkdirTemp, not t.TempDir(): t.TempDir()
+// is removed as soon as the *specific test* that created it finishes, but
+// this path is cached and reused across every other test in the package —
+// using it here would delete the binary out from under every test after the
+// first. TestMain below cleans the directory up once, at the end of the
+// whole run.
+var (
+	fakeStellarOnce sync.Once
+	fakeStellarDir  string
+	fakeStellarPath string
+	fakeStellarErr  error
+)
+
+func TestMain(m *testing.M) {
+	code := m.Run()
+	if fakeStellarDir != "" {
+		_ = os.RemoveAll(fakeStellarDir)
+	}
+	os.Exit(code)
 }
 
-func (f *fakeRunner) Run(_ context.Context, args ...string) (string, error) {
-	key := strings.Join(args, " ")
-	f.calls = append(f.calls, key)
-	if err, ok := f.errs[key]; ok {
-		return "", err
-	}
-	return f.responses[key], nil
-}
-
-func TestList_ParsesOneNamePerLine(t *testing.T) {
-	r := &fakeRunner{responses: map[string]string{"keys ls": "alice\nbob\n\nlandfall-deployer\n"}}
-	names, err := List(context.Background(), r)
-	if err != nil {
-		t.Fatalf("List: %v", err)
-	}
-	want := []string{"alice", "bob", "landfall-deployer"}
-	if len(names) != len(want) {
-		t.Fatalf("got %v, want %v", names, want)
-	}
-	for i := range want {
-		if names[i] != want[i] {
-			t.Fatalf("got %v, want %v", names, want)
+func buildFakeStellar(t *testing.T) string {
+	t.Helper()
+	fakeStellarOnce.Do(func() {
+		goBin, err := exec.LookPath("go")
+		if err != nil {
+			fakeStellarErr = err
+			return
 		}
+		dir, err := os.MkdirTemp("", "fakestellar")
+		if err != nil {
+			fakeStellarErr = err
+			return
+		}
+		fakeStellarDir = dir
+		out := filepath.Join(dir, "stellar")
+		if runtime.GOOS == "windows" {
+			out += ".exe"
+		}
+		cmd := exec.Command(goBin, "build", "-o", out, "./testdata/fakestellar")
+		if output, buildErr := cmd.CombinedOutput(); buildErr != nil {
+			fakeStellarErr = fmt.Errorf("%w: %s", buildErr, output)
+			return
+		}
+		fakeStellarPath = out
+	})
+	if fakeStellarErr != nil {
+		t.Skipf("could not build the fake stellar binary: %v", fakeStellarErr)
+	}
+	return fakeStellarPath
+}
+
+func TestResolvePublicKeyAgainstAFakedStellarBinary(t *testing.T) {
+	bin := buildFakeStellar(t)
+
+	got, err := ResolvePublicKey(bin, "alice")
+	if err != nil {
+		t.Fatalf("ResolvePublicKey: %v", err)
+	}
+	want := "GASAAEJC6P5UZGRLYJ2I2KYLR7RXGF44JZXDYGCFBN7T5VIHECUUEMCD"
+	if got != want {
+		t.Fatalf("ResolvePublicKey() = %q, want %q", got, want)
 	}
 }
 
-func TestList_EmptyOutputIsEmptySlice(t *testing.T) {
-	r := &fakeRunner{responses: map[string]string{"keys ls": ""}}
-	names, err := List(context.Background(), r)
+func TestResolvePublicKeyRejectsAnUnknownIdentity(t *testing.T) {
+	bin := buildFakeStellar(t)
+
+	_, err := ResolvePublicKey(bin, "missing")
+	if err == nil {
+		t.Fatal("ResolvePublicKey succeeded for an identity the fake CLI doesn't have")
+	}
+}
+
+func TestResolvePublicKeyRejectsOutputThatIsNotAPublicKey(t *testing.T) {
+	bin := buildFakeStellar(t)
+
+	_, err := ResolvePublicKey(bin, "garbage")
+	if err == nil {
+		t.Fatal("ResolvePublicKey succeeded on malformed output from the CLI")
+	}
+}
+
+func TestResolvePublicKeyReportsAMissingBinaryClearly(t *testing.T) {
+	_, err := ResolvePublicKey(filepath.Join(t.TempDir(), "does-not-exist"), "alice")
+	if err == nil {
+		t.Fatal("ResolvePublicKey succeeded with a nonexistent binary")
+	}
+}
+
+func TestResolvePublicKeyRequiresANonEmptySource(t *testing.T) {
+	if _, err := ResolvePublicKey(DefaultBinary, ""); err == nil {
+		t.Fatal("ResolvePublicKey succeeded with an empty identity name")
+	}
+}
+
+func TestResolvePublicKeyUnknownIdentityCarriesTheNoIdentityCode(t *testing.T) {
+	bin := buildFakeStellar(t)
+
+	_, err := ResolvePublicKey(bin, "missing")
+	if !errors.Is(err, exitcode.ErrNoIdentity) {
+		t.Fatalf("error does not wrap exitcode.ErrNoIdentity: %v", err)
+	}
+}
+
+func TestResolvePublicKeyMissingBinaryCarriesTheConfigurationCode(t *testing.T) {
+	_, err := ResolvePublicKey(filepath.Join(t.TempDir(), "does-not-exist"), "alice")
+	if !errors.Is(err, exitcode.ErrConfiguration) {
+		t.Fatalf("error does not wrap exitcode.ErrConfiguration: %v", err)
+	}
+}
+
+// ─── Identity listing and resolution (#253) ─────────────────────────────────
+
+func TestListReturnsEveryIdentity(t *testing.T) {
+	bin := buildFakeStellar(t)
+	t.Setenv("FAKESTELLAR_VERSION", MinimumStellarVersion)
+	t.Setenv("FAKESTELLAR_IDENTITIES", "alice\nbob")
+
+	got, err := List(bin)
 	if err != nil {
 		t.Fatalf("List: %v", err)
 	}
-	if len(names) != 0 {
-		t.Fatalf("got %v, want empty", names)
+	if len(got) != 2 || got[0] != "alice" || got[1] != "bob" {
+		t.Fatalf("List = %v, want [alice bob]", got)
 	}
 }
 
-func TestList_PropagatesRunnerError(t *testing.T) {
-	wantErr := errors.New("stellar not found")
-	r := &fakeRunner{errs: map[string]error{"keys ls": wantErr}}
-	if _, err := List(context.Background(), r); !errors.Is(err, wantErr) {
-		t.Fatalf("got %v, want %v", err, wantErr)
-	}
-}
-
-func TestPublicKey_ReturnsTrimmedAddress(t *testing.T) {
-	pk := "GA7YI536V4BC7CL43DRMZ2UU7N4T3VZZSY7FVOY6Q4JUPBVZYHN43QMT"
-	r := &fakeRunner{responses: map[string]string{"keys public-key alice": "  " + pk + "  \n"}}
-	got, err := PublicKey(context.Background(), r, "alice")
-	if err != nil {
-		t.Fatalf("PublicKey: %v", err)
-	}
-	if got != pk {
-		t.Fatalf("got %q, want %q", got, pk)
-	}
-}
-
-func TestPublicKey_RejectsMalformedOutput(t *testing.T) {
-	r := &fakeRunner{responses: map[string]string{"keys public-key alice": "not-a-key"}}
-	if _, err := PublicKey(context.Background(), r, "alice"); err == nil {
-		t.Fatal("expected an error for malformed output, got nil")
-	}
-}
-
-func TestResolve_PrefersExplicit(t *testing.T) {
-	r := &fakeRunner{responses: map[string]string{"keys ls": "alice\nbob\n"}}
-	got, err := Resolve(context.Background(), r, "bob", nil)
+func TestResolvePrefersAnExplicitSourceWithoutListing(t *testing.T) {
+	// No stellar available at all: an explicit --source must not shell out.
+	got, err := Resolve(filepath.Join(t.TempDir(), "not-installed"), "alice", nil)
 	if err != nil {
 		t.Fatalf("Resolve: %v", err)
 	}
-	if got != "bob" {
-		t.Fatalf("got %q, want %q", got, "bob")
-	}
-	if len(r.calls) != 0 {
-		t.Fatalf("explicit source should skip `stellar keys ls` entirely, but calls = %v", r.calls)
+	if got != "alice" {
+		t.Fatalf("Resolve = %q, want alice", got)
 	}
 }
 
-func TestResolve_SoleIdentityNeedsNoPrompt(t *testing.T) {
-	r := &fakeRunner{responses: map[string]string{"keys ls": "only-one\n"}}
-	got, err := Resolve(context.Background(), r, "", func([]string) (string, error) {
-		t.Fatal("prompt should not be called when there is exactly one identity")
-		return "", nil
-	})
+func TestResolvePicksTheSoleIdentity(t *testing.T) {
+	bin := buildFakeStellar(t)
+	t.Setenv("FAKESTELLAR_VERSION", MinimumStellarVersion)
+	t.Setenv("FAKESTELLAR_IDENTITIES", "alice")
+
+	got, err := Resolve(bin, "", nil)
 	if err != nil {
 		t.Fatalf("Resolve: %v", err)
 	}
-	if got != "only-one" {
-		t.Fatalf("got %q, want %q", got, "only-one")
+	if got != "alice" {
+		t.Fatalf("Resolve = %q, want alice", got)
 	}
 }
 
-func TestResolve_NoIdentitiesIsAClearError(t *testing.T) {
-	r := &fakeRunner{responses: map[string]string{"keys ls": ""}}
-	_, err := Resolve(context.Background(), r, "", nil)
+func TestResolveReportsNoIdentities(t *testing.T) {
+	bin := buildFakeStellar(t)
+	t.Setenv("FAKESTELLAR_VERSION", MinimumStellarVersion)
+	t.Setenv("FAKESTELLAR_IDENTITIES", "")
+
+	_, err := Resolve(bin, "", nil)
 	if !errors.Is(err, ErrNoIdentities) {
-		t.Fatalf("got %v, want ErrNoIdentities", err)
+		t.Fatalf("Resolve error = %v, want ErrNoIdentities", err)
 	}
 }
 
-func TestResolve_AmbiguousWithoutPromptIsAClearError(t *testing.T) {
-	r := &fakeRunner{responses: map[string]string{"keys ls": "alice\nbob\n"}}
-	_, err := Resolve(context.Background(), r, "", nil)
+func TestResolveIsAmbiguousWithoutAPrompt(t *testing.T) {
+	bin := buildFakeStellar(t)
+	t.Setenv("FAKESTELLAR_VERSION", MinimumStellarVersion)
+	t.Setenv("FAKESTELLAR_IDENTITIES", "alice\nbob")
+
+	// A non-interactive caller (CI, --json) passes nil and must get an error
+	// rather than a hanging read on stdin.
+	_, err := Resolve(bin, "", nil)
 	if !errors.Is(err, ErrAmbiguousIdentity) {
-		t.Fatalf("got %v, want ErrAmbiguousIdentity", err)
+		t.Fatalf("Resolve error = %v, want ErrAmbiguousIdentity", err)
 	}
 }
 
-func TestResolve_AmbiguousDefersToPrompt(t *testing.T) {
-	r := &fakeRunner{responses: map[string]string{"keys ls": "alice\nbob\n"}}
-	got, err := Resolve(context.Background(), r, "", func(names []string) (string, error) {
-		if len(names) != 2 || names[0] != "alice" || names[1] != "bob" {
-			t.Fatalf("prompt got %v", names)
-		}
-		return "bob", nil
+func TestResolveUsesThePromptWhenSeveralExist(t *testing.T) {
+	bin := buildFakeStellar(t)
+	t.Setenv("FAKESTELLAR_VERSION", MinimumStellarVersion)
+	t.Setenv("FAKESTELLAR_IDENTITIES", "alice\nbob")
+
+	var offered []string
+	got, err := Resolve(bin, "", func(names []string) (string, error) {
+		offered = names
+		return names[1], nil
 	})
 	if err != nil {
 		t.Fatalf("Resolve: %v", err)
 	}
 	if got != "bob" {
-		t.Fatalf("got %q, want %q", got, "bob")
+		t.Fatalf("Resolve = %q, want bob", got)
+	}
+	if len(offered) != 2 {
+		t.Fatalf("prompt was offered %v, want both identities", offered)
 	}
 }
