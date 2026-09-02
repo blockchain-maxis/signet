@@ -35,7 +35,17 @@ func newLinkCmd() *cobra.Command {
 				return json.NewEncoder(cmd.OutOrStdout()).Encode(result)
 			}
 
-			_, err = fmt.Fprintf(cmd.OutOrStdout(), "Linked %s to %s (%s)\n", result.Handle, result.PublicKey, result.Network)
+			// Deliberately not "Linked …": internal/keys and internal/spec
+			// are still scaffolds, so nothing has been claimed on-chain or
+			// sent to a deployment yet. Saying otherwise would report a
+			// success that did not happen. The --json contract above is
+			// unaffected — `status` stays the machine-readable field, and
+			// this text is the human-facing half that must not overstate it.
+			_, err = fmt.Fprintf(
+				cmd.OutOrStdout(),
+				"Validated %s for %s (%s). Not yet submitted — the on-chain claim is not implemented.\n",
+				result.Handle, result.PublicKey, result.Network,
+			)
 			return err
 		},
 	}

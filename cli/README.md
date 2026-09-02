@@ -18,7 +18,7 @@ follow-up issues once `internal/keys`/`internal/spec` are implemented.
 
 ```bash
 signet link aquawolf --public-key GASAAEJC6P5UZGRLYJ2I2KYLR7RXGF44JZXDYGCFBN7T5VIHECUUEMCD
-# Linked aquawolf to GASAAEJC6P5UZGRLYJ2I2KYLR7RXGF44JZXDYGCFBN7T5VIHECUUEMCD (testnet)
+# Validated aquawolf for GASAAEJC6P5UZGRLYJ2I2KYLR7RXGF44JZXDYGCFBN7T5VIHECUUEMCD (testnet). Not yet submitted — the on-chain claim is not implemented.
 ```
 
 `--json` writes a single JSON object to stdout instead — `{handle, publicKey,

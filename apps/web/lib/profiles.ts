@@ -106,12 +106,49 @@ export async function getProfile(handle: string): Promise<Profile | null> {
   return DEMO_MANIFEST[handle] ?? null;
 }
 
-export async function getOperations(handle: string): Promise<Operation[]> {
-  if (!isValidHandle(handle)) return [];
+/** Which layer answered an operations lookup; `none` when nothing did. */
+export type OperationsSource = 'database' | 'horizon' | 'demo' | 'none';
+
+/**
+ * An operations lookup together with how complete it is.
+ *
+ * Both the database and the Horizon layers read a bounded window rather than a
+ * developer's whole history: the indexer query takes the newest
+ * `DB_OPERATIONS_PER_WALLET` rows per wallet, and Horizon paging stops at its
+ * own cap. Whichever answered, a viewer has to be able to tell "did 400 things"
+ * apart from "did 40,000 things, we showed 400" — so the cap travels with the
+ * data and every surface that renders the list renders the caveat too.
+ */
+export interface OperationsResult {
+  /** The operations retrieved, newest first. */
+  operations: Operation[];
+  /** Which layer answered. */
+  source: OperationsSource;
+  /** True when a cap cut the record short — the list is a partial history. */
+  truncated: boolean;
+  /** The cap that produced the truncation, or null when nothing was capped. */
+  cap: number | null;
+}
+
+/**
+ * Render a count that may be a floor rather than a total. A truncated record
+ * only supports "at least N", never "N".
+ */
+export function formatCount(value: number, truncated: boolean): string {
+  return truncated ? `${value}+` : String(value);
+}
+
+/**
+ * Resolve a handle's operations along with their completeness. Prefer this over
+ * `getOperations` on any surface that shows the result to a person.
+ */
+export async function getOperationsResult(handle: string): Promise<OperationsResult> {
+  const empty: OperationsResult = { operations: [], source: 'none', truncated: false, cap: null };
+  if (!isValidHandle(handle)) return empty;
 
   // 1. Prefer indexer-populated DB rows (fastest, richest data including decoded_function).
-  const fromDb = await safeDbOperations(handle);
-  if (fromDb && fromDb.length > 0) return fromDb;
+  const fromDb = await safeDbOperationsResult(handle);
+  if (fromDb && fromDb.operations.length > 0) return { ...fromDb, source: 'database' };
 
   // 2. Horizon fallback: fetch invoke_host_function ops for the bound wallet directly
   //    from the Horizon API. This makes claimed handles work without a database.
@@ -123,13 +160,32 @@ export async function getOperations(handle: string): Promise<Operation[]> {
     if (profile?.wallet) {
       const { fetchHorizonOperations } = await import('./server/horizon.ts');
       const fromHorizon = await fetchHorizonOperations(profile.wallet);
-      if (fromHorizon && fromHorizon.length > 0) return fromHorizon;
+      if (fromHorizon && fromHorizon.operations.length > 0) {
+        return {
+          operations: fromHorizon.operations,
+          source: 'horizon',
+          truncated: fromHorizon.truncated,
+          cap: fromHorizon.truncated ? fromHorizon.cap : null,
+        };
+      }
     }
   }
 
   // 3. Static demo JSON (for the curated demo handles: aquawolf, sorobuilder, stellardev).
   const data = await readJson<{ _embedded?: { records?: Operation[] } }>(`${handle}.json`);
-  return data?._embedded?.records ?? [];
+  const records = data?._embedded?.records ?? [];
+  if (records.length === 0) return empty;
+  // The curated files are the whole of what a demo persona ever did.
+  return { operations: records, source: 'demo', truncated: false, cap: null };
+}
+
+/**
+ * Operations for a handle, without completeness metadata. Kept for callers that
+ * only aggregate (e.g. `computeStats`); anything that renders a list or a count
+ * to a viewer should use `getOperationsResult` so it can disclose truncation.
+ */
+export async function getOperations(handle: string): Promise<Operation[]> {
+  return (await getOperationsResult(handle)).operations;
 }
 
 export interface ProfileStats {
@@ -154,7 +210,10 @@ export function computeStats(operations: Operation[] | null | undefined): Profil
   const uniqueFunctions = new Set(successful.map(functionOf)).size;
   const invocations = successful.length;
   // 6 pts per invocation (cap 60) + 10 pts per distinct function (cap 40).
-  const reputation = Math.min(100, Math.min(60, invocations * 6) + Math.min(40, uniqueFunctions * 10));
+  const reputation = Math.min(
+    100,
+    Math.min(60, invocations * 6) + Math.min(40, uniqueFunctions * 10),
+  );
   return { invocations, uniqueFunctions, reputation };
 }
 
@@ -315,12 +374,52 @@ export async function safeChainProfile(handle: string): Promise<Profile | null> 
   }
 }
 
+/** Maps a Prisma `Operation` row to the Horizon-shaped `Operation` the UI uses. */
+function mapDbOperation(op: {
+  id: string;
+  type: string;
+  function: string | null;
+  decodedFunction: string | null;
+  sourceAccount: string | null;
+  createdAt: Date;
+  transactionHash: string | null;
+  successful: boolean;
+  balanceChanges: unknown;
+}): Operation {
+  return {
+    id: op.id,
+    type: op.type,
+    function: op.function ?? undefined,
+    decoded_function: op.decodedFunction ?? undefined,
+    source_account: op.sourceAccount ?? undefined,
+    created_at: op.createdAt.toISOString(),
+    transaction_hash: op.transactionHash ?? undefined,
+    transaction_successful: op.successful,
+    asset_balance_changes:
+      (op.balanceChanges as unknown as Operation['asset_balance_changes']) ?? undefined,
+  };
+}
+
 /**
- * Best-effort lookup of indexer-populated operations for a handle. Returns null
- * on any failure (no DB, unreachable, error) so `getOperations` falls back to
- * the static JSON. Maps DB rows to the Horizon-shaped `Operation` the UI uses.
+ * Newest indexer rows read per wallet. Like the Horizon cap, this bounds the
+ * query rather than the developer's history, so a wallet that fills the window
+ * yields a partial record — reported as `truncated`, never rendered as whole.
  */
-export async function safeDbOperations(handle: string): Promise<Operation[] | null> {
+export const DB_OPERATIONS_PER_WALLET = 100;
+
+/**
+ * Best-effort lookup of indexer-populated operations for a handle, together
+ * with the completeness of the read. Returns null on any failure (no DB,
+ * unreachable, error) so `getOperationsResult` falls back to Horizon and then
+ * the static JSON. Maps DB rows to the Horizon-shaped `Operation` the UI uses.
+ *
+ * Capped at 100 rows — this powers dashboard stats and OG images, which only
+ * need a representative recent sample, not the full history. Callers that
+ * need real pagination over the complete set must use `getPagedOperations`.
+ */
+export async function safeDbOperationsResult(
+  handle: string,
+): Promise<Omit<OperationsResult, 'source'> | null> {
   if (!process.env.DATABASE_URL || !isValidHandle(handle)) return null;
   try {
     const { prisma } = await import('@signet/db');
@@ -328,27 +427,84 @@ export async function safeDbOperations(handle: string): Promise<Operation[] | nu
       where: { handle: handle.toLowerCase() },
       include: {
         wallets: {
-          include: { operations: { orderBy: { createdAt: 'desc' }, take: 100 } },
+          include: {
+            operations: { orderBy: { createdAt: 'desc' }, take: DB_OPERATIONS_PER_WALLET },
+          },
         },
       },
     });
     if (!profile) return null;
-    return profile.wallets
+    // A wallet whose window came back full has older rows we did not read.
+    let truncated = false;
+    for (const wallet of profile.wallets) {
+      if (wallet.operations.length >= DB_OPERATIONS_PER_WALLET) truncated = true;
+    }
+    const operations = profile.wallets
       .flatMap((w) => w.operations)
       .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
-      .map((op) => ({
-        id: op.id,
-        type: op.type,
-        function: op.function ?? undefined,
-        decoded_function: op.decodedFunction ?? undefined,
-        source_account: op.sourceAccount ?? undefined,
-        created_at: op.createdAt.toISOString(),
-        transaction_hash: op.transactionHash ?? undefined,
-        transaction_successful: op.successful,
-        asset_balance_changes:
-          (op.balanceChanges as unknown as Operation['asset_balance_changes']) ?? undefined,
-      }));
+      .map(mapDbOperation);
+    return { operations, truncated, cap: truncated ? DB_OPERATIONS_PER_WALLET : null };
   } catch {
     return null;
   }
+}
+
+export interface PagedOperations {
+  data: Operation[];
+  /** True count of operations backing this handle, not capped to a page. */
+  total: number;
+}
+
+/**
+ * Paginated, DB-backed lookup of every operation for a handle — unlike
+ * `safeDbOperations`, this is not capped at 100 rows. `offset`/`limit` are
+ * pushed into the query via `skip`/`take` and `total` comes from a real
+ * `count`, so a caller paging past the first 100 rows still gets its data and
+ * an honest total instead of an empty page with a stale count.
+ *
+ * Returns null when there's no database, the handle doesn't resolve to a
+ * profile in it, or the query fails — callers fall back to `getOperations`
+ * (Horizon / static demo JSON) in that case, same as `safeDbOperations`.
+ */
+export async function getPagedOperations(
+  handle: string,
+  offset: number,
+  limit: number,
+): Promise<PagedOperations | null> {
+  if (!process.env.DATABASE_URL || !isValidHandle(handle)) return null;
+  try {
+    const { prisma } = await import('@signet/db');
+    const profile = await prisma.profile.findUnique({
+      where: { handle: handle.toLowerCase() },
+      include: { wallets: { select: { id: true } } },
+    });
+    if (!profile) return null;
+
+    const walletIds = profile.wallets.map((w) => w.id);
+    if (walletIds.length === 0) return { data: [], total: 0 };
+
+    const where = { walletId: { in: walletIds } };
+    const [rows, total] = await Promise.all([
+      prisma.operation.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        skip: offset,
+        take: limit,
+      }),
+      prisma.operation.count({ where }),
+    ]);
+
+    return { data: rows.map(mapDbOperation), total };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Indexer operations without completeness metadata, for callers that only need
+ * the rows. Prefer `safeDbOperationsResult` wherever the result is displayed.
+ */
+export async function safeDbOperations(handle: string): Promise<Operation[] | null> {
+  const result = await safeDbOperationsResult(handle);
+  return result ? result.operations : null;
 }
