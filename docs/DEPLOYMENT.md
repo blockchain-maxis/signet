@@ -194,7 +194,7 @@ cp .env.example .env
 Minimum production-oriented `.env` (replace placeholders):
 
 ```bash
-NEXT_PUBLIC_APP_URL=https://your-domain.example
+NEXT_PUBLIC_APP_URL=https://your-domain.example   # required — the server will not start without it
 NEXT_PUBLIC_ROOT_DOMAIN=your-domain.example
 NEXT_PUBLIC_STELLAR_NETWORK=testnet
 NEXT_PUBLIC_SOROBAN_RPC_URL=https://soroban-testnet.stellar.org
@@ -246,7 +246,7 @@ The app is a Next.js monorepo package at `apps/web`. Root
 
    | Variable | Example |
    | --- | --- |
-   | `NEXT_PUBLIC_APP_URL` | `https://<site>.netlify.app` |
+   | `NEXT_PUBLIC_APP_URL` | `https://<site>.netlify.app` (required — startup fails without it) |
    | `NEXT_PUBLIC_ROOT_DOMAIN` | `<site>.netlify.app` (or your custom domain) |
    | `NEXT_PUBLIC_STELLAR_NETWORK` | `testnet` |
    | `NEXT_PUBLIC_SOROBAN_RPC_URL` | `https://soroban-testnet.stellar.org` |

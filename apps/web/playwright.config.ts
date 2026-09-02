@@ -34,6 +34,12 @@ export default defineConfig({
       // localhost test server, never a deployment (real values come from the
       // deployment environment, which never reads this file).
       SIGNET_AUTH_SECRET: 'signet-e2e-only-session-secret',
+      // Also required in production (see `lib/public-env.ts`): the startup
+      // guard refuses to boot without a site origin, rather than let a
+      // deployment publish localhost URLs in its sitemap and social cards.
+      // Here the origin genuinely IS this loopback server, so the guard logs
+      // its loopback warning and starts.
+      NEXT_PUBLIC_APP_URL: `http://localhost:${PORT}`,
       SEP10_SIGNING_SECRET: 'SD2H7CMH7XEAMXE5LZGYYJB6IU3XTPPLWZESDK3HB6KSRBVLXJQUB7SO',
       // The opt-in testnet spec (e2e/testnet-claim.spec.ts) needs the server's
       // chain fallback pointed at the registry it claims on. These are
@@ -45,8 +51,7 @@ export default defineConfig({
             REGISTRY_CONTRACT_ID:
               process.env.REGISTRY_CONTRACT_ID ??
               'CASFJHI5PQSRWS7JV25CF7FOMRKIVBP3RXRP3E2GH2CV4BCAG7FUJRCN',
-            SOROBAN_RPC_URL:
-              process.env.SOROBAN_RPC_URL ?? 'https://soroban-testnet.stellar.org',
+            SOROBAN_RPC_URL: process.env.SOROBAN_RPC_URL ?? 'https://soroban-testnet.stellar.org',
           }
         : {}),
     },

@@ -1,10 +1,9 @@
 import type { MetadataRoute } from 'next';
-
-export const SITEMAP_BASE = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000';
+import { appUrl } from './public-env.ts';
 
 // Kept out of app/sitemap.ts so it can be unit tested: the route module imports
 // the `@/lib` alias, which the node test runner does not resolve.
-export function staticRoutes(now: Date, base = SITEMAP_BASE): MetadataRoute.Sitemap {
+export function staticRoutes(now: Date, base = appUrl()): MetadataRoute.Sitemap {
   return [
     { url: `${base}/`, lastModified: now, priority: 1 },
     { url: `${base}/handles`, lastModified: now, priority: 0.8 },
@@ -16,7 +15,7 @@ export function staticRoutes(now: Date, base = SITEMAP_BASE): MetadataRoute.Site
 export function profileRoutes(
   handles: string[],
   now: Date,
-  base = SITEMAP_BASE,
+  base = appUrl(),
 ): MetadataRoute.Sitemap {
   return handles.map((handle) => ({
     url: `${base}/p/${handle}`,

@@ -1,5 +1,6 @@
 import { createTRPCClient, httpBatchLink } from '@trpc/client';
 import type { AppRouter } from './server/trpc';
+import { appUrl } from './public-env.ts';
 
 /**
  * Vanilla tRPC client.
@@ -10,7 +11,7 @@ import type { AppRouter } from './server/trpc';
  */
 function getBaseUrl(): string {
   if (typeof window !== 'undefined') return '';
-  return process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000';
+  return appUrl();
 }
 
 export const trpc = createTRPCClient<AppRouter>({
