@@ -1,4 +1,5 @@
 import { rpc, scValToNative, xdr } from '@stellar/stellar-sdk';
+import type { WalletSource } from '@signet/types';
 import { prisma } from '../db.js';
 import { logger } from '../logger.js';
 import { createRegistryReader, type RegistryReader } from '../registry-read.js';
@@ -20,9 +21,10 @@ import type { IndexerConfig } from '../config.js';
 const CURSOR_ID = 'attestation';
 
 export type AttestationEvent = {
-  kind: 'claimed' | 'released' | 'revoked';
+  kind: 'claimed' | 'released' | 'revoked' | 'transferred';
   handle: string;
   wallet: string;
+  from?: string;
 };
 
 /**
@@ -38,13 +40,13 @@ export interface AttestationStore {
     }): Promise<{ id: string }>;
     findMany(args: {
       select: { handle: true; wallets: { select: { pubkey: true; source: true } } };
-    }): Promise<{ handle: string; wallets: { pubkey: string; source: string }[] }[]>;
+    }): Promise<{ handle: string; wallets: { pubkey: string; source: WalletSource }[] }[]>;
   };
   wallet: {
     upsert(args: {
       where: { pubkey: string };
-      update: Record<string, unknown>;
-      create: Record<string, unknown>;
+      update: { profileId: string; source: WalletSource; isPrimary: boolean };
+      create: { pubkey: string; profileId: string; source: WalletSource; isPrimary: boolean };
     }): Promise<unknown>;
     deleteMany(args: { where: { pubkey: string } }): Promise<unknown>;
   };
@@ -72,16 +74,26 @@ export interface CursorStore {
  * event isn't one we care about (wrong topic, malformed payload).
  *
  * The contract publishes:
- *   topics = [ symbol("claimed"|"released"|"revoked"), string(handle) ],  data = address(wallet)
+ *   topics = [ symbol("claimed"|"released"|"revoked"|"transferred"), string(handle) ],
+ *   data = address(wallet) for single-wallet events and [old_owner, new_wallet] for transfer.
  */
 export function decodeEvent(topics: xdr.ScVal[], value: xdr.ScVal): AttestationEvent | null {
   try {
     if (topics.length < 2) return null;
     const kind = scValToNative(topics[0]!) as string;
-    if (kind !== 'claimed' && kind !== 'released' && kind !== 'revoked') return null;
     const handle = String(scValToNative(topics[1]!));
+    if (!handle) return null;
+
+    if (kind === 'transferred') {
+      const pair = scValToNative(value) as unknown[] | null;
+      const [from, wallet] = Array.isArray(pair) ? pair : [];
+      if (!from || !wallet) return null;
+      return { kind, handle, wallet: String(wallet), from: String(from) };
+    }
+
+    if (kind !== 'claimed' && kind !== 'released' && kind !== 'revoked') return null;
     const wallet = String(scValToNative(value));
-    if (!handle || !wallet) return null;
+    if (!wallet) return null;
     return { kind, handle, wallet };
   } catch {
     return null;
@@ -99,6 +111,20 @@ export async function applyAttestation(
       update: {},
       create: { handle: ev.handle },
     });
+    await store.wallet.upsert({
+      where: { pubkey: ev.wallet },
+      update: { profileId: profile.id, source: 'onchain', isPrimary: true },
+      create: { pubkey: ev.wallet, profileId: profile.id, source: 'onchain', isPrimary: true },
+    });
+  } else if (ev.kind === 'transferred') {
+    const profile = await store.profile.upsert({
+      where: { handle: ev.handle },
+      update: {},
+      create: { handle: ev.handle },
+    });
+    if (ev.from) {
+      await store.wallet.deleteMany({ where: { pubkey: ev.from } });
+    }
     await store.wallet.upsert({
       where: { pubkey: ev.wallet },
       update: { profileId: profile.id, source: 'onchain', isPrimary: true },
@@ -146,6 +172,14 @@ export async function reconcileAgainstChain(
   });
   const resolved = await reader.resolveMany(profiles.map((p) => p.handle));
 
+  // Every wallet some handle resolves to right now. The deletions below run
+  // against the PRE-sweep snapshot, and a wallet the snapshot links to handle
+  // A may meanwhile own handle B on-chain: processing B upserts the row, and
+  // processing A later must not delete what that upsert just re-pointed.
+  // Deleting only wallets no resolved handle claims makes the sweep
+  // order-independent.
+  const boundNow = new Set(resolved.filter((w): w is string => typeof w === 'string'));
+
   let bound = 0;
   let removed = 0;
   for (let i = 0; i < profiles.length; i++) {
@@ -157,16 +191,12 @@ export async function reconcileAgainstChain(
     if (wallet) {
       bound++;
       await applyAttestation(store, { kind: 'claimed', handle: profile.handle, wallet });
-      for (const w of onchain) {
-        // The handle resolves to a different wallet now - a transfer the
-        // event stream never told us about (or that fell in the lost window).
-        if (w.pubkey !== wallet) {
-          await store.wallet.deleteMany({ where: { pubkey: w.pubkey } });
-          removed++;
-        }
-      }
-    } else {
-      for (const w of onchain) {
+    }
+    for (const w of onchain) {
+      // Stale link: this wallet is not (or no longer) what the handle
+      // resolves to - released, revoked, or transferred away. Keep it if any
+      // OTHER handle resolves to it now.
+      if (w.pubkey !== wallet && !boundNow.has(w.pubkey)) {
         await store.wallet.deleteMany({ where: { pubkey: w.pubkey } });
         removed++;
       }
@@ -223,18 +253,30 @@ export async function runAttestationWorker(
     if (latest - startLedger > config.eventWindowLedgers) {
       const reader =
         registryReader ?? createRegistryReader(server, config.registryContractId, config.network);
+      logger.warn(
+        { startLedger, latest, gap: latest - startLedger },
+        'attestation.reconcile.start - cursor outside event retention',
+      );
       try {
         const stats = await reconcileAgainstChain(evStore, reader);
+        // Resume from the near edge of the servable window, not the tip: the
+        // sweep can only cover handles the database knows, but the tail of
+        // the window is still readable as EVENTS - so the next tick replays
+        // it (idempotently) and catches claims of handles the sweep could
+        // not know about. Only the truly unservable middle is ceded.
+        const resumeFrom = Math.max(1, latest - config.eventWindowLedgers);
         await store.indexerCursor.upsert({
           where: { id: CURSOR_ID },
-          update: { lastLedger: latest },
-          create: { id: CURSOR_ID, lastLedger: latest },
+          update: { lastLedger: resumeFrom },
+          create: { id: CURSOR_ID, lastLedger: resumeFrom },
         });
         if (stats.unknownOnChain > 0) {
           // The registry says more handles are bound than we could confirm:
-          // handles claimed in the lost window that the database has never
-          // seen. Only an archival-RPC backfill (docs/INDEXER.md) can name
-          // them - or the counter itself has drifted upward after archival.
+          // handles the database has never seen. Ones claimed in the still-
+          // servable tail arrive with the next tick's event read (the cursor
+          // resumes at the window's near edge); older ones take an
+          // archival-RPC backfill (docs/INDEXER.md) - or the counter itself
+          // has drifted upward after archival.
           logger.error(
             { ...stats, startLedger, latest },
             'attestation.reconcile.countMismatch - bindings exist on-chain that the database has never seen',

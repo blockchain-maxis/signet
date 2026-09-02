@@ -1,6 +1,12 @@
 import { notFound } from 'next/navigation';
 import { SignetMonogram } from '../../(marketing)/components/signet-monogram';
-import { getProfile, getOperations, listAllHandles, computeStats } from '@/lib/profiles';
+import {
+  getProfile,
+  getOperationsResult,
+  listAllHandles,
+  computeStats,
+  formatCount,
+} from '@/lib/profiles';
 import { STELLAR_EXPLORER, STELLAR_NETWORK_NAME } from '@/lib/network';
 import { formatDate } from '@/lib/format-date';
 import OperationsList from './operations-list';
@@ -44,7 +50,11 @@ export default async function ProfilePage({ params }: { params: Promise<{ handle
   const profile = await getProfile(handle);
   if (!profile) notFound();
 
-  const operations = await getOperations(handle);
+  // `truncated` says the record stops at a cap rather than at the end of this
+  // developer's history. Every claim below that would otherwise read as a total
+  // is qualified by it — a partial record shown as complete is the one thing a
+  // career record must never do.
+  const { operations, truncated, cap, source } = await getOperationsResult(handle);
   const stats = computeStats(operations);
   const oldest = operations[operations.length - 1];
   const newest = operations[0];
@@ -178,10 +188,21 @@ export default async function ProfilePage({ params }: { params: Promise<{ handle
           <SectionLabel>On-chain activity</SectionLabel>
           <div className="mt-6 grid grid-cols-2 gap-px border border-[#1f1d19] bg-[#1f1d19] md:grid-cols-5">
             {[
-              { label: 'Reputation', value: `${stats.reputation}` },
-              { label: 'Soroban invocations', value: String(stats.invocations) },
-              { label: 'Unique functions called', value: String(stats.uniqueFunctions) },
-              { label: 'First activity', value: oldest ? formatDate(oldest.created_at, { day: undefined }) : '—' },
+              { label: truncated ? 'Reputation (partial)' : 'Reputation', value: `${stats.reputation}` },
+              {
+                label: 'Soroban invocations',
+                value: formatCount(stats.invocations, truncated),
+              },
+              {
+                label: 'Unique functions called',
+                value: formatCount(stats.uniqueFunctions, truncated),
+              },
+              {
+                // Without the full history the earliest record we hold is not
+                // the developer's first activity, so the label stops claiming it.
+                label: truncated ? 'Earliest shown' : 'First activity',
+                value: oldest ? formatDate(oldest.created_at, { day: undefined }) : '—',
+              },
               { label: 'Latest activity', value: newest ? formatDate(newest.created_at) : '—' },
             ].map(({ label, value }) => (
               <div key={label} className="flex flex-col justify-center bg-[#0a0908] px-6 py-6">
@@ -206,14 +227,44 @@ export default async function ProfilePage({ params }: { params: Promise<{ handle
         <section className="mb-16">
           <SectionLabel>
             Soroban invocations
-            <span className="ml-1 text-[#5e5b51]">· {operations.length} indexed</span>
+            <span className="ml-1 text-[#5e5b51]">
+              {truncated
+                ? `· ${operations.length} shown · partial record`
+                : `· ${operations.length} indexed`}
+            </span>
           </SectionLabel>
+
+          {truncated && (
+            <div className="mt-6 border border-amber-900/60 bg-amber-950/20 px-5 py-4">
+              <p
+                className="text-[12px] leading-[1.7] text-amber-300"
+                style={{ fontFamily: 'var(--font-mono)' }}
+              >
+                Partial record — this account has more history than is shown.{' '}
+                {source === 'horizon'
+                  ? `Without an indexer, activity is read straight from Horizon, which we page through only as far as the ${cap} most recent operations.`
+                  : `The indexer read only the ${cap} most recent operations for this wallet.`}{' '}
+                Counts above are lower bounds, and older invocations are not listed.
+              </p>
+              <a
+                href={`https://stellar.expert/explorer/${STELLAR_EXPLORER}/account/${profile.wallet}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="mt-3 inline-block text-[10px] uppercase tracking-[0.2em] text-amber-400 transition-colors hover:text-amber-200"
+                style={{ fontFamily: 'var(--font-mono)' }}
+              >
+                Full history on Stellar Expert ↗
+              </a>
+            </div>
+          )}
 
           <OperationsList
             handle={handle}
             initialOperations={operations.slice(0, 25)}
             total={operations.length}
             isDemo={isDemo}
+            truncated={truncated}
+            cap={cap}
           />
         </section>
 
@@ -240,6 +291,15 @@ export default async function ProfilePage({ params }: { params: Promise<{ handle
                   binding above was read live from the Identity Registry contract on Stellar{' '}
                   {STELLAR_NETWORK_NAME}, not curated. Any Soroban invocations listed come from the
                   indexed ledger and are independently verifiable on Stellar Expert.
+                  {truncated ? (
+                    <>
+                      {' '}
+                      This particular record is{' '}
+                      <strong className="text-[#8a8779]">partial</strong>: it stops at the{' '}
+                      {cap} most recent operations, so the counts above are lower bounds rather
+                      than totals.
+                    </>
+                  ) : null}
                 </>
               )}
             </p>
