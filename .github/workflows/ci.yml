@@ -94,14 +94,20 @@ jobs:
       - name: Test
         run: go test ./...
 
-      # golangci-lint-action v6 drives golangci-lint v1, whose flags differ from
-      # v2's — and cli/.golangci.yml is a v2 config (`version: "2"`, plus the
-      # v2-only `formatters:` block). Action v8 and a pinned v2 release keep the
-      # two in step; `version: latest` would also silently change what runs here
-      # from one week to the next.
+      # Three things have to agree here, and the original v6 + `version: latest`
+      # got two of them wrong:
+      #   * cli/.golangci.yml is a v2 config (`version: "2"`, and the v2-only
+      #     `formatters:` block), so the action must be v8 — v6 drives
+      #     golangci-lint v1 and passes v1-only flags.
+      #   * golangci-lint refuses to run when the Go version it was *built with*
+      #     is older than the module's target, so this release has to be one
+      #     built with >= go 1.25 to match cli/go.mod. v2.1.6 is built with
+      #     go1.24 and fails with "can't load config: the Go language version
+      #     (go1.24) ... is lower than the targeted Go version (1.25.0)".
+      #   * `latest` would let both of those drift again without a commit here.
       - uses: golangci/golangci-lint-action@v8
         with:
-          version: v2.1.6
+          version: v2.13.2
           working-directory: cli
 
   contracts:
