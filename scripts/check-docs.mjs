@@ -135,9 +135,12 @@ const ENV_ALLOW = new Set([
   'GITHUB_ACTIONS',
   'DEPLOY_ENABLED', // GitHub repo variable, not app env
   'BUDGET_BYTES', // CI workflow env
+  'DEMO_HORIZON_URL', // GitHub repo variable, not app env
+  'DEMO_WALLETS_REQUIRE_HORIZON', // GitHub repo variable, not app env
   'NETWORK', // shell override for deploy-contract.sh
   'STELLAR_ACCOUNT', // shell override for deploy-contract.sh
   'ADMIN_ADDRESS', // shell override for deploy-contract.sh
+  'SIGNET_URL', // shell env for the cli/ Go module, not the pnpm workspace's .env
 ]);
 
 /**
@@ -153,6 +156,8 @@ const NOT_ENV_IDENTIFIERS = new Set([
   'BASE_FEE', // @stellar/stellar-sdk constant
   'MAX_BATCH_SIZE', // identity-registry contract constant
   'MAX_HANDLE_LEN', // identity-registry contract constant
+  'DB_OPERATIONS_PER_WALLET', // apps/web/lib/profiles.ts — bounded read, not config
+  'HORIZON_MAX_RECORDS', // apps/web/lib/server/horizon.ts — bounded read, not config
 ]);
 
 /** Backticked SCREAMING_SNAKE with an underscore — typical env var citation. */
