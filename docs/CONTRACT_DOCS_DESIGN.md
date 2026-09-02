@@ -9,7 +9,7 @@ a contract address and an RPC endpoint, that is enough to produce accurate
 reference documentation with no input from the contract's author — and it cannot
 drift from the deployed code, because it is derived from it.
 
-This matters for Signet specifically. A profile currently proves *what* an
+This matters for Signet specifically. A profile currently proves _what_ an
 address deployed. Most of those contracts have no documentation anywhere, so to
 a reader evaluating a developer's work the profile is a list of `C…` strings.
 Generated docs are what turn that list into something legible to someone who is
@@ -29,11 +29,11 @@ not the author.
 A Soroban contract's WASM carries three custom sections. Reading the registry's
 6,240-byte module:
 
-| Section | Size | Contents |
-| ------- | ---- | -------- |
-| `contractspecv0` | 1,256 B | The interface: functions, argument and return types, user-defined types, error enums, and **doc comments**. |
-| `contractmetav0` | 96 B | Build provenance — `rsver 1.91.1`, `rssdkver 26.1.0#175aa41…`. |
-| `contractenvmetav0` | 12 B | The protocol interface version the contract was built against. |
+| Section             | Size    | Contents                                                                                                    |
+| ------------------- | ------- | ----------------------------------------------------------------------------------------------------------- |
+| `contractspecv0`    | 1,256 B | The interface: functions, argument and return types, user-defined types, error enums, and **doc comments**. |
+| `contractmetav0`    | 96 B    | Build provenance — `rsver 1.91.1`, `rssdkver 26.1.0#175aa41…`.                                              |
+| `contractenvmetav0` | 12 B    | The protocol interface version the contract was built against.                                              |
 
 `contractspecv0` is the documentation source. `contractmetav0` is worth
 surfacing alongside it: "built with soroban-sdk 26.1.0" is a real signal about a
@@ -48,7 +48,7 @@ Three steps, all read-only, no signature, no fee:
    WASM hash, fetches the matching `ContractCode` entry, and returns the bytes.
    No separate hash lookup is needed.
 2. **Pull the custom section.** `WebAssembly.Module.customSections(module,
-   'contractspecv0')`. This is a platform API — it works in Node and in the
+'contractspecv0')`. This is a platform API — it works in Node and in the
    browser, and it does not require a WASM parser dependency.
 3. **Decode the entries.**
 
@@ -59,7 +59,7 @@ while (!reader.eof) entries.push(xdr.ScSpecEntry.read(reader));
 ```
 
 > **Gotcha worth writing down.** `xdr.ScSpecEntry.fromXDR(section)` fails with
-> *"source buffer not entirely consumed"*. The section is a bare concatenation
+> _"source buffer not entirely consumed"_. The section is a bare concatenation
 > of entries with no length prefix and no envelope, so it has to be read
 > sequentially with a cursor. Anyone reaching for the obvious one-liner will
 > hit this; it cost time to find and is the single least obvious thing in the
@@ -89,7 +89,7 @@ replacement for it.
 
 ### 1.4 Why this needs no Rust
 
-Spec extraction is *reading structured data*, not executing WASM. `erst` does
+Spec extraction is _reading structured data_, not executing WASM. `erst` does
 the same thing in Go (`cmd/generate-bindings.go` reads the WASM and emits a
 typed TypeScript client), which is the proof that the language does not matter
 here. The sandbox is the component that must actually run Soroban semantics, and
@@ -101,11 +101,11 @@ ship before the bridge exists.
 
 Each has a distinct display, because they mean different things to a reader:
 
-| Condition | Cause | Shown as |
-| --------- | ----- | -------- |
-| Contract not found | Address never deployed, or archived and not restored | "Not found on `<network>`" — with the address, so a wrong-network mistake is obvious |
-| No `contractspecv0` section | Not built with `soroban-sdk` — hand-written WASM, or a Stellar Asset Contract | "This contract publishes no interface" — a statement about the contract, not an error |
-| Section present, decode fails | A spec format newer than the pinned SDK | "Interface could not be read" + the SDK version — and it is logged, because it means the SDK needs upgrading |
+| Condition                     | Cause                                                                         | Shown as                                                                                                     |
+| ----------------------------- | ----------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| Contract not found            | Address never deployed, or archived and not restored                          | "Not found on `<network>`" — with the address, so a wrong-network mistake is obvious                         |
+| No `contractspecv0` section   | Not built with `soroban-sdk` — hand-written WASM, or a Stellar Asset Contract | "This contract publishes no interface" — a statement about the contract, not an error                        |
+| Section present, decode fails | A spec format newer than the pinned SDK                                       | "Interface could not be read" + the SDK version — and it is logged, because it means the SDK needs upgrading |
 
 None of these may render as a generic error page. A contract that publishes no
 interface is a fact about that contract and belongs on the page.
@@ -121,13 +121,13 @@ interface is a fact about that contract and belongs on the page.
 ```
 
 A sub-route of the canonical profile, not a sibling. The contract is being shown
-*as part of this developer's record*, and the route should say so — the page
+_as part of this developer's record_, and the route should say so — the page
 carries the profile's identity (handle, wallet binding, provenance) and the
 contract's interface below it.
 
 This revives a route shape that already existed. `/profile/{handle}/contract/{address}`
-is currently a `permanentRedirect` to `/p/{handle}`, with the comment *"redirect
-to the canonical profile page until a dedicated view is built"*. This is that
+is currently a `permanentRedirect` to `/p/{handle}`, with the comment _"redirect
+to the canonical profile page until a dedicated view is built"_. This is that
 view; the legacy path keeps redirecting, to the new sub-route rather than the
 profile root.
 
@@ -206,7 +206,7 @@ functions to match. Two constraints:
 - `contractenvmetav0` records the protocol interface version the contract was
   built against. Surface it; do not gate on it. A contract built against an
   older protocol still has a perfectly readable interface, and refusing to
-  document it would be a policy about *execution* applied where it does not
+  document it would be a policy about _execution_ applied where it does not
   belong.
 
 The sandbox's version story is a genuinely different problem — `erst`'s
