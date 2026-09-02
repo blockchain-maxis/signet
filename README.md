@@ -169,7 +169,7 @@ set from the event stream.
 | `packages/db` | Prisma schema + generated client |
 | `packages/sdk` | External SDK for integrators |
 | `packages/types` | Shared TypeScript types |
-| `packages/ui` | Shared React components |
+| `cli` | `signet` CLI (Go) — links wallets, manages keys, talks to a Signet deployment |
 | `infra` | Local dev infra (Docker Postgres) |
 
 ## Scripts
@@ -184,20 +184,26 @@ set from the event stream.
 | `pnpm db:migrate` | Run Prisma migrations |
 | `pnpm test` | All TypeScript tests via Turborepo |
 | `cargo test` (in `packages/contracts`) | Identity Registry unit tests |
+| `go build ./...` / `go test ./...` (in `cli`) | Build / test the `signet` CLI |
 
 ## Tests
 
 | Suite | Count |
 |-------|-------|
-| `pnpm test` | **208** — `@signet/web` 137 · `@signet/indexer` 36 · `@signet/sdk` 26 · `@signet/types` 9 (`ui`, `db` have no tests yet) |
+| `pnpm test` | **208** — `@signet/web` 137 · `@signet/indexer` 36 · `@signet/sdk` 26 · `@signet/types` 9 (`db` has no tests yet) |
 | `cargo test` | **30** — `packages/contracts/identity-registry` |
 
 Both are CI gates ([`ci.yml`](.github/workflows/ci.yml)), alongside `lint`,
 `typecheck`, `build` and the wasm contract build.
 
+## Releases and changelog
+
+- **[`CHANGELOG.md`](CHANGELOG.md)** — Record of notable changes, version history, and deployed contract addresses.
+- **[`docs/RELEASING.md`](docs/RELEASING.md)** — Release procedure, Semantic Versioning policy, and tagging conventions.
+
 ## License
 
 Signet is licensed under the Apache License 2.0 — see [`LICENSE`](LICENSE) for the
 full text. This covers every workspace package (`@signet/sdk`, `@signet/types`,
-`@signet/ui`, `@signet/db`, `@signet/web`, `@signet/indexer`) and the Soroban
+`@signet/db`, `@signet/web`, `@signet/indexer`) and the Soroban
 `identity-registry` contract.

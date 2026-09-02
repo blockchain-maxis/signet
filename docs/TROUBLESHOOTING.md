@@ -10,15 +10,15 @@ If your failure is not listed, open an issue with the full command and stderr.
 
 ## Quick table
 
-| Symptom | Cause | Fix |
-|---------|-------|-----|
-| `rpc-url is used but network passphrase is missing` | stellar CLI 25.2.0 `--network testnet` alias bug | Pass `--rpc-url` and `--network-passphrase` explicitly (see below) |
-| `stellar keys generate … --fund` fails / account unfunded | Friendbot via CLI flaky or blocked by the alias bug | Fund with Friendbot HTTP, then retry without `--fund` |
-| `pnpm install` / Next build fails on Node 18/20 | Engines require Node 22+ | Upgrade Node (`nvm use` / install 22); see `.nvmrc` |
-| `error: could not find native static library` / missing wasm target | `wasm32v1-none` not installed | `rustup target add wasm32v1-none` |
-| Web app needs Postgres? | No — demo routes are static | Run `pnpm --filter @signet/web dev` without `DATABASE_URL` |
-| Claim button shows "Phase 2" | `NEXT_PUBLIC_IDENTITY_REGISTRY_ID` unset | Set the deployed testnet contract id in `.env` |
-| Indexer starts but never attests claims | Registry id unset | Set `INDEXER_REGISTRY_CONTRACT_ID` or `NEXT_PUBLIC_IDENTITY_REGISTRY_ID` |
+| Symptom                                                             | Cause                                               | Fix                                                                      |
+| ------------------------------------------------------------------- | --------------------------------------------------- | ------------------------------------------------------------------------ |
+| `rpc-url is used but network passphrase is missing`                 | stellar CLI 25.2.0 `--network testnet` alias bug    | Pass `--rpc-url` and `--network-passphrase` explicitly (see below)       |
+| `stellar keys generate … --fund` fails / account unfunded           | Friendbot via CLI flaky or blocked by the alias bug | Fund with Friendbot HTTP, then retry without `--fund`                    |
+| `pnpm install` / Next build fails on Node 18/20                     | Engines require Node 22+                            | Upgrade Node (`nvm use` / install 22); see `.nvmrc`                      |
+| `error: could not find native static library` / missing wasm target | `wasm32v1-none` not installed                       | `rustup target add wasm32v1-none`                                        |
+| Web app needs Postgres?                                             | No — demo routes are static                         | Run `pnpm --filter @signet/web dev` without `DATABASE_URL`               |
+| Claim button shows "Phase 2"                                        | `NEXT_PUBLIC_IDENTITY_REGISTRY_ID` unset            | Set the deployed testnet contract id in `.env`                           |
+| Indexer starts but never attests claims                             | Registry id unset                                   | Set `INDEXER_REGISTRY_CONTRACT_ID` or `NEXT_PUBLIC_IDENTITY_REGISTRY_ID` |
 
 ---
 
@@ -261,9 +261,36 @@ attestation worker queries Soroban events for that contract.
 
 ---
 
+## 8. Profile 404s or shows archived after ~30 days of inactivity
+
+**Symptom**
+
+A previously claimed handle appears unavailable or displays an archival banner indicating its persistent entry has expired.
+
+**Cause**
+
+Soroban smart contracts enforce a Time-To-Live (TTL) of ~30 days on persistent storage entries. If a handle is not queried or modified within that window, its entry moves into cold archived storage.
+
+**Fix**
+
+Restore the binding footprint via the web app or Stellar CLI, or run the keep-alive sweep script:
+
+```bash
+# Keep-alive sweep to bump active bindings
+node scripts/keepalive-contract.mjs
+
+# Detailed runbook:
+# See docs/ARCHIVAL_AND_RESTORATION.md
+```
+
+See [`docs/ARCHIVAL_AND_RESTORATION.md`](ARCHIVAL_AND_RESTORATION.md) for full restoration procedures.
+
+---
+
 ## Related docs
 
 - [README — Run locally](../README.md#run-locally)
 - [`.env.example`](../.env.example)
+- [`docs/ARCHIVAL_AND_RESTORATION.md`](ARCHIVAL_AND_RESTORATION.md)
 - [`packages/contracts/README.md`](../packages/contracts/README.md)
 - [`infra/README.md`](../infra/README.md)

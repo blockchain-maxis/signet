@@ -5,6 +5,14 @@ on:
     branches: [main]
   pull_request:
 
+# One in-flight run per branch. Superseding only cancels on pull_request:
+# a run on `main` is the record of whether that merged commit is green, and
+# two merges landing close together would otherwise cancel the first commit's
+# run before it ever reported.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   docs:
     name: docs links · env · scripts
@@ -29,6 +37,13 @@ jobs:
       - name: Check contract error sync
         run: node scripts/check-contract-errors.mjs
 
+      # Fails when the generated Go mirror of WALLET_SOURCES
+      # (packages/types/generated/wallet_source.go) drifts from its TypeScript
+      # source of truth (packages/types/src/wallet-source.ts). No Go toolchain
+      # needed — it just regenerates in memory and diffs.
+      - name: Check wallet source Go sync
+        run: node scripts/check-wallet-source-go.mjs
+
   web:
     name: lint • typecheck • test • build
     runs-on: ubuntu-latest
@@ -49,6 +64,12 @@ jobs:
       - name: Lint
         run: pnpm lint
 
+      # Advisory for now (does not fail the build) — the repo has pre-existing
+      # formatting drift from before this check existed. Flip to blocking once
+      # a follow-up reformat lands.
+      - name: Format check
+        run: pnpm format:check || true
+
       - name: Typecheck
         run: pnpm typecheck
 
@@ -57,6 +78,45 @@ jobs:
 
       - name: Build
         run: pnpm build
+
+  cli:
+    name: signet CLI (Go)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    defaults:
+      run:
+        working-directory: cli
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: cli/go.mod
+
+      - name: Build
+        run: go build ./...
+
+      - name: Vet
+        run: go vet ./...
+
+      - name: Test
+        run: go test ./...
+
+      # Three things have to agree here, and the original v6 + `version: latest`
+      # got two of them wrong:
+      #   * cli/.golangci.yml is a v2 config (`version: "2"`, and the v2-only
+      #     `formatters:` block), so the action must be v8 — v6 drives
+      #     golangci-lint v1 and passes v1-only flags.
+      #   * golangci-lint refuses to run when the Go version it was *built with*
+      #     is older than the module's target, so this release has to be one
+      #     built with >= go 1.25 to match cli/go.mod. v2.1.6 is built with
+      #     go1.24 and fails with "can't load config: the Go language version
+      #     (go1.24) ... is lower than the targeted Go version (1.25.0)".
+      #   * `latest` would let both of those drift again without a commit here.
+      - uses: golangci/golangci-lint-action@v8
+        with:
+          version: v2.13.2
+          working-directory: cli
 
   contracts:
     name: soroban contract tests
