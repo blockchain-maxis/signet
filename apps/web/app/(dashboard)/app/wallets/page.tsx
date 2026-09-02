@@ -30,7 +30,9 @@ export default async function WalletsPage() {
   if (address && wallets.length === 0 && registryConfigured) {
     const handle = await lookupWallet(address);
     if (handle) {
-      wallets = [{ pubkey: address, isPrimary: true, source: 'onchain', attestedAt: '' }];
+      wallets = [
+        { pubkey: address, isPrimary: true, source: 'onchain', attestedAt: '', indexingPending: false },
+      ];
     }
   }
 
@@ -81,6 +83,15 @@ export default async function WalletsPage() {
                 >
                   {SOURCE_BADGE[w.source].label}
                 </span>
+                {w.indexingPending && (
+                  <span
+                    className="text-[9px] uppercase tracking-[0.18em] text-[#c2410c]"
+                    style={mono}
+                    title="The indexer hasn't scanned this wallet's on-chain activity yet"
+                  >
+                    ◌ indexing…
+                  </span>
+                )}
               </div>
               <div className="flex items-center gap-6">
                 <a

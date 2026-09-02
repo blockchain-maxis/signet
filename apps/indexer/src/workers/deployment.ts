@@ -37,6 +37,18 @@ export interface DeploymentWallet {
   deploymentCursor: string | null;
   /** Set once the backward walk has reached the end of this wallet's history. */
   deploymentBackfilledAt: Date | null;
+  /**
+   * Set by `apps/web/lib/server/account.ts`'s `linkDeployWallet` on every
+   * (re-)link, so a just-linked wallet gets scanned promptly instead of
+   * waiting out the rest of the current tick interval — see
+   * `apps/indexer/src/index.ts`'s idle-sleep loop, which polls for any wallet
+   * with this set and starts the next tick early. Cleared here once the
+   * wallet has actually been scanned (success or failure — a scan was
+   * *attempted* promptly either way, and leaving it set after a transient
+   * Horizon failure would keep forcing short ticks for as long as Horizon
+   * stays down).
+   */
+  indexRequestedAt: Date | null;
 }
 
 /** Fields written to a `Contract` row on create. */
@@ -59,15 +71,19 @@ export interface ContractCreate {
  *
  * The same seam is what lets a test seed a contract already recorded under one
  * wallet and verify a second wallet's scan neither re-inserts nor re-attributes
- * it, and drive the backfill-resumption and completion logic, without a
- * database.
+ * it, drive the backfill-resumption and completion logic, and check that
+ * indexRequestedAt is cleared — all without a database.
  */
 export interface DeploymentStore {
   wallet: {
     findMany: () => Promise<DeploymentWallet[]>;
     update: (args: {
       where: { id: string };
-      data: { deploymentCursor?: string | null; deploymentBackfilledAt?: Date };
+      data: {
+        deploymentCursor?: string | null;
+        deploymentBackfilledAt?: Date;
+        indexRequestedAt?: null;
+      };
     }) => Promise<unknown>;
   };
   contract: {
@@ -294,6 +310,15 @@ export async function runDeploymentWorker(
       }
     } catch (err) {
       logger.error({ pubkey: wallet.pubkey, error: String(err) }, 'deployments.scanFailed');
+    }
+
+    // Cleared whether the scan succeeded or failed: a scan was *attempted*
+    // promptly either way, and leaving the request set after a transient
+    // Horizon failure would keep forcing short ticks for as long as Horizon
+    // stays down.
+    if (wallet.indexRequestedAt) {
+      await store.wallet.update({ where: { id: wallet.id }, data: { indexRequestedAt: null } });
+      logger.debug({ pubkey: wallet.pubkey }, 'deployments.indexRequestFulfilled');
     }
 
     logger.debug(

@@ -45,6 +45,13 @@ export interface LinkedWallet {
   /** 'onchain' once attested via the Identity Registry, else 'curated' or 'cli'. */
   source: WalletSource;
   attestedAt: string;
+  /**
+   * True while the indexer hasn't yet scanned this wallet since it was
+   * (re-)linked — see `Wallet.indexRequestedAt`. Lets the dashboard show an
+   * "indexing…" state instead of rendering a just-linked wallet as if it
+   * were confirmed to have no activity.
+   */
+  indexingPending: boolean;
 }
 
 const MAX_DISPLAY_NAME = 80;
@@ -128,6 +135,7 @@ export async function getAccountWallets(address: string): Promise<LinkedWallet[]
     // unknown provenance value into the UI.
     source: toWalletSource(w.source, w.pubkey),
     attestedAt: w.attestedAt.toISOString().slice(0, 10),
+    indexingPending: w.indexRequestedAt != null,
   }));
 }
 
@@ -181,6 +189,7 @@ function toLinkedWallet(wallet: {
   isPrimary: boolean;
   source: string;
   attestedAt: Date;
+  indexRequestedAt: Date | null;
 }): LinkedWallet {
   return {
     pubkey: wallet.pubkey,
@@ -190,6 +199,7 @@ function toLinkedWallet(wallet: {
     // cannot smuggle an unknown provenance value into the UI.
     source: toWalletSource(wallet.source, wallet.pubkey),
     attestedAt: wallet.attestedAt.toISOString().slice(0, 10),
+    indexingPending: wallet.indexRequestedAt != null,
   };
 }
 
@@ -202,14 +212,13 @@ function toLinkedWallet(wallet: {
  */
 export interface LinkWalletStore {
   wallet: {
-    findUnique(args: {
-      where: { pubkey: string };
-    }): Promise<{
+    findUnique(args: { where: { pubkey: string } }): Promise<{
       pubkey: string;
       profileId: string;
       isPrimary: boolean;
       source: string;
       attestedAt: Date;
+      indexRequestedAt: Date | null;
     } | null>;
     create(args: {
       data: {
@@ -218,12 +227,25 @@ export interface LinkWalletStore {
         source: WalletSource;
         isPrimary: boolean;
         attestedAt: Date;
+        indexRequestedAt: Date;
       };
-    }): Promise<{ pubkey: string; isPrimary: boolean; source: string; attestedAt: Date }>;
+    }): Promise<{
+      pubkey: string;
+      isPrimary: boolean;
+      source: string;
+      attestedAt: Date;
+      indexRequestedAt: Date | null;
+    }>;
     update(args: {
       where: { pubkey: string };
-      data: { attestedAt: Date; source: WalletSource };
-    }): Promise<{ pubkey: string; isPrimary: boolean; source: string; attestedAt: Date }>;
+      data: { attestedAt: Date; source: WalletSource; indexRequestedAt: Date };
+    }): Promise<{
+      pubkey: string;
+      isPrimary: boolean;
+      source: string;
+      attestedAt: Date;
+      indexRequestedAt: Date | null;
+    }>;
   };
 }
 
@@ -240,6 +262,13 @@ export interface LinkWalletStore {
  * concurrent write wins the race between that check and the insert, since
  * `Wallet.pubkey`'s uniqueness is what both properties (idempotent / typed
  * conflict) ultimately rest on.
+ *
+ * Every successful (re-)link sets `indexRequestedAt`, which is what makes the
+ * indexer pick the wallet up promptly instead of waiting out the rest of the
+ * current tick interval — see `apps/indexer/src/index.ts`'s idle-sleep loop
+ * and `apps/indexer/src/workers/deployment.ts`, which clears it once scanned.
+ * A plain timestamp, not a queue: relinking just overwrites it, so the
+ * trigger itself is idempotent under repeated links.
  */
 export async function linkDeployWallet(
   profileId: string,
@@ -259,14 +288,21 @@ export async function linkDeployWallet(
     }
     const updated = await db.wallet.update({
       where: { pubkey },
-      data: { attestedAt: new Date(), source },
+      data: { attestedAt: new Date(), source, indexRequestedAt: new Date() },
     });
     return toLinkedWallet(updated);
   }
 
   try {
     const created = await db.wallet.create({
-      data: { pubkey, profileId, source, isPrimary: false, attestedAt: new Date() },
+      data: {
+        pubkey,
+        profileId,
+        source,
+        isPrimary: false,
+        attestedAt: new Date(),
+        indexRequestedAt: new Date(),
+      },
     });
     return toLinkedWallet(created);
   } catch (err) {
@@ -282,7 +318,7 @@ export async function linkDeployWallet(
     }
     const updated = await db.wallet.update({
       where: { pubkey },
-      data: { attestedAt: new Date(), source },
+      data: { attestedAt: new Date(), source, indexRequestedAt: new Date() },
     });
     return toLinkedWallet(updated);
   }

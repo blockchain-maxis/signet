@@ -15,6 +15,7 @@ const WALLET_A: DeploymentWallet = {
   pubkey: 'GASAAEJC6P5UZGRLYJ2I2KYLR7RXGF44JZXDYGCFBN7T5VIHECUUEMCD',
   deploymentCursor: null,
   deploymentBackfilledAt: null,
+  indexRequestedAt: null,
 };
 
 /** In-memory `DeploymentStore`. Wallets are mutable so tests can inspect the cursor/backfill writes. */
@@ -31,6 +32,7 @@ function memoryStore(wallets: DeploymentWallet[]): {
         if (!w) throw new Error(`no wallet ${where.id}`);
         if ('deploymentCursor' in data) w.deploymentCursor = data.deploymentCursor ?? null;
         if (data.deploymentBackfilledAt) w.deploymentBackfilledAt = data.deploymentBackfilledAt;
+        if ('indexRequestedAt' in data) w.indexRequestedAt = data.indexRequestedAt ?? null;
       },
     },
     contract: {
@@ -447,4 +449,66 @@ test('a wallet linked between cycles is scanned on the next run, without a resta
     WALLET_A.pubkey,
     'GBVBJEP2BSKHW6YBFCZR2HJKHZDLJOU7ZKTH2HSNUUQY322RWLURH3EQ',
   ]);
+});
+
+// ─── Index-request trigger (#281) ────────────────────────────────────────────
+
+test('a pending index request is cleared once the wallet has been scanned', async () => {
+  const wallets: DeploymentWallet[] = [{ ...WALLET_A, indexRequestedAt: new Date() }];
+  const { store } = memoryStore(wallets);
+  const { horizon } = horizonFor(
+    () => [],
+    () => contractCreationMetaXdr(CONTRACT_ONE),
+  );
+
+  await runDeploymentWorker(horizon, CONFIG, store);
+
+  assert.equal(
+    wallets[0]!.indexRequestedAt,
+    null,
+    'a fulfilled request must not keep forcing short ticks',
+  );
+});
+
+test('a pending index request is cleared even when the scan fails', async () => {
+  const wallets: DeploymentWallet[] = [{ ...WALLET_A, indexRequestedAt: new Date() }];
+  const { store } = memoryStore(wallets);
+  const horizon = {
+    operations: () => ({
+      forAccount: () => ({
+        order: () => ({
+          limit: () => ({
+            cursor: () => ({
+              call: async () => {
+                throw new Error('horizon exploded');
+              },
+            }),
+            call: async () => {
+              throw new Error('horizon exploded');
+            },
+          }),
+        }),
+      }),
+    }),
+    transactions: () => ({ transaction: () => ({ call: async () => ({}) }) }),
+  } as unknown as Horizon.Server;
+
+  await runDeploymentWorker(horizon, CONFIG, store);
+
+  // A scan was attempted; leaving the flag set would force short ticks for as
+  // long as Horizon stayed down.
+  assert.equal(wallets[0]!.indexRequestedAt, null);
+});
+
+test('a wallet with no pending request is left alone', async () => {
+  const wallets: DeploymentWallet[] = [{ ...WALLET_A }];
+  const { store } = memoryStore(wallets);
+  const { horizon } = horizonFor(
+    () => [],
+    () => contractCreationMetaXdr(CONTRACT_ONE),
+  );
+
+  await runDeploymentWorker(horizon, CONFIG, store);
+
+  assert.equal(wallets[0]!.indexRequestedAt, null);
 });

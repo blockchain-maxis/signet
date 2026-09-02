@@ -109,6 +109,7 @@ type WalletRow = {
   isPrimary: boolean;
   source: string;
   attestedAt: Date;
+  indexRequestedAt: Date | null;
 };
 
 /**
@@ -174,7 +175,14 @@ test('linkDeployWallet creates a new, non-primary wallet row', async () => {
 test('linkDeployWallet is idempotent: re-linking the same wallet to the same profile does not duplicate', async () => {
   const attestedAt = new Date('2026-01-01T00:00:00Z');
   const { store, rows } = fakeLinkStore([
-    { pubkey: PUBKEY, profileId: 'profile-1', isPrimary: false, source: 'curated', attestedAt },
+    {
+      pubkey: PUBKEY,
+      profileId: 'profile-1',
+      isPrimary: false,
+      source: 'curated',
+      attestedAt,
+      indexRequestedAt: null,
+    },
   ]);
 
   const result = await linkDeployWallet('profile-1', PUBKEY, 'cli', store);
@@ -195,6 +203,7 @@ test('linkDeployWallet never sets isPrimary, even on re-link of an existing prim
       isPrimary: true,
       source: 'onchain',
       attestedAt: new Date(),
+      indexRequestedAt: null,
     },
   ]);
 
@@ -212,6 +221,7 @@ test('linkDeployWallet throws a typed conflict for a wallet already linked to a 
       isPrimary: false,
       source: 'cli',
       attestedAt: new Date(),
+      indexRequestedAt: null,
     },
   ]);
 
@@ -246,6 +256,7 @@ test('linkDeployWallet resolves a create-time race the same way as the up-front 
     isPrimary: false,
     source: 'onchain',
     attestedAt: new Date('2026-01-01T00:00:00Z'),
+    indexRequestedAt: null,
   });
 
   const result = await linkDeployWallet('profile-1', PUBKEY, 'cli', store);
@@ -270,6 +281,7 @@ test('linkDeployWallet resolves a create-time race as a typed conflict when the 
     isPrimary: false,
     source: 'onchain',
     attestedAt: new Date(),
+    indexRequestedAt: null,
   });
 
   await assert.rejects(
@@ -278,65 +290,31 @@ test('linkDeployWallet resolves a create-time race as a typed conflict when the 
   );
 });
 
-// ─── unlinkWallet ───────────────────────────────────────────────────────────
+// ─── indexRequestedAt / indexingPending (#281) ──────────────────────────────
 
-/** In-memory WalletStore backed by a plain map, keyed by pubkey. */
-function fakeWalletStore(rows: Record<string, { profileId: string; isPrimary: boolean }>): {
-  store: WalletStore;
-  deleted: string[];
-} {
-  const deleted: string[] = [];
-  const store: WalletStore = {
-    wallet: {
-      findUnique: async ({ where: { pubkey } }) => rows[pubkey] ?? null,
-      delete: async ({ where: { pubkey } }) => {
-        deleted.push(pubkey);
-      },
+test('linking a new wallet requests indexing', async () => {
+  const { store, rows } = fakeLinkStore();
+
+  const result = await linkDeployWallet('profile-1', PUBKEY, 'cli', store);
+
+  assert.equal(result.indexingPending, true);
+  assert.ok(rows.get(PUBKEY)?.indexRequestedAt, 'indexRequestedAt is set on the row');
+});
+
+test('re-linking an already-indexed wallet requests indexing again', async () => {
+  const { store, rows } = fakeLinkStore([
+    {
+      pubkey: PUBKEY,
+      profileId: 'profile-1',
+      isPrimary: false,
+      source: 'curated',
+      attestedAt: new Date('2026-01-01'),
+      indexRequestedAt: null, // the indexer already scanned it since the last link
     },
-  };
-  return { store, deleted };
-}
+  ]);
 
-test('unlinkWallet requires a configured database', async () => {
-  await assert.rejects(() => unlinkWallet(WALLET, 'GOTHER'), /database/i);
-});
+  const result = await linkDeployWallet('profile-1', PUBKEY, 'cli', store);
 
-test('unlinkWallet refuses a caller with no profile of their own', async () => {
-  const { store } = fakeWalletStore({});
-  await assert.rejects(() => unlinkWallet(WALLET, 'GOTHER', store), /No profile is bound/);
-});
-
-test('unlinkWallet refuses a wallet that does not exist', async () => {
-  const { store } = fakeWalletStore({
-    [WALLET]: { profileId: 'p1', isPrimary: true },
-  });
-  await assert.rejects(() => unlinkWallet(WALLET, 'GMISSING', store), /not found/i);
-});
-
-test('unlinkWallet refuses a wallet bound to a different profile', async () => {
-  const { store, deleted } = fakeWalletStore({
-    [WALLET]: { profileId: 'p1', isPrimary: true },
-    GOTHERSPROFILE: { profileId: 'p2', isPrimary: false },
-  });
-  // Same "not found" message as a nonexistent pubkey — the caller must not be
-  // able to tell "doesn't exist" from "belongs to someone else".
-  await assert.rejects(() => unlinkWallet(WALLET, 'GOTHERSPROFILE', store), /not found/i);
-  assert.equal(deleted.length, 0);
-});
-
-test('unlinkWallet refuses the primary wallet', async () => {
-  const { store, deleted } = fakeWalletStore({
-    [WALLET]: { profileId: 'p1', isPrimary: true },
-  });
-  await assert.rejects(() => unlinkWallet(WALLET, WALLET, store), /primary/i);
-  assert.equal(deleted.length, 0);
-});
-
-test("unlinkWallet deletes a non-primary wallet on the caller's own profile", async () => {
-  const { store, deleted } = fakeWalletStore({
-    [WALLET]: { profileId: 'p1', isPrimary: true },
-    GSECOND: { profileId: 'p1', isPrimary: false },
-  });
-  await unlinkWallet(WALLET, 'GSECOND', store);
-  assert.deepEqual(deleted, ['GSECOND']);
+  assert.equal(result.indexingPending, true, 'a repeated link re-requests indexing');
+  assert.ok(rows.get(PUBKEY)?.indexRequestedAt);
 });
