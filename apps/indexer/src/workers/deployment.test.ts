@@ -129,7 +129,11 @@ test('non-create-contract operations are ignored', async () => {
   store.wallet.findMany = async () => [WALLET_A];
   const { horizon, fetchedTxHashes } = trackingHorizon(() => [
     { type: 'payment', transaction_hash: 'hash-2' },
-    { type: 'invoke_host_function', function: 'HostFunctionTypeInvokeContract', transaction_hash: 'hash-3' },
+    {
+      type: 'invoke_host_function',
+      function: 'HostFunctionTypeInvokeContract',
+      transaction_hash: 'hash-3',
+    },
   ]);
 
   const result = await runDeploymentWorker(horizon, CONFIG, store);
