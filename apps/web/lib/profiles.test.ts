@@ -4,12 +4,15 @@ import {
   isValidHandle,
   getProfile,
   getOperations,
+  getPagedOperations,
   listHandles,
   listAllHandles,
   safeChainHandles,
   safeChainProfile,
   decodeResolvedAddress,
   computeStats,
+  getOperationsResult,
+  formatCount,
 } from './profiles.ts';
 
 test('isValidHandle accepts the registry charset', () => {
@@ -98,4 +101,46 @@ test('computeStats returns zeroed stats for missing or empty operations', () => 
 test('getOperations returns an array (possibly empty) for any handle', async () => {
   assert.ok(Array.isArray(await getOperations('aquawolf')));
   assert.deepEqual(await getOperations('does-not-exist'), []);
+});
+
+test('formatCount only claims a total when the record is complete', () => {
+  assert.equal(formatCount(412, false), '412');
+  // A capped read supports "at least 412", never "412".
+  assert.equal(formatCount(412, true), '412+');
+  assert.equal(formatCount(0, true), '0+');
+});
+
+test('getOperationsResult reports curated demo history as complete', async () => {
+  const result = await getOperationsResult('aquawolf');
+  assert.ok(Array.isArray(result.operations));
+  assert.equal(result.truncated, false);
+  assert.equal(result.cap, null);
+  assert.equal(result.source, result.operations.length > 0 ? 'demo' : 'none');
+});
+
+test('getOperationsResult is empty and complete for an unknown handle', async () => {
+  assert.deepEqual(await getOperationsResult('does-not-exist'), {
+    operations: [],
+    source: 'none',
+    truncated: false,
+    cap: null,
+  });
+});
+
+test('getOperations still returns a bare array of operations', async () => {
+  const [bare, result] = await Promise.all([
+    getOperations('aquawolf'),
+    getOperationsResult('aquawolf'),
+  ]);
+  assert.deepEqual(bare, result.operations);
+});
+
+test('getPagedOperations is a no-op without a DATABASE_URL', async () => {
+  // No DATABASE_URL configured in this test environment, so the DB layer
+  // must no-op rather than throwing, letting the route fall back cleanly.
+  assert.equal(await getPagedOperations('aquawolf', 0, 25), null);
+});
+
+test('getPagedOperations rejects invalid handles without a DB round trip', async () => {
+  assert.equal(await getPagedOperations('../../etc/passwd', 0, 25), null);
 });

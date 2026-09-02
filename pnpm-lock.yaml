@@ -74,9 +74,6 @@ importers:
       '@signet/types':
         specifier: workspace:*
         version: link:../../packages/types
-      '@signet/ui':
-        specifier: workspace:*
-        version: link:../../packages/ui
       '@stellar/stellar-sdk':
         specifier: ^16.1.0
         version: 16.1.0
@@ -161,18 +158,6 @@ importers:
 
   packages/types:
     devDependencies:
-      typescript:
-        specifier: ^5.6.3
-        version: 5.9.3
-
-  packages/ui:
-    devDependencies:
-      '@types/react':
-        specifier: ^18.3.11
-        version: 18.3.28
-      react:
-        specifier: ^18.3.1
-        version: 18.3.1
       typescript:
         specifier: ^5.6.3
         version: 5.9.3

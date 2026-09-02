@@ -4,8 +4,10 @@ import { nativeToScVal, type Transaction } from '@stellar/stellar-sdk';
 import {
   getAccount,
   normalizeAccountUpdate,
+  unlinkWallet,
   linkDeployWallet,
   WalletAlreadyLinkedError,
+  type WalletStore,
   type LinkWalletStore,
 } from './account.ts';
 import type { SimulatingServer } from './registry-read.ts';
@@ -204,7 +206,13 @@ test('linkDeployWallet never sets isPrimary, even on re-link of an existing prim
 
 test('linkDeployWallet throws a typed conflict for a wallet already linked to a different profile', async () => {
   const { store } = fakeLinkStore([
-    { pubkey: PUBKEY, profileId: 'someone-elses-profile', isPrimary: false, source: 'cli', attestedAt: new Date() },
+    {
+      pubkey: PUBKEY,
+      profileId: 'someone-elses-profile',
+      isPrimary: false,
+      source: 'cli',
+      attestedAt: new Date(),
+    },
   ]);
 
   await assert.rejects(
@@ -268,4 +276,67 @@ test('linkDeployWallet resolves a create-time race as a typed conflict when the 
     () => linkDeployWallet('profile-1', PUBKEY, 'cli', store),
     WalletAlreadyLinkedError,
   );
+});
+
+// ─── unlinkWallet ───────────────────────────────────────────────────────────
+
+/** In-memory WalletStore backed by a plain map, keyed by pubkey. */
+function fakeWalletStore(rows: Record<string, { profileId: string; isPrimary: boolean }>): {
+  store: WalletStore;
+  deleted: string[];
+} {
+  const deleted: string[] = [];
+  const store: WalletStore = {
+    wallet: {
+      findUnique: async ({ where: { pubkey } }) => rows[pubkey] ?? null,
+      delete: async ({ where: { pubkey } }) => {
+        deleted.push(pubkey);
+      },
+    },
+  };
+  return { store, deleted };
+}
+
+test('unlinkWallet requires a configured database', async () => {
+  await assert.rejects(() => unlinkWallet(WALLET, 'GOTHER'), /database/i);
+});
+
+test('unlinkWallet refuses a caller with no profile of their own', async () => {
+  const { store } = fakeWalletStore({});
+  await assert.rejects(() => unlinkWallet(WALLET, 'GOTHER', store), /No profile is bound/);
+});
+
+test('unlinkWallet refuses a wallet that does not exist', async () => {
+  const { store } = fakeWalletStore({
+    [WALLET]: { profileId: 'p1', isPrimary: true },
+  });
+  await assert.rejects(() => unlinkWallet(WALLET, 'GMISSING', store), /not found/i);
+});
+
+test('unlinkWallet refuses a wallet bound to a different profile', async () => {
+  const { store, deleted } = fakeWalletStore({
+    [WALLET]: { profileId: 'p1', isPrimary: true },
+    GOTHERSPROFILE: { profileId: 'p2', isPrimary: false },
+  });
+  // Same "not found" message as a nonexistent pubkey — the caller must not be
+  // able to tell "doesn't exist" from "belongs to someone else".
+  await assert.rejects(() => unlinkWallet(WALLET, 'GOTHERSPROFILE', store), /not found/i);
+  assert.equal(deleted.length, 0);
+});
+
+test('unlinkWallet refuses the primary wallet', async () => {
+  const { store, deleted } = fakeWalletStore({
+    [WALLET]: { profileId: 'p1', isPrimary: true },
+  });
+  await assert.rejects(() => unlinkWallet(WALLET, WALLET, store), /primary/i);
+  assert.equal(deleted.length, 0);
+});
+
+test("unlinkWallet deletes a non-primary wallet on the caller's own profile", async () => {
+  const { store, deleted } = fakeWalletStore({
+    [WALLET]: { profileId: 'p1', isPrimary: true },
+    GSECOND: { profileId: 'p1', isPrimary: false },
+  });
+  await unlinkWallet(WALLET, 'GSECOND', store);
+  assert.deepEqual(deleted, ['GSECOND']);
 });
