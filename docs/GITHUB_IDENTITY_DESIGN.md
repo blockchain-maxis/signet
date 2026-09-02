@@ -33,7 +33,7 @@ account holder's to ask them to sign with. The proposed flow:
 1. The signed-in Signet session (already proven via Sign-In With Stellar)
    initiates a standard OAuth Authorization Code flow against GitHub, scoped
    to `read:user` only — no repo, org, or write access. Signet does not need
-   to act as the GitHub account; it only needs to know *whose* account it is
+   to act as the GitHub account; it only needs to know _whose_ account it is
    linking to.
 2. GitHub redirects back with a code; Signet's server exchanges it for an
    access token, calls `GET /user` to resolve the account's immutable numeric
@@ -48,7 +48,7 @@ account holder's to ask them to sign with. The proposed flow:
 4. Same trust rules as terminal linking: single-use authorization code
    (enforced by GitHub itself), a state parameter is verified against a
    server-issued nonce to prevent CSRF, and re-linking a GitHub account
-   already bound to a *different* Signet profile is a typed conflict, not a
+   already bound to a _different_ Signet profile is a typed conflict, not a
    silent takeover — mirroring `WalletAlreadyLinkedError` in
    `apps/web/lib/server/account.ts`.
 
@@ -79,7 +79,7 @@ reviewed signals rather than raw event volume:
 
 Explicitly **not**: issue comments, stars, forks, or activity on repos outside
 the allowlist. These are easy to inflate and weak signals of real
-contribution — the opposite of what a *verifiable* record needs.
+contribution — the opposite of what a _verifiable_ record needs.
 
 The allowlist itself is a curation/maintenance cost this note does not solve —
 it needs an owner and a process (likely: a config file in this repo, PR-gated
@@ -119,7 +119,7 @@ Concretely:
 ## 5. Data model
 
 **A sibling identity table, not a field on `Wallet`.** `Wallet` rows model
-proof of a *Stellar key* — `pubkey`, `attestedAt`, `source`,
+proof of a _Stellar key_ — `pubkey`, `attestedAt`, `source`,
 `indexRequestedAt` are all wallet/key-specific concepts that make no sense
 for a GitHub account (a GitHub link has no public key, no Horizon operations,
 nothing for the deployment/operations workers to scan). Overloading `Wallet`
@@ -164,7 +164,7 @@ scoped to leave open.
   callback route implementation.
 - The allowlist's initial contents and its maintenance process.
 - Whether/how GitHub contributions ever factor into the `reputation` score.
-- Any UI beyond the rendering *principle* in §4 — no mockups, no final copy.
+- Any UI beyond the rendering _principle_ in §4 — no mockups, no final copy.
 
 These are implementation-issue concerns. This note's job is only to settle
 the four questions #295 asked for: proof of control, attribution scope,
