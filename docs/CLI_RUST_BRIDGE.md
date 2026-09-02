@@ -2,7 +2,7 @@
 
 This is a design note, not implementation. **No Rust crate is scaffolded by
 this document** — it exists so the boundary between the future Go CLI
-(`cmd/`, `internal/`) and the Rust contract simulator is fixed *before* code
+(`cmd/`, `internal/`) and the Rust contract simulator is fixed _before_ code
 lands on either side of it, per [#298](https://github.com/blockchain-maxis/signet/issues/298).
 
 ## Why this can't wait
@@ -48,19 +48,19 @@ Every message in both directions carries the same envelope:
 
 ```jsonc
 {
-  "version": 1,        // wire protocol version — bumped only on a breaking
-                        // change to this envelope or a message schema, never
-                        // on the CLI's own release version
-  "id": "req-1",        // caller-assigned, echoed back on the matching
-                        // response — correlates requests to responses and
-                        // leaves room for pipelining later without another
-                        // version bump
-  "type": "...",        // discriminant — see message types below
+  "version": 1, // wire protocol version — bumped only on a breaking
+  // change to this envelope or a message schema, never
+  // on the CLI's own release version
+  "id": "req-1", // caller-assigned, echoed back on the matching
+  // response — correlates requests to responses and
+  // leaves room for pipelining later without another
+  // version bump
+  "type": "...", // discriminant — see message types below
   // ...type-specific fields
 }
 ```
 
-`version` is an integer on *every* message, not just at handshake — a stray
+`version` is an integer on _every_ message, not just at handshake — a stray
 message from a differently-versioned process is rejected on sight rather than
 only at startup.
 
@@ -78,10 +78,10 @@ Go compares `client_protocol_version` (its own, compiled in) against
 `server_protocol_version` (whatever the spawned binary reports) before
 sending a single simulate request. Three outcomes:
 
-| Observed | Action |
-| --- | --- |
-| Versions match | Proceed. |
-| Versions differ | Refuse to simulate. Report: `"simulator protocol version mismatch: CLI expects N, found binary reporting M — reinstall signet-cli so both binaries come from the same release."` This is a distinct, actionable error — never a raw JSON decode failure surfaced to the user. |
+| Observed                                                                                                                           | Action                                                                                                                                                                                                                                                                                                 |
+| ---------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Versions match                                                                                                                     | Proceed.                                                                                                                                                                                                                                                                                               |
+| Versions differ                                                                                                                    | Refuse to simulate. Report: `"simulator protocol version mismatch: CLI expects N, found binary reporting M — reinstall signet-cli so both binaries come from the same release."` This is a distinct, actionable error — never a raw JSON decode failure surfaced to the user.                          |
 | First line isn't valid `hello_ack` JSON (including: not JSON at all, wrong `type`, or nothing written before the subprocess exits) | Treat as "no usable simulator binary". Report: `"could not start the contract simulator — reinstall signet-cli."` This also covers a pre-handshake binary from before this protocol existed; see the release-matrix note in §5 on why that case is not expected to occur in a correctly-installed CLI. |
 
 The handshake is defense-in-depth, not the primary compatibility mechanism —
@@ -136,11 +136,11 @@ sandbox itself is broken" indistinguishable to a user running the tool the
 sandbox exists to support:
 
 1. **Contract execution errors** — the simulated call itself trapped,
-   reverted, or returned a host error. This is an *expected*, common outcome
+   reverted, or returned a host error. This is an _expected_, common outcome
    of exercising a function's inputs — the whole reason the sandbox exists —
    so it comes back as a well-formed `contract_error` response over the same
    successful request/response cycle, never as a subprocess failure. The CLI
-   renders it directly: *"this call would fail: `<code>` — `<message>`"*.
+   renders it directly: _"this call would fail: `<code>` — `<message>`"_.
 2. **Protocol-level errors** — a malformed request, an unsupported protocol
    version, or an internal fault in the Rust process (a panic, a corrupted
    snapshot it can't open). These are bridge failures, not answers about the
@@ -182,7 +182,7 @@ this line.
   via `go:embed` would bloat every Go build with every platform's simulator
   binary and reintroduce a cgo-shaped coupling in spirit even without cgo
   itself; shipping it as a sibling file keeps the two build pipelines (`go
-  build`, `cargo build`) fully independent.
+build`, `cargo build`) fully independent.
 - It is built for the same target matrix the Go binary already ships for —
   whatever that matrix is at the time (linux/darwin/windows × amd64/arm64,
   today), since a Rust target without a corresponding Go release target is
@@ -213,11 +213,11 @@ this line.
 ## What this note deliberately does not do
 
 - It does not define the `simulate` request/response fields exhaustively —
-  §2's schema is illustrative of the *shape* (envelope, versioning,
+  §2's schema is illustrative of the _shape_ (envelope, versioning,
   correlation id), not a final contract. The exact fields land with the
   sandbox work itself, once there is a concrete host-environment API to
   reflect.
 - It does not scaffold `cmd/`, `internal/`, or a `simulator/` crate. Per the
-  issue this fixes the boundary *before* code exists on either side of it —
+  issue this fixes the boundary _before_ code exists on either side of it —
   writing code here would be deciding implementation details this note is
   explicitly trying to settle first.
