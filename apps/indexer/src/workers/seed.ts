@@ -1,3 +1,4 @@
+import type { WalletSource } from '@signet/types';
 import { prisma } from '../db.js';
 import { logger } from '../logger.js';
 import { seedProfiles } from '../seed-data.js';
@@ -18,7 +19,7 @@ export interface SeedStore {
     upsert(args: {
       where: { pubkey: string };
       update: { profileId: string };
-      create: { pubkey: string; profileId: string; source: string; isPrimary: boolean };
+      create: { pubkey: string; profileId: string; source: WalletSource; isPrimary: boolean };
     }): Promise<unknown>;
   };
 }

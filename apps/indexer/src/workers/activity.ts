@@ -1,5 +1,4 @@
 import type { Horizon } from '@stellar/stellar-sdk';
-import { prisma } from '../db.js';
 import { logger } from '../logger.js';
 import { sleep } from '../stellar.js';
 import { withRetry } from '../retry.js';
@@ -8,10 +7,47 @@ const RATE_LIMIT_DELAY_MS = 100;
 const RETRY_LABEL = 'activity.horizon';
 const SNAPSHOT_TTL_MS = 5 * 60 * 1000; // 5 minutes
 
+/** A tracked contract, as far as this worker is concerned. */
+export interface ActivityContract {
+  id: string;
+  address: string;
+  /** Most recent snapshot first; only the newest one is read. */
+  snapshots: Array<{ capturedAt: Date }>;
+}
+
+/** Fields written to a `ContractSnapshot` row on create. */
+export interface ContractSnapshotCreate {
+  contractId: string;
+  txCount24h: number;
+  txCountTotal: number;
+  lastActivity: Date | null;
+}
+
+/**
+ * The persistence surface the worker needs — the injectable seam that keeps
+ * contract discovery testable without a database. Production passes Prisma;
+ * tests pass an in-memory store. Mirrors the `OperationsStore` pattern in
+ * `operations.ts`. Calling `contract.findMany()` fresh on every invocation
+ * (not once at startup) is what lets a contract the deployment worker just
+ * found — from a wallet linked after the indexer started — get its first
+ * snapshot on the very next tick, with no restart.
+ */
+export interface ActivityStore {
+  contract: {
+    findMany: (args: {
+      include: { snapshots: { orderBy: { capturedAt: 'desc' }; take: 1 } };
+    }) => Promise<ActivityContract[]>;
+  };
+  contractSnapshot: {
+    create: (args: { data: ContractSnapshotCreate }) => Promise<unknown>;
+  };
+}
+
 export async function runActivityWorker(
   horizon: Horizon.Server,
+  store: ActivityStore,
 ): Promise<{ snapshotsWritten: number }> {
-  const contracts = await prisma.contract.findMany({
+  const contracts = await store.contract.findMany({
     include: {
       snapshots: {
         orderBy: { capturedAt: 'desc' },
@@ -61,7 +97,7 @@ export async function runActivityWorker(
       logger.warn({ contract: contract.address }, 'activity.queryFailed — using 0 counts');
     }
 
-    await prisma.contractSnapshot.create({
+    await store.contractSnapshot.create({
       data: {
         contractId:   contract.id,
         txCount24h,
