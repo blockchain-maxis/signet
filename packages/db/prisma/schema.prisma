@@ -16,8 +16,6 @@ model Profile {
   updatedAt   DateTime @updatedAt
 
   wallets     Wallet[]
-
-  @@index([handle])
 }
 
 model Wallet {
@@ -25,6 +23,11 @@ model Wallet {
   profileId  String
   pubkey     String   @unique
   attestedAt DateTime @default(now())
+  // Allowed values: 'curated' | 'onchain' | 'cli' — kept as the WalletSource
+  // union in packages/types/src/wallet-source.ts (mirrored to Go for the CLI
+  // in packages/types/generated/wallet_source.go). Prisma has no native check
+  // constraint here, so every write and read site validates against that
+  // union instead of trusting this column's raw string.
   source     String   @default("curated")
   isPrimary  Boolean  @default(false)
 
@@ -33,7 +36,6 @@ model Wallet {
   operations Operation[]
 
   @@index([profileId])
-  @@index([pubkey])
 }
 
 // Soroban operations (invocations) attributed to a wallet, populated by the

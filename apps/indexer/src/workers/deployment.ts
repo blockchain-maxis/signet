@@ -1,5 +1,4 @@
 import type { Horizon } from '@stellar/stellar-sdk';
-import { prisma } from '../db.js';
 import { logger } from '../logger.js';
 import { extractContractAddress, sleep } from '../stellar.js';
 import { withRetry } from '../retry.js';
@@ -14,11 +13,48 @@ export interface DeploymentResult {
   contractsFound: number;
 }
 
+/** A tracked wallet, as far as this worker is concerned. */
+export interface DeploymentWallet {
+  id: string;
+  pubkey: string;
+}
+
+/** Fields written to a `Contract` row on create. */
+export interface ContractCreate {
+  address: string;
+  walletId: string;
+  deployerPubkey: string;
+  deployedAt: Date;
+  deployTxHash: string;
+  network: string;
+}
+
+/**
+ * The persistence surface the worker needs — the injectable seam that keeps
+ * wallet discovery testable without a database. Production passes Prisma;
+ * tests pass an in-memory store. Mirrors the `OperationsStore` pattern in
+ * `operations.ts`. Calling `wallet.findMany()` fresh on every invocation (not
+ * once at startup) is what lets a wallet linked after the indexer started get
+ * scanned on the very next tick, with no restart.
+ */
+export interface DeploymentStore {
+  wallet: { findMany: () => Promise<DeploymentWallet[]> };
+  contract: {
+    findFirst: (args: { where: { deployTxHash: string } }) => Promise<{ id: string } | null>;
+    upsert: (args: {
+      where: { address: string };
+      update: Record<string, never>;
+      create: ContractCreate;
+    }) => Promise<unknown>;
+  };
+}
+
 export async function runDeploymentWorker(
   horizon: Horizon.Server,
   config: IndexerConfig,
+  store: DeploymentStore,
 ): Promise<DeploymentResult> {
-  const wallets = await prisma.wallet.findMany();
+  const wallets = await store.wallet.findMany();
   let highestLedger = 0;
   let contractsFound = 0;
 
@@ -58,7 +94,7 @@ export async function runDeploymentWorker(
         if (!txHash) continue;
 
         // Skip if we already have a contract from this tx
-        const existing = await prisma.contract.findFirst({
+        const existing = await store.contract.findFirst({
           where: { deployTxHash: txHash },
         });
         if (existing) continue;
@@ -79,7 +115,7 @@ export async function runDeploymentWorker(
           }
 
           if (contractAddress) {
-            await prisma.contract.upsert({
+            await store.contract.upsert({
               where:  { address: contractAddress },
               update: {},
               create: {

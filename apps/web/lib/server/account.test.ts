@@ -1,7 +1,7 @@
 import { test, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { nativeToScVal, type Transaction } from '@stellar/stellar-sdk';
-import { getAccount, normalizeAccountUpdate } from './account.ts';
+import { getAccount, normalizeAccountUpdate, unlinkWallet, type WalletStore } from './account.ts';
 import type { SimulatingServer } from './registry-read.ts';
 
 // These tests run without DATABASE_URL, which is exactly the configuration the
@@ -91,4 +91,67 @@ test('normalizeAccountUpdate rejects an over-long bio', () => {
     () => normalizeAccountUpdate({ displayName: null, bio: 'x'.repeat(281) }),
     /280 characters or fewer/,
   );
+});
+
+// ─── unlinkWallet ───────────────────────────────────────────────────────────
+
+/** In-memory WalletStore backed by a plain map, keyed by pubkey. */
+function fakeWalletStore(rows: Record<string, { profileId: string; isPrimary: boolean }>): {
+  store: WalletStore;
+  deleted: string[];
+} {
+  const deleted: string[] = [];
+  const store: WalletStore = {
+    wallet: {
+      findUnique: async ({ where: { pubkey } }) => rows[pubkey] ?? null,
+      delete: async ({ where: { pubkey } }) => {
+        deleted.push(pubkey);
+      },
+    },
+  };
+  return { store, deleted };
+}
+
+test('unlinkWallet requires a configured database', async () => {
+  await assert.rejects(() => unlinkWallet(WALLET, 'GOTHER'), /database/i);
+});
+
+test('unlinkWallet refuses a caller with no profile of their own', async () => {
+  const { store } = fakeWalletStore({});
+  await assert.rejects(() => unlinkWallet(WALLET, 'GOTHER', store), /No profile is bound/);
+});
+
+test('unlinkWallet refuses a wallet that does not exist', async () => {
+  const { store } = fakeWalletStore({
+    [WALLET]: { profileId: 'p1', isPrimary: true },
+  });
+  await assert.rejects(() => unlinkWallet(WALLET, 'GMISSING', store), /not found/i);
+});
+
+test('unlinkWallet refuses a wallet bound to a different profile', async () => {
+  const { store, deleted } = fakeWalletStore({
+    [WALLET]: { profileId: 'p1', isPrimary: true },
+    GOTHERSPROFILE: { profileId: 'p2', isPrimary: false },
+  });
+  // Same "not found" message as a nonexistent pubkey — the caller must not be
+  // able to tell "doesn't exist" from "belongs to someone else".
+  await assert.rejects(() => unlinkWallet(WALLET, 'GOTHERSPROFILE', store), /not found/i);
+  assert.equal(deleted.length, 0);
+});
+
+test('unlinkWallet refuses the primary wallet', async () => {
+  const { store, deleted } = fakeWalletStore({
+    [WALLET]: { profileId: 'p1', isPrimary: true },
+  });
+  await assert.rejects(() => unlinkWallet(WALLET, WALLET, store), /primary/i);
+  assert.equal(deleted.length, 0);
+});
+
+test("unlinkWallet deletes a non-primary wallet on the caller's own profile", async () => {
+  const { store, deleted } = fakeWalletStore({
+    [WALLET]: { profileId: 'p1', isPrimary: true },
+    GSECOND: { profileId: 'p1', isPrimary: false },
+  });
+  await unlinkWallet(WALLET, 'GSECOND', store);
+  assert.deepEqual(deleted, ['GSECOND']);
 });

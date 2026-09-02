@@ -95,9 +95,12 @@ behind the tip than `INDEXER_EVENT_WINDOW_LEDGERS`, the worker does not read eve
 it **reconciles against contract state** instead (sweeps every handle the database knows
 through `resolve`, applying claims, transfers and releases idempotently), cross-checks the
 registry's `count()` and logs an error naming the shortfall when bindings exist on-chain
-that the database has never seen, then resumes the cursor from the tip. Recovery needs no
-manual database edit. What the sweep cannot do is *name* a handle the database has never
-seen — recovering those still takes the archival-RPC backfill below.
+that the database has never seen, then resumes the cursor from the near edge of the
+servable window — so the next tick replays the still-readable tail of events
+(idempotently) and picks up claims of handles the sweep could not know about. Recovery
+needs no manual database edit. What remains unrecoverable from this endpoint is a
+never-seen handle claimed in the truly unservable middle of the gap — those take the
+archival-RPC backfill below, and the `count()` cross-check tells you whether any exist.
 
 `8000` leaves real margin below that floor. **A first run therefore only sees the last ~11
 hours of claims** — bindings older than the window are not reconstructed, and cannot be, from
@@ -109,6 +112,16 @@ the curated seed data as the baseline and let on-chain events accumulate from no
 Each `getEvents` call takes at most **200 events**. A window with more than 200 events in
 it yields the first 200; the cursor then jumps to `latestLedger`, so **the remainder of
 that window is skipped**. This only bites on a busy backfill, not in steady state.
+
+### Why the web app cares
+
+The public directory at `/handles` reads the bindings this worker writes whenever the web
+app has a `DATABASE_URL`, and falls back to its own cursor-less `getEvents` scan only when
+it does not. That fallback carries the same ~11h horizon described above, with none of the
+accumulation: it re-derives the whole list on every request, so handles claimed before the
+window disappear from the page permanently while the contract's `count()` keeps counting
+them. Provisioning this indexer is what makes the directory durable — see
+[`apps/web/lib/directory.ts`](../apps/web/lib/directory.ts).
 
 ---
 

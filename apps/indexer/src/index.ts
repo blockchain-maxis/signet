@@ -5,8 +5,8 @@ import { connectDb, disconnectDb, prisma } from './db.js';
 import { createHorizonServer, sleep } from './stellar.js';
 import { createSorobanRpcServer } from './soroban-rpc.js';
 import { runSeedWorker } from './workers/seed.js';
-import { runDeploymentWorker } from './workers/deployment.js';
-import { runActivityWorker } from './workers/activity.js';
+import { runDeploymentWorker, type DeploymentStore } from './workers/deployment.js';
+import { runActivityWorker, type ActivityStore } from './workers/activity.js';
 import { runAttestationWorker } from './workers/attestation.js';
 import { runOperationsWorker, type OperationsStore } from './workers/operations.js';
 
@@ -40,14 +40,19 @@ async function tick(
   // Attestations: ingest on-chain claim/release events into the DB
   const { eventsDecoded } = await runAttestationWorker(soroban, config);
 
-  // Deployments: find new contract creations for all tracked wallets
+  // Deployments: find new contract creations for all tracked wallets. Wallets
+  // are (re-)read fresh from the store on every call, so one linked mid-life
+  // — after the indexer started — is scanned starting the very next tick.
   const { highestLedger, walletsScanned, contractsFound } = await runDeploymentWorker(
     horizon,
     config,
+    prisma as unknown as DeploymentStore,
   );
 
-  // Activity: refresh snapshots for tracked contracts
-  const { snapshotsWritten } = await runActivityWorker(horizon);
+  // Activity: refresh snapshots for tracked contracts. Same freshness
+  // guarantee as deployments — a contract the deployment worker just found
+  // this tick already shows up in this call's `contract.findMany()`.
+  const { snapshotsWritten } = await runActivityWorker(horizon, prisma as unknown as ActivityStore);
 
   // Operations: pull recent Soroban invocations for tracked wallets
   const { opsUpserted } = await runOperationsWorker(horizon, prisma as unknown as OperationsStore);
