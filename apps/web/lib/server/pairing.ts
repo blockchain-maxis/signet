@@ -144,7 +144,11 @@ export async function approvePairing(
   // concurrent approvals, or an approval racing an expiry); this second read
   // only distinguishes the outcome for logging/the caller.
   const existing = await db.pairingState.findUnique({ where: { id: state } });
-  const outcome: ApproveOutcome = !existing ? 'not-found' : existing.expiresAt <= now ? 'expired' : 'already-used';
+  const outcome: ApproveOutcome = !existing
+    ? 'not-found'
+    : existing.expiresAt <= now
+      ? 'expired'
+      : 'already-used';
   logger.warn({ state, outcome }, 'pairing.approveRejected');
   return outcome;
 }

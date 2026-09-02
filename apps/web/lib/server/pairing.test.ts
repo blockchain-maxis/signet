@@ -3,12 +3,7 @@ import assert from 'node:assert/strict';
 import { Keypair, TransactionBuilder } from '@stellar/stellar-sdk';
 import { buildChallenge, getNetworkPassphrase } from '../sep10.ts';
 import { __resetNonceStore } from '../nonce-store.ts';
-import {
-  startPairing,
-  approvePairing,
-  completePairing,
-  type PairingStore,
-} from './pairing.ts';
+import { startPairing, approvePairing, completePairing, type PairingStore } from './pairing.ts';
 
 // `getServerKeypair()` (inside sep10.ts) caches on first call, so this must be
 // set before anything here touches it, directly or via `buildChallenge`.
@@ -29,7 +24,11 @@ interface FakeWallet {
 }
 
 /** In-memory stand-in for the two Prisma tables `pairing.ts` touches. */
-function fakeStore(): { store: PairingStore; pairings: Map<string, FakeRow>; wallets: Map<string, FakeWallet> } {
+function fakeStore(): {
+  store: PairingStore;
+  pairings: Map<string, FakeRow>;
+  wallets: Map<string, FakeWallet>;
+} {
   const pairings = new Map<string, FakeRow>();
   const wallets = new Map<string, FakeWallet>();
   let seq = 0;
@@ -38,7 +37,13 @@ function fakeStore(): { store: PairingStore; pairings: Map<string, FakeRow>; wal
     pairingState: {
       create: async ({ data }) => {
         const id = `pairing_${++seq}`;
-        pairings.set(id, { id, status: 'pending', network: data.network, profileId: null, expiresAt: data.expiresAt });
+        pairings.set(id, {
+          id,
+          status: 'pending',
+          network: data.network,
+          profileId: null,
+          expiresAt: data.expiresAt,
+        });
         return { id };
       },
       findUnique: async ({ where }) => pairings.get(where.id) ?? null,
@@ -97,7 +102,7 @@ test('approvePairing fails with no-profile when the address has no bound wallet'
   assert.equal(await approvePairing(state, 'GADDRESSNOTBOUND', store), 'no-profile');
 });
 
-test('approvePairing succeeds and records the address\'s profile', async () => {
+test("approvePairing succeeds and records the address's profile", async () => {
   const { store, wallets, pairings } = fakeStore();
   wallets.set('GOWNER', { pubkey: 'GOWNER', profileId: 'profile_1' });
   const { state } = (await startPairing('testnet', store))!;
@@ -133,7 +138,11 @@ test('approvePairing reports already-used for a pairing that is not pending', as
 
 // ── completePairing ──────────────────────────────────────────────────────
 
-async function approvedPairing(store: PairingStore, wallets: Map<string, FakeWallet>, network = getNetworkPassphrase()) {
+async function approvedPairing(
+  store: PairingStore,
+  wallets: Map<string, FakeWallet>,
+  network = getNetworkPassphrase(),
+) {
   wallets.set('GOWNER', { pubkey: 'GOWNER', profileId: 'profile_1' });
   const { state } = (await startPairing(network, store))!;
   await approvePairing(state, 'GOWNER', store);
@@ -271,5 +280,8 @@ test('completePairing is idempotent when the deploy account is already bound to 
   wallets.set(client.publicKey(), { pubkey: client.publicKey(), profileId: 'profile_1' });
 
   const result = await completePairing(state, signedChallenge(client), store);
-  assert.deepEqual(result, { ok: true, wallet: { pubkey: client.publicKey(), profileId: 'profile_1' } });
+  assert.deepEqual(result, {
+    ok: true,
+    wallet: { pubkey: client.publicKey(), profileId: 'profile_1' },
+  });
 });

@@ -47,7 +47,7 @@ const FAILURE_MESSAGE: Record<CompleteFailure, string> = {
 };
 
 export async function POST(req: Request) {
-  const limited = await enforceRateLimit(req, 'cli:pair:complete', LIMITS.sep10);
+  const limited = await enforceRateLimit(req, 'cli:pair:complete', LIMITS.cliPairComplete);
   if (limited) return limited;
 
   const { state, transaction } = (await req.json().catch(() => ({}))) as {

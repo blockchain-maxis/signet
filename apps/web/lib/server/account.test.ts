@@ -1,7 +1,15 @@
 import { test, afterEach } from 'node:test';
 import assert from 'node:assert/strict';
 import { nativeToScVal, type Transaction } from '@stellar/stellar-sdk';
-import { getAccount, normalizeAccountUpdate } from './account.ts';
+import {
+  getAccount,
+  normalizeAccountUpdate,
+  unlinkWallet,
+  linkDeployWallet,
+  WalletAlreadyLinkedError,
+  type WalletStore,
+  type LinkWalletStore,
+} from './account.ts';
 import type { SimulatingServer } from './registry-read.ts';
 
 // These tests run without DATABASE_URL, which is exactly the configuration the
@@ -91,4 +99,244 @@ test('normalizeAccountUpdate rejects an over-long bio', () => {
     () => normalizeAccountUpdate({ displayName: null, bio: 'x'.repeat(281) }),
     /280 characters or fewer/,
   );
+});
+
+// ─── linkDeployWallet ───────────────────────────────────────────────────────
+
+type WalletRow = {
+  pubkey: string;
+  profileId: string;
+  isPrimary: boolean;
+  source: string;
+  attestedAt: Date;
+};
+
+/**
+ * In-memory LinkWalletStore. `findUniqueCalls` counts calls to `findUnique`
+ * so the race-condition test can make the *second* call (the post-race
+ * recheck) see a row the *first* call (the up-front check) didn't.
+ */
+function fakeLinkStore(seed: WalletRow[] = []): {
+  store: LinkWalletStore;
+  rows: Map<string, WalletRow>;
+  findUniqueCalls: { count: number };
+} {
+  const rows = new Map(seed.map((r) => [r.pubkey, r]));
+  const findUniqueCalls = { count: 0 };
+  const store: LinkWalletStore = {
+    wallet: {
+      findUnique: async ({ where: { pubkey } }) => {
+        findUniqueCalls.count++;
+        return rows.get(pubkey) ?? null;
+      },
+      create: async ({ data }) => {
+        if (rows.has(data.pubkey)) {
+          const err = new Error('Unique constraint failed on the fields: (`pubkey`)') as Error & {
+            code: string;
+          };
+          err.code = 'P2002';
+          throw err;
+        }
+        const row: WalletRow = { ...data };
+        rows.set(data.pubkey, row);
+        return row;
+      },
+      update: async ({ where: { pubkey }, data }) => {
+        const row = rows.get(pubkey);
+        if (!row) throw new Error('no such row');
+        const updated = { ...row, ...data };
+        rows.set(pubkey, updated);
+        return updated;
+      },
+    },
+  };
+  return { store, rows, findUniqueCalls };
+}
+
+const PUBKEY = 'GASAAEJC6P5UZGRLYJ2I2KYLR7RXGF44JZXDYGCFBN7T5VIHECUUEMCD';
+
+test('linkDeployWallet requires a configured database', async () => {
+  await assert.rejects(() => linkDeployWallet('profile-1', PUBKEY, 'cli'), /database/i);
+});
+
+test('linkDeployWallet creates a new, non-primary wallet row', async () => {
+  const { store, rows } = fakeLinkStore();
+
+  const result = await linkDeployWallet('profile-1', PUBKEY, 'cli', store);
+
+  assert.equal(result.pubkey, PUBKEY);
+  assert.equal(result.isPrimary, false);
+  assert.equal(result.source, 'cli');
+  assert.equal(rows.size, 1);
+  assert.equal(rows.get(PUBKEY)?.profileId, 'profile-1');
+});
+
+test('linkDeployWallet is idempotent: re-linking the same wallet to the same profile does not duplicate', async () => {
+  const attestedAt = new Date('2026-01-01T00:00:00Z');
+  const { store, rows } = fakeLinkStore([
+    { pubkey: PUBKEY, profileId: 'profile-1', isPrimary: false, source: 'curated', attestedAt },
+  ]);
+
+  const result = await linkDeployWallet('profile-1', PUBKEY, 'cli', store);
+
+  assert.equal(rows.size, 1, 'no duplicate row was created');
+  assert.equal(result.source, 'cli', 'source is refreshed on re-link');
+  assert.ok(
+    new Date(result.attestedAt).getTime() >= attestedAt.getTime(),
+    'attestedAt is refreshed on re-link',
+  );
+});
+
+test('linkDeployWallet never sets isPrimary, even on re-link of an existing primary row', async () => {
+  const { store, rows } = fakeLinkStore([
+    {
+      pubkey: PUBKEY,
+      profileId: 'profile-1',
+      isPrimary: true,
+      source: 'onchain',
+      attestedAt: new Date(),
+    },
+  ]);
+
+  const result = await linkDeployWallet('profile-1', PUBKEY, 'cli', store);
+
+  assert.equal(result.isPrimary, true, 'an existing isPrimary flag is preserved, not overwritten');
+  assert.equal(rows.get(PUBKEY)?.isPrimary, true);
+});
+
+test('linkDeployWallet throws a typed conflict for a wallet already linked to a different profile', async () => {
+  const { store } = fakeLinkStore([
+    {
+      pubkey: PUBKEY,
+      profileId: 'someone-elses-profile',
+      isPrimary: false,
+      source: 'cli',
+      attestedAt: new Date(),
+    },
+  ]);
+
+  await assert.rejects(
+    () => linkDeployWallet('profile-1', PUBKEY, 'cli', store),
+    (err: unknown) => {
+      assert.ok(err instanceof WalletAlreadyLinkedError);
+      assert.equal(err.pubkey, PUBKEY);
+      return true;
+    },
+  );
+});
+
+test('linkDeployWallet resolves a create-time race the same way as the up-front check', async () => {
+  // Nobody there at the up-front check (findUnique #1 returns null), but the
+  // create fails with a unique-constraint violation as if a concurrent write
+  // won the race — the post-race recheck (findUnique #2) is what must decide
+  // idempotent-success vs. typed-conflict, matching the up-front-check path.
+  const { store, rows, findUniqueCalls } = fakeLinkStore();
+  const originalFindUnique = store.wallet.findUnique;
+  store.wallet.findUnique = async (args) => {
+    if (findUniqueCalls.count === 0) {
+      findUniqueCalls.count++;
+      return null;
+    }
+    return originalFindUnique(args);
+  };
+  // Seed the "concurrent write" only after the first (empty) check.
+  rows.set(PUBKEY, {
+    pubkey: PUBKEY,
+    profileId: 'profile-1',
+    isPrimary: false,
+    source: 'onchain',
+    attestedAt: new Date('2026-01-01T00:00:00Z'),
+  });
+
+  const result = await linkDeployWallet('profile-1', PUBKEY, 'cli', store);
+
+  assert.equal(result.source, 'cli', 'the race resolved to an idempotent update, not a duplicate');
+  assert.equal(rows.size, 1);
+});
+
+test('linkDeployWallet resolves a create-time race as a typed conflict when the racing profile differs', async () => {
+  const { store, rows, findUniqueCalls } = fakeLinkStore();
+  const originalFindUnique = store.wallet.findUnique;
+  store.wallet.findUnique = async (args) => {
+    if (findUniqueCalls.count === 0) {
+      findUniqueCalls.count++;
+      return null;
+    }
+    return originalFindUnique(args);
+  };
+  rows.set(PUBKEY, {
+    pubkey: PUBKEY,
+    profileId: 'someone-elses-profile',
+    isPrimary: false,
+    source: 'onchain',
+    attestedAt: new Date(),
+  });
+
+  await assert.rejects(
+    () => linkDeployWallet('profile-1', PUBKEY, 'cli', store),
+    WalletAlreadyLinkedError,
+  );
+});
+
+// ─── unlinkWallet ───────────────────────────────────────────────────────────
+
+/** In-memory WalletStore backed by a plain map, keyed by pubkey. */
+function fakeWalletStore(rows: Record<string, { profileId: string; isPrimary: boolean }>): {
+  store: WalletStore;
+  deleted: string[];
+} {
+  const deleted: string[] = [];
+  const store: WalletStore = {
+    wallet: {
+      findUnique: async ({ where: { pubkey } }) => rows[pubkey] ?? null,
+      delete: async ({ where: { pubkey } }) => {
+        deleted.push(pubkey);
+      },
+    },
+  };
+  return { store, deleted };
+}
+
+test('unlinkWallet requires a configured database', async () => {
+  await assert.rejects(() => unlinkWallet(WALLET, 'GOTHER'), /database/i);
+});
+
+test('unlinkWallet refuses a caller with no profile of their own', async () => {
+  const { store } = fakeWalletStore({});
+  await assert.rejects(() => unlinkWallet(WALLET, 'GOTHER', store), /No profile is bound/);
+});
+
+test('unlinkWallet refuses a wallet that does not exist', async () => {
+  const { store } = fakeWalletStore({
+    [WALLET]: { profileId: 'p1', isPrimary: true },
+  });
+  await assert.rejects(() => unlinkWallet(WALLET, 'GMISSING', store), /not found/i);
+});
+
+test('unlinkWallet refuses a wallet bound to a different profile', async () => {
+  const { store, deleted } = fakeWalletStore({
+    [WALLET]: { profileId: 'p1', isPrimary: true },
+    GOTHERSPROFILE: { profileId: 'p2', isPrimary: false },
+  });
+  // Same "not found" message as a nonexistent pubkey — the caller must not be
+  // able to tell "doesn't exist" from "belongs to someone else".
+  await assert.rejects(() => unlinkWallet(WALLET, 'GOTHERSPROFILE', store), /not found/i);
+  assert.equal(deleted.length, 0);
+});
+
+test('unlinkWallet refuses the primary wallet', async () => {
+  const { store, deleted } = fakeWalletStore({
+    [WALLET]: { profileId: 'p1', isPrimary: true },
+  });
+  await assert.rejects(() => unlinkWallet(WALLET, WALLET, store), /primary/i);
+  assert.equal(deleted.length, 0);
+});
+
+test("unlinkWallet deletes a non-primary wallet on the caller's own profile", async () => {
+  const { store, deleted } = fakeWalletStore({
+    [WALLET]: { profileId: 'p1', isPrimary: true },
+    GSECOND: { profileId: 'p1', isPrimary: false },
+  });
+  await unlinkWallet(WALLET, 'GSECOND', store);
+  assert.deepEqual(deleted, ['GSECOND']);
 });

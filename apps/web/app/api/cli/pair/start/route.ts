@@ -19,7 +19,7 @@ export const runtime = 'nodejs';
  * wallet on the wrong network.
  */
 export async function POST(req: Request) {
-  const limited = await enforceRateLimit(req, 'cli:pair:start', LIMITS.sep10);
+  const limited = await enforceRateLimit(req, 'cli:pair:start', LIMITS.cliPairStart);
   if (limited) return limited;
 
   const { network } = (await req.json().catch(() => ({}))) as { network?: string };

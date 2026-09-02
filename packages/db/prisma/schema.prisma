@@ -17,8 +17,6 @@ model Profile {
 
   wallets       Wallet[]
   pairingStates PairingState[]
-
-  @@index([handle])
 }
 
 model Wallet {
@@ -26,15 +24,36 @@ model Wallet {
   profileId  String
   pubkey     String   @unique
   attestedAt DateTime @default(now())
+  // Allowed values: 'curated' | 'onchain' | 'cli' — kept as the WalletSource
+  // union in packages/types/src/wallet-source.ts (mirrored to Go for the CLI
+  // in packages/types/generated/wallet_source.go). Prisma has no native check
+  // constraint here, so every write and read site validates against that
+  // union instead of trusting this column's raw string.
   source     String   @default("curated")
   isPrimary  Boolean  @default(false)
+
+  // Per-wallet deployment-worker backfill state. The IndexerCursor row below
+  // ("main") only tracks forward-scanning progress for the indexer as a
+  // whole; it says nothing about how far back into *this* wallet's own
+  // Horizon history the deployment worker has walked. Without this, a wallet
+  // linked after others either gets re-scanned from the top every tick
+  // (wasteful, rate-limited) or has its older history silently skipped once
+  // some other global position has moved past it — neither is correct.
+  //
+  // deploymentCursor is the Horizon paging_token of the oldest operation the
+  // deployment worker has walked back to so far; null means backfill hasn't
+  // started (or the wallet is new). deploymentBackfilledAt is set once the
+  // worker has walked all the way back — Horizon returned an empty page —
+  // after which the worker only needs to check the newest activity each tick,
+  // not resume a backward walk.
+  deploymentCursor       String?
+  deploymentBackfilledAt DateTime?
 
   profile    Profile  @relation(fields: [profileId], references: [id], onDelete: Cascade)
   contracts  Contract[]
   operations Operation[]
 
   @@index([profileId])
-  @@index([pubkey])
 }
 
 // Soroban operations (invocations) attributed to a wallet, populated by the
