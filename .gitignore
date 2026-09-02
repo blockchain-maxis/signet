@@ -41,3 +41,5 @@ next-env.d.ts
 
 #cl
 .claude
+# Internal maintainer notes — deliberately untracked (public repo).
+MAINTAINER.md

@@ -31,7 +31,9 @@ function contractCreationMetaXdr(contractAddress: string): string {
   // The SDK's own .d.ts models Hash/ContractId as Opaque[] ("workaround,
   // cause unknown" per its comment) but the runtime opaque-array type accepts
   // a Buffer directly — this cast bridges that gap.
-  const scAddress = xdr.ScAddress.scAddressTypeContract(contractId as unknown as Parameters<typeof xdr.ScAddress.scAddressTypeContract>[0]);
+  const scAddress = xdr.ScAddress.scAddressTypeContract(
+    contractId as unknown as Parameters<typeof xdr.ScAddress.scAddressTypeContract>[0],
+  );
   const returnValue = xdr.ScVal.scvAddress(scAddress);
   const sorobanMeta = new xdr.SorobanTransactionMeta({
     ext: new xdr.SorobanTransactionMetaExt(0),
@@ -100,15 +102,19 @@ function fakeHorizon(
   metaFor: (txHash: string) => string,
 ) {
   const fetchedTxHashes: string[] = [];
+  const scannedPubkeys: string[] = [];
   const horizon = {
     operations: () => ({
-      forAccount: (pubkey: string) => ({
-        order: () => ({
-          limit: () => ({
-            call: async () => ({ records: recordsFor(pubkey) }),
+      forAccount: (pubkey: string) => {
+        scannedPubkeys.push(pubkey);
+        return {
+          order: () => ({
+            limit: () => ({
+              call: async () => ({ records: recordsFor(pubkey) }),
+            }),
           }),
-        }),
-      }),
+        };
+      },
     }),
     transactions: () => ({
       transaction: (txHash: string) => {
@@ -123,7 +129,7 @@ function fakeHorizon(
       },
     }),
   } as unknown as Horizon.Server;
-  return { horizon, fetchedTxHashes };
+  return { horizon, fetchedTxHashes, scannedPubkeys };
 }
 
 test('the same contract discovered via two wallets on the same profile is recorded once, attributed to the first', async () => {
@@ -142,7 +148,11 @@ test('the same contract discovered via two wallets on the same profile is record
   const result = await runDeploymentWorker(horizon, CONFIG, store);
 
   assert.equal(contracts.size, 1, 'only one Contract row exists for the one address');
-  assert.equal(contracts.get(CONTRACT_ONE)?.walletId, WALLET_A.id, 'attributed to the first wallet scanned');
+  assert.equal(
+    contracts.get(CONTRACT_ONE)?.walletId,
+    WALLET_A.id,
+    'attributed to the first wallet scanned',
+  );
   assert.equal(result.contractsFound, 1, 'the second discovery is not counted as a new contract');
   // Both transactions ARE fetched — the address is only knowable after
   // extraction — but only the first produces a new row.
@@ -152,8 +162,9 @@ test('the same contract discovered via two wallets on the same profile is record
 test('re-running over the same fixture does not re-attribute or duplicate the contract', async () => {
   const { store, contracts } = memoryStore();
   store.wallet.findMany = async () => [WALLET_A];
-  const { horizon } = fakeHorizon(() => [createContractOp('hash-a')], () =>
-    contractCreationMetaXdr(CONTRACT_ONE),
+  const { horizon } = fakeHorizon(
+    () => [createContractOp('hash-a')],
+    () => contractCreationMetaXdr(CONTRACT_ONE),
   );
 
   await runDeploymentWorker(horizon, CONFIG, store);
@@ -164,7 +175,11 @@ test('re-running over the same fixture does not re-attribute or duplicate the co
 
   assert.equal(contracts.size, 1);
   assert.deepEqual(contracts.get(CONTRACT_ONE), first, 'the row is untouched on the second run');
-  assert.equal(second.contractsFound, 0, 'nothing new is found the second time — the tx-hash guard catches it first');
+  assert.equal(
+    second.contractsFound,
+    0,
+    'nothing new is found the second time — the tx-hash guard catches it first',
+  );
 });
 
 test('two different contracts from two wallets are both recorded, each to its own wallet', async () => {
@@ -196,8 +211,9 @@ test('an operation whose deployTxHash already has a contract is skipped without 
   });
   store.wallet.findMany = async () => [WALLET_A];
 
-  const { horizon, fetchedTxHashes } = fakeHorizon(() => [createContractOp('hash-a')], () =>
-    contractCreationMetaXdr(CONTRACT_ONE),
+  const { horizon, fetchedTxHashes } = fakeHorizon(
+    () => [createContractOp('hash-a')],
+    () => contractCreationMetaXdr(CONTRACT_ONE),
   );
 
   const result = await runDeploymentWorker(horizon, CONFIG, store);
@@ -213,7 +229,11 @@ test('non-create-contract operations are ignored', async () => {
   const { horizon, fetchedTxHashes } = fakeHorizon(
     () => [
       { type: 'payment', transaction_hash: 'hash-2' },
-      { type: 'invoke_host_function', function: 'HostFunctionTypeInvokeContract', transaction_hash: 'hash-3' },
+      {
+        type: 'invoke_host_function',
+        function: 'HostFunctionTypeInvokeContract',
+        transaction_hash: 'hash-3',
+      },
     ],
     () => contractCreationMetaXdr(CONTRACT_ONE),
   );
@@ -254,4 +274,27 @@ test('a Horizon failure on one wallet does not abort the others', async () => {
 
   assert.equal(result.walletsScanned, 2);
   assert.deepEqual(scannedPubkeys, [WALLET_A.pubkey, WALLET_B.pubkey]);
+});
+
+test('a wallet linked between cycles is scanned on the next run, without a restart', async () => {
+  const { store } = memoryStore();
+  const wallets: DeploymentWallet[] = [WALLET_A];
+  store.wallet.findMany = async () => wallets;
+  const { horizon, scannedPubkeys } = fakeHorizon(
+    () => [],
+    () => '',
+  );
+
+  const first = await runDeploymentWorker(horizon, CONFIG, store);
+  assert.equal(first.walletsScanned, 1);
+  assert.deepEqual(scannedPubkeys, [WALLET_A.pubkey]);
+
+  // Simulate the attestation worker inserting a new Wallet row mid-life —
+  // the store's backing list grows between calls, exactly as `findMany()`
+  // against a real database would reflect a row added since the last tick.
+  wallets.push(WALLET_B);
+
+  const second = await runDeploymentWorker(horizon, CONFIG, store);
+  assert.equal(second.walletsScanned, 2, 'the newly linked wallet is included without a restart');
+  assert.deepEqual(scannedPubkeys, [WALLET_A.pubkey, WALLET_A.pubkey, WALLET_B.pubkey]);
 });
