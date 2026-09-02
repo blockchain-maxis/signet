@@ -96,9 +96,10 @@ test('normalizeAccountUpdate rejects an over-long bio', () => {
 // ─── unlinkWallet ───────────────────────────────────────────────────────────
 
 /** In-memory WalletStore backed by a plain map, keyed by pubkey. */
-function fakeWalletStore(
-  rows: Record<string, { profileId: string; isPrimary: boolean }>,
-): { store: WalletStore; deleted: string[] } {
+function fakeWalletStore(rows: Record<string, { profileId: string; isPrimary: boolean }>): {
+  store: WalletStore;
+  deleted: string[];
+} {
   const deleted: string[] = [];
   const store: WalletStore = {
     wallet: {
@@ -146,7 +147,7 @@ test('unlinkWallet refuses the primary wallet', async () => {
   assert.equal(deleted.length, 0);
 });
 
-test('unlinkWallet deletes a non-primary wallet on the caller\'s own profile', async () => {
+test("unlinkWallet deletes a non-primary wallet on the caller's own profile", async () => {
   const { store, deleted } = fakeWalletStore({
     [WALLET]: { profileId: 'p1', isPrimary: true },
     GSECOND: { profileId: 'p1', isPrimary: false },

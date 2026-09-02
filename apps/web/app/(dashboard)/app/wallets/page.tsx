@@ -36,7 +36,10 @@ export default async function WalletsPage() {
 
   return (
     <section>
-      <h1 className="text-[40px] font-bold leading-[0.96] tracking-[-0.025em] md:text-[56px]" style={display}>
+      <h1
+        className="text-[40px] font-bold leading-[0.96] tracking-[-0.025em] md:text-[56px]"
+        style={display}
+      >
         Wallets
       </h1>
 
@@ -65,7 +68,10 @@ export default async function WalletsPage() {
                   {truncate(w.pubkey)}
                 </span>
                 {w.isPrimary && (
-                  <span className="border border-[#1f1d19] px-2 py-0.5 text-[9px] uppercase tracking-[0.18em] text-[#8a8779]" style={mono}>
+                  <span
+                    className="border border-[#1f1d19] px-2 py-0.5 text-[9px] uppercase tracking-[0.18em] text-[#8a8779]"
+                    style={mono}
+                  >
                     Primary
                   </span>
                 )}

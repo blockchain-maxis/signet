@@ -154,8 +154,8 @@ test('registry.resolve normalises the handle to lowercase', async () => {
 
 test('registry.lookup rejects a malformed wallet address', async () => {
   __resetRateLimit();
-  await assert.rejects(
-    () => caller('10.0.0.13').registry.lookup({ wallet: 'not-a-valid-address' }),
+  await assert.rejects(() =>
+    caller('10.0.0.13').registry.lookup({ wallet: 'not-a-valid-address' }),
   );
 });
 
@@ -217,10 +217,7 @@ test('a cross-origin mutation is FORBIDDEN', async () => {
     host: 'signet.dev',
     origin: 'https://evil.example',
   });
-  assert.equal(
-    await codeOf(() => c.account.update({ displayName: 'x', bio: null })),
-    'FORBIDDEN',
-  );
+  assert.equal(await codeOf(() => c.account.update({ displayName: 'x', bio: null })), 'FORBIDDEN');
 });
 
 test('a cross-origin unlinkWallet mutation is FORBIDDEN', async () => {
