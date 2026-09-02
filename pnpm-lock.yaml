@@ -47,8 +47,8 @@ importers:
         specifier: workspace:*
         version: link:../../packages/types
       '@stellar/stellar-sdk':
-        specifier: ^16.1.0
-        version: 16.1.0
+        specifier: ^17.0.1
+        version: 17.0.1
     devDependencies:
       '@types/node':
         specifier: ^20.16.0
@@ -75,8 +75,8 @@ importers:
         specifier: workspace:*
         version: link:../../packages/types
       '@stellar/stellar-sdk':
-        specifier: ^16.1.0
-        version: 16.1.0
+        specifier: ^17.0.1
+        version: 17.0.1
       '@trpc/client':
         specifier: ^11.18.0
         version: 11.18.0(@trpc/server@11.18.0(typescript@5.9.3))(typescript@5.9.3)
@@ -739,9 +739,6 @@ packages:
     resolution: {integrity: sha512-gbKGcRUYIjA3/zCCNaWDciTMFI0dCkvou3TL8Zmy5Nc7sJ47a0jtOeZoTaMxkuqRo9cRhjOdZJXegxYE5FN/xw==}
     engines: {node: ^14.21.3 || >=16}
 
-  '@noble/ed25519@3.1.0':
-    resolution: {integrity: sha512-pfcObRY3CtvwfaG9Mt5XqZdKmAQppl37tHUeuBhDUbiwJBCVY4/A4lbMvb1xKhMDx96AqAqZpMWuBX1HulhX4g==}
-
   '@noble/ed25519@3.2.0':
     resolution: {integrity: sha512-criDgRlnUA09hchYrTy/JUWPIEap5rZxQe6wDWzRx51oWWpDRcUpuNzlgPxDJaOK6AsW9c0wKcj3rKRv6t+bPQ==}
 
@@ -764,10 +761,6 @@ packages:
   '@noble/hashes@1.8.0':
     resolution: {integrity: sha512-jCs9ldd7NwzpgXDIf6P3+NrHh9/sD6CQdxHyjQI+h/6rDNo88ypBxxz45UDuZHz9r3tNz7N/VInSVoVdtXEI4A==}
     engines: {node: ^14.21.3 || >=16}
-
-  '@noble/hashes@2.2.0':
-    resolution: {integrity: sha512-IYqDGiTXab6FniAgnSdZwgWbomxpy9FtYvLKs7wCUs2a8RkITG+DFGO1DM9cr+E3/RgADRpFjrKVaJ1z6sjtEg==}
-    engines: {node: '>= 20.19.0'}
 
   '@noble/hashes@2.4.0':
     resolution: {integrity: sha512-X5XaVWZIBCT7HHZGm5I7ZQXDwLG+bGXuSrMQAW+7Zvl87h1kmc1ZB1VSRJcpUfoUrGQp4Fkoxm5kZ+Ms+aW+eA==}
@@ -1281,18 +1274,9 @@ packages:
   '@stellar/freighter-api@6.0.0':
     resolution: {integrity: sha512-8CTQcKQmTq/wL715ZUzn1x1POpR0eYhYPKEiaeA7AT0WYBOauOGTxfWPFtSidX3ohAlJZP5HFXy1kG29cVjqxw==}
 
-  '@stellar/js-xdr@4.0.0':
-    resolution: {integrity: sha512-+NmNa7Tk5BI5XFdy/6xGTqAN4J9a9KgCrCGhj2uEUTCBhLkch0M+QbKzNH8zEnejWe0p8w+0q5hUVX6L3OzoVA==}
-    engines: {node: '>=20.0.0', pnpm: '>=9.0.0'}
-
   '@stellar/js-xdr@5.0.0':
     resolution: {integrity: sha512-HBDNKnxr+ecdaEmbZ0mcKkirOF8tXXEbWSw34P3wT40Tn3g+u+cCH17xAWZymzscq8cojHB8340pR8QNVaD32w==}
     engines: {node: '>=22.0.0', pnpm: '>=10.0.0'}
-
-  '@stellar/stellar-sdk@16.1.0':
-    resolution: {integrity: sha512-MOIrUvbzuTnSvUurL+9nrS1UW6Ko+QTW00RggSomm4WaWkE8onKPo2MRJMd89X7qPaGPjYjxNX6B671AEQlzxQ==}
-    engines: {node: '>=22.0.0'}
-    hasBin: true
 
   '@stellar/stellar-sdk@17.0.1':
     resolution: {integrity: sha512-fsHHbzJ14N5Ttq5Qpz4AX0ytmPSLCzcy4XC3uIgSQz0cBkEgv0Zb4KE6tWEd3nDQUk/1qP8ZX9cRonIaUXO3Sw==}
@@ -1733,10 +1717,6 @@ packages:
   base-x@5.0.1:
     resolution: {integrity: sha512-M7uio8Zt++eg3jPj+rHMfCC+IuygQHHCOU+IYsVtik6FWjuYpVt/+MRKcgsAMHh8mMFAwnB+Bs+mTrFiXjMzKg==}
 
-  base32.js@0.1.0:
-    resolution: {integrity: sha512-n3TkB02ixgBOhTvANakDb4xaMXnYUVkNoRFJjQflcqMQhyEKxEHdj3E6N8t8sUQ0mjH/3/JxzlXuz3ul/J90pQ==}
-    engines: {node: '>=0.12.0'}
-
   base64-js@1.5.1:
     resolution: {integrity: sha512-AKpaYlHn8t4SVbOHCy+b5+KKgvR4vrsD8vbvrbiQJps7fKDTkjkDry6ji0rUJjC0kzbNePLwzxq8iypo41qeWA==}
 
@@ -2090,17 +2070,9 @@ packages:
     resolution: {integrity: sha512-mQw+2fkQbALzQ7V0MY0IqdnXNOeTtP4r0lN9z7AAawCXgqea7bDii20AYrIBrFd/Hx0M2Ocz6S111CaFkUcb0Q==}
     engines: {node: '>=0.8.x'}
 
-  eventsource-parser@3.1.0:
-    resolution: {integrity: sha512-kJezFj9YFAMLeORyi7aCLxLbD5/qWMQnoMVlVPyHIll7lgRJCc3JVln9Vgl9nwQi0YkMnhdGTMNn7CkRRAptMg==}
-    engines: {node: '>=18.0.0'}
-
   eventsource-parser@3.1.1:
     resolution: {integrity: sha512-EKN1vKAMcZ8MlYMpaNuxN6R9yakzH6uajHcHVTqWJzvu5pWw9DyhbP35HH8MVBQ+dZjAfDxk+A8NiR9KWaXiyQ==}
     engines: {node: '>=18.0.0'}
-
-  eventsource@4.1.0:
-    resolution: {integrity: sha512-2GuF51iuHX6A9xdTccMTsNb7VO0lHZihApxhvQzJB5A03DvHDd2FQepodbMaztPBmBcE/ox7o2gqaxGhYB9LhQ==}
-    engines: {node: '>=20.0.0'}
 
   eventsource@4.1.1:
     resolution: {integrity: sha512-D6bTRWh6KahHTK/m4WnjPQyEinNPf9eFLEZSEoj7d6fTibspnAVYfzHvirL7u/aoX5d9YYfIkBVAhmigUELk9w==}
@@ -2958,10 +2930,6 @@ packages:
 
   slow-redact@0.3.2:
     resolution: {integrity: sha512-MseHyi2+E/hBRqdOi5COy6wZ7j7DxXRz9NkseavNYSvvWC06D8a5cidVZX3tcG5eCW3NIyVU4zT63hw0Q486jw==}
-
-  smol-toml@1.7.1:
-    resolution: {integrity: sha512-PPlsspAZ4jbMBu5DMFhfUGDQLu/vrL4SyBROVS37x8ynnVmFIs1VPBz1Co8Xks3TvpIaZXmU85y4DrQ+UyVFoQ==}
-    engines: {node: '>= 18'}
 
   smol-toml@1.8.0:
     resolution: {integrity: sha512-kCZr2V3ch9i00x8zXRhjUNVcjG9ijES5dDudkXvUVCT5QlJNQWElSJdZqyPemffHoLNUYwOcou0Fy+ojN0uHSQ==}
@@ -3969,8 +3937,6 @@ snapshots:
     dependencies:
       '@noble/hashes': 1.8.0
 
-  '@noble/ed25519@3.1.0': {}
-
   '@noble/ed25519@3.2.0': {}
 
   '@noble/hashes@1.3.3': {}
@@ -3983,8 +3949,6 @@ snapshots:
   '@noble/hashes@1.7.1': {}
 
   '@noble/hashes@1.8.0': {}
-
-  '@noble/hashes@2.2.0': {}
 
   '@noble/hashes@2.4.0': {}
 
@@ -4919,27 +4883,7 @@ snapshots:
       buffer: 6.0.3
       semver: 7.7.1
 
-  '@stellar/js-xdr@4.0.0': {}
-
   '@stellar/js-xdr@5.0.0': {}
-
-  '@stellar/stellar-sdk@16.1.0':
-    dependencies:
-      '@noble/ed25519': 3.1.0
-      '@noble/hashes': 2.2.0
-      '@stellar/js-xdr': 4.0.0
-      axios: 1.18.0
-      base32.js: 0.1.0
-      bignumber.js: 11.1.5
-      buffer: 6.0.3
-      commander: 14.0.3
-      eventsource: 4.1.0
-      feaxios: 0.0.23
-      smol-toml: 1.7.1
-      uint8array-extras: 1.5.0
-    transitivePeerDependencies:
-      - debug
-      - supports-color
 
   '@stellar/stellar-sdk@17.0.1':
     dependencies:
@@ -5817,8 +5761,6 @@ snapshots:
 
   base-x@5.0.1: {}
 
-  base32.js@0.1.0: {}
-
   base64-js@1.5.1: {}
 
   baseline-browser-mapping@2.10.29: {}
@@ -6177,13 +6119,7 @@ snapshots:
 
   events@3.3.0: {}
 
-  eventsource-parser@3.1.0: {}
-
   eventsource-parser@3.1.1: {}
-
-  eventsource@4.1.0:
-    dependencies:
-      eventsource-parser: 3.1.0
 
   eventsource@4.1.1:
     dependencies:
@@ -7037,8 +6973,6 @@ snapshots:
   shebang-regex@3.0.0: {}
 
   slow-redact@0.3.2: {}
-
-  smol-toml@1.7.1: {}
 
   smol-toml@1.8.0: {}
 
