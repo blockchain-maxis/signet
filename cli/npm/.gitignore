@@ -1,0 +1,12 @@
+# Prebuilt binaries are staged into each platform package's bin/ only at
+# release time (scripts/release/stage-platform-package.mjs) or during local
+# verification — never committed.
+cli-linux-x64/bin/*
+cli-linux-arm64/bin/*
+cli-darwin-arm64/bin/*
+cli-windows-x64/bin/*
+!*/bin/.gitkeep
+
+# Local packing/verification scratch (npm pack output, scratch installs).
+*.tgz
+.verify/
