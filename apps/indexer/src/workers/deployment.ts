@@ -1,5 +1,4 @@
 import type { Horizon } from '@stellar/stellar-sdk';
-import { prisma } from '../db.js';
 import { logger } from '../logger.js';
 import { extractContractAddress, sleep } from '../stellar.js';
 import { withRetry } from '../retry.js';
@@ -51,9 +50,17 @@ export interface ContractCreate {
 }
 
 /**
- * The persistence surface this worker needs. Declaring it as an interface
- * (mirroring `OperationsStore` in operations.ts) is what lets a test drive
- * the backfill-resumption and completion logic without a database.
+ * The persistence surface the worker needs — the injectable seam that keeps
+ * wallet discovery testable without a database. Production passes Prisma;
+ * tests pass an in-memory store. Mirrors the `OperationsStore` pattern in
+ * `operations.ts`. Calling `wallet.findMany()` fresh on every invocation (not
+ * once at startup) is what lets a wallet linked after the indexer started get
+ * scanned on the very next tick, with no restart.
+ *
+ * The same seam is what lets a test seed a contract already recorded under one
+ * wallet and verify a second wallet's scan neither re-inserts nor re-attributes
+ * it, and drive the backfill-resumption and completion logic, without a
+ * database.
  */
 export interface DeploymentStore {
   wallet: {
@@ -64,7 +71,9 @@ export interface DeploymentStore {
     }) => Promise<unknown>;
   };
   contract: {
-    findFirst: (args: { where: { deployTxHash: string } }) => Promise<{ id: string } | null>;
+    findFirst: (args: {
+      where: { deployTxHash: string } | { address: string };
+    }) => Promise<{ id: string } | null>;
     upsert: (args: {
       where: { address: string };
       update: Record<string, never>;
@@ -121,10 +130,9 @@ async function handleOperation(
   await sleep(RATE_LIMIT_DELAY_MS);
 
   try {
-    const tx = await withRetry(
-      () => horizon.transactions().transaction(txHash).call(),
-      { label: RETRY_LABEL },
-    );
+    const tx = await withRetry(() => horizon.transactions().transaction(txHash).call(), {
+      label: RETRY_LABEL,
+    });
     const contractAddress = extractContractAddress(tx.result_meta_xdr);
     const ledgerSeq = tx.ledger_attr;
     if (typeof ledgerSeq === 'number' && ledgerSeq > state.highestLedger) {
@@ -132,23 +140,47 @@ async function handleOperation(
     }
 
     if (contractAddress) {
+      // `Contract.address` carries the real uniqueness constraint, and it is
+      // the identifier guaranteed not to collide once a profile holds more
+      // than one linked wallet: the same contract can be reached from more
+      // than one wallet's scan path, each surfacing its own transaction hash.
+      // Deduping on `deployTxHash` alone would re-insert — or, via a careless
+      // upsert `update`, silently re-attribute — a contract already recorded
+      // under a different wallet. The upsert below is safe on its own, but
+      // this check is what keeps a re-discovery from logging as new or
+      // double-counting `newContracts`. (Kept from #340; this worker's
+      // backfill walks far more history, so it hits the case more often.)
+      const existingByAddress = await store.contract.findFirst({
+        where: { address: contractAddress },
+      });
+      if (existingByAddress) {
+        logger.debug(
+          { pubkey: wallet.pubkey, contract: contractAddress },
+          'deployments.alreadyRecorded',
+        );
+        return;
+      }
+
       await store.contract.upsert({
-        where:  { address: contractAddress },
+        where: { address: contractAddress },
         update: {},
         create: {
-          address:       contractAddress,
-          walletId:      wallet.id,
+          address: contractAddress,
+          walletId: wallet.id,
           deployerPubkey: wallet.pubkey,
-          deployedAt:    new Date(tx.created_at),
-          deployTxHash:  txHash,
-          network:       config.network,
+          deployedAt: new Date(tx.created_at),
+          deployTxHash: txHash,
+          network: config.network,
         },
       });
       state.newContracts++;
       logger.debug({ pubkey: wallet.pubkey, contract: contractAddress }, 'deployments.found');
     }
   } catch (txErr) {
-    logger.warn({ pubkey: wallet.pubkey, txHash, error: String(txErr) }, 'deployments.txFetchFailed');
+    logger.warn(
+      { pubkey: wallet.pubkey, txHash, error: String(txErr) },
+      'deployments.txFetchFailed',
+    );
   }
 }
 
@@ -167,12 +199,7 @@ async function quickCheck(
 ): Promise<void> {
   const ops = await withRetry(
     () =>
-      horizon
-        .operations()
-        .forAccount(wallet.pubkey)
-        .order('desc')
-        .limit(QUICK_CHECK_LIMIT)
-        .call(),
+      horizon.operations().forAccount(wallet.pubkey).order('desc').limit(QUICK_CHECK_LIMIT).call(),
     { label: RETRY_LABEL },
   );
   await sleep(RATE_LIMIT_DELAY_MS);
@@ -199,7 +226,11 @@ async function backfill(
 ): Promise<void> {
   let page = (await withRetry(
     () => {
-      const query = horizon.operations().forAccount(wallet.pubkey).order('desc').limit(PER_WALLET_LIMIT);
+      const query = horizon
+        .operations()
+        .forAccount(wallet.pubkey)
+        .order('desc')
+        .limit(PER_WALLET_LIMIT);
       return (wallet.deploymentCursor ? query.cursor(wallet.deploymentCursor) : query).call();
     },
     { label: RETRY_LABEL },
@@ -246,7 +277,7 @@ async function backfill(
 export async function runDeploymentWorker(
   horizon: Horizon.Server,
   config: IndexerConfig,
-  store: DeploymentStore = prisma as unknown as DeploymentStore,
+  store: DeploymentStore,
 ): Promise<DeploymentResult> {
   const wallets = await store.wallet.findMany();
   const state: ScanState = { highestLedger: 0, newContracts: 0 };
@@ -265,7 +296,10 @@ export async function runDeploymentWorker(
       logger.error({ pubkey: wallet.pubkey, error: String(err) }, 'deployments.scanFailed');
     }
 
-    logger.debug({ pubkey: wallet.pubkey, new: state.newContracts - before }, 'deployments.walletDone');
+    logger.debug(
+      { pubkey: wallet.pubkey, new: state.newContracts - before },
+      'deployments.walletDone',
+    );
   }
 
   return {

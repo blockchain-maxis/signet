@@ -35,7 +35,11 @@ function memoryStore(wallets: DeploymentWallet[]): {
     },
     contract: {
       findFirst: async ({ where }) => {
-        const found = [...contracts.values()].find((c) => c.deployTxHash === where.deployTxHash);
+        if ('deployTxHash' in where) {
+          const found = [...contracts.values()].find((c) => c.deployTxHash === where.deployTxHash);
+          return found ? { id: found.address } : null;
+        }
+        const found = contracts.get(where.address);
         return found ? { id: found.address } : null;
       },
       upsert: async ({ create }) => {
@@ -97,10 +101,17 @@ test('a fresh wallet with a small backlog fully backfills in one tick', async ()
 
   await runDeploymentWorker(horizon, CONFIG, store);
 
-  assert.equal(calls.cursorUsed, undefined, 'the first backfill tick uses no cursor — starts at the newest op');
+  assert.equal(
+    calls.cursorUsed,
+    undefined,
+    'the first backfill tick uses no cursor — starts at the newest op',
+  );
   // 2 data pages + the empty page that signals exhaustion.
   assert.equal(calls.pagesFetched, 3);
-  assert.ok(wallets[0]!.deploymentBackfilledAt, 'backfill is marked complete once Horizon returns empty');
+  assert.ok(
+    wallets[0]!.deploymentBackfilledAt,
+    'backfill is marked complete once Horizon returns empty',
+  );
   assert.equal(wallets[0]!.deploymentCursor, 'tok-1', 'the cursor lands on the oldest op reached');
 });
 
@@ -117,7 +128,11 @@ test('a wallet with more history than one tick allows partially backfills and re
 
   await runDeploymentWorker(firstHorizon, CONFIG, store);
 
-  assert.equal(firstCalls.pagesFetched, 10, 'no more than MAX_PAGES_PER_TICK pages are read in one tick');
+  assert.equal(
+    firstCalls.pagesFetched,
+    10,
+    'no more than MAX_PAGES_PER_TICK pages are read in one tick',
+  );
   assert.equal(wallets[0]!.deploymentBackfilledAt, null, 'backfill is not yet complete');
   const cursorAfterTick1 = wallets[0]!.deploymentCursor;
   assert.equal(cursorAfterTick1, 'tok-9b', 'the cursor lands on the oldest op read this tick');
@@ -126,8 +141,15 @@ test('a wallet with more history than one tick allows partially backfills and re
   const { horizon: secondHorizon, calls: secondCalls } = horizonPages(pages.slice(10));
   await runDeploymentWorker(secondHorizon, CONFIG, store);
 
-  assert.equal(secondCalls.cursorUsed, cursorAfterTick1, 'the second tick resumes exactly where the first left off');
-  assert.ok(wallets[0]!.deploymentBackfilledAt, 'backfill completes on the tick that exhausts the history');
+  assert.equal(
+    secondCalls.cursorUsed,
+    cursorAfterTick1,
+    'the second tick resumes exactly where the first left off',
+  );
+  assert.ok(
+    wallets[0]!.deploymentBackfilledAt,
+    'backfill completes on the tick that exhausts the history',
+  );
 });
 
 test('an already-backfilled wallet uses the quick-check path, not pagination', async () => {
@@ -225,7 +247,11 @@ test('a create-contract op is detected and recorded during backfill', async () =
 });
 
 test('a Horizon failure on one wallet does not abort the others', async () => {
-  const walletB: DeploymentWallet = { ...WALLET_A, id: 'w2', pubkey: 'GBVBJEP2BSKHW6YBFCZR2HJKHZDLJOU7ZKTH2HSNUUQY322RWLURH3EQ' };
+  const walletB: DeploymentWallet = {
+    ...WALLET_A,
+    id: 'w2',
+    pubkey: 'GBVBJEP2BSKHW6YBFCZR2HJKHZDLJOU7ZKTH2HSNUUQY322RWLURH3EQ',
+  };
   const wallets = [{ ...WALLET_A }, walletB];
   const { store } = memoryStore(wallets);
 
@@ -259,4 +285,166 @@ test('a Horizon failure on one wallet does not abort the others', async () => {
 
   assert.equal(result.walletsScanned, 2);
   assert.deepEqual(scannedPubkeys, [WALLET_A.pubkey, walletB.pubkey]);
+});
+
+// ─── Cross-wallet dedup (#340) and mid-life pickup (#334) ────────────────────
+//
+// Ported onto this file's paginated fixtures when the backfill worker replaced
+// the single 200-op scan those tests were written against. The properties are
+// the worker's, not the old scan's, so they have to survive the rewrite.
+
+const CONTRACT_TWO = 'CABAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAFNSZ';
+
+/** A Horizon stub serving per-wallet pages, and a per-tx-hash contract meta. */
+function horizonFor(
+  recordsFor: (pubkey: string) => unknown[],
+  metaFor: (txHash: string) => string,
+) {
+  const scannedPubkeys: string[] = [];
+  const fetchedTxHashes: string[] = [];
+  const horizon = {
+    operations: () => ({
+      forAccount: (pubkey: string) => {
+        scannedPubkeys.push(pubkey);
+        const page = (records: unknown[]): unknown => ({
+          records,
+          next: async () => page([]),
+        });
+        return {
+          order: () => ({
+            limit: () => ({
+              cursor: () => ({ call: async () => page([]) }),
+              call: async () => page(recordsFor(pubkey)),
+            }),
+          }),
+        };
+      },
+    }),
+    transactions: () => ({
+      transaction: (txHash: string) => {
+        fetchedTxHashes.push(txHash);
+        return {
+          call: async () => ({
+            result_meta_xdr: metaFor(txHash),
+            ledger_attr: 2,
+            created_at: '2026-01-01T00:00:00Z',
+          }),
+        };
+      },
+    }),
+  } as unknown as Horizon.Server;
+  return { horizon, scannedPubkeys, fetchedTxHashes };
+}
+
+test('the same contract reached from two wallets is recorded once, attributed to the first', async () => {
+  const walletB: DeploymentWallet = {
+    ...WALLET_A,
+    id: 'w2',
+    pubkey: 'GBVBJEP2BSKHW6YBFCZR2HJKHZDLJOU7ZKTH2HSNUUQY322RWLURH3EQ',
+  };
+  const wallets = [{ ...WALLET_A }, walletB];
+  const { store, contracts } = memoryStore(wallets);
+  // Each wallet surfaces its own tx hash for the same deployed contract, so a
+  // deployTxHash-only guard would not catch the second one.
+  const { horizon } = horizonFor(
+    (pubkey) => [createContractOp(pubkey === WALLET_A.pubkey ? 'hash-a' : 'hash-b', 'tok-1')],
+    () => contractCreationMetaXdr(CONTRACT_ONE),
+  );
+
+  const result = await runDeploymentWorker(horizon, CONFIG, store);
+
+  assert.equal(contracts.size, 1, 'the contract is recorded once, not once per wallet');
+  assert.equal(
+    contracts.get(CONTRACT_ONE)?.walletId,
+    WALLET_A.id,
+    'attributed to the first wallet',
+  );
+  assert.equal(result.contractsFound, 1, 'a re-discovery must not be counted as new');
+});
+
+test('two different contracts from two wallets are each recorded to their own wallet', async () => {
+  const walletB: DeploymentWallet = {
+    ...WALLET_A,
+    id: 'w2',
+    pubkey: 'GBVBJEP2BSKHW6YBFCZR2HJKHZDLJOU7ZKTH2HSNUUQY322RWLURH3EQ',
+  };
+  const wallets = [{ ...WALLET_A }, walletB];
+  const { store, contracts } = memoryStore(wallets);
+  const { horizon } = horizonFor(
+    (pubkey) => [createContractOp(pubkey === WALLET_A.pubkey ? 'hash-a' : 'hash-b', 'tok-1')],
+    (txHash) => contractCreationMetaXdr(txHash === 'hash-a' ? CONTRACT_ONE : CONTRACT_TWO),
+  );
+
+  await runDeploymentWorker(horizon, CONFIG, store);
+
+  assert.equal(contracts.get(CONTRACT_ONE)?.walletId, WALLET_A.id);
+  assert.equal(contracts.get(CONTRACT_TWO)?.walletId, walletB.id);
+});
+
+test('an op whose deployTxHash is already recorded is skipped without fetching the transaction', async () => {
+  const wallets = [{ ...WALLET_A }];
+  const { store, contracts } = memoryStore(wallets);
+  contracts.set(CONTRACT_ONE, {
+    address: CONTRACT_ONE,
+    walletId: WALLET_A.id,
+    deployerPubkey: WALLET_A.pubkey,
+    deployedAt: new Date(),
+    deployTxHash: 'hash-a',
+    network: 'testnet',
+  });
+  const { horizon, fetchedTxHashes } = horizonFor(
+    () => [createContractOp('hash-a', 'tok-1')],
+    () => contractCreationMetaXdr(CONTRACT_ONE),
+  );
+
+  await runDeploymentWorker(horizon, CONFIG, store);
+
+  assert.deepEqual(
+    fetchedTxHashes,
+    [],
+    'the cheap tx-hash guard runs before any transaction fetch',
+  );
+});
+
+test('non-create-contract operations are ignored', async () => {
+  const wallets = [{ ...WALLET_A }];
+  const { store, contracts } = memoryStore(wallets);
+  const { horizon, fetchedTxHashes } = horizonFor(
+    () => [paymentOp('hash-a', 'tok-1')],
+    () => contractCreationMetaXdr(CONTRACT_ONE),
+  );
+
+  const result = await runDeploymentWorker(horizon, CONFIG, store);
+
+  assert.equal(result.contractsFound, 0);
+  assert.equal(contracts.size, 0);
+  assert.deepEqual(fetchedTxHashes, []);
+});
+
+test('a wallet linked between cycles is scanned on the next run, without a restart', async () => {
+  const wallets: DeploymentWallet[] = [{ ...WALLET_A }];
+  const { store } = memoryStore(wallets);
+  const { horizon, scannedPubkeys } = horizonFor(
+    () => [],
+    () => contractCreationMetaXdr(CONTRACT_ONE),
+  );
+
+  const first = await runDeploymentWorker(horizon, CONFIG, store);
+  assert.equal(first.walletsScanned, 1);
+
+  // The store re-reads wallets every tick, so a row added since the last one
+  // is picked up with no restart.
+  wallets.push({
+    ...WALLET_A,
+    id: 'w2',
+    pubkey: 'GBVBJEP2BSKHW6YBFCZR2HJKHZDLJOU7ZKTH2HSNUUQY322RWLURH3EQ',
+  });
+
+  const second = await runDeploymentWorker(horizon, CONFIG, store);
+  assert.equal(second.walletsScanned, 2, 'the newly linked wallet is included without a restart');
+  assert.deepEqual(scannedPubkeys, [
+    WALLET_A.pubkey,
+    WALLET_A.pubkey,
+    'GBVBJEP2BSKHW6YBFCZR2HJKHZDLJOU7ZKTH2HSNUUQY322RWLURH3EQ',
+  ]);
 });

@@ -12,7 +12,10 @@ async function openClaimForm(page: Page): Promise<void> {
   await page.goto('/');
   // With a wallet connected the closing CTA reads "Claim your handle" and
   // opens the inline form (multiple ConnectWallet instances render; any works).
-  await page.getByRole('button', { name: /claim your handle/i }).first().click();
+  await page
+    .getByRole('button', { name: /claim your handle/i })
+    .first()
+    .click();
   await expect(page.getByPlaceholder('your-handle')).toBeVisible();
 }
 
@@ -47,7 +50,7 @@ test('the claim form validates the handle as you type', async ({ page }) => {
   await expect(claim).toBeEnabled();
 });
 
-test('submitting while the registry is unconfigured shows the honest Phase 2 state', async ({
+test('submitting while the registry is unconfigured says so, without claiming the contract does not exist', async ({
   page,
 }) => {
   // The CI e2e build ships without NEXT_PUBLIC_IDENTITY_REGISTRY_ID, so the
@@ -55,19 +58,19 @@ test('submitting while the registry is unconfigured shows the honest Phase 2 sta
   // button, not a thrown error, and no wallet signing attempted. The message
   // renders only when the BUILD baked no registry id, so skip when this
   // environment has one (a dev box with the testnet registry in .env.local;
-  // CI the day Phase 2 configures it). Best-effort heuristic: the runner env
+  // CI the day a registry id is configured). Best-effort heuristic: the runner env
   // can diverge from what the build baked — a loud failure here then means
   // "your build and shell disagree about the registry", which is worth hearing.
   test.skip(
     !!process.env.NEXT_PUBLIC_IDENTITY_REGISTRY_ID,
-    'registry configured — the unconfigured Phase 2 state cannot render',
+    'registry configured — the unconfigured state cannot render',
   );
   await openClaimForm(page);
   await page.getByPlaceholder('your-handle').fill('e2e-tester');
   await page.getByRole('button', { name: 'Claim', exact: true }).click();
 
   await expect(page.getByRole('status')).toContainText(
-    'On-chain claim launches in Phase 2 — registry not yet deployed.',
+    'On-chain claim is unavailable — this deployment is not configured against an Identity Registry contract.',
   );
 });
 
@@ -79,7 +82,5 @@ test('escape abandons the claim form', async ({ page }) => {
 
   await expect(page.getByPlaceholder('your-handle')).toHaveCount(0);
   // Back to the CTA, ready to reopen.
-  await expect(
-    page.getByRole('button', { name: /claim your handle/i }).first(),
-  ).toBeVisible();
+  await expect(page.getByRole('button', { name: /claim your handle/i }).first()).toBeVisible();
 });
