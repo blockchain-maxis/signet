@@ -23,7 +23,13 @@ export type WalletSource = (typeof WALLET_SOURCES)[number];
 
 const WALLET_SOURCE_SET: ReadonlySet<string> = new Set(WALLET_SOURCES);
 
-/** True when `value` is one of the allowed `Wallet.source` values. */
-export function isWalletSource(value: string): value is WalletSource {
-  return WALLET_SOURCE_SET.has(value);
+/**
+ * True when `value` is one of the allowed `Wallet.source` values.
+ *
+ * Accepts `unknown` rather than `string` so a raw database column — which may
+ * hold a source written by a newer build — can be narrowed at the boundary
+ * without being cast to `string` first.
+ */
+export function isWalletSource(value: unknown): value is WalletSource {
+  return typeof value === 'string' && WALLET_SOURCE_SET.has(value);
 }

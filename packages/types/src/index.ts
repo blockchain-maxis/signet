@@ -25,6 +25,11 @@ export type {
 export { WALLET_SOURCES, isWalletSource } from './wallet-source.ts';
 export type { WalletSource } from './wallet-source.ts';
 
+// How each provenance reads — one vocabulary for every surface that renders a
+// binding, so a CLI link is never labelled as curated.
+export { describeWalletSource } from './wallet.ts';
+export type { WalletSourceDescriptor } from './wallet.ts';
+
 export type Handle = string;
 
 /** A Stellar account or contract address (G… / C…). */

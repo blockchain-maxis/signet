@@ -1,20 +1,18 @@
-import type { WalletSource } from '@signet/types';
 import { currentAddress } from '@/lib/server/session';
 import { getAccountWallets } from '@/lib/server/account';
 import { isRegistryConfigured, lookupWallet } from '@/lib/server/registry-read';
 import { stellarExpertAccountUrl } from '@/lib/network';
+import { walletSourceBadge } from '@/lib/wallet-source';
 import { UnlinkWalletButton } from './unlink-wallet-button';
 
 function truncate(a: string): string {
   return a.length > 18 ? `${a.slice(0, 8)}…${a.slice(-6)}` : a;
 }
 
-/** Badge styling for each wallet provenance, keyed by the shared WalletSource type. */
-const SOURCE_BADGE: Record<WalletSource, { label: string; className: string }> = {
-  onchain: { label: '● on-chain', className: 'text-emerald-500' },
-  curated: { label: '○ curated', className: 'text-[#5e5b51]' },
-  cli: { label: '○ cli', className: 'text-[#5e5b51]' },
-};
+// Provenance comes from the shared source vocabulary, never a string
+// comparison and never a badge table repeated here: a CLI link is its own
+// provenance, not the muted "curated" a proven binding must never read as.
+const badgeFor = walletSourceBadge;
 
 const mono = { fontFamily: 'var(--font-mono)' } as const;
 const display = { fontFamily: 'var(--font-display)' } as const;
@@ -78,10 +76,11 @@ export default async function WalletsPage() {
                   </span>
                 )}
                 <span
-                  className={`text-[9px] uppercase tracking-[0.18em] ${SOURCE_BADGE[w.source].className}`}
+                  className={`text-[9px] uppercase tracking-[0.18em] ${badgeFor(w.source).className}`}
                   style={mono}
+                  title={badgeFor(w.source).description}
                 >
-                  {SOURCE_BADGE[w.source].label}
+                  {badgeFor(w.source).text}
                 </span>
                 {w.indexingPending && (
                   <span
