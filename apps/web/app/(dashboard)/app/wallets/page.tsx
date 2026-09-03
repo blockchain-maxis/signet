@@ -3,14 +3,15 @@ import { getAccountWallets } from '@/lib/server/account';
 import { isRegistryConfigured, lookupWallet } from '@/lib/server/registry-read';
 import { stellarExpertAccountUrl } from '@/lib/network';
 import { walletSourceBadge } from '@/lib/wallet-source';
+import { UnlinkWalletButton } from './unlink-wallet-button';
 
 function truncate(a: string): string {
   return a.length > 18 ? `${a.slice(0, 8)}…${a.slice(-6)}` : a;
 }
 
 // Provenance comes from the shared source vocabulary, never a string
-// comparison: the old binary ternary rendered a CLI-linked wallet as
-// "curated", which is the one thing a cryptographically proven link is not.
+// comparison and never a badge table repeated here: a CLI link is its own
+// provenance, not the muted "curated" a proven binding must never read as.
 const badgeFor = walletSourceBadge;
 
 const mono = { fontFamily: 'var(--font-mono)' } as const;
@@ -27,13 +28,18 @@ export default async function WalletsPage() {
   if (address && wallets.length === 0 && registryConfigured) {
     const handle = await lookupWallet(address);
     if (handle) {
-      wallets = [{ pubkey: address, isPrimary: true, source: 'onchain', attestedAt: '' }];
+      wallets = [
+        { pubkey: address, isPrimary: true, source: 'onchain', attestedAt: '', indexingPending: false },
+      ];
     }
   }
 
   return (
     <section>
-      <h1 className="text-[40px] font-bold leading-[0.96] tracking-[-0.025em] md:text-[56px]" style={display}>
+      <h1
+        className="text-[40px] font-bold leading-[0.96] tracking-[-0.025em] md:text-[56px]"
+        style={display}
+      >
         Wallets
       </h1>
 
@@ -62,7 +68,10 @@ export default async function WalletsPage() {
                   {truncate(w.pubkey)}
                 </span>
                 {w.isPrimary && (
-                  <span className="border border-[#1f1d19] px-2 py-0.5 text-[9px] uppercase tracking-[0.18em] text-[#8a8779]" style={mono}>
+                  <span
+                    className="border border-[#1f1d19] px-2 py-0.5 text-[9px] uppercase tracking-[0.18em] text-[#8a8779]"
+                    style={mono}
+                  >
                     Primary
                   </span>
                 )}
@@ -73,24 +82,41 @@ export default async function WalletsPage() {
                 >
                   {badgeFor(w.source).text}
                 </span>
+                {w.indexingPending && (
+                  <span
+                    className="text-[9px] uppercase tracking-[0.18em] text-[#c2410c]"
+                    style={mono}
+                    title="The indexer hasn't scanned this wallet's on-chain activity yet"
+                  >
+                    ◌ indexing…
+                  </span>
+                )}
               </div>
-              <a
-                href={stellarExpertAccountUrl(w.pubkey)}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-[10px] uppercase tracking-[0.2em] text-[#8b1a1a] transition-colors hover:text-[#c2410c]"
-                style={mono}
-              >
-                Explorer ↗
-              </a>
+              <div className="flex items-center gap-6">
+                <a
+                  href={stellarExpertAccountUrl(w.pubkey)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-[10px] uppercase tracking-[0.2em] text-[#8b1a1a] transition-colors hover:text-[#c2410c]"
+                  style={mono}
+                >
+                  Explorer ↗
+                </a>
+                {/* The primary wallet is the handle's on-chain claim; unlinking
+                    it is a registry operation (release/transfer), not a
+                    dashboard edit, so no button is offered for it here. */}
+                {!w.isPrimary && <UnlinkWalletButton pubkey={w.pubkey} />}
+              </div>
             </div>
           ))
         )}
       </div>
 
       <p className="mt-4 max-w-[640px] text-[12px] leading-[1.7] text-[#5e5b51]" style={mono}>
-        To link an additional wallet, claim a handle from it in the Identity Registry — bindings are
-        created on-chain, never from this dashboard.
+        Your handle is bound to one primary wallet on-chain — claiming again from another wallet
+        creates a separate, unrelated profile rather than adding to this one. To attach an
+        additional deploy wallet to this profile, run{' '}
+        <code className="text-[#b8b5a8]">npx @signet/cli link</code> from the terminal.
       </p>
     </section>
   );

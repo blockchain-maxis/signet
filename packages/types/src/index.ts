@@ -12,9 +12,14 @@ export {
 } from './handle.ts';
 export type { ReservedHandle } from './handle.ts';
 
-// Wallet provenance — one vocabulary for every surface that renders a binding.
-export { WALLET_SOURCES, describeWalletSource, isWalletSource } from './wallet.ts';
-export type { WalletSource, WalletSourceDescriptor } from './wallet.ts';
+/** Allowed `Wallet.source` values, mirrored to Go for the CLI. */
+export { WALLET_SOURCES, isWalletSource } from './wallet-source.ts';
+export type { WalletSource } from './wallet-source.ts';
+
+// How each provenance reads — one vocabulary for every surface that renders a
+// binding, so a CLI link is never labelled as curated.
+export { describeWalletSource } from './wallet.ts';
+export type { WalletSourceDescriptor } from './wallet.ts';
 
 export type Handle = string;
 

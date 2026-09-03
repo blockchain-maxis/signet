@@ -1,17 +1,22 @@
 /**
- * Wallet provenance — how a handle ↔ wallet binding came to exist.
+ * Wallet provenance, as a surface renders it — how a handle ↔ wallet binding
+ * came to exist, and what a viewer should be told about it.
  *
  * The badge on a wallet is a claim about how much that binding is worth, so
  * every surface has to agree on the vocabulary. Rendering it from a string
  * comparison is what let a `cli` binding display as "curated": a
  * cryptographically proven link labelled as a hand-entered one. Anything that
  * shows provenance derives it from this module instead.
+ *
+ * The list of sources itself lives in `./wallet-source.ts`, which is also the
+ * input to the Go codegen for the CLI — this module only adds how each one
+ * reads, so the two cannot drift.
  */
 
-/** Every provenance a wallet binding can have, strongest first. */
-export const WALLET_SOURCES = ['onchain', 'cli', 'curated'] as const;
+import { WALLET_SOURCES, isWalletSource, type WalletSource } from './wallet-source.ts';
 
-export type WalletSource = (typeof WALLET_SOURCES)[number];
+export { WALLET_SOURCES, isWalletSource };
+export type { WalletSource };
 
 /** What a surface needs to render one provenance. */
 export interface WalletSourceDescriptor {
@@ -55,11 +60,6 @@ const UNKNOWN: WalletSourceDescriptor = {
   label: 'unrecognised',
   description: 'This build does not know how this wallet was linked.',
 };
-
-/** Narrows an arbitrary value to a known {@link WalletSource}. */
-export function isWalletSource(value: unknown): value is WalletSource {
-  return typeof value === 'string' && (WALLET_SOURCES as readonly string[]).includes(value);
-}
 
 /** Everything a surface needs to render `source`, including the unknown case. */
 export function describeWalletSource(source: unknown): WalletSourceDescriptor {
