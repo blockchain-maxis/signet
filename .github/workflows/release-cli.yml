@@ -1,0 +1,120 @@
+name: Release CLI
+
+# Cross-compiles the signet CLI for its target platforms, publishes
+# checksummed binaries to a GitHub Release, and publishes the npm wrapper
+# (@signet/cli) plus one platform-specific optionalDependency package per
+# target — the pattern esbuild, swc, and turbo use, since `npx` executes
+# JavaScript and cannot run a Go binary directly.
+#
+# Go cross-compiles cleanly from one runner (just GOOS/GOARCH env vars, no
+# cgo — see cli/go.mod's no-cgo requirement), so this is a single job rather
+# than a build matrix with artifacts to shuffle between jobs.
+#
+# OPT-IN, like deploy.yml: the actual publish steps are gated on
+# `vars.CLI_RELEASE_ENABLED == 'true'`, so they no-op for forks and until:
+#   - repository variable  CLI_RELEASE_ENABLED = "true"
+#   - environment secret    NPM_TOKEN             (npm automation token,
+#                                                   publish access to @signet)
+# are both configured. The build/checksum steps always run — harmless, and
+# useful for verifying the matrix builds even before publishing is wired up.
+#
+# Triggered by pushing a `cli-v*.*.*` tag (e.g. `cli-v0.1.0`), or manually via
+# workflow_dispatch against an existing tag.
+
+on:
+  push:
+    tags:
+      - 'cli-v*.*.*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: 'Existing tag to release (e.g. cli-v0.1.0)'
+        required: true
+
+concurrency:
+  group: release-cli-${{ github.event.inputs.tag || github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: build, checksum, and publish
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: production
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.inputs.tag || github.ref }}
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: cli/go.mod
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Resolve version
+        id: version
+        run: |
+          TAG="${{ github.event.inputs.tag || github.ref_name }}"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "version=${TAG#cli-v}" >> "$GITHUB_OUTPUT"
+
+      # goos/goarch/npm_pkg/binary-name, one line per release target.
+      - name: Build every target, stage each npm platform package, checksum
+        working-directory: cli
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          COMMIT: ${{ github.sha }}
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          targets=(
+            "linux   amd64 cli-linux-x64    signet"
+            "linux   arm64 cli-linux-arm64  signet"
+            "darwin  arm64 cli-darwin-arm64 signet"
+            "windows amd64 cli-windows-x64  signet.exe"
+          )
+          for target in "${targets[@]}"; do
+            read -r goos goarch npm_pkg binname <<< "$target"
+            out="dist/${npm_pkg}-${binname}"
+            echo "::group::build ${goos}/${goarch}"
+            CGO_ENABLED=0 GOOS="$goos" GOARCH="$goarch" go build \
+              -trimpath \
+              -ldflags "-s -w -X main.version=${VERSION} -X main.commit=${COMMIT}" \
+              -o "$out" \
+              ./cmd/signet
+            sha256sum "$out" >> dist/checksums.txt
+            node ../scripts/release/stage-platform-package.mjs \
+              "npm/${npm_pkg}" "$out" "${VERSION}"
+            echo "::endgroup::"
+          done
+          cat dist/checksums.txt
+
+      - name: Pin the shim's version and optionalDependencies
+        run: node ../scripts/release/pin-shim-version.mjs "${{ steps.version.outputs.version }}"
+        working-directory: cli
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.version.outputs.tag }}
+          name: signet CLI ${{ steps.version.outputs.version }}
+          files: |
+            cli/dist/*
+          generate_release_notes: true
+
+      - name: Publish npm packages
+        if: ${{ vars.CLI_RELEASE_ENABLED == 'true' }}
+        working-directory: cli
+        run: |
+          set -euo pipefail
+          for dir in npm/cli-linux-x64 npm/cli-linux-arm64 npm/cli-darwin-arm64 npm/cli-windows-x64 npm/cli; do
+            npm publish "$dir" --provenance --access public
+          done
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

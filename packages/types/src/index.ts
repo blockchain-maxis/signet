@@ -21,6 +21,10 @@ export type {
   PairingOutcome,
 } from './pairing.ts';
 
+/** Allowed `Wallet.source` values, mirrored to Go for the CLI. */
+export { WALLET_SOURCES, isWalletSource } from './wallet-source.ts';
+export type { WalletSource } from './wallet-source.ts';
+
 export type Handle = string;
 
 /** A Stellar account or contract address (G… / C…). */
