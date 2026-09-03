@@ -64,7 +64,8 @@ enum DataKey {
     Owner(String),
     /// wallet `Address` -> handle.
     Handle(Address),
-    /// Count of currently-bound handles (O(1); enumeration is via events).
+    /// The binding counter (O(1); enumeration is via events). An upper
+    /// bound, not a live total - see [`IdentityRegistry::count`].
     Count,
 }
 
@@ -276,6 +277,9 @@ impl IdentityRegistry {
     /// Returns `None` for any handle that is not currently bound. Rejects
     /// batches larger than [`MAX_BATCH_SIZE`].
     pub fn resolve_batch(env: Env, handles: Vec<String>) -> Result<Vec<Option<Address>>, Error> {
+        // Bump directly rather than relying on the per-handle resolve calls:
+        // an empty batch is still someone using the registry.
+        Self::bump_instance(&env);
         let len = handles.len();
         if len > MAX_BATCH_SIZE {
             return Err(Error::BatchTooLarge);

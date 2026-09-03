@@ -11,6 +11,7 @@ Signet is a verifiable developer career record built on Stellar/Soroban. Develop
 | **Web app** (`apps/web`) | Netlify ([`netlify.toml`](netlify.toml)) | Deployed — landing, `/how-it-works`, `/handles`, tRPC API, SIWS auth, demo profiles |
 | **Indexer** (`apps/indexer`) | GHCR image, opt-in [`deploy.yml`](.github/workflows/deploy.yml) | Code-complete, not provisioned — needs a Postgres to point at |
 | **PostgreSQL** (`packages/db`) | — | Prisma schema + migrations committed; no hosted instance |
+| **CLI** (`npx @signet/cli link`) | npm | Not shipped — terminal deploy-wallet linking is in progress; see `docs/CLI.md` |
 
 Point the app at the deployed registry with:
 
@@ -59,7 +60,7 @@ id configured, the page says so rather than presenting the manifest as registry 
 ## Also implemented
 
 - **On-chain Identity Registry — deployed to testnet** — a real Soroban contract (`packages/contracts/identity-registry`) binds a wallet to a handle via a signed `claim`; ownership is enforced by `require_auth`. Live at `CASFJHI5PQSRWS7JV25CF7FOMRKIVBP3RXRP3E2GH2CV4BCAG7FUJRCN` since 2026-07-09 (see [Status](#status)). 24 unit tests, builds to wasm.
-- **Wallet connect + claim flow — live** — `Connect wallet` / `Claim your handle` use Stellar Wallets Kit and submit a real on-chain `claim` against the deployed registry (`apps/web/lib/{wallet,registry}.ts`) whenever `NEXT_PUBLIC_IDENTITY_REGISTRY_ID` is set. With no contract id configured, `claimHandle` throws `RegistryNotConfiguredError` and the UI shows an honest "Phase 2" message rather than a broken button.
+- **Wallet connect + claim flow — live** — `Connect wallet` / `Claim your handle` use Stellar Wallets Kit and submit a real on-chain `claim` against the deployed registry (`apps/web/lib/{wallet,registry}.ts`) whenever `NEXT_PUBLIC_IDENTITY_REGISTRY_ID` is set. With no contract id configured, `claimHandle` throws `RegistryNotConfiguredError` and the UI says this deployment is not configured against a registry, rather than showing a broken button.
 - **Public handle directory** — `/handles` rebuilds the currently-bound set from the registry's `claimed`/`released` event stream over Soroban RPC, with no database in the path (`apps/web/lib/directory.ts`).
 - **Real API + SDK** — tRPC `profile.byHandle` / `profile.list` / `health`; `@signet/sdk` fetches them. Both covered by tests.
 - **CI gates** lint · typecheck · test · build, plus a Rust contract job.
@@ -67,7 +68,8 @@ id configured, the page says so rather than presenting the manifest as registry 
 ## What's coming next (Phase 2)
 
 - **Mainnet deploy** of the Identity Registry (testnet is live — see [Status](#status)), plus a contract audit before it.
-- **Run the indexer** against a Postgres instance to populate full deployment/activity history; `/p` already has a DB-with-static-fallback loader (`safeDbProfile`).
+- **Terminal deploy-wallet linking** — `npx @signet/cli link` binds the wallet you run `stellar contract deploy` from to your claimed handle, proving control of the key from your terminal. This is the step that turns a claimed handle into an indexed profile: a handle claimed with a browser wallet points at an address that has usually deployed nothing, so the profile renders empty until a deploy wallet is linked. Not shipped yet — the full flow is specified in `docs/CLI.md`.
+- **Run the indexer** against a Postgres instance to populate full deployment/activity history; `/p` already has a DB-with-static-fallback loader (`safeDbProfile`). Once a deploy wallet is linked, the indexer attributes every contract it has deployed and invoked to that profile.
 - **Self-sovereign bindings** replace the curated `DEMO_PROFILES` mapping as claims land on the deployed registry.
 - **Developer dashboard** (`/app/*`) — currently an honest read-only preview pending wallet auth.
 - **Reputation scoring** — attestations, TVL tracking, incident records.
@@ -88,7 +90,7 @@ Visit `http://localhost:3000/p/aquawolf` for the first demo profile.
 > **Requires Node 22+.** Fonts (`IBM Plex Sans`/`Mono`) load via a browser-side `@import` in `globals.css` (not `next/font`), so the build never blocks on font downloads.
 
 First-run failures (stellar CLI passphrase bug, Friendbot funding, missing
-`wasm32v1-none`, no `DATABASE_URL`, Phase 2 claim message, indexer without a
+`wasm32v1-none`, no `DATABASE_URL`, the not-configured claim message, indexer without a
 registry id): see [`docs/TROUBLESHOOTING.md`](docs/TROUBLESHOOTING.md).
 
 ## Self-host / deploy
@@ -103,6 +105,15 @@ prerequisites, deploy key + Friendbot, wasm build, `infra/deploy-contract.sh`,
 **See [`PROPOSAL.md`](PROPOSAL.md)** for the grant proposal: the problem
 statement, an itemized budget, dated milestones through 2027-04-30, and a
 fix-log of resolved issues with the tests that keep them closed.
+
+Design notes for roadmap items, written before the code so the shape is settled
+first:
+
+| Note | Item |
+|------|------|
+| [`docs/CONTRACT_DOCS_DESIGN.md`](docs/CONTRACT_DOCS_DESIGN.md) | Generating contract reference documentation from the deployed WASM's `contractspecv0` section |
+| [`docs/CONTRACT_SANDBOX_DESIGN.md`](docs/CONTRACT_SANDBOX_DESIGN.md) | Running a deployed contract's functions from a profile — RPC simulation first, embedded host second |
+| [`docs/CONTRACT_VISUALISER_DESIGN.md`](docs/CONTRACT_VISUALISER_DESIGN.md) | Rendering a deployed contract's call surface, type graph, and (later) call graph as a diagram a non-developer can read |
 
 ## Architecture
 
@@ -169,7 +180,7 @@ set from the event stream.
 | `packages/db` | Prisma schema + generated client |
 | `packages/sdk` | External SDK for integrators |
 | `packages/types` | Shared TypeScript types |
-| `packages/ui` | Shared React components |
+| `cli` | `signet` CLI (Go) — links wallets, manages keys, talks to a Signet deployment |
 | `infra` | Local dev infra (Docker Postgres) |
 
 ## Scripts
@@ -184,20 +195,26 @@ set from the event stream.
 | `pnpm db:migrate` | Run Prisma migrations |
 | `pnpm test` | All TypeScript tests via Turborepo |
 | `cargo test` (in `packages/contracts`) | Identity Registry unit tests |
+| `go build ./...` / `go test ./...` (in `cli`) | Build / test the `signet` CLI |
 
 ## Tests
 
 | Suite | Count |
 |-------|-------|
-| `pnpm test` | **208** — `@signet/web` 137 · `@signet/indexer` 36 · `@signet/sdk` 26 · `@signet/types` 9 (`ui`, `db` have no tests yet) |
+| `pnpm test` | **208** — `@signet/web` 137 · `@signet/indexer` 36 · `@signet/sdk` 26 · `@signet/types` 9 (`db` has no tests yet) |
 | `cargo test` | **30** — `packages/contracts/identity-registry` |
 
 Both are CI gates ([`ci.yml`](.github/workflows/ci.yml)), alongside `lint`,
 `typecheck`, `build` and the wasm contract build.
 
+## Releases and changelog
+
+- **[`CHANGELOG.md`](CHANGELOG.md)** — Record of notable changes, version history, and deployed contract addresses.
+- **[`docs/RELEASING.md`](docs/RELEASING.md)** — Release procedure, Semantic Versioning policy, and tagging conventions.
+
 ## License
 
 Signet is licensed under the Apache License 2.0 — see [`LICENSE`](LICENSE) for the
 full text. This covers every workspace package (`@signet/sdk`, `@signet/types`,
-`@signet/ui`, `@signet/db`, `@signet/web`, `@signet/indexer`) and the Soroban
+`@signet/db`, `@signet/web`, `@signet/indexer`) and the Soroban
 `identity-registry` contract.
