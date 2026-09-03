@@ -4,6 +4,7 @@ import { isRegistryConfigured, lookupWallet } from '@/lib/server/registry-read';
 import { stellarExpertAccountUrl } from '@/lib/network';
 import { walletSourceBadge } from '@/lib/wallet-source';
 import { UnlinkWalletButton } from './unlink-wallet-button';
+import { LinkDeployWalletPrompt } from '../../components/link-deploy-wallet-prompt';
 
 function truncate(a: string): string {
   return a.length > 18 ? `${a.slice(0, 8)}…${a.slice(-6)}` : a;
@@ -111,6 +112,10 @@ export default async function WalletsPage() {
           ))
         )}
       </div>
+
+      {/* Every known wallet being primary means no deploy wallet is linked, so
+          the profile has nothing to attribute — say so before the standing note. */}
+      {wallets.length > 0 && !wallets.some((w) => !w.isPrimary) && <LinkDeployWalletPrompt />}
 
       <p className="mt-4 max-w-[640px] text-[12px] leading-[1.7] text-[#5e5b51]" style={mono}>
         Your handle is bound to one primary wallet on-chain — claiming again from another wallet

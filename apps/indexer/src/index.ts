@@ -9,9 +9,11 @@ import { runDeploymentWorker, type DeploymentStore } from './workers/deployment.
 import { runActivityWorker, type ActivityStore } from './workers/activity.js';
 import { runAttestationWorker } from './workers/attestation.js';
 import { runOperationsWorker, type OperationsStore } from './workers/operations.js';
+import { runPruningWorker, type PruningStore } from './workers/prune.js';
 
 let shuttingDown = false;
 let shuttingDownPrisma = false;
+let lastPrunedAt = 0;
 
 /** Max time (ms) to wait for a graceful shutdown before force-exiting. */
 const SHUTDOWN_TIMEOUT_MS = 10_000;
@@ -79,6 +81,16 @@ async function tick(
   // Operations: pull recent Soroban invocations for tracked wallets
   const { opsUpserted } = await runOperationsWorker(horizon, prisma as unknown as OperationsStore);
 
+  // Pruning: periodically prune historical operations and snapshots beyond retention windows
+  let opsPruned = 0;
+  let snapshotsPruned = 0;
+  if (Date.now() - lastPrunedAt >= config.pruneIntervalMs) {
+    const pruneRes = await runPruningWorker(prisma as unknown as PruningStore, config);
+    opsPruned = pruneRes.opsPruned;
+    snapshotsPruned = pruneRes.snapshotsPruned;
+    lastPrunedAt = Date.now();
+  }
+
   // Persist cursor
   if (highestLedger > 0) {
     await prisma.indexerCursor.upsert({
@@ -97,6 +109,8 @@ async function tick(
       contractsFound,
       opsUpserted,
       snapshotsWritten,
+      opsPruned,
+      snapshotsPruned,
       durationMs: Date.now() - start,
     },
     'tick.summary',
