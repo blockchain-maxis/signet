@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { currentAddress } from '@/lib/server/session';
 import { getAccount } from '@/lib/server/account';
-import { getOperations, computeStats } from '@/lib/profiles';
+import { getOperationsResult, getProfileStats, formatCount } from '@/lib/profiles';
 
 function truncate(a: string): string {
   return a.length > 16 ? `${a.slice(0, 7)}…${a.slice(-5)}` : a;
@@ -13,7 +13,14 @@ const display = { fontFamily: 'var(--font-display)' } as const;
 export default async function DashboardPage() {
   const address = await currentAddress();
   const account = address ? await getAccount(address) : null;
-  const stats = account?.handle ? computeStats(await getOperations(account.handle)) : null;
+  const operations = account?.handle ? await getOperationsResult(account.handle) : null;
+  const stats =
+    account?.handle && operations
+      ? await getProfileStats(account.handle, operations.operations)
+      : null;
+  // Counts drawn from a capped window are lower bounds; they render as "N+".
+  // Database aggregates cover the whole history, so those stay bare totals.
+  const truncated = (operations?.truncated ?? false) && !(stats?.exact ?? false);
 
   return (
     <section>
@@ -64,9 +71,9 @@ export default async function DashboardPage() {
       {stats && (
         <div className="mt-6 grid max-w-[640px] grid-cols-3 gap-px border border-[#1f1d19] bg-[#1f1d19]">
           {[
-            { label: 'Reputation', value: stats.reputation },
-            { label: 'Invocations', value: stats.invocations },
-            { label: 'Functions', value: stats.uniqueFunctions },
+            { label: truncated ? 'Reputation (partial)' : 'Reputation', value: String(stats.reputation) },
+            { label: 'Invocations', value: formatCount(stats.invocations, truncated) },
+            { label: 'Functions', value: formatCount(stats.uniqueFunctions, truncated) },
           ].map(({ label, value }) => (
             <div key={label} className="flex flex-col justify-center bg-[#0a0908] px-6 py-6">
               <span className="text-[28px] font-bold leading-none text-[#f5f4ee]" style={display}>

@@ -85,6 +85,41 @@ test('account.update without a database surfaces a clear error', async () => {
   await assert.rejects(() => c.account.update({ displayName: 'Ada', bio: 'hi' }), /database/i);
 });
 
+test('account.unlinkWallet is rejected without a session', async () => {
+  __resetRateLimit();
+  await assert.rejects(
+    () =>
+      caller('10.0.2.5').account.unlinkWallet({
+        wallet: 'GDWUSKGGFDI4FRXK5EBTRECZSVQSSWJHHJOGH6JWG3AUMFFMQ435DIAG',
+      }),
+    /Unauthorized|Cross-origin/,
+  );
+});
+
+test('account.unlinkWallet rejects a malformed wallet address', async () => {
+  __resetRateLimit();
+  const c = authedCaller('10.0.2.6', 'GTESTADDRESS', {
+    host: 'localhost',
+    origin: 'http://localhost',
+  });
+  await assert.rejects(() => c.account.unlinkWallet({ wallet: 'not-a-valid-address' }));
+});
+
+test('account.unlinkWallet without a database surfaces a clear error', async () => {
+  __resetRateLimit();
+  const c = authedCaller('10.0.2.7', 'GTESTADDRESS', {
+    host: 'localhost',
+    origin: 'http://localhost',
+  });
+  await assert.rejects(
+    () =>
+      c.account.unlinkWallet({
+        wallet: 'GDWUSKGGFDI4FRXK5EBTRECZSVQSSWJHHJOGH6JWG3AUMFFMQ435DIAG',
+      }),
+    /database/i,
+  );
+});
+
 test('rate limiter blocks a caller after the window max', async () => {
   __resetRateLimit();
   const c = caller('10.0.0.99');
@@ -119,8 +154,8 @@ test('registry.resolve normalises the handle to lowercase', async () => {
 
 test('registry.lookup rejects a malformed wallet address', async () => {
   __resetRateLimit();
-  await assert.rejects(
-    () => caller('10.0.0.13').registry.lookup({ wallet: 'not-a-valid-address' }),
+  await assert.rejects(() =>
+    caller('10.0.0.13').registry.lookup({ wallet: 'not-a-valid-address' }),
   );
 });
 
@@ -182,8 +217,21 @@ test('a cross-origin mutation is FORBIDDEN', async () => {
     host: 'signet.dev',
     origin: 'https://evil.example',
   });
+  assert.equal(await codeOf(() => c.account.update({ displayName: 'x', bio: null })), 'FORBIDDEN');
+});
+
+test('a cross-origin unlinkWallet mutation is FORBIDDEN', async () => {
+  __resetRateLimit();
+  const c = authedCaller('10.0.3.6', 'GTESTADDRESS', {
+    host: 'signet.dev',
+    origin: 'https://evil.example',
+  });
   assert.equal(
-    await codeOf(() => c.account.update({ displayName: 'x', bio: null })),
+    await codeOf(() =>
+      c.account.unlinkWallet({
+        wallet: 'GDWUSKGGFDI4FRXK5EBTRECZSVQSSWJHHJOGH6JWG3AUMFFMQ435DIAG',
+      }),
+    ),
     'FORBIDDEN',
   );
 });
