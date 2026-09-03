@@ -49,7 +49,7 @@ test('pruning worker deletes operations older than retention days', async () => 
 
   assert.equal(result.opsPruned, 1);
   assert.equal(operations.length, 1);
-  assert.equal(operations[0].id, 'op-recent');
+  assert.equal(operations[0]?.id, 'op-recent');
 });
 
 test('pruning worker deletes snapshots older than retention days', async () => {
@@ -69,7 +69,7 @@ test('pruning worker deletes snapshots older than retention days', async () => {
 
   assert.equal(result.snapshotsPruned, 1);
   assert.equal(snapshots.length, 1);
-  assert.equal(snapshots[0].id, 's-recent');
+  assert.equal(snapshots[0]?.id, 's-recent');
 });
 
 test('pruning worker skips deletion when retention is 0 (disabled)', async () => {
