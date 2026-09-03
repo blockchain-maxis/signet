@@ -39,6 +39,7 @@ is caught by the tick, logged as `tick.error`, and the loop continues.
 | 2 | **deployment** | Every tick | Horizon `/accounts/{pubkey}/operations` for every `Wallet` row — paginated backward from `Wallet.deploymentCursor` (50/page, up to 10 pages/tick) until fully backfilled, then a single 200-most-recent check per tick — plus a transaction fetch per contract-creation op | `Contract`, `Wallet.deploymentCursor`/`deploymentBackfilledAt`, clears `Wallet.indexRequestedAt` |
 | 3 | **activity** | Every tick | Horizon `/accounts/{contract}/transactions` for every `Contract` whose newest snapshot is older than 5 min | `ContractSnapshot` |
 | 4 | **operations** | Every tick | Horizon `/accounts/{pubkey}/operations` for every `Wallet` (50 most recent, desc) | `Operation` |
+| 5 | **prune** | Periodic (`INDEXER_PRUNE_INTERVAL_MS`, default 1h) | `Operation`, `ContractSnapshot` | Deletes historical records older than retention windows |
 
 Notes that matter in production:
 
