@@ -1,7 +1,7 @@
 import Link from 'next/link';
 import { currentAddress } from '@/lib/server/session';
 import { getAccount, getAccountWallets } from '@/lib/server/account';
-import { getOperations, computeStats } from '@/lib/profiles';
+import { getOperationsResult, computeStats, formatCount } from '@/lib/profiles';
 import { LinkDeployWalletPrompt } from '../components/link-deploy-wallet-prompt';
 
 function truncate(a: string): string {
@@ -14,7 +14,10 @@ const display = { fontFamily: 'var(--font-display)' } as const;
 export default async function DashboardPage() {
   const address = await currentAddress();
   const account = address ? await getAccount(address) : null;
-  const stats = account?.handle ? computeStats(await getOperations(account.handle)) : null;
+  const operations = account?.handle ? await getOperationsResult(account.handle) : null;
+  const stats = operations ? computeStats(operations.operations) : null;
+  // Counts drawn from a capped window are lower bounds; they render as "N+".
+  const truncated = operations?.truncated ?? false;
   const wallets = account?.handle && address ? await getAccountWallets(address) : [];
   const hasDeployWallet = wallets.some((w) => !w.isPrimary);
 
@@ -71,9 +74,9 @@ export default async function DashboardPage() {
       {stats && (
         <div className="mt-6 grid max-w-[640px] grid-cols-3 gap-px border border-[#1f1d19] bg-[#1f1d19]">
           {[
-            { label: 'Reputation', value: stats.reputation },
-            { label: 'Invocations', value: stats.invocations },
-            { label: 'Functions', value: stats.uniqueFunctions },
+            { label: truncated ? 'Reputation (partial)' : 'Reputation', value: String(stats.reputation) },
+            { label: 'Invocations', value: formatCount(stats.invocations, truncated) },
+            { label: 'Functions', value: formatCount(stats.uniqueFunctions, truncated) },
           ].map(({ label, value }) => (
             <div key={label} className="flex flex-col justify-center bg-[#0a0908] px-6 py-6">
               <span className="text-[28px] font-bold leading-none text-[#f5f4ee]" style={display}>
