@@ -12,6 +12,15 @@ export {
 } from './handle.ts';
 export type { ReservedHandle } from './handle.ts';
 
+// Pairing audit trail — one event vocabulary for the web tier and the indexer.
+export { PAIRING_EVENTS, PairingSecretLeakError, pairingEvent } from './pairing.ts';
+export type {
+  PairingEvent,
+  PairingEventInput,
+  PairingEventName,
+  PairingOutcome,
+} from './pairing.ts';
+
 /** Allowed `Wallet.source` values, mirrored to Go for the CLI. */
 export { WALLET_SOURCES, isWalletSource } from './wallet-source.ts';
 export type { WalletSource } from './wallet-source.ts';

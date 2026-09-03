@@ -338,7 +338,7 @@ curl -sS "$BASE/api/health"
 | `GET /` | HTTP 200, landing HTML |
 | `GET /p/aquawolf` | HTTP 200, demo profile renders |
 | `GET /how-it-works` | HTTP 200 |
-| `GET /api/health` | JSON `status` is `ok`. `degraded` means a configured dependency is down — read `checks.db` (Postgres) and `checks.registry` (Soroban RPC + registry contract) to see which |
+| `GET /api/health` | JSON `status` is `ok`. `degraded` means a configured dependency is down — read `checks.db` (Postgres), `checks.registry` (Soroban RPC + registry contract), and `checks.pairing` (wallet↔handle binding, which needs both) to see which |
 | Claim lands on-chain | With `NEXT_PUBLIC_IDENTITY_REGISTRY_ID` set: connect a funded testnet wallet, claim an unused handle, then `resolve` returns the G… address (below) |
 | Claim disabled honestly | With registry id **unset**: UI says the deployment is not configured, not a hard crash |
 
