@@ -144,6 +144,7 @@ const ENV_ALLOW = new Set([
   'WAYLAND_DISPLAY', // standard desktop-session env var, not app config
   'CLI_RELEASE_ENABLED', // GitHub repo variable, not app env — see release-cli.yml
   'NPM_TOKEN', // GitHub Actions secret, not app env — see release-cli.yml
+  'SIGNET_SIMULATOR_PATH', // docs/CLI_RUST_BRIDGE.md — future Go CLI env, not this web app's
 ]);
 
 /**
