@@ -2,9 +2,9 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { trpc } from '@/lib/trpc-client';
+import { trpc } from '@/lib/trpc';
 
-type State = { status: 'idle' | 'confirming' | 'busy' } | { status: 'error'; message: string };
+type State = { status: 'idle' | 'confirming' } | { status: 'error'; message: string };
 
 const mono = { fontFamily: 'var(--font-mono)' } as const;
 
@@ -18,18 +18,24 @@ const mono = { fontFamily: 'var(--font-mono)' } as const;
 export function UnlinkWalletButton({ pubkey }: { pubkey: string }) {
   const router = useRouter();
   const [state, setState] = useState<State>({ status: 'idle' });
+  const utils = trpc.useUtils();
 
-  async function confirmUnlink() {
-    setState({ status: 'busy' });
-    try {
-      await trpc.account.unlinkWallet.mutate({ wallet: pubkey });
+  const unlink = trpc.account.unlinkWallet.useMutation({
+    onSuccess: () => {
+      // The wallet list is server-rendered, so refresh the route; also drop the
+      // cached `account.me` in case a client surface is holding the old set.
+      void utils.account.me.invalidate();
       router.refresh();
-    } catch (err) {
-      setState({
-        status: 'error',
-        message: err instanceof Error ? err.message : 'Could not unlink wallet',
-      });
-    }
+    },
+    onError: (err) =>
+      setState({ status: 'error', message: err.message || 'Could not unlink wallet' }),
+  });
+
+  function confirmUnlink() {
+    // Leave the confirm prompt as the request goes out so the trigger below
+    // renders the pending label, matching the previous two-step behaviour.
+    setState({ status: 'idle' });
+    unlink.mutate({ wallet: pubkey });
   }
 
   if (state.status === 'confirming') {
@@ -73,11 +79,11 @@ export function UnlinkWalletButton({ pubkey }: { pubkey: string }) {
     <button
       type="button"
       onClick={() => setState({ status: 'confirming' })}
-      disabled={state.status === 'busy'}
+      disabled={unlink.isPending}
       className="text-[10px] uppercase tracking-[0.2em] text-[#5e5b51] transition-colors hover:text-[#8b1a1a] disabled:opacity-60"
       style={mono}
     >
-      {state.status === 'busy' ? 'Unlinking…' : 'Unlink'}
+      {unlink.isPending ? 'Unlinking…' : 'Unlink'}
     </button>
   );
 }
