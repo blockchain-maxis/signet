@@ -84,15 +84,21 @@ export default function OperationsList({
             className="text-[13px] leading-[1.7] text-[#b8b5a8]"
             style={{ fontFamily: 'var(--font-mono)' }}
           >
-            This profile has not been indexed yet, so there are no Soroban invocations to display.
+            No Soroban invocations are recorded for this profile yet.
           </p>
           <p
             className="mt-2 text-[12px] leading-[1.6] text-[#5e5b51]"
             style={{ fontFamily: 'var(--font-mono)' }}
           >
-            Once the wallet starts interacting with contracts, the activity timeline and stats will
-            populate here.
+            The wallet that claimed this handle is rarely the key used with{' '}
+            <code className="text-[#8a8779]">stellar contract deploy</code>. Link your deploy wallet from the CLI to attribute its contract activity:
           </p>
+          <code
+            className="mt-4 block max-w-fit bg-[#0a0908] px-4 py-2.5 text-[12px] text-[#f5f4ee] border border-[#1f1d19]"
+            style={{ fontFamily: 'var(--font-mono)' }}
+          >
+            npx @signet/cli link
+          </code>
         </div>
       ) : (
         <>
