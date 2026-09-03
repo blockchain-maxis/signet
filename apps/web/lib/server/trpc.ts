@@ -4,7 +4,7 @@ import {
   getOperationsResult,
   listHandles,
   isValidHandle,
-  computeStats,
+  getProfileStats,
 } from '../profiles.ts';
 import { logger } from '../logger.ts';
 import { rateLimit } from '../rate-limit.ts';
@@ -126,7 +126,7 @@ const profileRouter = router({
     return {
       handle: input.handle,
       profile,
-      stats: computeStats(operations),
+      stats: await getProfileStats(input.handle, operations),
       operations,
       // The operations window is bounded, so consumers get the completeness of
       // the read alongside it: `truncated` means `operations` and every count

@@ -11,6 +11,8 @@ import {
   safeChainProfile,
   decodeResolvedAddress,
   computeStats,
+  getProfileStats,
+  safeDbProfileStats,
   getOperationsResult,
   formatCount,
 } from './profiles.ts';
@@ -98,6 +100,36 @@ test('computeStats returns zeroed stats for missing or empty operations', () => 
   assert.deepEqual(computeStats([]), { invocations: 0, uniqueFunctions: 0, reputation: 0 });
 });
 
+test('computeStats scores successful invocations and unique function diversity', () => {
+  const ops = [
+    {
+      id: '1',
+      type: 'invoke',
+      function: 'mint',
+      created_at: '2026-08-30T00:00:00Z',
+      transaction_successful: true,
+    },
+    {
+      id: '2',
+      type: 'invoke',
+      function: 'transfer',
+      created_at: '2026-08-30T01:00:00Z',
+      transaction_successful: true,
+    },
+    {
+      id: '3',
+      type: 'invoke',
+      function: 'transfer',
+      created_at: '2026-08-30T02:00:00Z',
+      transaction_successful: false,
+    },
+  ];
+  const stats = computeStats(ops);
+  assert.equal(stats.invocations, 2);
+  assert.equal(stats.uniqueFunctions, 2);
+  assert.equal(stats.reputation, 2 * 6 + 2 * 10);
+});
+
 test('getOperations returns an array (possibly empty) for any handle', async () => {
   assert.ok(Array.isArray(await getOperations('aquawolf')));
   assert.deepEqual(await getOperations('does-not-exist'), []);
@@ -143,4 +175,34 @@ test('getPagedOperations is a no-op without a DATABASE_URL', async () => {
 
 test('getPagedOperations rejects invalid handles without a DB round trip', async () => {
   assert.equal(await getPagedOperations('../../etc/passwd', 0, 25), null);
+});
+
+test('getProfileStats falls back to the in-memory compute without a database', async () => {
+  // No DATABASE_URL in this environment, so the aggregate path must no-op and
+  // the stats must come from the operations the caller already holds.
+  assert.equal(await safeDbProfileStats('aquawolf'), null);
+  const operations = await getOperations('aquawolf');
+  const stats = await getProfileStats('aquawolf', operations);
+  assert.deepEqual(
+    {
+      invocations: stats.invocations,
+      uniqueFunctions: stats.uniqueFunctions,
+      reputation: stats.reputation,
+    },
+    computeStats(operations),
+  );
+  // Not exact: derived from a window, so callers must label it as a lower bound.
+  assert.equal(stats.exact, false);
+  assert.ok(stats.reputation >= 0 && stats.reputation <= 100);
+});
+
+test('getProfileStats loads its own operations when none are supplied', async () => {
+  const stats = await getProfileStats('aquawolf');
+  assert.equal(typeof stats.invocations, 'number');
+  assert.equal(typeof stats.uniqueFunctions, 'number');
+  assert.ok(stats.reputation >= 0 && stats.reputation <= 100);
+});
+
+test('safeDbProfileStats rejects invalid handles without a DB round trip', async () => {
+  assert.equal(await safeDbProfileStats('../../etc/passwd'), null);
 });
