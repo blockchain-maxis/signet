@@ -124,6 +124,27 @@ func (c *Client) Unlink(ctx context.Context, challengeXDR string) (Unlinked, err
 	return out, nil
 }
 
+// Identity is what `GET /api/cli/whoami` reports for a deploy account.
+type Identity struct {
+	PublicKey string `json:"publicKey"`
+	Handle    string `json:"handle"`
+	Linked    bool   `json:"linked"`
+	Network   string `json:"network"`
+}
+
+// WhoAmI asks a deployment which handle a deploy account is attributed to.
+//
+// A plain lookup: the CLI already knows its own key and which deployment it is
+// pointed at, and the handle is the one part only the server can answer.
+func (c *Client) WhoAmI(ctx context.Context, publicKey string) (Identity, error) {
+	var out Identity
+	path := "/api/cli/whoami?publicKey=" + url.QueryEscape(publicKey)
+	if err := c.do(ctx, http.MethodGet, path, nil, &out); err != nil {
+		return Identity{}, err
+	}
+	return out, nil
+}
+
 // do issues one request and decodes a JSON response into out (which may be
 // nil). A non-2xx response is turned into an error carrying the server's own
 // message where it sent one, since those messages are written to be read by

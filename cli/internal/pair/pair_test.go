@@ -169,3 +169,38 @@ func TestDo_A503IsAConfigurationProblemNotANetworkOne(t *testing.T) {
 		t.Fatalf("err lost the server's explanation: %v", err)
 	}
 }
+
+func TestWhoAmI_ReportsTheHandleAKeyIsAttributedTo(t *testing.T) {
+	var gotKey string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotKey = r.URL.Query().Get("publicKey")
+		_, _ = io.WriteString(w, `{"publicKey":"GABC","handle":"aquawolf","linked":true,"network":"testnet"}`)
+	}))
+	defer srv.Close()
+
+	identity, err := New(srv.URL).WhoAmI(context.Background(), "GABC")
+	if err != nil {
+		t.Fatalf("WhoAmI: %v", err)
+	}
+	if !identity.Linked || identity.Handle != "aquawolf" {
+		t.Fatalf("identity = %+v", identity)
+	}
+	if gotKey != "GABC" {
+		t.Fatalf("queried for %q", gotKey)
+	}
+}
+
+func TestWhoAmI_ReportsNotLinked(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = io.WriteString(w, `{"publicKey":"GABC","handle":null,"linked":false,"network":"testnet"}`)
+	}))
+	defer srv.Close()
+
+	identity, err := New(srv.URL).WhoAmI(context.Background(), "GABC")
+	if err != nil {
+		t.Fatalf("WhoAmI: %v", err)
+	}
+	if identity.Linked || identity.Handle != "" {
+		t.Fatalf("identity = %+v, want an unlinked key", identity)
+	}
+}

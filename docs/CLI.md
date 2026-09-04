@@ -81,6 +81,24 @@ The callback is unreachable in plenty of real setups (SSH, containers, locked
 down browsers), which is exactly why polling exists. Neither is trusted on its
 own: both paths end at the same `complete`, which re-checks everything.
 
+### Checking what you are linked as
+
+```bash
+signet whoami
+# identity:   deploy
+# publicKey:  GASAAEJC6P5UZGRLYJ2I2KYLR7RXGF44JZXDYGCFBN7T5VIHECUUEMCD
+# deployment: https://signet.example
+# handle:     @aquawolf
+```
+
+Three of those are local — the identity, its public key, the deployment — and
+only the handle needs asking, because only the deployment knows what the key
+currently resolves to. An unlinked key says so, and says what to do about it.
+
+`--json` gives `{identity, publicKey, deployment, handle, linked}`. No secret
+key appears in either mode; the public key comes from `stellar keys address`,
+so signet never holds one to print.
+
 ### Unlinking
 
 ```bash
@@ -200,6 +218,7 @@ Stable, so scripts can branch on the code rather than on message text.
 
 | Symptom | Cause | Fix |
 | --- | --- | --- |
+| Not sure which key you are linked as | Several keystore identities, and the config file remembers one | `signet whoami` — it prints the identity, its public key, the deployment, and the handle |
 | `no identity available` (exit `4`) | No identity in the `stellar` keystore, or the named one does not exist | `stellar keys ls` to see what you have; `stellar keys generate <name>` or `stellar keys add <name> --secret-key …`; then `signet link --source <name>` |
 | `stellar CLI not found on PATH` (exit `3`) | signet cannot sign without it | Install it: <https://developers.stellar.org/docs/tools/cli/install-cli> |
 | `stellar CLI is older than the required minimum version` (exit `3`) | Older than 25.2.0, so `tx sign --sign-with-key` / stdin are missing | Upgrade `stellar` |

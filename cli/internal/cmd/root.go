@@ -93,6 +93,7 @@ instance) over its HTTP API.`,
 
 	root.AddCommand(newLinkCmd())
 	root.AddCommand(newUnlinkCmd())
+	root.AddCommand(newWhoamiCmd())
 	root.AddCommand(newIdentityCmd())
 
 	return root

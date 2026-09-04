@@ -82,6 +82,20 @@ signet link --json
 `--no-browser` prints the approval URL instead of trying to open one.
 `--network` defaults to `testnet`; pass `--network mainnet` for mainnet.
 
+### `signet whoami`
+
+```bash
+signet whoami
+# identity:   deploy
+# publicKey:  GASAAEJC6P5UZGRLYJ2I2KYLR7RXGF44JZXDYGCFBN7T5VIHECUUEMCD
+# deployment: https://signet.example
+# handle:     @aquawolf
+```
+
+Answers "which account am I actually linked as?". `--json` emits
+`{identity, publicKey, deployment, handle, linked}`. Never prints a secret —
+the public key is resolved through `stellar keys address`.
+
 ### `signet unlink`
 
 Removes the binding, proving control of the same deploy key.
