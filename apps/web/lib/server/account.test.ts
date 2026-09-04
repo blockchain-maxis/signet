@@ -4,8 +4,10 @@ import { nativeToScVal, type Transaction } from '@stellar/stellar-sdk';
 import {
   getAccount,
   normalizeAccountUpdate,
+  unlinkWallet,
   linkDeployWallet,
   WalletAlreadyLinkedError,
+  type WalletStore,
   type LinkWalletStore,
 } from './account.ts';
 import type { SimulatingServer } from './registry-read.ts';
@@ -107,6 +109,7 @@ type WalletRow = {
   isPrimary: boolean;
   source: string;
   attestedAt: Date;
+  indexRequestedAt: Date | null;
 };
 
 /**
@@ -172,7 +175,14 @@ test('linkDeployWallet creates a new, non-primary wallet row', async () => {
 test('linkDeployWallet is idempotent: re-linking the same wallet to the same profile does not duplicate', async () => {
   const attestedAt = new Date('2026-01-01T00:00:00Z');
   const { store, rows } = fakeLinkStore([
-    { pubkey: PUBKEY, profileId: 'profile-1', isPrimary: false, source: 'curated', attestedAt },
+    {
+      pubkey: PUBKEY,
+      profileId: 'profile-1',
+      isPrimary: false,
+      source: 'curated',
+      attestedAt,
+      indexRequestedAt: null,
+    },
   ]);
 
   const result = await linkDeployWallet('profile-1', PUBKEY, 'cli', store);
@@ -193,6 +203,7 @@ test('linkDeployWallet never sets isPrimary, even on re-link of an existing prim
       isPrimary: true,
       source: 'onchain',
       attestedAt: new Date(),
+      indexRequestedAt: null,
     },
   ]);
 
@@ -204,7 +215,14 @@ test('linkDeployWallet never sets isPrimary, even on re-link of an existing prim
 
 test('linkDeployWallet throws a typed conflict for a wallet already linked to a different profile', async () => {
   const { store } = fakeLinkStore([
-    { pubkey: PUBKEY, profileId: 'someone-elses-profile', isPrimary: false, source: 'cli', attestedAt: new Date() },
+    {
+      pubkey: PUBKEY,
+      profileId: 'someone-elses-profile',
+      isPrimary: false,
+      source: 'cli',
+      attestedAt: new Date(),
+      indexRequestedAt: null,
+    },
   ]);
 
   await assert.rejects(
@@ -238,6 +256,7 @@ test('linkDeployWallet resolves a create-time race the same way as the up-front 
     isPrimary: false,
     source: 'onchain',
     attestedAt: new Date('2026-01-01T00:00:00Z'),
+    indexRequestedAt: null,
   });
 
   const result = await linkDeployWallet('profile-1', PUBKEY, 'cli', store);
@@ -262,10 +281,40 @@ test('linkDeployWallet resolves a create-time race as a typed conflict when the 
     isPrimary: false,
     source: 'onchain',
     attestedAt: new Date(),
+    indexRequestedAt: null,
   });
 
   await assert.rejects(
     () => linkDeployWallet('profile-1', PUBKEY, 'cli', store),
     WalletAlreadyLinkedError,
   );
+});
+
+// ─── indexRequestedAt / indexingPending (#281) ──────────────────────────────
+
+test('linking a new wallet requests indexing', async () => {
+  const { store, rows } = fakeLinkStore();
+
+  const result = await linkDeployWallet('profile-1', PUBKEY, 'cli', store);
+
+  assert.equal(result.indexingPending, true);
+  assert.ok(rows.get(PUBKEY)?.indexRequestedAt, 'indexRequestedAt is set on the row');
+});
+
+test('re-linking an already-indexed wallet requests indexing again', async () => {
+  const { store, rows } = fakeLinkStore([
+    {
+      pubkey: PUBKEY,
+      profileId: 'profile-1',
+      isPrimary: false,
+      source: 'curated',
+      attestedAt: new Date('2026-01-01'),
+      indexRequestedAt: null, // the indexer already scanned it since the last link
+    },
+  ]);
+
+  const result = await linkDeployWallet('profile-1', PUBKEY, 'cli', store);
+
+  assert.equal(result.indexingPending, true, 'a repeated link re-requests indexing');
+  assert.ok(rows.get(PUBKEY)?.indexRequestedAt);
 });
