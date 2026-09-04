@@ -192,9 +192,12 @@ test.describe('claim → link → indexer → profile', () => {
     // somewhere between the link and the read, whatever else passed.
     await page.goto(`/p/${handle}`);
     const profileText = await page.locator('body').innerText();
-    expect(profileText, 'the profile should render the deployment').toMatch(
-      /invoke_host_function|CreateContract/i,
-    );
+    // `invoke_contract`, not the raw function name: `resolveFunction` in
+    // operations-list.tsx deliberately skips anything starting with
+    // "HostFunction" and falls back to this, so a create-contract operation
+    // renders as `invoke_contract`. Asserting the raw name would be asserting
+    // against something the page never shows.
+    expect(profileText, 'the profile should render the deployment').toContain('invoke_contract');
 
     await prisma.$disconnect();
   });

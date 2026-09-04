@@ -62,7 +62,8 @@ async function invoke(
   const prepared = await server.prepareTransaction(tx);
   prepared.sign(kp);
   const sent = await server.sendTransaction(prepared);
-  if (sent.status === 'ERROR') throw new Error(`${method} send failed: ${JSON.stringify(sent.errorResult)}`);
+  if (sent.status === 'ERROR')
+    throw new Error(`${method} send failed: ${JSON.stringify(sent.errorResult)}`);
   let result = await server.getTransaction(sent.hash);
   for (let poll = 0; result.status === 'NOT_FOUND' && poll < 60; poll += 1) {
     await new Promise((r) => setTimeout(r, 1000));

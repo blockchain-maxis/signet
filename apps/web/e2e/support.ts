@@ -32,7 +32,11 @@ import { Keypair, TransactionBuilder } from '@stellar/stellar-sdk';
  */
 
 /** Sign a SEP-10 challenge transaction envelope with `kp` (in Node, real crypto). */
-export function signChallenge(challengeXdr: string, networkPassphrase: string, kp: Keypair): string {
+export function signChallenge(
+  challengeXdr: string,
+  networkPassphrase: string,
+  kp: Keypair,
+): string {
   const tx = TransactionBuilder.fromXDR(challengeXdr, networkPassphrase);
   tx.sign(kp);
   return tx.toXDR();
@@ -63,9 +67,7 @@ export async function apiSignIn(page: Page, kp: Keypair = Keypair.random()): Pro
 export async function stubWallet(page: Page, kp: Keypair): Promise<void> {
   // Names the SEP-10 network for the signer; the test server runs testnet.
   const passphrase = 'Test SDF Network ; September 2015';
-  await page.exposeFunction('__e2eSignXdr', (xdr: string) =>
-    signChallenge(xdr, passphrase, kp),
-  );
+  await page.exposeFunction('__e2eSignXdr', (xdr: string) => signChallenge(xdr, passphrase, kp));
   await page.addInitScript((publicKey: string) => {
     try {
       window.localStorage.setItem('signet:wallet-id', 'rabet');

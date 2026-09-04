@@ -16,6 +16,7 @@
  *
  * Usage: node --import tsx apps/web/e2e/indexer-tick.ts <deployerPubkey> <contractAddress>
  */
+import { randomBytes } from 'node:crypto';
 import { xdr, StrKey, type Horizon } from '@stellar/stellar-sdk';
 import { prisma } from '@signet/db';
 import { runOperationsWorker } from '../../indexer/src/workers/operations.ts';
@@ -27,8 +28,13 @@ if (!deployer || !contractAddress) {
   process.exit(2);
 }
 
-const TX_HASH = 'e2e0000000000000000000000000000000000000000000000000000000000000';
-const OP_ID = '4000000000000001';
+// Unique per invocation. The deployment worker dedups on `deployTxHash` and
+// the operations worker upserts on the Horizon op id, so fixed values made a
+// re-run (Playwright retries into the same database) look like an operation
+// already recorded: the second run found 0 contracts and left the first run's
+// row in place.
+const TX_HASH = randomBytes(32).toString('hex');
+const OP_ID = String(4_000_000_000_000_000n + BigInt('0x' + randomBytes(4).toString('hex')));
 const CREATED_AT = new Date().toISOString();
 
 /**
