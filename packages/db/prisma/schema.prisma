@@ -134,20 +134,28 @@ model IndexerCursor {
 // `approve` (browser, session-authenticated) records *which* profile is
 // pairing, `complete` (CLI, SEP-10-authenticated) proves *which* wallet and
 // writes it. `status` only ever moves forward: pending -> approved ->
-// completed; `complete` conditions its update on `status = 'approved'` so two
-// concurrent completions of the same pairing cannot both succeed.
+// completed, or pending -> rejected when the developer refuses in the browser;
+// `complete` conditions its update on `status = 'approved'` so two concurrent
+// completions of the same pairing cannot both succeed.
 model PairingState {
   id          String    @id @default(cuid())
-  /// pending | approved | completed
+  /// pending | approved | rejected | completed
   status      String    @default("pending")
   /// The network passphrase the CLI declared at `start`, checked again at
   /// `complete` against the deployment's actual configured network.
   network     String
+  /// The deploy account the CLI *declared* at `start`, so the browser
+  /// approval page can show which key is about to be attached. Unverified
+  /// here — it is only a claim until `complete` presents a challenge signed by
+  /// it, which is checked against this value. Null for a pairing minted before
+  /// this column existed, which completes without that check.
+  publicKey   String?
   /// Set by `approve` — the profile the signed-in browser session belongs to.
   profileId   String?
   createdAt   DateTime  @default(now())
   expiresAt   DateTime
   approvedAt  DateTime?
+  rejectedAt  DateTime?
   completedAt DateTime?
 
   profile     Profile?  @relation(fields: [profileId], references: [id], onDelete: Cascade)

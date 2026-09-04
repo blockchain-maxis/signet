@@ -39,6 +39,7 @@ interface PairingRow {
   id: string;
   status: string;
   network: string;
+  publicKey: string | null;
   profileId: string | null;
   expiresAt: Date;
 }
@@ -56,7 +57,9 @@ interface WalletRow {
  */
 export interface PairingStore {
   pairingState: {
-    create(args: { data: { network: string; expiresAt: Date } }): Promise<{ id: string }>;
+    create(args: {
+      data: { network: string; publicKey?: string | null; expiresAt: Date };
+    }): Promise<{ id: string }>;
     findUnique(args: { where: { id: string } }): Promise<PairingRow | null>;
     updateMany(args: {
       where: { id: string; status: string; expiresAt?: { gt: Date } };
@@ -86,17 +89,61 @@ export interface StartedPairing {
   expiresAt: string;
 }
 
-/** Mint a pairing for `network` (a Stellar network passphrase). */
+/**
+ * Mint a pairing for `network` (a Stellar network passphrase).
+ *
+ * `publicKey` is the deploy account the CLI says it is about to link. It is
+ * recorded unverified — the CLI has proved nothing at this point — purely so
+ * `/link` can show the developer which key they are approving. What makes
+ * showing it meaningful is `completePairing`, which refuses to attach any key
+ * other than this one, so the page cannot display one account while a
+ * different one gets bound.
+ */
 export async function startPairing(
   network: string,
+  publicKey?: string | null,
   store?: PairingStore,
 ): Promise<StartedPairing | null> {
   const db = store ?? (await getStore());
   if (!db) return null;
 
   const expiresAt = new Date(Date.now() + PAIRING_TTL_MS);
-  const row = await db.pairingState.create({ data: { network, expiresAt } });
+  const row = await db.pairingState.create({
+    data: { network, publicKey: publicKey ?? null, expiresAt },
+  });
   return { state: row.id, expiresAt: expiresAt.toISOString() };
+}
+
+// ── describe (the browser approval page) ─────────────────────────────────
+
+export type PairingView =
+  | { ok: true; state: string; publicKey: string | null; expiresAt: string }
+  | { ok: false; reason: 'unavailable' | 'not-found' | 'expired' | 'already-used' };
+
+/**
+ * Read a pairing for `/link` to render.
+ *
+ * Deliberately returns nothing but the declared key and the expiry: the page
+ * shows the developer what they are approving, and a pairing they cannot
+ * approve is refused outright rather than rendered in a dead state. It never
+ * discloses `profileId`, so a leaked code cannot be turned into a lookup of
+ * who has been pairing.
+ */
+export async function describePairing(state: string, store?: PairingStore): Promise<PairingView> {
+  const db = store ?? (await getStore());
+  if (!db) return { ok: false, reason: 'unavailable' };
+
+  const row = await db.pairingState.findUnique({ where: { id: state } });
+  if (!row) return { ok: false, reason: 'not-found' };
+  if (row.status !== 'pending') return { ok: false, reason: 'already-used' };
+  if (row.expiresAt <= new Date()) return { ok: false, reason: 'expired' };
+
+  return {
+    ok: true,
+    state: row.id,
+    publicKey: row.publicKey,
+    expiresAt: row.expiresAt.toISOString(),
+  };
 }
 
 // ── approve ──────────────────────────────────────────────────────────────
@@ -153,6 +200,46 @@ export async function approvePairing(
   return outcome;
 }
 
+// ── reject ───────────────────────────────────────────────────────────────
+
+export type RejectOutcome = 'ok' | 'not-found' | 'expired' | 'already-used' | 'unavailable';
+
+/**
+ * Record that the developer refused `state` in the browser.
+ *
+ * A refusal is a terminal state of its own rather than a silent no-op, so the
+ * CLI can say "rejected" and exit immediately instead of polling until the
+ * TTL runs out — the difference between a flow that answers and one that
+ * appears to hang, which is the same complaint #265 makes about the wait.
+ *
+ * Unlike `approve` this does not need a profile: nothing is being bound, and
+ * requiring one would leave a developer who has not claimed a handle unable
+ * to refuse a pairing they did not start.
+ */
+export async function rejectPairing(state: string, store?: PairingStore): Promise<RejectOutcome> {
+  const db = store ?? (await getStore());
+  if (!db) return 'unavailable';
+
+  const now = new Date();
+  const result = await db.pairingState.updateMany({
+    where: { id: state, status: 'pending', expiresAt: { gt: now } },
+    data: { status: 'rejected', rejectedAt: now },
+  });
+  if (result.count === 1) {
+    logger.info({ state }, 'pairing.rejected');
+    return 'ok';
+  }
+
+  const existing = await db.pairingState.findUnique({ where: { id: state } });
+  const outcome: RejectOutcome = !existing
+    ? 'not-found'
+    : existing.expiresAt <= now
+      ? 'expired'
+      : 'already-used';
+  logger.warn({ state, outcome }, 'pairing.rejectRejected');
+  return outcome;
+}
+
 // ── complete ─────────────────────────────────────────────────────────────
 
 export type CompleteFailure =
@@ -163,6 +250,7 @@ export type CompleteFailure =
   | 'already-completed'
   | 'network-mismatch'
   | 'bad-challenge'
+  | 'key-mismatch'
   | 'replayed'
   | 'wallet-bound-elsewhere';
 
@@ -216,6 +304,19 @@ export async function completePairing(
       'pairing.badChallenge',
     );
     return { ok: false, reason: 'bad-challenge' };
+  }
+
+  // The browser was shown `pairing.publicKey` and approved *that* key. Binding
+  // anything else now would make the approval page a lie — the developer would
+  // have consented to one account while another was attached. Pairings minted
+  // before the column existed carry null and skip the check; they were never
+  // rendered with a key to disagree with.
+  if (pairing.publicKey && pairing.publicKey !== clientAccountId) {
+    logger.warn(
+      { state, declared: pairing.publicKey, signed: clientAccountId },
+      'pairing.keyMismatch',
+    );
+    return fail(state, 'key-mismatch');
   }
 
   // One nonce per distinct signed challenge — a byte-identical resubmission

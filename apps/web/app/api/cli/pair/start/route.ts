@@ -22,9 +22,19 @@ export async function POST(req: Request) {
   const limited = await enforceRateLimit(req, 'cli:pair:start', LIMITS.cliPairStart);
   if (limited) return limited;
 
-  const { network } = (await req.json().catch(() => ({}))) as { network?: string };
+  const { network, publicKey } = (await req.json().catch(() => ({}))) as {
+    network?: string;
+    publicKey?: string;
+  };
 
-  const pairing = await startPairing(network || getNetworkPassphrase());
+  // Shape check only — this is an unauthenticated claim, and it is checked for
+  // real at `complete`, where the challenge has to be signed by it. Rejecting
+  // a malformed value here just keeps junk out of the approval page.
+  if (publicKey !== undefined && !/^G[A-Z2-7]{55}$/.test(publicKey)) {
+    return NextResponse.json({ error: 'publicKey must be a Stellar G… address' }, { status: 400 });
+  }
+
+  const pairing = await startPairing(network || getNetworkPassphrase(), publicKey ?? null);
   if (!pairing) {
     return NextResponse.json({ error: 'Pairing is unavailable' }, { status: 503 });
   }

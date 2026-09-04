@@ -3,7 +3,14 @@ import assert from 'node:assert/strict';
 import { Keypair, TransactionBuilder } from '@stellar/stellar-sdk';
 import { buildChallenge, getNetworkPassphrase } from '../sep10.ts';
 import { __resetNonceStore } from '../nonce-store.ts';
-import { startPairing, approvePairing, completePairing, type PairingStore } from './pairing.ts';
+import {
+  startPairing,
+  approvePairing,
+  rejectPairing,
+  completePairing,
+  describePairing,
+  type PairingStore,
+} from './pairing.ts';
 
 // `getServerKeypair()` (inside sep10.ts) caches on first call, so this must be
 // set before anything here touches it, directly or via `buildChallenge`.
@@ -15,6 +22,7 @@ interface FakeRow {
   id: string;
   status: string;
   network: string;
+  publicKey: string | null;
   profileId: string | null;
   expiresAt: Date;
 }
@@ -41,6 +49,7 @@ function fakeStore(): {
           id,
           status: 'pending',
           network: data.network,
+          publicKey: data.publicKey ?? null,
           profileId: null,
           expiresAt: data.expiresAt,
         });
@@ -87,7 +96,7 @@ test('startPairing returns null when no database is configured', async () => {
 
 test('startPairing mints a pending pairing with the given network', async () => {
   const { store, pairings } = fakeStore();
-  const pairing = await startPairing('testnet', store);
+  const pairing = await startPairing('testnet', null, store);
   assert.ok(pairing);
   const row = pairings.get(pairing!.state);
   assert.equal(row?.status, 'pending');
@@ -98,14 +107,14 @@ test('startPairing mints a pending pairing with the given network', async () => 
 
 test('approvePairing fails with no-profile when the address has no bound wallet', async () => {
   const { store } = fakeStore();
-  const { state } = (await startPairing('testnet', store))!;
+  const { state } = (await startPairing('testnet', null, store))!;
   assert.equal(await approvePairing(state, 'GADDRESSNOTBOUND', store), 'no-profile');
 });
 
 test("approvePairing succeeds and records the address's profile", async () => {
   const { store, wallets, pairings } = fakeStore();
   wallets.set('GOWNER', { pubkey: 'GOWNER', profileId: 'profile_1' });
-  const { state } = (await startPairing('testnet', store))!;
+  const { state } = (await startPairing('testnet', null, store))!;
 
   assert.equal(await approvePairing(state, 'GOWNER', store), 'ok');
   assert.equal(pairings.get(state)?.status, 'approved');
@@ -121,7 +130,7 @@ test('approvePairing reports not-found for an unknown state', async () => {
 test('approvePairing reports expired for a pairing past its TTL', async () => {
   const { store, wallets, pairings } = fakeStore();
   wallets.set('GOWNER', { pubkey: 'GOWNER', profileId: 'profile_1' });
-  const { state } = (await startPairing('testnet', store))!;
+  const { state } = (await startPairing('testnet', null, store))!;
   pairings.get(state)!.expiresAt = new Date(Date.now() - 1000);
 
   assert.equal(await approvePairing(state, 'GOWNER', store), 'expired');
@@ -130,7 +139,7 @@ test('approvePairing reports expired for a pairing past its TTL', async () => {
 test('approvePairing reports already-used for a pairing that is not pending', async () => {
   const { store, wallets } = fakeStore();
   wallets.set('GOWNER', { pubkey: 'GOWNER', profileId: 'profile_1' });
-  const { state } = (await startPairing('testnet', store))!;
+  const { state } = (await startPairing('testnet', null, store))!;
   await approvePairing(state, 'GOWNER', store);
 
   assert.equal(await approvePairing(state, 'GOWNER', store), 'already-used');
@@ -144,7 +153,7 @@ async function approvedPairing(
   network = getNetworkPassphrase(),
 ) {
   wallets.set('GOWNER', { pubkey: 'GOWNER', profileId: 'profile_1' });
-  const { state } = (await startPairing(network, store))!;
+  const { state } = (await startPairing(network, null, store))!;
   await approvePairing(state, 'GOWNER', store);
   return state;
 }
@@ -158,7 +167,7 @@ test('completePairing reports not-found for an unknown state', async () => {
 
 test('completePairing reports not-approved when the pairing is still pending', async () => {
   const { store } = fakeStore();
-  const { state } = (await startPairing(getNetworkPassphrase(), store))!;
+  const { state } = (await startPairing(getNetworkPassphrase(), null, store))!;
   const client = Keypair.random();
 
   const result = await completePairing(state, signedChallenge(client), store);
@@ -283,5 +292,130 @@ test('completePairing is idempotent when the deploy account is already bound to 
   assert.deepEqual(result, {
     ok: true,
     wallet: { pubkey: client.publicKey(), profileId: 'profile_1' },
+  });
+});
+
+// ── the declared deploy key, and the browser's view of it ────────────────
+
+test('startPairing records the deploy key the CLI declared', async () => {
+  const { store, pairings } = fakeStore();
+  const client = Keypair.random();
+
+  const { state } = (await startPairing('testnet', client.publicKey(), store))!;
+  assert.equal(pairings.get(state)!.publicKey, client.publicKey());
+});
+
+test('describePairing returns the declared key for a pending pairing', async () => {
+  const { store } = fakeStore();
+  const client = Keypair.random();
+  const { state } = (await startPairing('testnet', client.publicKey(), store))!;
+
+  const view = await describePairing(state, store);
+  assert.equal(view.ok, true);
+  assert.equal(view.ok && view.publicKey, client.publicKey());
+});
+
+test('describePairing refuses an unknown code', async () => {
+  const { store } = fakeStore();
+  assert.deepEqual(await describePairing('does-not-exist', store), {
+    ok: false,
+    reason: 'not-found',
+  });
+});
+
+test('describePairing refuses an expired code', async () => {
+  const { store, pairings } = fakeStore();
+  const { state } = (await startPairing('testnet', null, store))!;
+  pairings.get(state)!.expiresAt = new Date(Date.now() - 1000);
+
+  assert.deepEqual(await describePairing(state, store), { ok: false, reason: 'expired' });
+});
+
+test('describePairing refuses a pairing that was already answered', async () => {
+  const { store, wallets } = fakeStore();
+  const state = await approvedPairing(store, wallets);
+
+  assert.deepEqual(await describePairing(state, store), { ok: false, reason: 'already-used' });
+});
+
+test('describePairing never discloses which profile approved', async () => {
+  const { store, wallets } = fakeStore();
+  const { state } = (await startPairing('testnet', 'GDECLARED', store))!;
+  wallets.set('GOWNER', { pubkey: 'GOWNER', profileId: 'profile_1' });
+
+  const view = await describePairing(state, store);
+  assert.equal(view.ok, true);
+  assert.deepEqual(Object.keys(view).sort(), ['expiresAt', 'ok', 'publicKey', 'state']);
+});
+
+// ── reject ───────────────────────────────────────────────────────────────
+
+test('rejectPairing moves a pending pairing to rejected', async () => {
+  const { store, pairings } = fakeStore();
+  const { state } = (await startPairing('testnet', null, store))!;
+
+  assert.equal(await rejectPairing(state, store), 'ok');
+  assert.equal(pairings.get(state)!.status, 'rejected');
+});
+
+test('rejectPairing reports not-found for an unknown state', async () => {
+  const { store } = fakeStore();
+  assert.equal(await rejectPairing('does-not-exist', store), 'not-found');
+});
+
+test('rejectPairing reports expired for a pairing past its TTL', async () => {
+  const { store, pairings } = fakeStore();
+  const { state } = (await startPairing('testnet', null, store))!;
+  pairings.get(state)!.expiresAt = new Date(Date.now() - 1000);
+
+  assert.equal(await rejectPairing(state, store), 'expired');
+});
+
+test('rejectPairing reports already-used for a pairing that was approved', async () => {
+  const { store, wallets } = fakeStore();
+  const state = await approvedPairing(store, wallets);
+
+  assert.equal(await rejectPairing(state, store), 'already-used');
+});
+
+test('a rejected pairing cannot then be approved', async () => {
+  const { store, wallets } = fakeStore();
+  wallets.set('GOWNER', { pubkey: 'GOWNER', profileId: 'profile_1' });
+  const { state } = (await startPairing('testnet', null, store))!;
+
+  assert.equal(await rejectPairing(state, store), 'ok');
+  assert.equal(await approvePairing(state, 'GOWNER', store), 'already-used');
+});
+
+// ── the approved key is the key that gets bound ──────────────────────────
+
+test('completePairing refuses a challenge signed by a key other than the declared one', async (t) => {
+  __resetNonceStore();
+  t.after(() => __resetNonceStore());
+  const { store, wallets, pairings } = fakeStore();
+  const declared = Keypair.random();
+  const other = Keypair.random();
+
+  const state = await approvedPairing(store, wallets);
+  pairings.get(state)!.publicKey = declared.publicKey();
+
+  const result = await completePairing(state, signedChallenge(other), store);
+  assert.deepEqual(result, { ok: false, reason: 'key-mismatch' });
+  assert.equal(wallets.has(other.publicKey()), false);
+});
+
+test('completePairing accepts the declared key', async (t) => {
+  __resetNonceStore();
+  t.after(() => __resetNonceStore());
+  const { store, wallets, pairings } = fakeStore();
+  const declared = Keypair.random();
+
+  const state = await approvedPairing(store, wallets);
+  pairings.get(state)!.publicKey = declared.publicKey();
+
+  const result = await completePairing(state, signedChallenge(declared), store);
+  assert.deepEqual(result, {
+    ok: true,
+    wallet: { pubkey: declared.publicKey(), profileId: 'profile_1' },
   });
 });

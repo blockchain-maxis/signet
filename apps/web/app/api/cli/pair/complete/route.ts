@@ -30,6 +30,7 @@ const FAILURE_STATUS: Record<CompleteFailure, number> = {
   'already-completed': 409,
   'network-mismatch': 400,
   'bad-challenge': 401,
+  'key-mismatch': 403,
   replayed: 401,
   'wallet-bound-elsewhere': 409,
 };
@@ -42,6 +43,8 @@ const FAILURE_MESSAGE: Record<CompleteFailure, string> = {
   'already-completed': 'This pairing has already been completed',
   'network-mismatch': "This pairing's network does not match the deployment's configured network",
   'bad-challenge': 'Invalid or unsigned challenge transaction',
+  'key-mismatch':
+    'This challenge was signed by a different account than the one approved in the browser',
   replayed: 'This signed challenge has already been used',
   'wallet-bound-elsewhere': 'This deploy account is already bound to a different profile',
 };
