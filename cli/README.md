@@ -151,10 +151,11 @@ releases.
 | `8` | Approval rejected — the developer (or the deployment, on their behalf) explicitly declined |
 | `9` | Already linked — the target wallet already has a conflicting binding |
 
-Codes `5`–`9` are defined now (`internal/exitcode`) so the commands that will
-raise them (signing, talking to a deployment, an interactive approval flow)
-have a stable code to wrap into from day one, even though nothing in this
-module raises them yet. `0`–`4` all have a real caller today.
+Every code has a real caller now: `link` and `unlink` raise `3`–`9` between
+them (configuration, identity resolution, `stellar tx sign`, reaching the
+deployment, the approval wait, a refusal, and a wallet already bound
+elsewhere). See [`docs/CLI.md`](../docs/CLI.md) for a symptom → cause → fix
+table keyed to them.
 
 Every code beyond `2` is a sentinel error in `internal/exitcode`
 (`ErrConfiguration`, `ErrNoIdentity`, etc.), wrapped with `fmt.Errorf`'s `%w`
