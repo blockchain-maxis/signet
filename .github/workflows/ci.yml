@@ -234,6 +234,70 @@ jobs:
       - name: Run e2e smoke tests
         run: pnpm --filter @signet/web test:e2e
 
+  e2e-linked:
+    name: e2e linked flow (Postgres)
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    # Separate from `e2e` on purpose. That job is hermetic — no database, no
+    # registry, no RPC — and its specs assert the fallback behaviour that
+    # depends on staying that way. This one is the opposite: the claim → link →
+    # indexer → profile flow only exists when a database does (#277), so it
+    # needs its own environment rather than changing the shared one.
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: signet
+          POSTGRES_PASSWORD: signet
+          POSTGRES_DB: signet_e2e
+        ports:
+          - 5432:5432
+        # Without this the job races the container: `migrate deploy` can fire
+        # before Postgres is accepting connections.
+        options: >-
+          --health-cmd "pg_isready -U signet"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgresql://signet:signet@localhost:5432/signet_e2e
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: pnpm/action-setup@v6.0.10
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Apply migrations
+        run: pnpm db:deploy
+
+      - name: Cache Playwright browsers
+        uses: actions/cache@v6
+        id: pw-cache
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-chromium-${{ hashFiles('apps/web/package.json') }}
+
+      - name: Install Playwright browsers
+        if: steps.pw-cache.outputs.cache-hit != 'true'
+        run: pnpm --filter @signet/web exec playwright install --with-deps chromium
+
+      - name: Install Playwright browser deps (cached hit)
+        if: steps.pw-cache.outputs.cache-hit == 'true'
+        run: pnpm --filter @signet/web exec playwright install-deps chromium
+
+      - name: Build web app
+        run: pnpm --filter @signet/web build
+
+      - name: Run the linked-flow e2e
+        run: pnpm --filter @signet/web exec playwright test e2e/claim-link-profile.spec.ts
+
   security:
     name: dependency audit
     runs-on: ubuntu-latest
