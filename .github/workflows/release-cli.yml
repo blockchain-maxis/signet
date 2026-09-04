@@ -100,7 +100,7 @@ jobs:
         working-directory: cli
 
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ steps.version.outputs.tag }}
           name: signet CLI ${{ steps.version.outputs.version }}
