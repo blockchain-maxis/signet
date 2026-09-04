@@ -31,6 +31,7 @@ const FAILURE_STATUS: Record<CompleteFailure, number> = {
   'network-mismatch': 400,
   'bad-challenge': 401,
   'key-mismatch': 403,
+  'bad-handoff': 403,
   replayed: 401,
   'wallet-bound-elsewhere': 409,
 };
@@ -45,6 +46,7 @@ const FAILURE_MESSAGE: Record<CompleteFailure, string> = {
   'bad-challenge': 'Invalid or unsigned challenge transaction',
   'key-mismatch':
     'This challenge was signed by a different account than the one approved in the browser',
+  'bad-handoff': 'That confirmation code does not match the one shown in the browser',
   replayed: 'This signed challenge has already been used',
   'wallet-bound-elsewhere': 'This deploy account is already bound to a different profile',
 };
@@ -53,15 +55,16 @@ export async function POST(req: Request) {
   const limited = await enforceRateLimit(req, 'cli:pair:complete', LIMITS.cliPairComplete);
   if (limited) return limited;
 
-  const { state, transaction } = (await req.json().catch(() => ({}))) as {
+  const { state, transaction, handoffCode } = (await req.json().catch(() => ({}))) as {
     state?: string;
     transaction?: string;
+    handoffCode?: string;
   };
   if (!state || !transaction) {
     return NextResponse.json({ error: 'state and transaction are required' }, { status: 400 });
   }
 
-  const result = await completePairing(state, transaction);
+  const result = await completePairing(state, transaction, undefined, handoffCode);
   if (!result.ok) {
     logger.warn({ state, reason: result.reason }, 'cli.pairCompleteFailed');
     return NextResponse.json(

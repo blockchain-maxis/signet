@@ -5,6 +5,7 @@ import { buildChallenge, getNetworkPassphrase } from '../sep10.ts';
 import { __resetNonceStore } from '../nonce-store.ts';
 import {
   startPairing,
+  pollPairing,
   approvePairing,
   rejectPairing,
   completePairing,
@@ -23,6 +24,8 @@ interface FakeRow {
   status: string;
   network: string;
   publicKey: string | null;
+  pollTokenHash: string | null;
+  handoffHash: string | null;
   profileId: string | null;
   expiresAt: Date;
 }
@@ -50,12 +53,22 @@ function fakeStore(): {
           status: 'pending',
           network: data.network,
           publicKey: data.publicKey ?? null,
+          pollTokenHash: data.pollTokenHash ?? null,
+          handoffHash: null,
           profileId: null,
           expiresAt: data.expiresAt,
         });
         return { id };
       },
-      findUnique: async ({ where }) => pairings.get(where.id) ?? null,
+      findUnique: async ({ where }) => {
+        if ('pollTokenHash' in where) {
+          for (const row of pairings.values()) {
+            if (row.pollTokenHash === where.pollTokenHash) return row;
+          }
+          return null;
+        }
+        return pairings.get(where.id) ?? null;
+      },
       updateMany: async ({ where, data }) => {
         const row = pairings.get(where.id);
         if (!row) return { count: 0 };
@@ -108,7 +121,7 @@ test('startPairing mints a pending pairing with the given network', async () => 
 test('approvePairing fails with no-profile when the address has no bound wallet', async () => {
   const { store } = fakeStore();
   const { state } = (await startPairing('testnet', null, store))!;
-  assert.equal(await approvePairing(state, 'GADDRESSNOTBOUND', store), 'no-profile');
+  assert.equal((await approvePairing(state, 'GADDRESSNOTBOUND', store)).outcome, 'no-profile');
 });
 
 test("approvePairing succeeds and records the address's profile", async () => {
@@ -116,7 +129,7 @@ test("approvePairing succeeds and records the address's profile", async () => {
   wallets.set('GOWNER', { pubkey: 'GOWNER', profileId: 'profile_1' });
   const { state } = (await startPairing('testnet', null, store))!;
 
-  assert.equal(await approvePairing(state, 'GOWNER', store), 'ok');
+  assert.equal((await approvePairing(state, 'GOWNER', store)).outcome, 'ok');
   assert.equal(pairings.get(state)?.status, 'approved');
   assert.equal(pairings.get(state)?.profileId, 'profile_1');
 });
@@ -124,7 +137,7 @@ test("approvePairing succeeds and records the address's profile", async () => {
 test('approvePairing reports not-found for an unknown state', async () => {
   const { store, wallets } = fakeStore();
   wallets.set('GOWNER', { pubkey: 'GOWNER', profileId: 'profile_1' });
-  assert.equal(await approvePairing('does-not-exist', 'GOWNER', store), 'not-found');
+  assert.equal((await approvePairing('does-not-exist', 'GOWNER', store)).outcome, 'not-found');
 });
 
 test('approvePairing reports expired for a pairing past its TTL', async () => {
@@ -133,7 +146,7 @@ test('approvePairing reports expired for a pairing past its TTL', async () => {
   const { state } = (await startPairing('testnet', null, store))!;
   pairings.get(state)!.expiresAt = new Date(Date.now() - 1000);
 
-  assert.equal(await approvePairing(state, 'GOWNER', store), 'expired');
+  assert.equal((await approvePairing(state, 'GOWNER', store)).outcome, 'expired');
 });
 
 test('approvePairing reports already-used for a pairing that is not pending', async () => {
@@ -142,7 +155,7 @@ test('approvePairing reports already-used for a pairing that is not pending', as
   const { state } = (await startPairing('testnet', null, store))!;
   await approvePairing(state, 'GOWNER', store);
 
-  assert.equal(await approvePairing(state, 'GOWNER', store), 'already-used');
+  assert.equal((await approvePairing(state, 'GOWNER', store)).outcome, 'already-used');
 });
 
 // ── completePairing ──────────────────────────────────────────────────────
@@ -384,7 +397,7 @@ test('a rejected pairing cannot then be approved', async () => {
   const { state } = (await startPairing('testnet', null, store))!;
 
   assert.equal(await rejectPairing(state, store), 'ok');
-  assert.equal(await approvePairing(state, 'GOWNER', store), 'already-used');
+  assert.equal((await approvePairing(state, 'GOWNER', store)).outcome, 'already-used');
 });
 
 // ── the approved key is the key that gets bound ──────────────────────────
@@ -418,4 +431,108 @@ test('completePairing accepts the declared key', async (t) => {
     ok: true,
     wallet: { pubkey: declared.publicKey(), profileId: 'profile_1' },
   });
+});
+
+// ── the polling fallback (#273) ──────────────────────────────────────────
+
+test('startPairing returns a poll token that is not the pairing code', async () => {
+  const { store, pairings } = fakeStore();
+  const started = (await startPairing('testnet', null, store))!;
+
+  assert.ok(started.pollToken.length >= 32);
+  assert.notEqual(started.pollToken, started.state);
+  assert.notEqual(pairings.get(started.state)!.pollTokenHash, started.pollToken);
+});
+
+test('pollPairing reports pending for a fresh pairing', async () => {
+  const { store } = fakeStore();
+  const { pollToken } = (await startPairing('testnet', null, store))!;
+
+  assert.deepEqual(await pollPairing(pollToken, store), { ok: true, status: 'pending' });
+});
+
+test('pollPairing reports approved once the browser approves', async () => {
+  const { store, wallets } = fakeStore();
+  wallets.set('GOWNER', { pubkey: 'GOWNER', profileId: 'profile_1' });
+  const { state, pollToken } = (await startPairing('testnet', null, store))!;
+  await approvePairing(state, 'GOWNER', store);
+
+  assert.deepEqual(await pollPairing(pollToken, store), { ok: true, status: 'approved' });
+});
+
+test('pollPairing reports rejected once the browser refuses', async () => {
+  const { store } = fakeStore();
+  const { state, pollToken } = (await startPairing('testnet', null, store))!;
+  await rejectPairing(state, store);
+
+  assert.deepEqual(await pollPairing(pollToken, store), { ok: true, status: 'rejected' });
+});
+
+test('pollPairing reports expired for a pending pairing past its TTL', async () => {
+  const { store, pairings } = fakeStore();
+  const { state, pollToken } = (await startPairing('testnet', null, store))!;
+  pairings.get(state)!.expiresAt = new Date(Date.now() - 1000);
+
+  assert.deepEqual(await pollPairing(pollToken, store), { ok: true, status: 'expired' });
+});
+
+test('pollPairing does not accept the pairing code in place of the poll token', async () => {
+  const { store } = fakeStore();
+  const { state } = (await startPairing('testnet', null, store))!;
+
+  assert.deepEqual(await pollPairing(state, store), { ok: false, reason: 'not-found' });
+});
+
+test('pollPairing reports not-found for an unknown token', async () => {
+  const { store } = fakeStore();
+  assert.deepEqual(await pollPairing('nope', store), { ok: false, reason: 'not-found' });
+});
+
+// ── the manual handoff code ──────────────────────────────────────────────
+
+test('approvePairing returns a handoff code the browser can show', async () => {
+  const { store, wallets } = fakeStore();
+  wallets.set('GOWNER', { pubkey: 'GOWNER', profileId: 'profile_1' });
+  const { state } = (await startPairing('testnet', null, store))!;
+
+  const result = await approvePairing(state, 'GOWNER', store);
+  assert.equal(result.outcome, 'ok');
+  assert.match(result.outcome === 'ok' ? result.handoffCode : '', /^[0-9A-HJKMNP-TV-Z]{8}$/);
+});
+
+test('completePairing accepts the handoff code the browser showed', async (t) => {
+  __resetNonceStore();
+  t.after(() => __resetNonceStore());
+  const { store, wallets } = fakeStore();
+  wallets.set('GOWNER', { pubkey: 'GOWNER', profileId: 'profile_1' });
+  const { state } = (await startPairing(getNetworkPassphrase(), null, store))!;
+  const approved = await approvePairing(state, 'GOWNER', store);
+  const handoff = approved.outcome === 'ok' ? approved.handoffCode : '';
+  const client = Keypair.random();
+
+  const result = await completePairing(state, signedChallenge(client), store, handoff);
+  assert.equal(result.ok, true);
+});
+
+test('completePairing refuses a wrong handoff code', async (t) => {
+  __resetNonceStore();
+  t.after(() => __resetNonceStore());
+  const { store, wallets } = fakeStore();
+  const state = await approvedPairing(store, wallets);
+  const client = Keypair.random();
+
+  const result = await completePairing(state, signedChallenge(client), store, 'WRONGCOD');
+  assert.deepEqual(result, { ok: false, reason: 'bad-handoff' });
+  assert.equal(wallets.has(client.publicKey()), false);
+});
+
+test('completePairing does not require a handoff code on the loopback path', async (t) => {
+  __resetNonceStore();
+  t.after(() => __resetNonceStore());
+  const { store, wallets } = fakeStore();
+  const state = await approvedPairing(store, wallets);
+  const client = Keypair.random();
+
+  const result = await completePairing(state, signedChallenge(client), store);
+  assert.equal(result.ok, true);
 });

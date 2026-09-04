@@ -1,4 +1,4 @@
-import { createHash } from 'node:crypto';
+import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
 import { consumeNonce } from '../nonce-store.ts';
 import { verifyChallenge, getNetworkPassphrase, Sep10Error } from '../sep10.ts';
 import { logger } from '../logger.ts';
@@ -35,11 +35,30 @@ const PAIRING_TTL_MS = 5 * 60 * 1000;
 /** How long a spent challenge's nonce is remembered — must outlive the SEP-10 challenge's own timebounds. */
 const CHALLENGE_REPLAY_TTL_MS = 10 * 60 * 1000;
 
+/**
+ * Alphabet for the handoff code: Crockford base32 minus the characters that
+ * get misread off a screen and retyped wrong (I, L, O, U). The code is read
+ * by a human and typed by a human, which is the only reason it is short
+ * enough to be worth restricting.
+ */
+const HANDOFF_ALPHABET = '0123456789ABCDEFGHJKMNPQRSTVWXYZ';
+const HANDOFF_LENGTH = 8;
+
+const sha256 = (value: string): string => createHash('sha256').update(value).digest('hex');
+
+/** Constant-time compare of two hex digests. */
+function hashEquals(a: string, b: string): boolean {
+  const left = Buffer.from(a, 'hex');
+  const right = Buffer.from(b, 'hex');
+  return left.length === right.length && timingSafeEqual(left, right);
+}
+
 interface PairingRow {
   id: string;
   status: string;
   network: string;
   publicKey: string | null;
+  handoffHash: string | null;
   profileId: string | null;
   expiresAt: Date;
 }
@@ -58,9 +77,16 @@ interface WalletRow {
 export interface PairingStore {
   pairingState: {
     create(args: {
-      data: { network: string; publicKey?: string | null; expiresAt: Date };
+      data: {
+        network: string;
+        publicKey?: string | null;
+        pollTokenHash?: string | null;
+        expiresAt: Date;
+      };
     }): Promise<{ id: string }>;
-    findUnique(args: { where: { id: string } }): Promise<PairingRow | null>;
+    findUnique(args: {
+      where: { id: string } | { pollTokenHash: string };
+    }): Promise<PairingRow | null>;
     updateMany(args: {
       where: { id: string; status: string; expiresAt?: { gt: Date } };
       data: Record<string, unknown>;
@@ -86,6 +112,13 @@ async function getStore(): Promise<PairingStore | null> {
 
 export interface StartedPairing {
   state: string;
+  /**
+   * Bearer credential for `GET /api/cli/pair/status`, returned exactly once
+   * and never stored in the clear. Deliberately not `state`: the pairing code
+   * goes into the URL the developer opens, and a link that has been pasted
+   * into a chat should not also hand over the ability to watch the pairing.
+   */
+  pollToken: string;
   expiresAt: string;
 }
 
@@ -108,10 +141,54 @@ export async function startPairing(
   if (!db) return null;
 
   const expiresAt = new Date(Date.now() + PAIRING_TTL_MS);
+  const pollToken = randomBytes(32).toString('base64url');
   const row = await db.pairingState.create({
-    data: { network, publicKey: publicKey ?? null, expiresAt },
+    data: {
+      network,
+      publicKey: publicKey ?? null,
+      pollTokenHash: sha256(pollToken),
+      expiresAt,
+    },
   });
-  return { state: row.id, expiresAt: expiresAt.toISOString() };
+  return { state: row.id, pollToken, expiresAt: expiresAt.toISOString() };
+}
+
+// ── poll (the fallback for terminals the browser cannot reach) ────────────
+
+/**
+ * What `GET /api/cli/pair/status` reports. `expired` is derived rather than
+ * stored — a pairing nobody touched again is still `pending` in the table
+ * long after it stopped being usable, and the CLI needs to stop waiting.
+ */
+export type PollStatus = 'pending' | 'approved' | 'rejected' | 'completed' | 'expired';
+
+export type PollResult =
+  | { ok: true; status: PollStatus }
+  | { ok: false; reason: 'unavailable' | 'not-found' };
+
+/**
+ * Report a pairing's progress to the CLI holding its poll token.
+ *
+ * The whole point of #273: loopback is unreachable from a remote SSH session,
+ * an unmapped container port, or a locked-down browser, and for those
+ * developers the local callback can never arrive. Polling gives them the same
+ * flow with the same trust boundary — this only *reads* progress. Approval
+ * still requires the browser session and attachment still requires the signed
+ * challenge, so nothing here is a second way to get a wallet linked.
+ */
+export async function pollPairing(pollToken: string, store?: PairingStore): Promise<PollResult> {
+  const db = store ?? (await getStore());
+  if (!db) return { ok: false, reason: 'unavailable' };
+
+  const row = await db.pairingState.findUnique({
+    where: { pollTokenHash: sha256(pollToken) },
+  });
+  if (!row) return { ok: false, reason: 'not-found' };
+
+  if (row.status === 'pending' && row.expiresAt <= new Date()) {
+    return { ok: true, status: 'expired' };
+  }
+  return { ok: true, status: row.status as PollStatus };
 }
 
 // ── describe (the browser approval page) ─────────────────────────────────
@@ -148,6 +225,10 @@ export async function describePairing(state: string, store?: PairingStore): Prom
 
 // ── approve ──────────────────────────────────────────────────────────────
 
+export type ApproveResult =
+  | { outcome: 'ok'; handoffCode: string }
+  | { outcome: Exclude<ApproveOutcome, 'ok'> };
+
 export type ApproveOutcome =
   | 'ok'
   | 'not-found'
@@ -167,24 +248,34 @@ export async function approvePairing(
   state: string,
   address: string,
   store?: PairingStore,
-): Promise<ApproveOutcome> {
+): Promise<ApproveResult> {
   const db = store ?? (await getStore());
-  if (!db) return 'unavailable';
+  if (!db) return { outcome: 'unavailable' };
 
   const wallet = await db.wallet.findUnique({ where: { pubkey: address } });
   if (!wallet) {
     logger.warn({ state, address }, 'pairing.approveNoProfile');
-    return 'no-profile';
+    return { outcome: 'no-profile' };
   }
+
+  // Minted here rather than at `start` so it cannot exist before somebody has
+  // actually approved: a code the browser has not yet shown is a code that
+  // proves nothing.
+  const handoffCode = randomHandoffCode();
 
   const now = new Date();
   const result = await db.pairingState.updateMany({
     where: { id: state, status: 'pending', expiresAt: { gt: now } },
-    data: { status: 'approved', profileId: wallet.profileId, approvedAt: now },
+    data: {
+      status: 'approved',
+      profileId: wallet.profileId,
+      approvedAt: now,
+      handoffHash: sha256(handoffCode),
+    },
   });
   if (result.count === 1) {
     logger.info({ state, profileId: wallet.profileId }, 'pairing.approved');
-    return 'ok';
+    return { outcome: 'ok', handoffCode };
   }
 
   // The conditional updateMany above is what actually prevents a race (two
@@ -197,7 +288,15 @@ export async function approvePairing(
       ? 'expired'
       : 'already-used';
   logger.warn({ state, outcome }, 'pairing.approveRejected');
-  return outcome;
+  return { outcome };
+}
+
+/** Short, human-transcribable code the browser shows after approving. */
+function randomHandoffCode(): string {
+  const bytes = randomBytes(HANDOFF_LENGTH);
+  let code = '';
+  for (const b of bytes) code += HANDOFF_ALPHABET[b % HANDOFF_ALPHABET.length];
+  return code;
 }
 
 // ── reject ───────────────────────────────────────────────────────────────
@@ -251,6 +350,7 @@ export type CompleteFailure =
   | 'network-mismatch'
   | 'bad-challenge'
   | 'key-mismatch'
+  | 'bad-handoff'
   | 'replayed'
   | 'wallet-bound-elsewhere';
 
@@ -284,6 +384,7 @@ export async function completePairing(
   state: string,
   challengeXdr: string,
   store?: PairingStore,
+  handoffCode?: string,
 ): Promise<CompleteResult> {
   const db = store ?? (await getStore());
   if (!db) return { ok: false, reason: 'unavailable' };
@@ -304,6 +405,18 @@ export async function completePairing(
       'pairing.badChallenge',
     );
     return { ok: false, reason: 'bad-challenge' };
+  }
+
+  // The manual path (#273): when the loopback callback cannot be reached, the
+  // developer pastes the code the browser showed after approving. Checked only
+  // when the CLI supplies one — the loopback and polling paths prove the same
+  // thing by other means, and requiring it there would make every link a typing
+  // exercise. When it *is* supplied it must be right: a wrong code is a signal
+  // that the person at the terminal is not the person who approved.
+  if (handoffCode !== undefined) {
+    if (!pairing.handoffHash || !hashEquals(pairing.handoffHash, sha256(handoffCode))) {
+      return fail(state, 'bad-handoff');
+    }
   }
 
   // The browser was shown `pairing.publicKey` and approved *that* key. Binding

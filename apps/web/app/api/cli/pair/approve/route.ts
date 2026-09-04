@@ -37,8 +37,9 @@ export async function POST(req: Request) {
   const { state } = (await req.json().catch(() => ({}))) as { state?: string };
   if (!state) return NextResponse.json({ error: 'state is required' }, { status: 400 });
 
-  const outcome = await approvePairing(state, address);
-  if (outcome !== 'ok') {
+  const result = await approvePairing(state, address);
+  const outcome = result.outcome;
+  if (result.outcome !== 'ok') {
     const messages: Record<string, string> = {
       'not-found': 'Pairing not found — it may have already been used',
       expired: 'This pairing has expired — restart it from the CLI',
@@ -52,5 +53,11 @@ export async function POST(req: Request) {
     );
   }
 
-  return NextResponse.json({ ok: true }, { headers: { 'cache-control': 'no-store' } });
+  // The handoff code is shown to the developer so they can paste it into a
+  // terminal the browser cannot reach directly (#273). Returned only here, to
+  // the session that just approved.
+  return NextResponse.json(
+    { ok: true, handoffCode: result.handoffCode },
+    { headers: { 'cache-control': 'no-store' } },
+  );
 }

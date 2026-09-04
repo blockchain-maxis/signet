@@ -39,6 +39,14 @@ export const LIMITS = {
   cliPairStart: 12,
   /** Verifies an ed25519 signature per call, like `sep10`. */
   cliPairComplete: 12,
+  /**
+   * Read-only progress check, and the one endpoint a CLI is *meant* to call
+   * repeatedly — a bounded wait polling every couple of seconds for the
+   * pairing's five-minute TTL is normal traffic, not abuse. Budgeted well
+   * above the others for that reason; it mints nothing, signs nothing, and
+   * needs a poll token that never appears in the pairing URL.
+   */
+  cliPairStatus: 120,
   /** Builds/verifies a CLI-link challenge — same signing cost as `sep10`. */
   cliLink: 12,
   /** Verifies a signature per call. */

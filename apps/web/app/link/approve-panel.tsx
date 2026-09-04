@@ -5,7 +5,8 @@ import { useState } from 'react';
 type State =
   | { status: 'idle' }
   | { status: 'busy'; action: 'approve' | 'reject' }
-  | { status: 'done'; action: 'approve' | 'reject' }
+  | { status: 'done'; action: 'approve'; handoffCode?: string }
+  | { status: 'done'; action: 'reject' }
   | { status: 'error'; message: string };
 
 const mono = { fontFamily: 'var(--font-mono)' } as const;
@@ -34,6 +35,11 @@ export function ApprovePanel({ state }: { state: string }) {
         setUi({ status: 'error', message: body.error ?? 'Something went wrong' });
         return;
       }
+      if (action === 'approve') {
+        const body = (await res.json().catch(() => ({}))) as { handoffCode?: string };
+        setUi({ status: 'done', action, handoffCode: body.handoffCode });
+        return;
+      }
       setUi({ status: 'done', action });
     } catch {
       setUi({ status: 'error', message: 'Could not reach the server' });
@@ -41,17 +47,33 @@ export function ApprovePanel({ state }: { state: string }) {
   }
 
   if (ui.status === 'done') {
+    if (ui.action === 'reject') {
+      return (
+        <p className="mt-8 text-[13px] leading-[1.7] text-[#8a8779]" style={mono}>
+          Rejected. Nothing was linked. You can close this tab.
+        </p>
+      );
+    }
     return (
-      <p
-        className={`mt-8 text-[13px] leading-[1.7] ${
-          ui.action === 'approve' ? 'text-[#4d7c3f]' : 'text-[#8a8779]'
-        }`}
-        style={mono}
-      >
-        {ui.action === 'approve'
-          ? 'Approved. Return to your terminal — the CLI is finishing the link.'
-          : 'Rejected. Nothing was linked. You can close this tab.'}
-      </p>
+      <div className="mt-8">
+        <p className="text-[13px] leading-[1.7] text-[#4d7c3f]" style={mono}>
+          Approved. Return to your terminal — the CLI is finishing the link.
+        </p>
+        {ui.handoffCode && (
+          <div className="mt-6 border border-[#1f1d19] px-6 py-5">
+            <p className="text-[10px] uppercase tracking-[0.2em] text-[#5e5b51]" style={mono}>
+              If the terminal is still waiting
+            </p>
+            <p className="mt-3 text-[13px] leading-[1.7] text-[#8a8779]" style={mono}>
+              A CLI running over SSH or in a container often can’t be reached by this browser. Paste
+              this code into the terminal when it asks:
+            </p>
+            <p className="mt-4 select-all text-[22px] tracking-[0.3em] text-[#b8b5a8]" style={mono}>
+              {ui.handoffCode}
+            </p>
+          </div>
+        )}
+      </div>
     );
   }
 

@@ -150,6 +150,18 @@ model PairingState {
   /// it, which is checked against this value. Null for a pairing minted before
   /// this column existed, which completes without that check.
   publicKey   String?
+  /// SHA-256 of the poll token `start` hands the CLI, for the polling
+  /// fallback (#273). Kept distinct from `id`: the pairing code travels in the
+  /// URL the developer opens — and may be pasted into a chat or a ticket —
+  /// whereas this never leaves the terminal, so watching a pairing's progress
+  /// needs something seeing the link does not give you. Hashed because it is a
+  /// bearer credential at rest.
+  pollTokenHash String? @unique
+  /// SHA-256 of the short code the browser shows after approving, which the
+  /// developer pastes back into the terminal when loopback is unreachable.
+  /// Binds "the person who approved" to "the terminal that completes" the way
+  /// the loopback `state` does on the local path.
+  handoffHash String?
   /// Set by `approve` — the profile the signed-in browser session belongs to.
   profileId   String?
   createdAt   DateTime  @default(now())
