@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { Keypair, TransactionBuilder } from '@stellar/stellar-sdk';
+import { Keypair, TransactionBuilder, WebAuth } from '@stellar/stellar-sdk';
 import { buildChallenge, getNetworkPassphrase } from '../sep10.ts';
 import { __resetNonceStore } from '../nonce-store.ts';
 import {
@@ -540,4 +540,125 @@ test('completePairing does not require a handoff code on the loopback path', asy
 
   const result = await completePairing(state, signedChallenge(client), store);
   assert.equal(result.ok, true);
+});
+
+// ── adversarial coverage for the pairing trust boundary (#291) ───────────
+//
+// Every failure mode of `completePairing` is a security property rather than a
+// UX detail, and the comment at `../auth.ts:99-120` records that this codebase
+// has already been bitten once by exactly this class of bug. These are the
+// cases from #291 that were not already covered above.
+
+/**
+ * A challenge minted and signed by somebody *else's* server — the shape an
+ * attacker who stands up their own SEP-10 endpoint would produce.
+ */
+function foreignChallenge(client: Keypair, server: Keypair, homeDomain = 'signet.dev'): string {
+  return WebAuth.buildChallengeTx(
+    server,
+    client.publicKey(),
+    homeDomain,
+    300,
+    getNetworkPassphrase(),
+    homeDomain,
+  );
+}
+
+function signForeign(client: Keypair, server: Keypair, homeDomain?: string): string {
+  const challenge = foreignChallenge(client, server, homeDomain);
+  const tx = TransactionBuilder.fromXDR(challenge, getNetworkPassphrase());
+  tx.sign(client);
+  return tx.toEnvelope().toXDR('base64');
+}
+
+test('completePairing refuses a challenge minted by a different server', async (t) => {
+  __resetNonceStore();
+  t.after(() => __resetNonceStore());
+  const { store, wallets } = fakeStore();
+  const state = await approvedPairing(store, wallets);
+  const client = Keypair.random();
+  const attackerServer = Keypair.random();
+
+  // Correctly signed by the client — but the challenge is not ours, so the
+  // server-side signature check is the only thing standing between an
+  // attacker's own endpoint and a wallet binding here.
+  const result = await completePairing(state, signForeign(client, attackerServer), store);
+  assert.deepEqual(result, { ok: false, reason: 'bad-challenge' });
+  assert.equal(wallets.has(client.publicKey()), false);
+});
+
+test('completePairing refuses a challenge scoped to a different domain', async (t) => {
+  __resetNonceStore();
+  t.after(() => __resetNonceStore());
+  const { store, wallets } = fakeStore();
+  const state = await approvedPairing(store, wallets);
+  const client = Keypair.random();
+  const attackerServer = Keypair.random();
+
+  // Domain separation: a challenge issued for some other site must not be
+  // redeemable here even if every signature on it is valid.
+  const result = await completePairing(
+    state,
+    signForeign(client, attackerServer, 'evil.example'),
+    store,
+  );
+  assert.deepEqual(result, { ok: false, reason: 'bad-challenge' });
+  assert.equal(wallets.has(client.publicKey()), false);
+});
+
+test('a signed challenge for one pairing cannot complete a different pairing', async (t) => {
+  __resetNonceStore();
+  t.after(() => __resetNonceStore());
+  const { store, wallets } = fakeStore();
+  const first = await approvedPairing(store, wallets);
+  const second = await approvedPairing(store, wallets);
+  const client = Keypair.random();
+  const challenge = signedChallenge(client);
+
+  assert.equal((await completePairing(first, challenge, store)).ok, true);
+
+  // The same envelope against the other pairing: single-use accounting is
+  // what stops one signature being spent twice, under any state.
+  const result = await completePairing(second, challenge, store);
+  assert.deepEqual(result, { ok: false, reason: 'replayed' });
+});
+
+test('completePairing refuses a pairing the browser never approved', async (t) => {
+  __resetNonceStore();
+  t.after(() => __resetNonceStore());
+  const { store, wallets } = fakeStore();
+  // Minted but never approved: the CLI holds a valid signature for a real
+  // deploy key, which proves key control and nothing about handle ownership.
+  const { state } = (await startPairing(getNetworkPassphrase(), null, store))!;
+  const client = Keypair.random();
+
+  const result = await completePairing(state, signedChallenge(client), store);
+  assert.deepEqual(result, { ok: false, reason: 'not-approved' });
+  assert.equal(wallets.has(client.publicKey()), false);
+});
+
+test('a rejected pairing cannot be completed', async (t) => {
+  __resetNonceStore();
+  t.after(() => __resetNonceStore());
+  const { store, wallets } = fakeStore();
+  const { state } = (await startPairing(getNetworkPassphrase(), null, store))!;
+  await rejectPairing(state, store);
+  const client = Keypair.random();
+
+  const result = await completePairing(state, signedChallenge(client), store);
+  assert.equal(result.ok, false);
+  assert.equal(wallets.has(client.publicKey()), false);
+});
+
+test('an expired pairing cannot be completed even with a valid signature', async (t) => {
+  __resetNonceStore();
+  t.after(() => __resetNonceStore());
+  const { store, wallets, pairings } = fakeStore();
+  const state = await approvedPairing(store, wallets);
+  pairings.get(state)!.expiresAt = new Date(Date.now() - 1000);
+  const client = Keypair.random();
+
+  const result = await completePairing(state, signedChallenge(client), store);
+  assert.deepEqual(result, { ok: false, reason: 'expired' });
+  assert.equal(wallets.has(client.publicKey()), false);
 });
