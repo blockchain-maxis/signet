@@ -18,6 +18,12 @@ export interface IndexerConfig {
    * error, it just silently returns nothing.
    */
   eventWindowLedgers: number;
+  /** Operations retention in days (default: 90; 0 to retain indefinitely). */
+  operationsRetentionDays: number;
+  /** ContractSnapshot retention in days (default: 30; 0 to retain indefinitely). */
+  snapshotsRetentionDays: number;
+  /** Interval in ms between background pruning passes (default: 3600000 = 1 hour). */
+  pruneIntervalMs: number;
 }
 
 export function loadConfig(): IndexerConfig {
@@ -49,5 +55,8 @@ export function loadConfig(): IndexerConfig {
       process.env.NEXT_PUBLIC_IDENTITY_REGISTRY_ID ??
       '',
     eventWindowLedgers: Number(process.env.INDEXER_EVENT_WINDOW_LEDGERS ?? 8_000),
+    operationsRetentionDays: Number(process.env.INDEXER_OPERATIONS_RETENTION_DAYS ?? 90),
+    snapshotsRetentionDays: Number(process.env.INDEXER_SNAPSHOTS_RETENTION_DAYS ?? 30),
+    pruneIntervalMs: Number(process.env.INDEXER_PRUNE_INTERVAL_MS ?? 3_600_000),
   };
 }

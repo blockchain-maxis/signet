@@ -51,12 +51,78 @@ export interface CspOptions {
    * Pass an empty string to build a policy with no reporting at all.
    */
   reportUri?: string;
+  /**
+   * Additional connect-src origins or hosts (e.g. for custom RPC / Horizon endpoints,
+   * WalletConnect, or testing).
+   */
+  connectSrc?: string[] | string;
+}
+
+/**
+ * Safely extracts the protocol + host (origin) from a URL string.
+ * Strips paths, query parameters, hashes, and trailing slashes.
+ * Returns null if the URL is invalid, empty, or has an opaque/unsupported origin.
+ */
+export function extractOrigin(url: string | undefined | null): string | null {
+  if (!url || typeof url !== 'string') return null;
+  const trimmed = url.trim();
+  if (!trimmed) return null;
+  try {
+    const parsed = new URL(trimmed);
+    if (parsed.origin && parsed.origin !== 'null') {
+      return parsed.origin;
+    }
+  } catch {
+    // Malformed URL, ignore gracefully
+  }
+  return null;
+}
+
+/**
+ * Resolves all connect-src sources by combining defaults, configured environment
+ * variables (RPC / Horizon / Explorer), and any explicit connect sources.
+ */
+export function resolveConnectSources(customSources?: string[] | string): string[] {
+  const sources = new Set<string>(["'self'", 'https://*.stellar.org', 'https://stellar.expert']);
+
+  // Extract origins from configured environment variables (RPC, Horizon, App URL)
+  const envEndpoints = [
+    process.env.NEXT_PUBLIC_SOROBAN_RPC_URL,
+    process.env.SOROBAN_RPC_URL,
+    process.env.NEXT_PUBLIC_HORIZON_URL,
+    process.env.HORIZON_URL,
+    process.env.STELLAR_HORIZON_URL,
+    process.env.NEXT_PUBLIC_APP_URL,
+  ];
+
+  for (const endpoint of envEndpoints) {
+    const origin = extractOrigin(endpoint);
+    if (origin) {
+      sources.add(origin);
+    }
+  }
+
+  if (customSources) {
+    const list = Array.isArray(customSources) ? customSources : [customSources];
+    for (const item of list) {
+      if (!item) continue;
+      const origin = extractOrigin(item);
+      if (origin) {
+        sources.add(origin);
+      } else {
+        const trimmed = item.trim();
+        if (trimmed) sources.add(trimmed);
+      }
+    }
+  }
+
+  return Array.from(sources);
 }
 
 /** Build the CSP header value for a request, binding `script-src` to `nonce`. */
 export function buildCsp(
   nonce: string,
-  { dev = false, reportUri = CSP_REPORT_PATH }: CspOptions = {},
+  { dev = false, reportUri = CSP_REPORT_PATH, connectSrc }: CspOptions = {},
 ): string {
   const scriptSrc = [
     "'self'",
@@ -65,6 +131,8 @@ export function buildCsp(
     // Next scripts are allowed by the nonce. No 'unsafe-inline'.
     ...(dev ? ["'unsafe-eval'"] : []),
   ].join(' ');
+
+  const connectSources = resolveConnectSources(connectSrc).join(' ');
 
   return [
     "default-src 'self'",
@@ -75,13 +143,14 @@ export function buildCsp(
     "font-src 'self'",
     "img-src 'self' data: https:",
     // connect-src covers the Stellar RPC / Horizon / Expert endpoints the client
-    // calls. The wallet modules registered today (Freighter, xBull, Albedo,
+    // calls, derived dynamically from configured environment variables.
+    // The wallet modules registered today (Freighter, xBull, Albedo,
     // Rabet, Hana) talk through browser extensions and need nothing here. When
     // enabling a network-backed module in `lib/wallet.ts`, append its origins:
     //   • WalletConnect: https://*.walletconnect.com https://*.walletconnect.org
     //                    wss://*.walletconnect.com wss://*.walletconnect.org
     //   • LOBSTR:        https://*.lobstr.co
-    "connect-src 'self' https://*.stellar.org https://stellar.expert",
+    `connect-src ${connectSources}`,
     "frame-ancestors 'none'",
     "base-uri 'self'",
     "form-action 'self'",
