@@ -1,7 +1,7 @@
-/*
- * Typed SDE errors, so callers can distinguish "not found" from "network down"
- * from a server error instead of catching a bare Error. All extend
- * SignetError, so catch (e) / if (e instanceof SignetError) matches any Error.
+/**
+ * Typed SDK errors, so callers can distinguish "not found" from "network down"
+ * from a server error instead of catching a bare `Error`. All extend
+ * `SignetError`, so `catch (e) { if (e instanceof SignetError) … }` matches any.
  */
 
 export class SignetError extends Error {
@@ -33,12 +33,5 @@ export class ApiError extends SignetError {
   constructor(message: string, status: number, options?: ErrorOptions) {
     super(message, options);
     this.status = status;
-  }
-}
-
-/** No deployment identity is linked for the current keystore. */
-export class NotLinkedError extends SignetError {
-  constructor(message = 'Not linked', options?: ErrorOptions) {
-    super(message, options);
   }
 }
