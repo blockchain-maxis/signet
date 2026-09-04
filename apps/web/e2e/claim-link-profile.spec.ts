@@ -110,6 +110,15 @@ test.describe('claim → link → indexer → profile', () => {
     // proof that the person approving owns the handle.
     await apiSignIn(page, owner);
     await page.goto(`/link?code=${state}`);
+
+    // Assert the page *shape* before its contents. /link has several refusal
+    // states (no session, unknown or expired code, no database, no handle) and
+    // they all render a heading instead of the approval form — so a missing
+    // key below would otherwise report only "element not found" and say
+    // nothing about which of them happened.
+    const shown = await page.locator('body').innerText();
+    expect(shown, 'the /link page should show the approval form').toContain('Approve this link');
+
     await expect(page.getByText(deployer.publicKey())).toBeVisible();
     await expect(page.getByText(`@${handle}`)).toBeVisible();
     await page.getByRole('button', { name: /approve/i }).click();
