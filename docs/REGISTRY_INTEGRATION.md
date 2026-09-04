@@ -62,7 +62,7 @@ These are the methods the pinned wasm exposes. Everything in §3–§6 targets t
 | `resolve(handle: String)` | — | `Option<Address>` | Handle → wallet. |
 | `lookup(wallet: Address)` | — | `Option<String>` | Wallet → handle. |
 | `is_bound(handle: String)` | — | `bool` | |
-| `count()` | — | `u32` | Currently-bound handles, O(1). |
+| `count()` | — | `u32` | Binding counter, O(1). An upper bound: a binding that archives unaccessed is never subtracted. |
 
 ### In `main`, not yet deployed
 

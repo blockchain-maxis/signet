@@ -15,9 +15,8 @@ model Profile {
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  wallets     Wallet[]
-
-  @@index([handle])
+  wallets       Wallet[]
+  pairingStates PairingState[]
 }
 
 model Wallet {
@@ -25,15 +24,45 @@ model Wallet {
   profileId  String
   pubkey     String   @unique
   attestedAt DateTime @default(now())
+  // Allowed values: 'curated' | 'onchain' | 'cli' — kept as the WalletSource
+  // union in packages/types/src/wallet-source.ts (mirrored to Go for the CLI
+  // in packages/types/generated/wallet_source.go). Prisma has no native check
+  // constraint here, so every write and read site validates against that
+  // union instead of trusting this column's raw string.
   source     String   @default("curated")
   isPrimary  Boolean  @default(false)
+
+  // Per-wallet deployment-worker backfill state. The IndexerCursor row below
+  // ("main") only tracks forward-scanning progress for the indexer as a
+  // whole; it says nothing about how far back into *this* wallet's own
+  // Horizon history the deployment worker has walked. Without this, a wallet
+  // linked after others either gets re-scanned from the top every tick
+  // (wasteful, rate-limited) or has its older history silently skipped once
+  // some other global position has moved past it — neither is correct.
+  //
+  // deploymentCursor is the Horizon paging_token of the oldest operation the
+  // deployment worker has walked back to so far; null means backfill hasn't
+  // started (or the wallet is new). deploymentBackfilledAt is set once the
+  // worker has walked all the way back — Horizon returned an empty page —
+  // after which the worker only needs to check the newest activity each tick,
+  // not resume a backward walk.
+  deploymentCursor       String?
+  deploymentBackfilledAt DateTime?
+
+  // Set when a wallet is (re-)linked (apps/web/lib/server/account.ts's
+  // linkDeployWallet) so the indexer picks it up promptly instead of waiting
+  // out the rest of the current tick interval — see index.ts's idle-sleep
+  // loop, which polls for this and starts the next tick early when it's set.
+  // Cleared once the deployment worker has scanned the wallet. A plain
+  // timestamp column rather than a queue table: relinking just overwrites it,
+  // so repeated links can never accumulate duplicate trigger state.
+  indexRequestedAt DateTime?
 
   profile    Profile  @relation(fields: [profileId], references: [id], onDelete: Cascade)
   contracts  Contract[]
   operations Operation[]
 
   @@index([profileId])
-  @@index([pubkey])
 }
 
 // Soroban operations (invocations) attributed to a wallet, populated by the
@@ -63,7 +92,12 @@ model Contract {
   deployerPubkey  String
   deployedAt      DateTime
   deployTxHash    String
-  network         String   @default("mainnet")
+  // No default on purpose: an implicit "mainnet" here is exactly how a
+  // testnet deployment (the only kind that exists today — see
+  // docs/DEMO_DATA.md) could get silently mislabeled. Every writer (today,
+  // only apps/indexer/src/workers/deployment.ts) must pass the indexer's
+  // configured network explicitly.
+  network         String
   contractType    String?
   firstIndexedAt  DateTime @default(now())
 
@@ -91,4 +125,52 @@ model IndexerCursor {
   id         String   @id @default("main")
   lastLedger Int      @default(0)
   updatedAt  DateTime @updatedAt
+}
+
+// CLI device-pairing state (`POST /api/cli/pair/{start,approve,complete}`).
+//
+// Binds a CLI-held deploy account to a browser-authenticated profile without
+// either side ever seeing the other's credentials: `start` mints this row,
+// `approve` (browser, session-authenticated) records *which* profile is
+// pairing, `complete` (CLI, SEP-10-authenticated) proves *which* wallet and
+// writes it. `status` only ever moves forward: pending -> approved ->
+// completed, or pending -> rejected when the developer refuses in the browser;
+// `complete` conditions its update on `status = 'approved'` so two concurrent
+// completions of the same pairing cannot both succeed.
+model PairingState {
+  id          String    @id @default(cuid())
+  /// pending | approved | rejected | completed
+  status      String    @default("pending")
+  /// The network passphrase the CLI declared at `start`, checked again at
+  /// `complete` against the deployment's actual configured network.
+  network     String
+  /// The deploy account the CLI *declared* at `start`, so the browser
+  /// approval page can show which key is about to be attached. Unverified
+  /// here — it is only a claim until `complete` presents a challenge signed by
+  /// it, which is checked against this value. Null for a pairing minted before
+  /// this column existed, which completes without that check.
+  publicKey   String?
+  /// SHA-256 of the poll token `start` hands the CLI, for the polling
+  /// fallback (#273). Kept distinct from `id`: the pairing code travels in the
+  /// URL the developer opens — and may be pasted into a chat or a ticket —
+  /// whereas this never leaves the terminal, so watching a pairing's progress
+  /// needs something seeing the link does not give you. Hashed because it is a
+  /// bearer credential at rest.
+  pollTokenHash String? @unique
+  /// SHA-256 of the short code the browser shows after approving, which the
+  /// developer pastes back into the terminal when loopback is unreachable.
+  /// Binds "the person who approved" to "the terminal that completes" the way
+  /// the loopback `state` does on the local path.
+  handoffHash String?
+  /// Set by `approve` — the profile the signed-in browser session belongs to.
+  profileId   String?
+  createdAt   DateTime  @default(now())
+  expiresAt   DateTime
+  approvedAt  DateTime?
+  rejectedAt  DateTime?
+  completedAt DateTime?
+
+  profile     Profile?  @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@index([status])
 }
