@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { currentAddress } from '@/lib/server/session';
 import { getAccount } from '@/lib/server/account';
 import { describePairing } from '@/lib/server/pairing';
+import { safeCallbackUrl } from '@/lib/loopback-callback';
 import { SignInGate } from '@/app/(dashboard)/components/sign-in-gate';
 import { ApprovePanel } from './approve-panel';
 
@@ -70,9 +71,9 @@ function Refusal({ message }: { message: string }) {
 export default async function LinkApprovalPage({
   searchParams,
 }: {
-  searchParams: Promise<{ code?: string }>;
+  searchParams: Promise<{ code?: string; callback?: string; callback_state?: string }>;
 }) {
-  const { code } = await searchParams;
+  const { code, callback, callback_state: callbackState } = await searchParams;
 
   if (!code) {
     return (
@@ -142,7 +143,11 @@ export default async function LinkApprovalPage({
         </div>
       </dl>
 
-      <ApprovePanel state={pairing.state} />
+      <ApprovePanel
+        state={pairing.state}
+        callback={safeCallbackUrl(callback)}
+        callbackState={callbackState ?? null}
+      />
 
       <p className="mt-10 max-w-[560px] text-[12px] leading-[1.7] text-[#5e5b51]" style={mono}>
         This code expires shortly after it was issued. If it runs out, run `signet link` again.

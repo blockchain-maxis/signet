@@ -75,7 +75,7 @@ export async function POST(req: Request) {
 
   logger.info({ state, pubkey: result.wallet.pubkey }, 'cli.pairCompleted');
   return NextResponse.json(
-    { ok: true, wallet: result.wallet.pubkey },
+    { ok: true, wallet: result.wallet.pubkey, handle: result.handle },
     { headers: { 'cache-control': 'no-store' } },
   );
 }

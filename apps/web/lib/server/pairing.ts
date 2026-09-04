@@ -92,6 +92,9 @@ export interface PairingStore {
       data: Record<string, unknown>;
     }): Promise<{ count: number }>;
   };
+  profile: {
+    findUnique(args: { where: { id: string } }): Promise<{ handle: string } | null>;
+  };
   wallet: {
     findUnique(args: { where: { pubkey: string } }): Promise<WalletRow | null>;
     create(args: {
@@ -355,7 +358,7 @@ export type CompleteFailure =
   | 'wallet-bound-elsewhere';
 
 export type CompleteResult =
-  | { ok: true; wallet: WalletRow }
+  | { ok: true; wallet: WalletRow; handle: string | null }
   | { ok: false; reason: CompleteFailure };
 
 /** Thrown inside the transaction to short-circuit to a specific `CompleteFailure`. */
@@ -462,8 +465,12 @@ export async function completePairing(
         data: { pubkey: clientAccountId, profileId, source: 'cli', isPrimary: false },
       });
     });
+    // The handle is read back so the CLI can print what it linked to rather
+    // than making the developer go and look — #258 asks for the handle and the
+    // public key, and only the server knows the first.
+    const profile = await db.profile.findUnique({ where: { id: profileId } });
     logger.info({ state, profileId, pubkey: clientAccountId }, 'pairing.completed');
-    return { ok: true, wallet };
+    return { ok: true, wallet, handle: profile?.handle ?? null };
   } catch (err) {
     if (err instanceof PairingConflict) return fail(state, err.reason);
     throw err;

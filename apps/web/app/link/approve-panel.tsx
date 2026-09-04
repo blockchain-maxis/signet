@@ -19,7 +19,16 @@ const mono = { fontFamily: 'var(--font-mono)' } as const;
  * refused, where an abandoned tab leaves it polling to the TTL with nothing to
  * report.
  */
-export function ApprovePanel({ state }: { state: string }) {
+export function ApprovePanel({
+  state,
+  callback,
+  callbackState,
+}: {
+  state: string;
+  /** Already validated as a loopback URL by the page; null when absent. */
+  callback: string | null;
+  callbackState: string | null;
+}) {
   const [ui, setUi] = useState<State>({ status: 'idle' });
 
   async function send(action: 'approve' | 'reject') {
@@ -38,6 +47,14 @@ export function ApprovePanel({ state }: { state: string }) {
       if (action === 'approve') {
         const body = (await res.json().catch(() => ({}))) as { handoffCode?: string };
         setUi({ status: 'done', action, handoffCode: body.handoffCode });
+        // Hand the terminal its callback so it finishes now rather than on its
+        // next poll. The state goes back exactly as it came so the CLI can tell
+        // this redirect from any other page that finds its port.
+        if (callback && callbackState) {
+          const target = new URL(callback);
+          target.searchParams.set('state', callbackState);
+          window.location.assign(target.toString());
+        }
         return;
       }
       setUi({ status: 'done', action });
