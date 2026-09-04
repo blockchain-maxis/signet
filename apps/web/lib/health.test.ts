@@ -7,6 +7,7 @@ import {
   checkRegistry,
   collectHealth,
   overallStatus,
+  pairingStatus,
   type CheckStatus,
 } from './health.ts';
 
@@ -101,6 +102,9 @@ test('a down registry degrades the probe even with the database up', async () =>
     registry: 'down',
     nonceStore: 'up',
     rateLimitStore: 'up',
+    // A binding is written on-chain and served from the database, so a down
+    // registry takes pairing with it.
+    pairing: 'down',
   });
 });
 
@@ -136,7 +140,7 @@ test('checks run concurrently, so the probe is not the sum of its timeouts', asy
   assert.ok(Date.now() - started < 220, 'probes must not run serially');
 });
 
-const stores = { nonceStore: 'up', rateLimitStore: 'up' } as const;
+const stores = { nonceStore: 'up', rateLimitStore: 'up', pairing: 'up' } as const;
 
 test('overallStatus degrades on any down user-facing check', () => {
   assert.equal(overallStatus({ db: 'up', registry: 'up', ...stores }), 'ok');
@@ -147,21 +151,84 @@ test('overallStatus degrades on any down user-facing check', () => {
 
 test('a down nonce store degrades the probe: it fails closed, so sign-in is broken', () => {
   assert.equal(
-    overallStatus({ db: 'up', registry: 'up', nonceStore: 'down', rateLimitStore: 'up' }),
+    overallStatus({
+      db: 'up',
+      registry: 'up',
+      nonceStore: 'down',
+      rateLimitStore: 'up',
+      pairing: 'up',
+    }),
     'degraded',
   );
 });
 
 test('a down rate-limit store is reported but does not degrade: it fails open', () => {
   assert.equal(
-    overallStatus({ db: 'up', registry: 'up', nonceStore: 'up', rateLimitStore: 'down' }),
+    overallStatus({
+      db: 'up',
+      registry: 'up',
+      nonceStore: 'up',
+      rateLimitStore: 'down',
+      pairing: 'up',
+    }),
     'ok',
   );
 });
 
 test('the per-instance memory fallback is visible without being an error', () => {
   assert.equal(
-    overallStatus({ db: 'up', registry: 'up', nonceStore: 'memory', rateLimitStore: 'memory' }),
+    overallStatus({
+      db: 'up',
+      registry: 'up',
+      nonceStore: 'memory',
+      rateLimitStore: 'memory',
+      pairing: 'up',
+    }),
     'ok',
   );
+});
+
+// ── pairing ───────────────────────────────────────────────────────────────
+
+test('pairing is up only when both halves of a binding work', () => {
+  assert.equal(pairingStatus('up', 'up'), 'up');
+});
+
+test('pairing is down when either the registry or the database is down', () => {
+  // The claim is written and proved on-chain...
+  assert.equal(pairingStatus('up', 'down'), 'down');
+  // ...and the resulting binding is stored and served from Postgres, so a
+  // linked wallet stops showing up on the dashboard without it.
+  assert.equal(pairingStatus('down', 'up'), 'down');
+  assert.equal(pairingStatus('down', 'down'), 'down');
+});
+
+test('pairing is skipped only when neither half is configured', () => {
+  assert.equal(pairingStatus('skipped', 'skipped'), 'skipped');
+  // One configured half is enough to mean this deployment does pairing.
+  assert.equal(pairingStatus('skipped', 'up'), 'up');
+  assert.equal(pairingStatus('up', 'skipped'), 'up');
+  assert.equal(pairingStatus('skipped', 'down'), 'down');
+});
+
+test('a down pairing check degrades the probe', () => {
+  assert.equal(
+    overallStatus({
+      db: 'up',
+      registry: 'up',
+      nonceStore: 'up',
+      rateLimitStore: 'up',
+      pairing: 'down',
+    }),
+    'degraded',
+  );
+});
+
+test('the report includes pairing, derived from the checks beside it', async () => {
+  const report = await collectHealth({ db: probe('up'), registry: probe('up') });
+  assert.equal(report.checks.pairing, 'up');
+
+  const withoutDb = await collectHealth({ db: probe('down'), registry: probe('up') });
+  assert.equal(withoutDb.checks.pairing, 'down');
+  assert.equal(withoutDb.status, 'degraded');
 });

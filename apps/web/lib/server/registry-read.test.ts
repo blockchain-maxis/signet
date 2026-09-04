@@ -6,6 +6,7 @@ import {
   isRegistryConfigured,
   lookupWallet,
   resolveHandle,
+  resolveHandleDetailed,
   type SimulatingServer,
 } from './registry-read.ts';
 
@@ -168,4 +169,55 @@ test('lookupWallet rejects a malformed address without simulating', async () => 
   const server = stubServer(successWith(nativeToScVal('aquawolf', { type: 'string' })));
   assert.equal(await lookupWallet('not-a-wallet', { server }), null);
   assert.equal(server.calls.length, 0);
+});
+
+// ── archival and detailed resolution ─────────────────────────────────────
+
+test('resolveHandleDetailed returns bound status and wallet for live handle', async () => {
+  configureRegistry();
+  const server = stubServer(successWith(nativeToScVal(WALLET, { type: 'address' })));
+  const res = await resolveHandleDetailed('aquawolf', { server });
+  assert.deepEqual(res, { status: 'bound', wallet: WALLET });
+});
+
+test('resolveHandleDetailed detects an archived footprint', async () => {
+  configureRegistry();
+  // An archived entry does not fail the simulation: the network answers "as
+  // if" the entry were live — so the response is a *success* (top-level
+  // `transactionData`, which is what the SDK's isSimulationSuccess keys on)
+  // that additionally carries a `restorePreamble` naming what to restore. A
+  // fixture with only the preamble is not a shape the RPC ever returns.
+  const server = stubServer({
+    transactionData: 'AAAAsimulated',
+    result: { retval: nativeToScVal(WALLET, { type: 'address' }) },
+    restorePreamble: { minResourceFee: '1000', transactionData: 'AAAArestore' },
+  });
+  const res = await resolveHandleDetailed('aquawolf', { server });
+  assert.equal(res.status, 'archived');
+  assert.ok('restorePreamble' in res);
+});
+
+test('a successful simulation with no restorePreamble is not treated as archived', async () => {
+  configureRegistry();
+  // Guards the inverse: every healthy read must not be reported as archived.
+  const server = stubServer({
+    transactionData: 'AAAAsimulated',
+    result: { retval: nativeToScVal(WALLET, { type: 'address' }) },
+  });
+  assert.deepEqual(await resolveHandleDetailed('aquawolf', { server }), {
+    status: 'bound',
+    wallet: WALLET,
+  });
+});
+
+test('resolveHandleDetailed returns unbound for unbound handle', async () => {
+  configureRegistry();
+  const server = stubServer(successWith(nativeToScVal(null)));
+  const res = await resolveHandleDetailed('aquawolf', { server });
+  assert.deepEqual(res, { status: 'unbound' });
+});
+
+test('resolveHandleDetailed returns unconfigured without contract id', async () => {
+  const res = await resolveHandleDetailed('aquawolf');
+  assert.deepEqual(res, { status: 'unconfigured' });
 });
