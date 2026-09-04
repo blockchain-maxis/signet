@@ -116,7 +116,7 @@ jobs:
       #     go1.24 and fails with "can't load config: the Go language version
       #     (go1.24) ... is lower than the targeted Go version (1.25.0)".
       #   * `latest` would let both of those drift again without a commit here.
-      - uses: golangci/golangci-lint-action@v8
+      - uses: golangci/golangci-lint-action@v9
         with:
           version: v2.13.2
           working-directory: cli
