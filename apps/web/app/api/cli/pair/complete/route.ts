@@ -1,84 +1,82 @@
-import {
-  DATABASE_REQUIRED_CODE,
-  DatabaseRequiredError,
-  requireDatabase,
-} from '../../../../../lib/profiles.ts';
+import { NextResponse } from 'next/server';
+import { completePairing, type CompleteFailure } from '@/lib/server/pairing';
+import { LIMITS, enforceRateLimit } from '@/lib/rate-limit-http';
+import { logger } from '@/lib/logger';
 
-export const dynamic = 'force-dynamic';
 export const runtime = 'nodejs';
 
 /**
- * `POST /api/cli/pair/complete` — the point at which a CLI pairing becomes a
- * `Wallet` row.
+ * `POST /api/cli/pair/complete` — the trust boundary of the whole pairing
+ * feature.
  *
- * **This route currently implements the database precondition and nothing
- * else.** The pairing verification itself — the challenge, the signature, the
- * single-use code — is #268's, and this deliberately does not guess at it:
- * the handler returns `501` once the precondition passes, rather than
- * pretending to complete a pairing it has not verified.
+ * Called by the CLI once it holds a SEP-10 challenge signed by the deploy
+ * account (produced via `stellar tx sign`, so the CLI never touches key
+ * material directly). Requires two independent proofs before a `Wallet` row
+ * is written: an already-**approved** pairing (proof the handle's owner
+ * consented, via the browser session in `pair/approve`) plus a valid signed
+ * challenge for *this* pairing's network (proof of the deploy account). See
+ * `lib/server/pairing.ts` for the full trust model and the failure modes
+ * enumerated below.
  *
- * The precondition is checked **first**, before anything else, and that
- * ordering is the point of #277. A link is a row in Postgres. With no
- * `DATABASE_URL` there is nowhere to put it, and the read path's graceful
- * fall-through (`safeDbProfile`, `safeDbOperations` in `lib/profiles.ts`)
- * would make the link appear to succeed while persisting nothing. Failing
- * closed here means the developer is told the truth at the moment they act,
- * instead of discovering it later from an unrelated command.
- *
- * See `docs/CLI.md` and #191 (database provisioning).
+ * Deliberately unauthenticated at the HTTP layer — the CLI has no session
+ * cookie, no browser, no same-origin story. Authentication is entirely the
+ * signed challenge; every failure path below fails closed.
  */
-export async function POST(): Promise<Response> {
-  try {
-    // Before parsing the body, before touching a signature: if the result
-    // cannot be stored, nothing else about this request matters.
-    requireDatabase('CLI wallet linking');
-  } catch (err) {
-    if (err instanceof DatabaseRequiredError) {
-      return Response.json(
-        {
-          error: err.code,
-          message: err.message,
-          // The flag a client branches on. Without it the CLI has to
-          // string-match a message to know this is not the user's fault.
-          isConfigurationError: true,
-          docs: 'https://github.com/blockchain-maxis/signet/blob/main/docs/CLI.md#linking-requires-a-database',
-        },
-        {
-          // 503, not 400 or 500: the service is correctly configured to refuse
-          // rather than broken, and the condition is not the caller's doing.
-          status: 503,
-          // Nothing here changes until an operator provisions a database.
-          headers: { 'cache-control': 'no-store' },
-        },
-      );
-    }
-    throw err;
+const FAILURE_STATUS: Record<CompleteFailure, number> = {
+  unavailable: 503,
+  'not-found': 404,
+  expired: 410,
+  'not-approved': 409,
+  'already-completed': 409,
+  'network-mismatch': 400,
+  'bad-challenge': 401,
+  'key-mismatch': 403,
+  'bad-handoff': 403,
+  replayed: 401,
+  'wallet-bound-elsewhere': 409,
+};
+
+const FAILURE_MESSAGE: Record<CompleteFailure, string> = {
+  unavailable:
+    'CLI linking requires a database, and this deployment has none configured. This is a deployment configuration problem, not something you did. The operator needs to provision DATABASE_URL.',
+  'not-found': 'Pairing not found — restart it from the CLI',
+  expired: 'This pairing has expired — restart it from the CLI',
+  'not-approved': 'This pairing has not been approved in the browser yet',
+  'already-completed': 'This pairing has already been completed',
+  'network-mismatch': "This pairing's network does not match the deployment's configured network",
+  'bad-challenge': 'Invalid or unsigned challenge transaction',
+  'key-mismatch':
+    'This challenge was signed by a different account than the one approved in the browser',
+  'bad-handoff': 'That confirmation code does not match the one shown in the browser',
+  replayed: 'This signed challenge has already been used',
+  'wallet-bound-elsewhere': 'This deploy account is already bound to a different profile',
+};
+
+export async function POST(req: Request) {
+  const limited = await enforceRateLimit(req, 'cli:pair:complete', LIMITS.cliPairComplete);
+  if (limited) return limited;
+
+  const { state, transaction, handoffCode } = (await req.json().catch(() => ({}))) as {
+    state?: string;
+    transaction?: string;
+    handoffCode?: string;
+  };
+  if (!state || !transaction) {
+    return NextResponse.json({ error: 'state and transaction are required' }, { status: 400 });
   }
 
-  return Response.json(
-    {
-      error: 'not_implemented',
-      message:
-        'Pairing verification is not implemented yet (see issue #268). The database ' +
-        'precondition for linking is enforced above.',
-    },
-    { status: 501 },
-  );
-}
+  const result = await completePairing(state, transaction, undefined, handoffCode);
+  if (!result.ok) {
+    logger.warn({ state, reason: result.reason }, 'cli.pairCompleteFailed');
+    return NextResponse.json(
+      { error: FAILURE_MESSAGE[result.reason] },
+      { status: FAILURE_STATUS[result.reason], headers: { 'cache-control': 'no-store' } },
+    );
+  }
 
-/**
- * `GET /api/cli/pair/complete` — whether linking can succeed at all right now.
- *
- * Exists so the `/link` page can warn **before** the developer approves,
- * rather than after they have signed something that cannot be stored.
- */
-export function GET(): Response {
-  const configured = process.env.DATABASE_URL ? true : false;
-  return Response.json(
-    {
-      available: configured,
-      ...(configured ? {} : { reason: DATABASE_REQUIRED_CODE }),
-    },
+  logger.info({ state, pubkey: result.wallet.pubkey }, 'cli.pairCompleted');
+  return NextResponse.json(
+    { ok: true, wallet: result.wallet.pubkey, handle: result.handle },
     { headers: { 'cache-control': 'no-store' } },
   );
 }

@@ -1,22 +1,15 @@
-import { createTRPCClient, httpBatchLink } from '@trpc/client';
+import { createTRPCReact } from '@trpc/react-query';
 import type { AppRouter } from './server/trpc';
 
 /**
- * Vanilla tRPC client.
+ * React Query-backed tRPC client for the authenticated dashboard surface.
  *
- * TODO(signet): swap to the React Query integration (@trpc/react-query) with a
- * provider once we build interactive UI; this vanilla client is enough to wire
- * up and verify the stub.
+ * `createTRPCReact` gives every procedure typed `useQuery`/`useMutation` hooks
+ * that share a single React Query cache, so client components get caching,
+ * request deduplication, and invalidation for free. `AppRouter` is imported as
+ * a type only, so no server modules (fs, crypto, Prisma) reach the client
+ * bundle. `trpc-provider.tsx` wires the transport and mounts the providers;
+ * public read surfaces stay server-rendered and call the profile helpers
+ * directly rather than going through this client.
  */
-function getBaseUrl(): string {
-  if (typeof window !== 'undefined') return '';
-  return process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000';
-}
-
-export const trpc = createTRPCClient<AppRouter>({
-  links: [
-    httpBatchLink({
-      url: `${getBaseUrl()}/api/trpc`,
-    }),
-  ],
-});
+export const trpc = createTRPCReact<AppRouter>();
