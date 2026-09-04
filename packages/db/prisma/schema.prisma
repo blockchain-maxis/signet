@@ -49,6 +49,17 @@ model Wallet {
   deploymentCursor       String?
   deploymentBackfilledAt DateTime?
 
+  // Forward progress *after* backfill completes. deploymentCursor walks
+  // backwards into history and stops; this walks forwards and never does.
+  //
+  // Without it the post-backfill check reads a fixed newest-first window
+  // anchored to now, so a wallet that accumulates more operations between two
+  // ticks than that window holds loses whatever fell out of it — permanently,
+  // since the backward walk is already finished and will not revisit. This is
+  // the Horizon paging_token of the newest operation the worker has actually
+  // examined, so the next tick resumes from there instead of from "now".
+  deploymentWatermark    String?
+
   // Set when a wallet is (re-)linked (apps/web/lib/server/account.ts's
   // linkDeployWallet) so the indexer picks it up promptly instead of waiting
   // out the rest of the current tick interval — see index.ts's idle-sleep

@@ -36,7 +36,7 @@ is caught by the tick, logged as `tick.error`, and the loop continues.
 |---|--------|------|-------|--------|
 | 0 | **seed** | Once at startup, only when the `main` cursor row is missing or `--reseed` was passed | the hard-coded list in [`src/seed-data.ts`](../apps/indexer/src/seed-data.ts) | `Profile`, `Wallet` (`source: 'curated'`) |
 | 1 | **attestation** | Every tick, **skipped entirely** when no registry contract id is configured | Soroban RPC `getEvents` on the Identity Registry | `Profile`, `Wallet` (`source: 'onchain'`), cursor `attestation` |
-| 2 | **deployment** | Every tick | Horizon `/accounts/{pubkey}/operations` for every `Wallet` row — paginated backward from `Wallet.deploymentCursor` (50/page, up to 10 pages/tick) until fully backfilled, then a single 200-most-recent check per tick — plus a transaction fetch per contract-creation op | `Contract`, `Wallet.deploymentCursor`/`deploymentBackfilledAt`, clears `Wallet.indexRequestedAt` |
+| 2 | **deployment** | Every tick | Horizon `/accounts/{pubkey}/operations` for every `Wallet` row — paginated backward from `Wallet.deploymentCursor` (50/page, up to 10 pages/tick) until fully backfilled, then paginated forward from `Wallet.deploymentWatermark` — plus a transaction fetch per contract-creation op | `Contract`, `Wallet.deploymentCursor`/`deploymentBackfilledAt`/`deploymentWatermark`, clears `Wallet.indexRequestedAt` |
 | 3 | **activity** | Every tick | Horizon `/accounts/{contract}/transactions` for every `Contract` whose newest snapshot is older than 5 min | `ContractSnapshot` |
 | 4 | **operations** | Every tick | Horizon `/accounts/{pubkey}/operations` for every `Wallet` (50 most recent, desc) | `Operation` |
 | 5 | **prune** | Periodic (`INDEXER_PRUNE_INTERVAL_MS`, default 1h) | `Operation`, `ContractSnapshot` | Deletes historical records older than retention windows |
@@ -81,19 +81,32 @@ Two kinds of cursor exist. The `IndexerCursor` table holds one **global** row pe
 | `attestation` | end of the attestation worker, whenever the RPC call succeeded | `latestLedger` reported by the last `getEvents` response | The real resume point. Next tick reads from `lastLedger + 1`. |
 
 Deployment backfill is tracked **per wallet** instead, on the `Wallet` row itself
-(`deploymentCursor`, `deploymentBackfilledAt`) — a single global position can't tell you
+(`deploymentCursor`, `deploymentBackfilledAt`, `deploymentWatermark`) — a single global
+position can't tell you
 where any one wallet's own backfill stands, and wallets get linked at different times.
 `deploymentCursor` is the Horizon `paging_token` of the oldest operation walked back to so
 far; `null` means backfill hasn't started. The deployment worker resumes the backward walk
 from exactly that point (Horizon's own `?cursor=` param), up to 10 pages of 50 operations per
 tick, and sets `deploymentBackfilledAt` once Horizon returns an empty page — meaning the
-wallet's entire history has been walked. From then on the worker only re-checks the newest
-200 operations each tick (Horizon is always newest-first, so nothing new can be missed, and
-the existing `deployTxHash`/`address` dedup skips anything already recorded) instead of
-resuming a backward walk that has nothing left to find.
+wallet's entire history has been walked. Both the cursor and the watermark are written
+**after every page**, not once at the end of the tick, so a crash mid-walk costs one page
+rather than up to ten.
+
+From then on the worker walks *forward* instead, from `deploymentWatermark` — the
+`paging_token` of the newest operation it has actually examined. The first post-backfill
+tick has no watermark yet, so it reads one bounded newest-first page to establish one, and
+every tick after that resumes from it.
+
+A fixed "newest 200 each tick" check was the obvious design here and is wrong: that window
+is anchored to *now* rather than to how far the worker got, so a wallet that accumulates
+more than 200 operations between two ticks loses whatever fell out of it — permanently,
+since the backward walk is already finished and never revisits. A deploy script, a busy
+testnet key, or a long idle interval all reach that, and the symptom is invisible (the
+profile quietly misses contracts). Anchoring to the watermark is what closes it.
 
 A wallet with a deep history therefore backfills over several ticks rather than either
-being silently truncated at 200 operations or re-scanning its full history on every tick.
+being silently truncated at 200 operations or re-scanning its full history on every tick,
+and a busy wallet cannot outrun the forward scan afterwards.
 
 Consequences worth knowing before an incident:
 

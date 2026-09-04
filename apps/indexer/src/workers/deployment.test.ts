@@ -15,6 +15,7 @@ const WALLET_A: DeploymentWallet = {
   pubkey: 'GASAAEJC6P5UZGRLYJ2I2KYLR7RXGF44JZXDYGCFBN7T5VIHECUUEMCD',
   deploymentCursor: null,
   deploymentBackfilledAt: null,
+  deploymentWatermark: null,
   indexRequestedAt: null,
 };
 
@@ -32,6 +33,7 @@ function memoryStore(wallets: DeploymentWallet[]): {
         if (!w) throw new Error(`no wallet ${where.id}`);
         if ('deploymentCursor' in data) w.deploymentCursor = data.deploymentCursor ?? null;
         if (data.deploymentBackfilledAt) w.deploymentBackfilledAt = data.deploymentBackfilledAt;
+        if ('deploymentWatermark' in data) w.deploymentWatermark = data.deploymentWatermark ?? null;
         if ('indexRequestedAt' in data) w.indexRequestedAt = data.indexRequestedAt ?? null;
       },
     },
@@ -63,7 +65,11 @@ function paymentOp(txHash: string, pagingToken: string) {
  * "none") and how many pages were actually fetched.
  */
 function horizonPages(pages: unknown[][]) {
-  const calls = { cursorUsed: undefined as string | undefined, pagesFetched: 0 };
+  const calls = {
+    cursorUsed: undefined as string | undefined,
+    orderUsed: undefined as string | undefined,
+    pagesFetched: 0,
+  };
 
   function pageAt(i: number): unknown {
     calls.pagesFetched++;
@@ -76,13 +82,17 @@ function horizonPages(pages: unknown[][]) {
   const horizon = {
     operations: () => ({
       forAccount: () => ({
-        order: () => ({
+        order: (o: string) => ({
           limit: () => ({
             cursor: (c: string) => {
               calls.cursorUsed = c;
+              calls.orderUsed = o;
               return { call: async () => pageAt(0) };
             },
-            call: async () => pageAt(0),
+            call: async () => {
+              calls.orderUsed = o;
+              return pageAt(0);
+            },
           }),
         }),
       }),
@@ -511,4 +521,119 @@ test('a wallet with no pending request is left alone', async () => {
   await runDeploymentWorker(horizon, CONFIG, store);
 
   assert.equal(wallets[0]!.indexRequestedAt, null);
+});
+
+// ── forward catch-up after backfill (#394) ───────────────────────────────
+
+const BACKFILLED: DeploymentWallet = {
+  ...WALLET_A,
+  deploymentCursor: 'tok-oldest',
+  deploymentBackfilledAt: new Date('2026-09-01T00:00:00Z'),
+};
+
+test('the first tick after backfill records a watermark from the newest page', async () => {
+  const wallets = [{ ...BACKFILLED }];
+  const { store } = memoryStore(wallets);
+  // Newest-first, so the first record is the newest.
+  const { horizon, calls } = horizonPages([[paymentOp('h9', 'tok-9'), paymentOp('h8', 'tok-8')]]);
+
+  await runDeploymentWorker(horizon, CONFIG, store);
+
+  assert.equal(calls.orderUsed, 'desc', 'seeding a watermark reads newest-first');
+  assert.equal(wallets[0]!.deploymentWatermark, 'tok-9');
+  assert.equal(calls.pagesFetched, 1, 'seeding is one bounded page, not a walk');
+});
+
+test('later ticks resume forward from the watermark rather than a fixed window', async () => {
+  const wallets = [{ ...BACKFILLED, deploymentWatermark: 'tok-9' }];
+  const { store } = memoryStore(wallets);
+  const { horizon, calls } = horizonPages([[paymentOp('h10', 'tok-10')], []]);
+
+  await runDeploymentWorker(horizon, CONFIG, store);
+
+  assert.equal(calls.cursorUsed, 'tok-9', 'resumes from the stored watermark');
+  assert.equal(calls.orderUsed, 'asc', 'walks forward, not newest-first');
+  assert.equal(wallets[0]!.deploymentWatermark, 'tok-10', 'watermark advances');
+});
+
+test('a wallet busier than one page still yields every deployment', async () => {
+  // The bug this closes: with a fixed newest-N window, everything below the
+  // window between two ticks is lost for good. Walking forward from the
+  // watermark reaches all of it.
+  const wallets = [{ ...BACKFILLED, deploymentWatermark: 'tok-0' }];
+  const { store, contracts } = memoryStore(wallets);
+
+  const pages = [
+    [paymentOp('h1', 'tok-1'), paymentOp('h2', 'tok-2')],
+    [createContractOp('hash-deep', 'tok-3')],
+    [],
+  ];
+  const { horizon, calls } = horizonPages(pages);
+  horizon.transactions = (() => ({
+    transaction: () => ({
+      call: async () => ({
+        result_meta_xdr: contractCreationMetaXdr(CONTRACT_ONE),
+        ledger_attr: 2,
+        created_at: '2026-09-02T00:00:00Z',
+      }),
+    }),
+  })) as unknown as typeof horizon.transactions;
+
+  await runDeploymentWorker(horizon, CONFIG, store);
+
+  assert.equal(calls.orderUsed, 'asc');
+  assert.ok(
+    contracts.has(CONTRACT_ONE),
+    'a deployment beyond the first page was still found by the forward walk',
+  );
+  assert.equal(wallets[0]!.deploymentWatermark, 'tok-3');
+});
+
+test('forward catch-up persists the watermark per page, not once at the end', async () => {
+  // A crash mid-catch-up must not re-read pages already examined; on a wallet
+  // that is thousands of operations behind that is the difference between
+  // making progress and never catching up.
+  const wallets = [{ ...BACKFILLED, deploymentWatermark: 'tok-0' }];
+  const writes: (string | null)[] = [];
+  const { store } = memoryStore(wallets);
+  const inner = store.wallet.update;
+  store.wallet.update = async (args) => {
+    if ('deploymentWatermark' in args.data) writes.push(args.data.deploymentWatermark ?? null);
+    return inner(args);
+  };
+
+  const { horizon } = horizonPages([
+    [paymentOp('h1', 'tok-1')],
+    [paymentOp('h2', 'tok-2')],
+    [paymentOp('h3', 'tok-3')],
+    [],
+  ]);
+
+  await runDeploymentWorker(horizon, CONFIG, store);
+
+  assert.deepEqual(writes, ['tok-1', 'tok-2', 'tok-3'], 'one write per page walked');
+});
+
+test('backfill persists its cursor per page, not once at the end', async () => {
+  const wallets = [{ ...WALLET_A }];
+  const writes: (string | null)[] = [];
+  const { store } = memoryStore(wallets);
+  const inner = store.wallet.update;
+  store.wallet.update = async (args) => {
+    if ('deploymentCursor' in args.data && !args.data.deploymentBackfilledAt) {
+      writes.push(args.data.deploymentCursor ?? null);
+    }
+    return inner(args);
+  };
+
+  const { horizon } = horizonPages([
+    [paymentOp('h3', 'tok-3')],
+    [paymentOp('h2', 'tok-2')],
+    [paymentOp('h1', 'tok-1')],
+  ]);
+
+  await runDeploymentWorker(horizon, CONFIG, store);
+
+  assert.deepEqual(writes, ['tok-3', 'tok-2', 'tok-1'], 'one write per page walked');
+  assert.ok(wallets[0]!.deploymentBackfilledAt, 'and completion is still recorded');
 });

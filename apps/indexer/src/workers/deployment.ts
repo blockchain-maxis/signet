@@ -38,6 +38,14 @@ export interface DeploymentWallet {
   /** Set once the backward walk has reached the end of this wallet's history. */
   deploymentBackfilledAt: Date | null;
   /**
+   * The Horizon paging_token of the newest operation examined so far — see the
+   * schema comment on Wallet.deploymentWatermark. Where deploymentCursor walks
+   * backwards and stops, this walks forwards and never does. `null` means no
+   * forward position yet, and the first post-backfill tick falls back to a
+   * bounded newest-first window to establish one.
+   */
+  deploymentWatermark: string | null;
+  /**
    * Set by `apps/web/lib/server/account.ts`'s `linkDeployWallet` on every
    * (re-)link, so a just-linked wallet gets scanned promptly instead of
    * waiting out the rest of the current tick interval — see
@@ -82,6 +90,7 @@ export interface DeploymentStore {
       data: {
         deploymentCursor?: string | null;
         deploymentBackfilledAt?: Date;
+        deploymentWatermark?: string | null;
         indexRequestedAt?: null;
       };
     }) => Promise<unknown>;
@@ -201,12 +210,90 @@ async function handleOperation(
 }
 
 /**
- * A wallet whose backfill already completed: check only the newest activity
- * since the last look. Horizon always returns newest-first, so one bounded
- * page from the top sees anything new, and the dedup in handleOperation
- * (keyed on deployTxHash) skips anything already recorded — no cursor needed.
+ * A wallet whose backfill already completed: walk *forward* from where the
+ * last tick finished.
+ *
+ * The obvious implementation — read the newest N operations each tick — is
+ * anchored to now rather than to how far the worker actually got, so anything
+ * that falls out of that window between two ticks is never examined again:
+ * the backward walk is finished and will not revisit it. A deploy script, a
+ * busy testnet key, or a long idle interval all reach that, and the failure is
+ * invisible (the profile just quietly misses contracts). So the position is
+ * persisted, and the scan resumes from it.
+ *
+ * With no watermark yet (the first tick after backfill, or a wallet backfilled
+ * before this column existed) it falls back to one bounded newest-first page,
+ * which is the previous behaviour, and records a watermark from it so every
+ * later tick resumes properly.
  */
 async function quickCheck(
+  wallet: DeploymentWallet,
+  horizon: Horizon.Server,
+  config: IndexerConfig,
+  store: DeploymentStore,
+  state: ScanState,
+): Promise<void> {
+  if (!wallet.deploymentWatermark) {
+    await seedWatermark(wallet, horizon, config, store, state);
+    return;
+  }
+
+  let page = (await withRetry(
+    () =>
+      horizon
+        .operations()
+        .forAccount(wallet.pubkey)
+        .order('asc')
+        .limit(PER_WALLET_LIMIT)
+        .cursor(wallet.deploymentWatermark as string)
+        .call(),
+    { label: RETRY_LABEL },
+  )) as unknown as OperationsPage;
+  await sleep(RATE_LIMIT_DELAY_MS);
+
+  let watermark = wallet.deploymentWatermark;
+  let pagesRead = 0;
+
+  while (true) {
+    for (const op of page.records) {
+      await handleOperation(op, wallet, horizon, config, store, state);
+      if (op.paging_token) watermark = op.paging_token;
+    }
+    pagesRead++;
+
+    // Persisted per page, not once at the end: a crash mid-walk would
+    // otherwise re-read every page since the tick began, and on a wallet
+    // that is behind by thousands of operations that is the difference
+    // between making progress and never catching up.
+    if (watermark !== wallet.deploymentWatermark) {
+      await store.wallet.update({
+        where: { id: wallet.id },
+        data: { deploymentWatermark: watermark },
+      });
+    }
+
+    if (page.records.length === 0) break;
+    if (pagesRead >= MAX_PAGES_PER_TICK) {
+      logger.debug({ pubkey: wallet.pubkey, pagesRead }, 'deployments.catchUpPaused');
+      break;
+    }
+
+    try {
+      page = await withRetry(() => page.next(), { label: RETRY_LABEL });
+    } catch {
+      break;
+    }
+    await sleep(RATE_LIMIT_DELAY_MS);
+  }
+}
+
+/**
+ * Establish a forward position for a wallet that has none, by reading one
+ * bounded newest-first page. Deliberately not a walk: the backward backfill
+ * has already covered this wallet's history, so all this needs to do is mark
+ * where "now" is and let the forward scan take over next tick.
+ */
+async function seedWatermark(
   wallet: DeploymentWallet,
   horizon: Horizon.Server,
   config: IndexerConfig,
@@ -220,8 +307,18 @@ async function quickCheck(
   );
   await sleep(RATE_LIMIT_DELAY_MS);
 
+  // Newest-first, so the first record is the newest and becomes the watermark.
+  const newest = ops.records[0]?.paging_token ?? null;
+
   for (const op of ops.records) {
     await handleOperation(op, wallet, horizon, config, store, state);
+  }
+
+  if (newest) {
+    await store.wallet.update({
+      where: { id: wallet.id },
+      data: { deploymentWatermark: newest },
+    });
   }
 }
 
@@ -264,6 +361,16 @@ async function backfill(
     }
     pagesRead++;
 
+    // Persisted per page rather than once after the loop: a crash partway
+    // through a tick would otherwise discard up to MAX_PAGES_PER_TICK pages of
+    // walking and redo them next time.
+    if (cursor !== wallet.deploymentCursor) {
+      await store.wallet.update({
+        where: { id: wallet.id },
+        data: { deploymentCursor: cursor },
+      });
+    }
+
     if (page.records.length === 0) {
       reachedEnd = true;
       break;
@@ -282,12 +389,14 @@ async function backfill(
     await sleep(RATE_LIMIT_DELAY_MS);
   }
 
-  await store.wallet.update({
-    where: { id: wallet.id },
-    data: reachedEnd
-      ? { deploymentCursor: cursor, deploymentBackfilledAt: new Date() }
-      : { deploymentCursor: cursor },
-  });
+  // The cursor is already saved by the per-page write above; the only thing
+  // left to record is that the walk reached the end.
+  if (reachedEnd) {
+    await store.wallet.update({
+      where: { id: wallet.id },
+      data: { deploymentCursor: cursor, deploymentBackfilledAt: new Date() },
+    });
+  }
 }
 
 export async function runDeploymentWorker(
