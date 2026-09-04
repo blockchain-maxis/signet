@@ -1,0 +1,37 @@
+# Global default fallback owner
+* @blockchain-maxis
+
+# Smart Contracts (Soroban Rust contracts)
+/packages/contracts/ @blockchain-maxis
+
+# Web Application (Next.js App Router & Marketing)
+/apps/web/ @blockchain-maxis
+
+# Indexer Service (Horizon ingestion & attestation worker)
+/apps/indexer/ @blockchain-maxis
+
+# signet CLI (Go module, standalone — not part of the pnpm workspace)
+/cli/ @blockchain-maxis
+
+# Database Schema & Client (Prisma)
+/packages/db/ @blockchain-maxis
+
+# SDK & Client Libraries
+/packages/sdk/ @blockchain-maxis
+
+# Shared Types
+/packages/types/ @blockchain-maxis
+
+# Auth & Security
+/apps/web/lib/auth* @blockchain-maxis
+/apps/web/app/api/auth/ @blockchain-maxis
+/SECURITY.md @blockchain-maxis
+
+# Infrastructure, CI/CD & Tooling Scripts
+/.github/ @blockchain-maxis
+/infra/ @blockchain-maxis
+/scripts/ @blockchain-maxis
+
+# Documentation
+/docs/ @blockchain-maxis
+/*.md @blockchain-maxis

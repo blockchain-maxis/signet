@@ -92,6 +92,12 @@ every request, so no restart is needed.
   change, and alert on it if you have a log pipeline. To send reports to an
   external collector instead, pass its URL as `reportUri` to `buildCsp` in the
   middleware.
+- **Deploy wallet attachment is refusal-first.** A deploy account already
+  bound to one profile is never moved to another, even by a caller holding the
+  key and a valid signed challenge — proving control of a key is not proof of
+  which profile should hold it. The holder releases it from **Wallets** first.
+  The full policy, the release path, and why the refusal text names no profile
+  are in [`docs/WALLET_ATTACHMENT.md`](docs/WALLET_ATTACHMENT.md).
 - The Identity Registry contract is **immutable** (no upgrade path) and uses a
   single admin key — use a multisig for the admin and audit before mainnet.
   A defect found after deployment cannot be patched; recovery is a new contract

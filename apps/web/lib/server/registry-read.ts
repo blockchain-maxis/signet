@@ -84,19 +84,24 @@ export function isRegistryConfigured(): boolean {
   return registryConfig().contractId.length > 0;
 }
 
+export type SimulationStatus = 'success' | 'archived' | 'error' | 'unconfigured';
+
+export interface SimulationResult<T = unknown> {
+  status: SimulationStatus;
+  value?: T;
+  restorePreamble?: unknown;
+}
+
 /**
- * Simulate one view call and return its native return value.
- *
- * Returns `undefined` — deliberately distinct from a contract that returned
- * `null`/void — when the read could not be performed at all.
+ * Simulate one view call and return detailed status and return value.
  */
-async function simulateRead(
+export async function simulateReadDetailed(
   method: string,
   args: xdr.ScVal[],
   options: RegistryReadOptions,
-): Promise<unknown> {
+): Promise<SimulationResult> {
   const { contractId, rpcUrl, networkPassphrase } = registryConfig();
-  if (!contractId) return undefined;
+  if (!contractId) return { status: 'unconfigured' };
 
   try {
     const server =
@@ -111,15 +116,75 @@ async function simulateRead(
       .build();
 
     const sim = (await server.simulateTransaction(tx)) as rpc.Api.SimulateTransactionResponse;
-    if (!sim || rpc.Api.isSimulationError(sim)) return undefined;
+    if (!sim) return { status: 'error' };
+
+    // An archived persistent entry still simulates successfully — the network
+    // answers "as if" the entry were live and attaches a `restorePreamble`
+    // describing what to restore. `isSimulationRestore` is the SDK's guard for
+    // exactly that, and requires the preamble to carry `transactionData`, which
+    // is what a restore transaction has to adopt as its Soroban data.
+    if (rpc.Api.isSimulationRestore(sim)) {
+      return { status: 'archived', restorePreamble: sim.restorePreamble };
+    }
+
+    if (rpc.Api.isSimulationError(sim)) return { status: 'error' };
 
     const retval = (sim as rpc.Api.SimulateTransactionSuccessResponse).result?.retval;
-    if (!retval) return undefined;
-    return scValToNative(retval);
+    if (retval === undefined || retval === null) return { status: 'error' };
+    return { status: 'success', value: scValToNative(retval) };
   } catch {
     // Unreachable RPC, malformed XDR, bad contract id — all soft failures.
-    return undefined;
+    return { status: 'error' };
   }
+}
+
+/**
+ * Simulate one view call and return its native return value.
+ *
+ * Returns `undefined` — deliberately distinct from a contract that returned
+ * `null`/void — when the read could not be performed at all.
+ */
+async function simulateRead(
+  method: string,
+  args: xdr.ScVal[],
+  options: RegistryReadOptions,
+): Promise<unknown> {
+  const res = await simulateReadDetailed(method, args, options);
+  return res.status === 'success' ? res.value : undefined;
+}
+
+export type HandleResolution =
+  | { status: 'bound'; wallet: string }
+  | { status: 'archived'; restorePreamble?: unknown }
+  | { status: 'unbound' }
+  | { status: 'unconfigured' }
+  | { status: 'error' };
+
+/**
+ * Detailed resolution of a handle to distinguish live, archived, and unbound handles.
+ */
+export async function resolveHandleDetailed(
+  handle: string,
+  options: RegistryReadOptions = {},
+): Promise<HandleResolution> {
+  if (!isValidHandle(handle)) return { status: 'unbound' };
+
+  const res = await simulateReadDetailed(
+    'resolve',
+    [nativeToScVal(handle, { type: 'string' })],
+    options,
+  );
+
+  if (res.status === 'archived') {
+    return { status: 'archived', restorePreamble: res.restorePreamble };
+  }
+  if (res.status === 'unconfigured') return { status: 'unconfigured' };
+  if (res.status === 'error') return { status: 'error' };
+
+  const wallet = res.value;
+  return typeof wallet === 'string' && isValidStellarAddress(wallet)
+    ? { status: 'bound', wallet }
+    : { status: 'unbound' };
 }
 
 /**
