@@ -1,7 +1,8 @@
 import { test, expect } from '@playwright/test';
 import { execFileSync } from 'node:child_process';
 import path from 'node:path';
-import { Keypair, TransactionBuilder } from '@stellar/stellar-sdk';
+import { randomBytes } from 'node:crypto';
+import { Keypair, StrKey, TransactionBuilder } from '@stellar/stellar-sdk';
 import { apiSignIn } from './support';
 
 /**
@@ -73,10 +74,11 @@ test.describe('claim → link → indexer → profile', () => {
   const handle = `e2e${suffix}`.slice(0, 32);
   const owner = Keypair.random();
   const deployer = Keypair.random();
-  // A real contract StrKey — `StrKey.decodeContract` validates the checksum,
-  // so this cannot be a padded placeholder. Same fixture the deployment
-  // worker's unit tests use.
-  const contractAddress = 'CAAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQC526';
+  // Unique per run, and a real StrKey — `StrKey.decodeContract` validates
+  // the checksum, so this cannot be a padded placeholder. A fixed address
+  // made Playwright's retry find the *previous* attempt's Contract row and
+  // compare it against this attempt's deploy key.
+  const contractAddress = StrKey.encodeContract(randomBytes(32));
 
   test('a linked deploy wallet ends up visible on the profile', async ({ page }) => {
     const { prisma } = await import('@signet/db');
@@ -174,7 +176,14 @@ test.describe('claim → link → indexer → profile', () => {
 
     // The deployment worker recorded what the wallet deployed…
     const contract = await prisma.contract.findUnique({ where: { address: contractAddress } });
-    expect(contract?.deployerPubkey).toBe(deployer.publicKey());
+    expect(contract?.deployerPubkey, `indexer said: ${output}`).toBe(deployer.publicKey());
+
+    // …and the operations worker recorded the activity the profile reads.
+    // Checked in the database *before* the page, so a failure says which half
+    // broke: no rows means the link or the worker did; rows but no render
+    // means the read path did.
+    const opCount = await prisma.operation.count({ where: { walletId: linked!.id } });
+    expect(opCount, `operations worker wrote nothing; indexer said: ${output}`).toBeGreaterThan(0);
 
     // ── profile ──────────────────────────────────────────────────────────
     // …and the operations worker put the activity where the profile reads it.
@@ -182,10 +191,10 @@ test.describe('claim → link → indexer → profile', () => {
     // page renders operations, so an empty list here means the chain broke
     // somewhere between the link and the read, whatever else passed.
     await page.goto(`/p/${handle}`);
-    await expect(page.getByText(/invoke_host_function|CreateContract/i).first()).toBeVisible();
-
-    const opCount = await prisma.operation.count({ where: { walletId: linked!.id } });
-    expect(opCount, 'the profile is populated, not silently empty').toBeGreaterThan(0);
+    const profileText = await page.locator('body').innerText();
+    expect(profileText, 'the profile should render the deployment').toMatch(
+      /invoke_host_function|CreateContract/i,
+    );
 
     await prisma.$disconnect();
   });
