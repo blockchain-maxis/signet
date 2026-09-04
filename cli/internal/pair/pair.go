@@ -90,12 +90,18 @@ func (c *Client) Poll(ctx context.Context, pollToken string) (Status, error) {
 // Complete submits the signed SEP-10 challenge that attaches the wallet.
 // handoffCode is the code the browser showed, and is sent only on the manual
 // path — empty means "not applicable", not "empty code".
-func (c *Client) Complete(ctx context.Context, state, challengeXDR, handoffCode string) error {
+func (c *Client) Complete(ctx context.Context, state, challengeXDR, handoffCode string) (string, error) {
 	body := map[string]string{"state": state, "transaction": challengeXDR}
 	if handoffCode != "" {
 		body["handoffCode"] = handoffCode
 	}
-	return c.do(ctx, http.MethodPost, "/api/cli/pair/complete", body, nil)
+	var out struct {
+		Handle string `json:"handle"`
+	}
+	if err := c.do(ctx, http.MethodPost, "/api/cli/pair/complete", body, &out); err != nil {
+		return "", err
+	}
+	return out.Handle, nil
 }
 
 // do issues one request and decodes a JSON response into out (which may be

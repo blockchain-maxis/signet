@@ -78,6 +78,9 @@ function fakeStore(): {
         return { count: 1 };
       },
     },
+    profile: {
+      findUnique: async ({ where }) => ({ handle: `handle-for-${where.id}` }),
+    },
     wallet: {
       findUnique: async ({ where }) => wallets.get(where.pubkey) ?? null,
       create: async ({ data }) => {
@@ -305,6 +308,7 @@ test('completePairing is idempotent when the deploy account is already bound to 
   assert.deepEqual(result, {
     ok: true,
     wallet: { pubkey: client.publicKey(), profileId: 'profile_1' },
+    handle: 'handle-for-profile_1',
   });
 });
 
@@ -430,6 +434,7 @@ test('completePairing accepts the declared key', async (t) => {
   assert.deepEqual(result, {
     ok: true,
     wallet: { pubkey: declared.publicKey(), profileId: 'profile_1' },
+    handle: 'handle-for-profile_1',
   });
 });
 

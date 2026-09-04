@@ -1,6 +1,6 @@
-// Package link will bind a local wallet key to a Signet handle through the
-// Identity Registry's claim/release/transfer operations. Scaffolded here;
-// implemented in a follow-up issue.
+// Package link binds a local deploy wallet to a Signet handle: it drives the
+// browser-approved pairing flow (see flow.go) and holds the shape checks that
+// keep malformed input — and a mistyped secret key — out of it.
 package link
 
 import (
@@ -9,15 +9,6 @@ import (
 
 	"github.com/blockchain-maxis/signet/cli/internal/exitcode"
 )
-
-// Result is the outcome of a link operation — the fields the CLI's --json
-// output mode reports.
-type Result struct {
-	Handle    string `json:"handle"`
-	PublicKey string `json:"publicKey"`
-	Network   string `json:"network"`
-	Status    string `json:"status"`
-}
 
 // handlePattern mirrors HANDLE_PATTERN in packages/types/src/handle.ts:
 // ASCII lowercase, digits, underscore, hyphen, 1 to 32 characters.
@@ -59,36 +50,27 @@ func (e *ValidationError) Error() string { return e.msg }
 // ExitCode implements internal/cmd.ExitCoder.
 func (e *ValidationError) ExitCode() int { return exitcode.InvalidInput }
 
-// Link validates handle and publicKey and reports the outcome for the given
-// network.
-//
-// This does not yet perform a real on-chain claim or call a Signet
-// deployment's HTTP API — internal/keys (local signing) and internal/spec
-// (the deployment's typed API models) are themselves still scaffolded, so
-// there is nothing yet to actually invoke. Result's shape is the real,
-// stable output contract --json commits to; the network call itself lands
-// in a follow-up issue.
-func Link(handle, publicKey, network string) (Result, error) {
+// ValidateHandle checks a Signet handle's shape.
+func ValidateHandle(handle string) error {
 	if !handlePattern.MatchString(handle) {
-		return Result{}, &ValidationError{
+		return &ValidationError{
 			fmt.Sprintf(
 				"invalid handle %q: expected 1-32 lowercase letters, digits, _, or -",
 				redactSecrets(handle),
 			),
 		}
 	}
+	return nil
+}
+
+// ValidatePublicKey checks a Stellar public key's shape.
+//
+// Deliberately does not echo the value back: unlike a handle, this could be a
+// Stellar *secret* key passed to the wrong flag by mistake, and an error
+// message is not where anyone should find that out.
+func ValidatePublicKey(publicKey string) error {
 	if !publicKeyPattern.MatchString(publicKey) {
-		// Deliberately does not echo publicKey back: unlike a handle, this
-		// value could be a Stellar *secret* key a user passed to the wrong
-		// flag by mistake, and an error message is not the place to find out.
-		return Result{}, &ValidationError{
-			"invalid public key: expected a Stellar G... address",
-		}
+		return &ValidationError{"invalid public key: expected a Stellar G... address"}
 	}
-	return Result{
-		Handle:    handle,
-		PublicKey: publicKey,
-		Network:   network,
-		Status:    "ok",
-	}, nil
+	return nil
 }

@@ -19,9 +19,9 @@ func TestExitCodeIsOKForNoError(t *testing.T) {
 }
 
 func TestExitCodeMapsAValidationErrorToInvalidInput(t *testing.T) {
-	_, err := link.Link("Not Valid", "", "testnet")
+	err := link.ValidateHandle("Not Valid")
 	if err == nil {
-		t.Fatal("expected link.Link to reject an invalid handle")
+		t.Fatal("expected ValidateHandle to reject an invalid handle")
 	}
 	if got := ExitCode(err); got != exitcode.InvalidInput {
 		t.Fatalf("ExitCode(validation error) = %d, want %d", got, exitcode.InvalidInput)
@@ -35,7 +35,7 @@ func TestExitCodeMapsAnUnrecognizedErrorToGeneric(t *testing.T) {
 }
 
 func TestExitCodeUnwrapsAWrappedValidationError(t *testing.T) {
-	_, linkErr := link.Link("Not Valid", "", "testnet")
+	linkErr := link.ValidateHandle("Not Valid")
 	wrapped := fmt.Errorf("running link: %w", linkErr)
 	if got := ExitCode(wrapped); got != exitcode.InvalidInput {
 		t.Fatalf("ExitCode(wrapped validation error) = %d, want %d", got, exitcode.InvalidInput)
