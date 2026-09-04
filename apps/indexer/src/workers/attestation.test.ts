@@ -10,6 +10,7 @@ import {
   type CursorStore,
 } from './attestation.ts';
 import type { RegistryReader } from '../registry-read.ts';
+import type { WalletSource } from '@signet/types';
 
 function topics(kind: string, handle: string): xdr.ScVal[] {
   return [nativeToScVal(kind, { type: 'symbol' }), nativeToScVal(handle, { type: 'string' })];
@@ -43,6 +44,22 @@ test('decodeEvent decodes a revoked event', () => {
   });
 });
 
+test('decodeEvent decodes a transferred event', () => {
+  const oldOwner = Keypair.random().publicKey();
+  const newOwner = Keypair.random().publicKey();
+  const value = xdr.ScVal.scvVec([
+    new Address(oldOwner).toScVal(),
+    new Address(newOwner).toScVal(),
+  ]);
+
+  assert.deepEqual(decodeEvent(topics('transferred', 'aquawolf'), value), {
+    kind: 'transferred',
+    handle: 'aquawolf',
+    wallet: newOwner,
+    from: oldOwner,
+  });
+});
+
 test('decodeEvent ignores unrelated or malformed events', () => {
   const pk = Keypair.random().publicKey();
   assert.equal(decodeEvent(topics('transfer', 'x'), walletVal(pk)), null);
@@ -50,7 +67,7 @@ test('decodeEvent ignores unrelated or malformed events', () => {
 });
 
 function recordingStore(
-  profiles: { handle: string; wallets: { pubkey: string; source: string }[] }[] = [],
+  profiles: { handle: string; wallets: { pubkey: string; source: WalletSource }[] }[] = [],
 ): { store: AttestationStore; calls: any[] } {
   const calls: any[] = [];
   const store: AttestationStore = {
@@ -96,6 +113,46 @@ test('applyAttestation removes the binding on release', async () => {
   assert.equal(calls.length, 1);
   assert.equal(calls[0][0], 'wallet.deleteMany');
   assert.equal(calls[0][1].where.pubkey, 'GWALLET');
+});
+
+test('applyAttestation moves the binding on transfer', async () => {
+  const { store, calls } = recordingStore();
+  await applyAttestation(store, {
+    kind: 'transferred',
+    handle: 'aquawolf',
+    wallet: 'GNEW',
+    from: 'GOLD',
+  });
+
+  // The handle's profile is upserted first, so a transfer still lands when the
+  // indexer never saw the claim that created it.
+  assert.equal(calls.length, 3);
+  assert.equal(calls[0][0], 'profile.upsert');
+  assert.equal(calls[0][1].where.handle, 'aquawolf');
+  assert.equal(calls[1][0], 'wallet.deleteMany');
+  assert.equal(calls[1][1].where.pubkey, 'GOLD');
+  assert.equal(calls[2][0], 'wallet.upsert');
+  assert.equal(calls[2][1].where.pubkey, 'GNEW');
+  assert.equal(calls[2][1].create.profileId, 'p1');
+});
+
+test('claim then transfer sequence leaves the new wallet as the final owner', async () => {
+  const { store, calls } = recordingStore();
+
+  await applyAttestation(store, { kind: 'claimed', handle: 'aquawolf', wallet: 'GOLD' });
+  await applyAttestation(store, {
+    kind: 'transferred',
+    handle: 'aquawolf',
+    wallet: 'GNEW',
+    from: 'GOLD',
+  });
+
+  const upserts = calls.filter((c: any[]) => c[0] === 'wallet.upsert');
+  assert.deepEqual(
+    upserts.map((c) => c[1].where.pubkey),
+    ['GOLD', 'GNEW'],
+  );
+  assert.ok(calls.some((c: any[]) => c[0] === 'wallet.deleteMany' && c[1].where.pubkey === 'GOLD'));
 });
 
 // ─── Cursor resumption tests ────────────────────────────────────────────────
@@ -343,7 +400,6 @@ test('runAttestationWorker does not move cursor on fetch error', async () => {
   assert.equal(cursor.saved?.lastLedger, 100);
 });
 
-
 // ─── Reconcile tests (issue #189) ───────────────────────────────────────────
 
 /** A RegistryReader answering from a fixed handle→wallet map. */
@@ -407,8 +463,34 @@ test('an unservable cursor window reconciles from contract state instead of read
     !calls.some((c: any[]) => c[0] === 'wallet.deleteMany' && c[1].where.pubkey === 'GCURATED'),
     'curated wallets must never be reconciled away',
   );
-  // …and the cursor resumed from the tip.
-  assert.equal(cursor.saved?.lastLedger, 20_000);
+  // …and the cursor resumed from the near edge of the servable window, so
+  // the next tick replays the still-readable tail for unknown handles.
+  assert.equal(cursor.saved?.lastLedger, 12_000);
+});
+
+test('reconcile never deletes a wallet another handle re-claimed during the sweep', async () => {
+  // Snapshot says W belongs to a-old; the chain says W now owns b-new.
+  // Processing b-new first upserts W; processing a-old later sees W in its
+  // stale wallet list and must NOT delete the row that upsert re-pointed.
+  const w = Keypair.random().publicKey();
+  const { store, calls } = recordingStore([
+    { handle: 'b-new', wallets: [] },
+    { handle: 'a-old', wallets: [{ pubkey: w, source: 'onchain' }] },
+  ]);
+  const { reader } = fakeReader({ 'b-new': w, 'a-old': null });
+
+  const stats = await reconcileAgainstChain(store, reader);
+
+  assert.equal(stats.bound, 1);
+  assert.ok(
+    calls.some((c: any[]) => c[0] === 'wallet.upsert' && c[1].where.pubkey === w),
+    'expected b-new to claim the wallet',
+  );
+  assert.ok(
+    !calls.some((c: any[]) => c[0] === 'wallet.deleteMany' && c[1].where.pubkey === w),
+    'a stale snapshot link must not delete a wallet the sweep re-bound',
+  );
+  assert.equal(stats.removed, 0);
 });
 
 test('reconcile heals a transfer and drops released on-chain bindings', async () => {
@@ -468,4 +550,120 @@ test('a reconcile failure leaves the cursor untouched for a retry', async () => 
 
   assert.equal(result.reconciled, undefined);
   assert.equal(cursor.saved?.lastLedger, 1000, 'cursor must not move past an unreconciled gap');
+});
+
+// ── pairing audit trail ───────────────────────────────────────────────────
+
+/**
+ * Captures the JSON log lines the worker writes, so the audit trail can be
+ * asserted on. The logger writes straight to the streams, so that is where the
+ * capture goes - intercepting `console` would silently record nothing.
+ */
+function captureLogLines(): { lines: Record<string, unknown>[]; restore: () => void } {
+  const lines: Record<string, unknown>[] = [];
+  const realOut = process.stdout.write.bind(process.stdout);
+  const realErr = process.stderr.write.bind(process.stderr);
+
+  const record = (chunk: unknown): boolean => {
+    for (const part of String(chunk).split('\n')) {
+      if (!part.trim()) continue;
+      try {
+        lines.push(JSON.parse(part) as Record<string, unknown>);
+      } catch {
+        /* not a structured line; the audit trail only cares about the JSON ones */
+      }
+    }
+    return true;
+  };
+
+  process.stdout.write = record as typeof process.stdout.write;
+  process.stderr.write = record as typeof process.stderr.write;
+
+  return {
+    lines,
+    restore: () => {
+      process.stdout.write = realOut;
+      process.stderr.write = realErr;
+    },
+  };
+}
+
+test('a completed link is recorded with its handle and public wallet', async () => {
+  const { store } = recordingStore();
+  const capture = captureLogLines();
+  try {
+    await applyAttestation(store, { kind: 'claimed', handle: 'aquawolf', wallet: 'GWALLET' });
+  } finally {
+    capture.restore();
+  }
+
+  const event = capture.lines.find((l) => l.msg === 'pairing.linkCompleted');
+  assert.ok(event, 'expected a pairing.linkCompleted line');
+  assert.equal(event.handle, 'aquawolf');
+  assert.equal(event.wallet, 'GWALLET');
+  assert.equal(event.outcome, 'completed');
+  assert.equal(event.source, 'attestation-worker');
+  assert.equal(event.lvl, 'info', 'the audit trail must survive a production log level');
+});
+
+test('an unlink records why the binding went away', async () => {
+  const { store } = recordingStore();
+  const capture = captureLogLines();
+  try {
+    await applyAttestation(store, { kind: 'revoked', handle: 'aquawolf', wallet: 'GWALLET' });
+  } finally {
+    capture.restore();
+  }
+
+  const event = capture.lines.find((l) => l.msg === 'pairing.unlinked');
+  assert.ok(event, 'expected a pairing.unlinked line');
+  assert.equal(event.handle, 'aquawolf');
+  assert.equal(event.wallet, 'GWALLET');
+  assert.equal(event.reason, 'revoked');
+});
+
+test('reconcile records the bindings it drops, and why', async () => {
+  const { store } = recordingStore([
+    { handle: 'moved', wallets: [{ pubkey: 'GOLDOWNER', source: 'onchain' }] },
+    { handle: 'gone', wallets: [{ pubkey: 'GRELEASED', source: 'onchain' }] },
+  ]);
+  const reader: RegistryReader = {
+    resolveMany: async () => ['GNEWOWNER', null],
+    count: async () => 1,
+  };
+
+  const capture = captureLogLines();
+  try {
+    await reconcileAgainstChain(store, reader);
+  } finally {
+    capture.restore();
+  }
+
+  const unlinked = capture.lines.filter((l) => l.msg === 'pairing.unlinked');
+  const reasons = new Map(unlinked.map((l) => [l.wallet, l.reason]));
+
+  assert.equal(reasons.get('GOLDOWNER'), 'transferred');
+  assert.equal(reasons.get('GRELEASED'), 'no-longer-bound');
+  for (const line of unlinked) {
+    assert.equal(line.source, 'reconcile', 'a rebuild pass must be distinguishable from the event stream');
+  }
+});
+
+test('the audit trail never carries key material', async () => {
+  const { store } = recordingStore();
+  const capture = captureLogLines();
+  try {
+    await applyAttestation(store, { kind: 'claimed', handle: 'aquawolf', wallet: 'GWALLET' });
+    await applyAttestation(store, { kind: 'released', handle: 'aquawolf', wallet: 'GWALLET' });
+  } finally {
+    capture.restore();
+  }
+
+  const pairingLines = capture.lines.filter((l) => String(l.msg).startsWith('pairing.'));
+  assert.ok(pairingLines.length >= 2);
+  for (const line of pairingLines) {
+    const serialized = JSON.stringify(line);
+    assert.doesNotMatch(serialized, /\bS[A-Z2-7]{55}\b/, 'a secret seed reached the log');
+    assert.doesNotMatch(serialized, /secret|seed|signature|passphrase/i);
+  }
 });
