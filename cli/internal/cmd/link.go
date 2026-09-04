@@ -95,7 +95,7 @@ signing goes through the stellar CLI.`,
 					}
 					return s, nil
 				},
-				Report: func(line string) { fmt.Fprintln(progress, line) },
+				Report: func(line string) { _, _ = fmt.Fprintln(progress, line) },
 			})
 			if err != nil {
 				return err
