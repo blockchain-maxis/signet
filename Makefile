@@ -8,7 +8,7 @@
 # that also covers the Go module, and `make fmt`/`check-fmt` don't exist as
 # pnpm scripts at all today.
 .PHONY: build test lint fmt check-fmt \
-        ts-build ts-test ts-lint \
+        ts-build ts-test ts-lint check-fmt-ts \
         go-build go-test go-lint go-fmt check-fmt-go
 
 build: ts-build go-build
@@ -19,6 +19,11 @@ lint: ts-lint go-lint
 
 fmt: go-fmt
 
+# Go only, deliberately. `check-fmt-ts` exists below but is not aggregated
+# here yet: the TypeScript workspace has pre-existing prettier drift (which is
+# why CI runs `pnpm format:check || true` rather than gating on it), so folding
+# it in would make `make check-fmt` fail for everyone on work they did not do.
+# Add it here in the same change that clears the drift.
 check-fmt: check-fmt-go
 
 ## TypeScript workspace (pnpm + turbo) — unchanged from what CI already runs.
@@ -30,6 +35,9 @@ ts-test:
 
 ts-lint:
 	pnpm lint
+
+check-fmt-ts:
+	pnpm format:check
 
 ## Go module (cli/)
 go-build:

@@ -50,19 +50,20 @@ is merged.** Prefer scoping to the package you changed for a faster loop.
 | Build | `pnpm build` | `pnpm --filter @signet/web build` |
 
 Those `pnpm` commands only cover the TypeScript workspace. **The CLI (`cli/`,
-Go) has its own CI job and is not part of `pnpm lint`/`pnpm test`/etc.** — the
-root `Makefile` is the one entrypoint that covers both:
+Go) has its own CI job and is not part of `pnpm lint`/`pnpm test`.** The root
+`Makefile` is the one entrypoint that covers both, so a contributor who runs it
+cannot skip a toolchain by not knowing about it:
 
 ```bash
-make build   # ts-build + go-build
-make test    # ts-test + go-test
-make lint    # ts-lint + go-lint (needs golangci-lint on PATH)
-make fmt     # gofmt -w cli/
+make build       # ts-build + go-build
+make test        # ts-test + go-test
+make lint        # ts-lint + go-lint (needs golangci-lint on PATH)
+make fmt         # gofmt -w cli/
 make check-fmt   # fails if cli/ isn't gofmt'd, without rewriting anything
 ```
 
-Run just the Go side with `make go-build` / `make go-test` / `make go-lint` /
-`make go-fmt`, or `cd cli && go test ./...` directly.
+`pnpm build:all` / `test:all` / `lint:all` / `fmt` / `check-fmt` delegate to the
+same targets, so existing muscle memory still works.
 
 **Soroban contracts** (`packages/contracts`) have a separate CI job — run it
 locally when you touch Rust:
