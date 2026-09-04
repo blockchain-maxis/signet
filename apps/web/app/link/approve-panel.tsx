@@ -5,7 +5,7 @@ import { useState } from 'react';
 type State =
   | { status: 'idle' }
   | { status: 'busy'; action: 'approve' | 'reject' }
-  | { status: 'done'; action: 'approve'; handoffCode?: string }
+  | { status: 'done'; action: 'approve'; handoffCode?: string; reachedTerminal?: boolean }
   | { status: 'done'; action: 'reject' }
   | { status: 'error'; message: string };
 
@@ -48,12 +48,29 @@ export function ApprovePanel({
         const body = (await res.json().catch(() => ({}))) as { handoffCode?: string };
         setUi({ status: 'done', action, handoffCode: body.handoffCode });
         // Hand the terminal its callback so it finishes now rather than on its
-        // next poll. The state goes back exactly as it came so the CLI can tell
-        // this redirect from any other page that finds its port.
+        // next poll. The state goes back exactly as it came, so the CLI can
+        // tell this from any other page that finds its port.
+        //
+        // fetch rather than a navigation: a navigation would take the tab away
+        // and, when the callback is unreachable, leave the developer on a
+        // browser error page with no idea the CLI is still fine and polling.
+        // This way the page stays put and says what happened. It is also what
+        // makes Chrome send the Private Network Access preflight the loopback
+        // server now answers — a public page reaching a private address.
         if (callback && callbackState) {
           const target = new URL(callback);
           target.searchParams.set('state', callbackState);
-          window.location.assign(target.toString());
+          let reachedTerminal = false;
+          try {
+            await fetch(target.toString(), { mode: 'cors', cache: 'no-store' });
+            reachedTerminal = true;
+          } catch {
+            // Blocked, refused, or the CLI already moved on. Not a failure:
+            // the terminal picks the approval up by polling either way.
+            reachedTerminal = false;
+          }
+          setUi({ status: 'done', action, handoffCode: body.handoffCode, reachedTerminal });
+          return;
         }
         return;
       }
@@ -76,6 +93,13 @@ export function ApprovePanel({
         <p className="text-[13px] leading-[1.7] text-[#4d7c3f]" style={mono}>
           Approved. Return to your terminal — the CLI is finishing the link.
         </p>
+        {ui.reachedTerminal === false && (
+          <p className="mt-3 text-[13px] leading-[1.7] text-[#8a8779]" style={mono}>
+            This browser couldn’t reach your terminal directly, which is normal over SSH or in a
+            container. The CLI will pick this up on its next check — or paste the code below if it
+            asks.
+          </p>
+        )}
         {ui.handoffCode && (
           <div className="mt-6 border border-[#1f1d19] px-6 py-5">
             <p className="text-[10px] uppercase tracking-[0.2em] text-[#5e5b51]" style={mono}>

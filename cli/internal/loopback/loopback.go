@@ -72,6 +72,18 @@ func MatchState(expected string) Accept {
 // build the callback URL, then call Wait exactly once to block until that
 // callback arrives (or ctx is cancelled, or the timeout elapses).
 type Server struct {
+	// AllowOrigin is the deployment origin (scheme://host[:port]) permitted to
+	// reach this listener cross-origin. Empty means no cross-origin request is
+	// answered at all — the browser gets a preflight it cannot use, which is
+	// the right default for a port that only the local machine should touch.
+	//
+	// Scoped to one origin rather than `*` on purpose: while this is
+	// listening, every page the developer's browser visits can try the port,
+	// and a wildcard would let any of them read the response. The `state`
+	// check is the real defence; this keeps the browser from even making the
+	// request.
+	AllowOrigin string
+
 	path     string
 	listener net.Listener
 	port     int
@@ -143,6 +155,18 @@ func (s *Server) WaitFor(ctx context.Context, timeout time.Duration, accept Acce
 
 	mux := http.NewServeMux()
 	mux.HandleFunc(s.path, func(w http.ResponseWriter, r *http.Request) {
+		// Chrome sends a CORS preflight for any public → private request and
+		// requires the private server to opt in explicitly (Private Network
+		// Access). Without this the approval page's call fails with an opaque
+		// network error and the CLI just times out — working perfectly in
+		// local testing, where the page is not served from a public origin.
+		if r.Method == http.MethodOptions {
+			s.writeCORS(w, r)
+			w.WriteHeader(http.StatusNoContent)
+			return
+		}
+		s.writeCORS(w, r)
+
 		values := r.URL.Query()
 		w.Header().Set("content-type", "text/plain; charset=utf-8")
 
@@ -192,4 +216,32 @@ func (s *Server) WaitFor(ctx context.Context, timeout time.Duration, accept Acce
 	<-serveErr
 
 	return res.values, res.err
+}
+
+// writeCORS answers a cross-origin request from the deployment's own origin,
+// including the Private Network Access opt-in Chrome requires for a public
+// page to reach a loopback address.
+//
+// Anything from another origin gets no CORS headers at all rather than a
+// refusal: the browser then blocks it on the caller's side, and this server
+// never has to distinguish "hostile page" from "developer typing the URL".
+func (s *Server) writeCORS(w http.ResponseWriter, r *http.Request) {
+	origin := r.Header.Get("Origin")
+	if s.AllowOrigin == "" || origin != s.AllowOrigin {
+		return
+	}
+
+	h := w.Header()
+	h.Set("Access-Control-Allow-Origin", s.AllowOrigin)
+	// The response varies by Origin, so a cache must not serve one origin's
+	// answer to another.
+	h.Add("Vary", "Origin")
+	h.Set("Access-Control-Allow-Methods", "GET, OPTIONS")
+	h.Set("Access-Control-Max-Age", "600")
+
+	// Only echoed when the browser actually asked — sending it unconditionally
+	// claims an opt-in for requests that never requested one.
+	if r.Header.Get("Access-Control-Request-Private-Network") == "true" {
+		h.Set("Access-Control-Allow-Private-Network", "true")
+	}
 }
