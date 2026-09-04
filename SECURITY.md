@@ -22,14 +22,6 @@ mitigation for confirmed high-severity issues within 30 days.
   the app refuses the dev fallback when `NODE_ENV=production`. Rotate it to
   invalidate sessions going forward.
 
-### Deploy Key Re-attachment Policy
-
-When a deploy wallet is already attached to a profile, attempting to link it again via the CLI follows this policy to prevent hijacking and enumeration:
-
-1. **Same Profile:** If the wallet is being linked to the same profile it is already attached to (and proof of key control is provided via a valid signature), the operation is a **no-op**. It succeeds but makes no changes to the database.
-2. **Different Profile:** If the wallet is being linked to a different profile (and proof of key control is provided), the operation is **refused** with a `409` status code. The error message is intentionally generic (`Wallet is already linked to a profile`) to avoid leaking which profile currently holds the wallet. To move a key, a user must explicitly remove it from the old profile first.
-3. **No Proof:** If an invalid signature or no signature is provided, the request is **refused** (`401`) before the attachment check occurs.
-
 ### Revoking sessions
 
 Sessions are stateless HMAC cookies with a seven-day lifetime, so revocation is
@@ -100,6 +92,12 @@ every request, so no restart is needed.
   change, and alert on it if you have a log pipeline. To send reports to an
   external collector instead, pass its URL as `reportUri` to `buildCsp` in the
   middleware.
+- **Deploy wallet attachment is refusal-first.** A deploy account already
+  bound to one profile is never moved to another, even by a caller holding the
+  key and a valid signed challenge — proving control of a key is not proof of
+  which profile should hold it. The holder releases it from **Wallets** first.
+  The full policy, the release path, and why the refusal text names no profile
+  are in [`docs/WALLET_ATTACHMENT.md`](docs/WALLET_ATTACHMENT.md).
 - The Identity Registry contract is **immutable** (no upgrade path) and uses a
   single admin key — use a multisig for the admin and audit before mainnet.
   A defect found after deployment cannot be patched; recovery is a new contract

@@ -69,6 +69,48 @@ as proof of chain inclusion while the profile is still synthetic.
 
 ---
 
+## Nightly guard: what a red run means
+
+`scripts/check-demo-wallets.mjs` (workflow: **Demo Data Check**, scheduled
+nightly and on demand) exists so that demo-data drift is caught by the
+pipeline rather than by a contributor. It is deliberately split into two
+tiers, so a red run always means *something changed*:
+
+**Enforced — a failure fails the workflow.** These are invariants this
+repository controls, and the ones that break when personas are edited or
+refactored:
+
+- every persona in `DEMO_PROFILES` has a well-formed Stellar account address
+  (`G` + 55 base32 characters);
+- no two personas share an address;
+- every persona has an activity fixture at `apps/web/public/data/{handle}.json`
+  whose records all carry that persona's address as `source_account` — the
+  reviewer checklist item at the bottom of this page, enforced.
+
+**Advisory — reported, but does not fail the workflow.** Whether each wallet
+resolves on Horizon. The Phase-1 personas are synthetic and have never been
+funded, so `GET /accounts/{wallet}` 404s for all three. That is the known,
+unfixed state tracked by
+[#56](https://github.com/blockchain-maxis/signet/issues/56), not a change — so
+the run reports it (job summary and a workflow notice) instead of going red on
+it every night. A guard that is red on every run is a guard everyone learns to
+ignore.
+
+Once #56 lands and the personas are backed by real, funded accounts, set the
+repository variable `DEMO_WALLETS_REQUIRE_HORIZON` to `1`. Horizon resolution
+then becomes enforced, and a persona whose account stops resolving fails the
+workflow again. The run tells you when to do this: with every wallet
+resolving, it prints a notice saying so. `DEMO_HORIZON_URL` overrides the
+Horizon base if the personas are ever backed on another network.
+
+Run it locally with:
+
+```bash
+node --experimental-strip-types scripts/check-demo-wallets.mjs
+```
+
+---
+
 ## File layout
 
 ```

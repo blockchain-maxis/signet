@@ -25,9 +25,24 @@ interface OperationsListProps {
    * Stellar Expert, so their hashes render as plain text instead of a link.
    */
   isDemo?: boolean;
+  /**
+   * True when `total` is a cap rather than the developer's whole history. The
+   * end of the list then means "end of what we hold", not "end of the record",
+   * and says so instead of reading as a complete timeline.
+   */
+  truncated?: boolean;
+  /** The cap behind `truncated`, named in the end-of-list notice. */
+  cap?: number | null;
 }
 
-export default function OperationsList({ handle, initialOperations, total, isDemo = false }: OperationsListProps) {
+export default function OperationsList({
+  handle,
+  initialOperations,
+  total,
+  isDemo = false,
+  truncated = false,
+  cap = null,
+}: OperationsListProps) {
   const [operations, setOperations] = useState<Operation[]>(initialOperations);
   const [offset, setOffset] = useState(initialOperations.length);
   const [loading, setLoading] = useState(false);
@@ -69,15 +84,21 @@ export default function OperationsList({ handle, initialOperations, total, isDem
             className="text-[13px] leading-[1.7] text-[#b8b5a8]"
             style={{ fontFamily: 'var(--font-mono)' }}
           >
-            This profile has not been indexed yet, so there are no Soroban invocations to display.
+            No Soroban invocations are recorded for this profile yet.
           </p>
           <p
             className="mt-2 text-[12px] leading-[1.6] text-[#5e5b51]"
             style={{ fontFamily: 'var(--font-mono)' }}
           >
-            Once the wallet starts interacting with contracts, the activity timeline and stats will
-            populate here.
+            The wallet that claimed this handle is rarely the key used with{' '}
+            <code className="text-[#8a8779]">stellar contract deploy</code>. Link your deploy wallet from the CLI to attribute its contract activity:
           </p>
+          <code
+            className="mt-4 block max-w-fit bg-[#0a0908] px-4 py-2.5 text-[12px] text-[#f5f4ee] border border-[#1f1d19]"
+            style={{ fontFamily: 'var(--font-mono)' }}
+          >
+            npx @signet/cli link
+          </code>
         </div>
       ) : (
         <>
@@ -171,6 +192,20 @@ export default function OperationsList({ handle, initialOperations, total, isDem
                   </>
                 )}
               </button>
+            </div>
+          )}
+
+          {/* End of what we hold — never the end of the record when capped. */}
+          {truncated && !hasMore && (
+            <div className="border-t border-[#1f1d19] bg-[#0e0d0b] px-5 py-4">
+              <p
+                className="text-[11px] leading-[1.7] text-amber-300/90"
+                style={{ fontFamily: 'var(--font-mono)' }}
+              >
+                End of the {total} operations retrieved
+                {cap ? ` (capped at the ${cap} most recent)` : ''} — this account has older
+                invocations that are not shown here.
+              </p>
             </div>
           )}
         </>
