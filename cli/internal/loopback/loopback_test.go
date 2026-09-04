@@ -268,3 +268,144 @@ func TestWaitFor_StillTimesOutIfOnlyMismatchesArrive(t *testing.T) {
 		t.Fatalf("err = %v, want a deadline error", err)
 	}
 }
+
+// ── Private Network Access preflight (#272) ──────────────────────────────
+
+func TestPreflight_OptsInForTheDeploymentOrigin(t *testing.T) {
+	s, err := New("/callback")
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	s.AllowOrigin = "https://signet.example"
+	target := s.URL()
+
+	type result struct {
+		status int
+		header http.Header
+	}
+	got := make(chan result, 1)
+	go func() {
+		time.Sleep(20 * time.Millisecond)
+		req, _ := http.NewRequest(http.MethodOptions, target, nil)
+		req.Header.Set("Origin", "https://signet.example")
+		req.Header.Set("Access-Control-Request-Method", "GET")
+		req.Header.Set("Access-Control-Request-Private-Network", "true")
+		resp, err := http.DefaultClient.Do(req)
+		if err != nil {
+			got <- result{}
+			return
+		}
+		got <- result{status: resp.StatusCode, header: resp.Header}
+		_ = resp.Body.Close()
+
+		time.Sleep(20 * time.Millisecond)
+		_ = getAndDiscard(http.DefaultClient, target+"?state=ok")
+	}()
+
+	if _, err := s.WaitFor(context.Background(), 5*time.Second, MatchState("ok")); err != nil {
+		t.Fatalf("WaitFor: %v", err)
+	}
+
+	res := <-got
+	if res.status != http.StatusNoContent {
+		t.Fatalf("preflight status = %d, want 204", res.status)
+	}
+	if res.header.Get("Access-Control-Allow-Private-Network") != "true" {
+		t.Fatal("missing the Private Network Access opt-in Chrome requires")
+	}
+	if res.header.Get("Access-Control-Allow-Origin") != "https://signet.example" {
+		t.Fatalf("allow-origin = %q", res.header.Get("Access-Control-Allow-Origin"))
+	}
+	if res.header.Get("Access-Control-Allow-Origin") == "*" {
+		t.Fatal("wildcarded the origin")
+	}
+	if !strings.Contains(res.header.Get("Vary"), "Origin") {
+		t.Fatal("response varies by Origin but does not say so")
+	}
+}
+
+func TestPreflight_IgnoresOtherOrigins(t *testing.T) {
+	// Every page the developer's browser visits can try this port. None of
+	// them may read the answer.
+	s, err := New("/callback")
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	s.AllowOrigin = "https://signet.example"
+	defer func() { _ = s.Close() }()
+
+	go func() {
+		time.Sleep(20 * time.Millisecond)
+		req, _ := http.NewRequest(http.MethodOptions, s.URL(), nil)
+		req.Header.Set("Origin", "https://evil.example")
+		req.Header.Set("Access-Control-Request-Private-Network", "true")
+		resp, err := http.DefaultClient.Do(req)
+		if err == nil {
+			if resp.Header.Get("Access-Control-Allow-Origin") != "" {
+				t.Error("answered a foreign origin with CORS headers")
+			}
+			if resp.Header.Get("Access-Control-Allow-Private-Network") != "" {
+				t.Error("offered the private-network opt-in to a foreign origin")
+			}
+			_ = resp.Body.Close()
+		}
+		time.Sleep(20 * time.Millisecond)
+		_ = getAndDiscard(http.DefaultClient, s.URL()+"?state=ok")
+	}()
+
+	if _, err := s.WaitFor(context.Background(), 5*time.Second, MatchState("ok")); err != nil {
+		t.Fatalf("WaitFor: %v", err)
+	}
+}
+
+func TestPreflight_DoesNotEndTheWait(t *testing.T) {
+	// A preflight is not the callback. Answering one must not satisfy WaitFor.
+	s, err := New("/callback")
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	s.AllowOrigin = "https://signet.example"
+
+	go func() {
+		time.Sleep(20 * time.Millisecond)
+		req, _ := http.NewRequest(http.MethodOptions, s.URL(), nil)
+		req.Header.Set("Origin", "https://signet.example")
+		resp, err := http.DefaultClient.Do(req)
+		if err == nil {
+			_ = resp.Body.Close()
+		}
+	}()
+
+	_, err = s.WaitFor(context.Background(), 200*time.Millisecond, MatchState("never"))
+	if !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("err = %v, want the wait to continue past a preflight", err)
+	}
+}
+
+func TestPreflight_NoOptInWhenTheBrowserDidNotAsk(t *testing.T) {
+	s, err := New("/callback")
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	s.AllowOrigin = "https://signet.example"
+	defer func() { _ = s.Close() }()
+
+	go func() {
+		time.Sleep(20 * time.Millisecond)
+		req, _ := http.NewRequest(http.MethodOptions, s.URL(), nil)
+		req.Header.Set("Origin", "https://signet.example")
+		resp, err := http.DefaultClient.Do(req)
+		if err == nil {
+			if resp.Header.Get("Access-Control-Allow-Private-Network") != "" {
+				t.Error("claimed a private-network opt-in that was never requested")
+			}
+			_ = resp.Body.Close()
+		}
+		time.Sleep(20 * time.Millisecond)
+		_ = getAndDiscard(http.DefaultClient, s.URL()+"?state=ok")
+	}()
+
+	if _, err := s.WaitFor(context.Background(), 5*time.Second, MatchState("ok")); err != nil {
+		t.Fatalf("WaitFor: %v", err)
+	}
+}

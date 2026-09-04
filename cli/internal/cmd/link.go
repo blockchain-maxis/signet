@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/url"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -93,6 +94,10 @@ signing goes through the stellar CLI.`,
 					if err != nil {
 						return nil, err
 					}
+					// Only the deployment the developer is linking against may
+					// reach this port cross-origin, and only for as long as the
+					// command runs.
+					s.AllowOrigin = originOf(resolved.BaseURL)
 					return s, nil
 				},
 				Report: func(line string) { _, _ = fmt.Fprintln(progress, line) },
@@ -125,4 +130,15 @@ signing goes through the stellar CLI.`,
 	cmd.Flags().BoolVar(&jsonOutput, "json", false, "write a single JSON result to stdout instead of a human-readable summary")
 
 	return cmd
+}
+
+// originOf reduces a deployment URL to the scheme://host[:port] a browser will
+// send as its Origin header. A path or query on the configured URL is not part
+// of an origin, and comparing against one that carries them would never match.
+func originOf(raw string) string {
+	parsed, err := url.Parse(raw)
+	if err != nil || parsed.Scheme == "" || parsed.Host == "" {
+		return ""
+	}
+	return parsed.Scheme + "://" + parsed.Host
 }
