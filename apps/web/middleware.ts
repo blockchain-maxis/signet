@@ -114,9 +114,19 @@ function resolveRewriteTarget(req: NextRequest): string | null {
     first === 'app' ||
     first === 'docs' ||
     first === 'profile' ||
-    first === 'p' ||           // demo profiles live at /p/{handle}
+    first === 'p' || // demo profiles live at /p/{handle}
     first === 'how-it-works' || // static informational page
-    first === 'handles' ||     // public handle directory
+    first === 'handles' || // public handle directory
+    // The CLI's approval page. Without this, `link` is a valid handle shape,
+    // so /link?code=… is rewritten to /p/link and 404s — which makes the URL
+    // `signet link` prints unreachable on any deployment running this
+    // middleware, while working locally where nothing rewrites it.
+    //
+    // It is NOT in RESERVED_HANDLES: that list mirrors the identity-registry
+    // contract, which is immutable, so "link" can still be claimed on-chain.
+    // A profile with that handle stays reachable at /p/link and /@link; only
+    // the bare /link belongs to the approval page.
+    first === 'link' ||
     first === 'api' ||
     first === '_next'
   ) {

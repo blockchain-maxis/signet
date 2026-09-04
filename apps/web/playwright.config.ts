@@ -41,6 +41,13 @@ export default defineConfig({
       // its loopback warning and starts.
       NEXT_PUBLIC_APP_URL: `http://localhost:${PORT}`,
       SEP10_SIGNING_SECRET: 'SD2H7CMH7XEAMXE5LZGYYJB6IU3XTPPLWZESDK3HB6KSRBVLXJQUB7SO',
+      // Forwarded explicitly rather than relied on: the default run is
+      // hermetic (no database), and only the linked-flow spec's CI job sets
+      // this. Passing it through here is what lets that job's `next start`
+      // actually reach Postgres — without it the server would run dbless and
+      // linking would correctly fail closed, failing the spec for the wrong
+      // reason.
+      ...(process.env.DATABASE_URL ? { DATABASE_URL: process.env.DATABASE_URL } : {}),
       // The opt-in testnet spec (e2e/testnet-claim.spec.ts) needs the server's
       // chain fallback pointed at the registry it claims on. These are
       // server-side vars read at request time, so no rebuild is needed — and

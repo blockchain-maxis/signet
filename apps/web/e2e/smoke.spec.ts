@@ -12,7 +12,9 @@ test('landing page contains #claim anchor for cross-site claim links', async ({ 
   await page.goto('/');
   const claimSection = page.locator('#claim');
   await expect(claimSection).toBeAttached();
-  await expect(claimSection.getByRole('button', { name: /connect wallet|claim your handle/i })).toBeVisible();
+  await expect(
+    claimSection.getByRole('button', { name: /connect wallet|claim your handle/i }),
+  ).toBeVisible();
 });
 
 test('health endpoint reports ok or degraded', async ({ request }) => {
