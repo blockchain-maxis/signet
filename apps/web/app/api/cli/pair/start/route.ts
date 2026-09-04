@@ -1,22 +1,33 @@
 import { NextResponse } from 'next/server';
-import { createCliPairingCode } from '@/lib/cli-auth';
-import { enforceRateLimit, LIMITS } from '@/lib/rate-limit-http';
+import { startPairing } from '@/lib/server/pairing';
+import { getNetworkPassphrase } from '@/lib/sep10';
+import { LIMITS, enforceRateLimit } from '@/lib/rate-limit-http';
 
 export const runtime = 'nodejs';
 
+/**
+ * `POST /api/cli/pair/start` — mint a pairing for the `stellar signet pair`
+ * CLI flow. Unauthenticated by design: the CLI has no session and no signed
+ * challenge yet at this point, it is only asking for something to show the
+ * user (a `state` to render as a code/link for the browser step).
+ *
+ * `network` is the Stellar network passphrase the CLI is running against
+ * (mirroring `network_passphrase` from `GET /api/auth/sep10`), checked again
+ * at `complete` against this deployment's actual configured network — a CLI
+ * on testnet pairing against a mainnet deployment (or vice versa) fails
+ * there with a distinct `network-mismatch`, rather than silently binding a
+ * wallet on the wrong network.
+ */
 export async function POST(req: Request) {
-  const ipLimited = await enforceRateLimit(req, 'cli:pair:start', LIMITS.cliPairStart);
-  if (ipLimited) return ipLimited;
+  const limited = await enforceRateLimit(req, 'cli:pair:start', LIMITS.cliPairStart);
+  if (limited) return limited;
 
-  const { pubkey, network, state } = await req.json().catch(() => ({}));
+  const { network } = (await req.json().catch(() => ({}))) as { network?: string };
 
-  if (!pubkey || !network || !state) {
-    return NextResponse.json({ error: 'Missing pubkey, network, or state' }, { status: 400 });
+  const pairing = await startPairing(network || getNetworkPassphrase());
+  if (!pairing) {
+    return NextResponse.json({ error: 'Pairing is unavailable' }, { status: 503 });
   }
 
-  // The pairing code is a short-lived token that includes the CLI's public key,
-  // the target network, and a callback state identifier.
-  const code = createCliPairingCode(pubkey, network, state);
-
-  return NextResponse.json({ code });
+  return NextResponse.json(pairing, { headers: { 'cache-control': 'no-store' } });
 }
