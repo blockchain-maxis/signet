@@ -163,10 +163,19 @@ func (c *Client) do(ctx context.Context, method, path string, body any, out any)
 			Error string `json:"error"`
 		}
 		_ = json.NewDecoder(resp.Body).Decode(&problem)
-		if problem.Error != "" {
-			return fmt.Errorf("%w: %s", exitcode.ErrNetwork, problem.Error)
+
+		// 503 from these endpoints means the deployment cannot do this at all
+		// — it has no database to write a link into (#277). That is the
+		// operator's problem, not the developer's, and reporting it as a
+		// network error would send them looking at their own connection.
+		kind := exitcode.ErrNetwork
+		if resp.StatusCode == http.StatusServiceUnavailable {
+			kind = exitcode.ErrConfiguration
 		}
-		return fmt.Errorf("%w: %s returned %s", exitcode.ErrNetwork, path, resp.Status)
+		if problem.Error != "" {
+			return fmt.Errorf("%w: %s", kind, problem.Error)
+		}
+		return fmt.Errorf("%w: %s returned %s", kind, path, resp.Status)
 	}
 
 	if out == nil {

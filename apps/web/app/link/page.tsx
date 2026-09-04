@@ -23,7 +23,8 @@ const REFUSAL: Record<string, string> = {
   expired: 'That pairing code has expired. Run `signet link` again to get a new one.',
   'already-used':
     'That pairing code has already been answered. Start a new one from your terminal.',
-  unavailable: 'CLI linking is unavailable on this deployment — no database is configured.',
+  unavailable:
+    'CLI linking needs a database and this deployment has none configured, so nothing could be saved even if you approved. This is the operator’s configuration to fix, not yours.',
 };
 
 function Shell({ children }: { children: React.ReactNode }) {

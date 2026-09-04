@@ -38,7 +38,10 @@ export async function GET(req: Request) {
     // An unknown token and a wrong token are the same answer on purpose:
     // this endpoint must not become an oracle for which tokens are real.
     const status = result.reason === 'unavailable' ? 503 : 404;
-    const error = result.reason === 'unavailable' ? 'Pairing is unavailable' : 'Pairing not found';
+    const error =
+      result.reason === 'unavailable'
+        ? 'CLI linking requires a database, and this deployment has none configured. This is a deployment configuration problem, not something you did. The operator needs to provision DATABASE_URL.'
+        : 'Pairing not found';
     return NextResponse.json({ error }, { status, headers: { 'cache-control': 'no-store' } });
   }
 

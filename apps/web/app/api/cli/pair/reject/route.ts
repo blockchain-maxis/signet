@@ -32,7 +32,8 @@ const OUTCOME_MESSAGE: Record<string, string> = {
   'not-found': 'Pairing not found — it may have already been used',
   expired: 'This pairing has expired — restart it from the CLI',
   'already-used': 'This pairing has already been answered',
-  unavailable: 'Pairing is unavailable',
+  unavailable:
+    'CLI linking requires a database, and this deployment has none configured. This is a deployment configuration problem, not something you did. The operator needs to provision DATABASE_URL.',
 };
 
 export async function POST(req: Request) {

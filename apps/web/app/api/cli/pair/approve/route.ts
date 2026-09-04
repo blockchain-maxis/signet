@@ -45,7 +45,8 @@ export async function POST(req: Request) {
       expired: 'This pairing has expired — restart it from the CLI',
       'already-used': 'This pairing has already been approved',
       'no-profile': 'Claim a handle before pairing a CLI',
-      unavailable: 'Pairing is unavailable',
+      unavailable:
+        'CLI linking requires a database, and this deployment has none configured. This is a deployment configuration problem, not something you did. The operator needs to provision DATABASE_URL.',
     };
     return NextResponse.json(
       { error: messages[outcome] ?? outcome },

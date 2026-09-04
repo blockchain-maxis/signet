@@ -27,7 +27,8 @@ const OUTCOME_STATUS: Record<UnlinkFailure, number> = {
 };
 
 const OUTCOME_MESSAGE: Record<UnlinkFailure, string> = {
-  unavailable: 'Wallet unlinking is unavailable on this deployment',
+  unavailable:
+    'CLI wallet unlinking requires a database, and this deployment has none configured. This is a deployment configuration problem, not something you did. The operator needs to provision DATABASE_URL.',
   'bad-challenge': 'Invalid or unsigned challenge transaction',
   replayed: 'This signed challenge has already been used',
   'not-linked': 'That wallet is not linked to any profile',

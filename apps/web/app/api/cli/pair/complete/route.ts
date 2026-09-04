@@ -37,7 +37,8 @@ const FAILURE_STATUS: Record<CompleteFailure, number> = {
 };
 
 const FAILURE_MESSAGE: Record<CompleteFailure, string> = {
-  unavailable: 'Pairing is unavailable',
+  unavailable:
+    'CLI linking requires a database, and this deployment has none configured. This is a deployment configuration problem, not something you did. The operator needs to provision DATABASE_URL.',
   'not-found': 'Pairing not found — restart it from the CLI',
   expired: 'This pairing has expired — restart it from the CLI',
   'not-approved': 'This pairing has not been approved in the browser yet',

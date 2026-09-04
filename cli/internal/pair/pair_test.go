@@ -145,3 +145,27 @@ func TestUnlink_SurfacesARefusal(t *testing.T) {
 		t.Fatalf("error lost the server's message: %v", err)
 	}
 }
+
+func TestDo_A503IsAConfigurationProblemNotANetworkOne(t *testing.T) {
+	// #277: a deployment with no database cannot link at all. Reporting that
+	// as a network error sends the developer to check their own connection.
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusServiceUnavailable)
+		_, _ = io.WriteString(w, `{"error":"CLI linking requires a database, and this deployment has none configured."}`)
+	}))
+	defer srv.Close()
+
+	_, err := New(srv.URL).Start(context.Background(), "testnet", "GABC")
+	if err == nil {
+		t.Fatal("expected an error")
+	}
+	if !errors.Is(err, exitcode.ErrConfiguration) {
+		t.Fatalf("err = %v, want a configuration error", err)
+	}
+	if errors.Is(err, exitcode.ErrNetwork) {
+		t.Fatal("a missing database is not a network failure")
+	}
+	if !strings.Contains(err.Error(), "requires a database") {
+		t.Fatalf("err lost the server's explanation: %v", err)
+	}
+}

@@ -36,7 +36,13 @@ export async function POST(req: Request) {
 
   const pairing = await startPairing(network || getNetworkPassphrase(), publicKey ?? null);
   if (!pairing) {
-    return NextResponse.json({ error: 'Pairing is unavailable' }, { status: 503 });
+    return NextResponse.json(
+      {
+        error:
+          'CLI linking requires a database, and this deployment has none configured. This is a deployment configuration problem, not something you did. The operator needs to provision DATABASE_URL.',
+      },
+      { status: 503 },
+    );
   }
 
   return NextResponse.json(pairing, { headers: { 'cache-control': 'no-store' } });
