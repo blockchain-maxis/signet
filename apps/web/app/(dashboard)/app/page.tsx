@@ -1,7 +1,8 @@
 import Link from 'next/link';
 import { currentAddress } from '@/lib/server/session';
-import { getAccount } from '@/lib/server/account';
-import { getOperationsResult, computeStats, formatCount } from '@/lib/profiles';
+import { getAccount, getAccountWallets } from '@/lib/server/account';
+import { getOperationsResult, getProfileStats, formatCount } from '@/lib/profiles';
+import { LinkDeployWalletPrompt } from '../components/link-deploy-wallet-prompt';
 
 function truncate(a: string): string {
   return a.length > 16 ? `${a.slice(0, 7)}…${a.slice(-5)}` : a;
@@ -14,9 +15,15 @@ export default async function DashboardPage() {
   const address = await currentAddress();
   const account = address ? await getAccount(address) : null;
   const operations = account?.handle ? await getOperationsResult(account.handle) : null;
-  const stats = operations ? computeStats(operations.operations) : null;
+  const stats =
+    account?.handle && operations
+      ? await getProfileStats(account.handle, operations.operations)
+      : null;
   // Counts drawn from a capped window are lower bounds; they render as "N+".
-  const truncated = operations?.truncated ?? false;
+  // Database aggregates cover the whole history, so those stay bare totals.
+  const truncated = (operations?.truncated ?? false) && !(stats?.exact ?? false);
+  const wallets = account?.handle && address ? await getAccountWallets(address) : [];
+  const hasDeployWallet = wallets.some((w) => !w.isPrimary);
 
   return (
     <section>
@@ -62,6 +69,10 @@ export default async function DashboardPage() {
           )}
         </div>
       </div>
+
+      {/* Explains an empty-looking profile: the claiming wallet is rarely the
+          deploy wallet, and nothing renders until one is linked. */}
+      {account?.handle && !hasDeployWallet && <LinkDeployWalletPrompt />}
 
       {/* On-chain stats (only once a handle is claimed) */}
       {stats && (

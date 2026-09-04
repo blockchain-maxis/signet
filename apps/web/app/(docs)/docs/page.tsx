@@ -80,6 +80,30 @@ export default function DocsPage() {
           independent verification.
         </p>
 
+        <H>Linking your deploy wallet</H>
+        <p className="mt-4 text-[14px] leading-[1.7] text-[#b8b5a8]">
+          Claiming a handle binds it to the wallet that signs the{' '}
+          <code>claim</code> — usually a browser wallet, which is rarely the
+          keystore identity you run <code>stellar contract deploy</code> from. To
+          make a profile a real career record you link that deploy wallet from a
+          terminal:
+        </p>
+        <pre
+          className="mt-4 overflow-x-auto border border-[#1f1d19] bg-[#0e0d0b] px-5 py-4 text-[12px] leading-[1.7] text-[#b8b5a8]"
+          style={{ fontFamily: 'var(--font-mono)' }}
+        >
+{`npx @signet/cli link`}
+        </pre>
+        <p className="mt-4 text-[14px] leading-[1.7] text-[#b8b5a8]">
+          The command proves control of the deploy key and associates it with
+          your handle; the indexer then attributes every contract that wallet has
+          deployed and invoked to your profile. This is the path from a claimed
+          handle to an indexed profile — until a deploy wallet is linked, a
+          claimed handle points at an address that has deployed nothing and the
+          profile renders empty. <strong>Terminal linking is not live yet</strong>;
+          the full sequence is specified in <code>docs/CLI.md</code>.
+        </p>
+
         <H>SDK</H>
         <p className="mt-4 text-[14px] leading-[1.7] text-[#b8b5a8]">
           Integrators read profiles through <code>@signet/sdk</code>, which talks
@@ -108,8 +132,9 @@ const profile = await signet.getProfile('aquawolf');
             <code>/app</code>.
           </li>
           <li>
-            <strong>Phase 2 (in progress):</strong> the indexer populating full
-            deployment history.
+            <strong>Phase 2 (in progress):</strong> terminal deploy-wallet
+            linking (<code>npx @signet/cli link</code>) and the indexer
+            populating full deployment history.
           </li>
         </ul>
 

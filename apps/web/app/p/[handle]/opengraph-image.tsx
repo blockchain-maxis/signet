@@ -1,5 +1,5 @@
 import { ImageResponse } from 'next/og';
-import { getProfile, getOperationsResult, computeStats, formatCount } from '@/lib/profiles';
+import { getProfile, getOperationsResult, getProfileStats, formatCount } from '@/lib/profiles';
 
 export const runtime = 'nodejs';
 export const size = { width: 1200, height: 630 };
@@ -11,10 +11,12 @@ export default async function OgImage({ params }: { params: Promise<{ handle: st
   const { handle } = await params;
   const profile = await getProfile(handle);
   const result = profile ? await getOperationsResult(handle) : null;
-  const stats = result ? computeStats(result.operations) : null;
+  const stats = result ? await getProfileStats(handle, result.operations) : null;
   // A capped record renders as "412+" rather than "412": the card is the most
   // widely reshared surface, so it must not state a lower bound as a total.
-  const truncated = result?.truncated ?? false;
+  // Aggregated stats are exact even when the operations window was capped, so
+  // the "+" is dropped in that case rather than understating a real total.
+  const truncated = (result?.truncated ?? false) && !(stats?.exact ?? false);
   const name = profile?.name ?? handle;
 
   return new ImageResponse(

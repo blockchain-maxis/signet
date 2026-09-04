@@ -4,7 +4,7 @@ import {
   getProfile,
   getOperationsResult,
   listAllHandles,
-  computeStats,
+  getProfileStats,
   formatCount,
 } from '@/lib/profiles';
 import { STELLAR_EXPLORER, STELLAR_NETWORK_NAME } from '@/lib/network';
@@ -55,7 +55,12 @@ export default async function ProfilePage({ params }: { params: Promise<{ handle
   // is qualified by it — a partial record shown as complete is the one thing a
   // career record must never do.
   const { operations, truncated, cap, source } = await getOperationsResult(handle);
-  const stats = computeStats(operations);
+  const stats = await getProfileStats(handle, operations);
+  // The stats can outrun the window the list came from: when the database
+  // answered with aggregates over the whole history they are exact totals even
+  // though the operations below stop at a cap. Only qualify them when they were
+  // actually derived from that capped window.
+  const statsTruncated = truncated && !stats.exact;
   const oldest = operations[operations.length - 1];
   const newest = operations[0];
   // A curated demo profile and a handle actually bound on-chain render through
@@ -188,14 +193,17 @@ export default async function ProfilePage({ params }: { params: Promise<{ handle
           <SectionLabel>On-chain activity</SectionLabel>
           <div className="mt-6 grid grid-cols-2 gap-px border border-[#1f1d19] bg-[#1f1d19] md:grid-cols-5">
             {[
-              { label: truncated ? 'Reputation (partial)' : 'Reputation', value: `${stats.reputation}` },
+              {
+                label: statsTruncated ? 'Reputation (partial)' : 'Reputation',
+                value: `${stats.reputation}`,
+              },
               {
                 label: 'Soroban invocations',
-                value: formatCount(stats.invocations, truncated),
+                value: formatCount(stats.invocations, statsTruncated),
               },
               {
                 label: 'Unique functions called',
-                value: formatCount(stats.uniqueFunctions, truncated),
+                value: formatCount(stats.uniqueFunctions, statsTruncated),
               },
               {
                 // Without the full history the earliest record we hold is not
@@ -244,7 +252,9 @@ export default async function ProfilePage({ params }: { params: Promise<{ handle
                 {source === 'horizon'
                   ? `Without an indexer, activity is read straight from Horizon, which we page through only as far as the ${cap} most recent operations.`
                   : `The indexer read only the ${cap} most recent operations for this wallet.`}{' '}
-                Counts above are lower bounds, and older invocations are not listed.
+                {statsTruncated
+                  ? 'Counts above are lower bounds, and older invocations are not listed.'
+                  : 'The counts above are still exact — aggregated over the full indexed history — but older invocations are not listed.'}
               </p>
               <a
                 href={`https://stellar.expert/explorer/${STELLAR_EXPLORER}/account/${profile.wallet}`}
@@ -296,8 +306,10 @@ export default async function ProfilePage({ params }: { params: Promise<{ handle
                       {' '}
                       This particular record is{' '}
                       <strong className="text-[#8a8779]">partial</strong>: it stops at the{' '}
-                      {cap} most recent operations, so the counts above are lower bounds rather
-                      than totals.
+                      {cap} most recent operations
+                      {statsTruncated
+                        ? ', so the counts above are lower bounds rather than totals.'
+                        : '. The counts above are aggregated over the whole indexed history, so they stay exact totals.'}
                     </>
                   ) : null}
                 </>

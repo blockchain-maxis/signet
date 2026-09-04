@@ -1,11 +1,6 @@
 // Shared domain types for Signet. Kept framework-agnostic so every package
 // (web, indexer, sdk, contracts tooling) can depend on a single source.
 
-// Terminal-linking defaults — pairing-code TTL and CLI poll interval. Single
-// source of truth so the pairing code's lifecycle and the `signet link` wait
-// stay consistent (see `link.ts`).
-export { LINK_PAIR_TTL_MS, LINK_POLL_INTERVAL_MS } from './link.ts';
-
 // Handle validity and reservation rules, mirrored from the on-chain registry.
 export {
   HANDLE_MAX_LEN,
@@ -16,6 +11,24 @@ export {
   isValidHandle,
 } from './handle.ts';
 export type { ReservedHandle } from './handle.ts';
+
+// Pairing audit trail — one event vocabulary for the web tier and the indexer.
+export { PAIRING_EVENTS, PairingSecretLeakError, pairingEvent } from './pairing.ts';
+export type {
+  PairingEvent,
+  PairingEventInput,
+  PairingEventName,
+  PairingOutcome,
+} from './pairing.ts';
+
+/** Allowed `Wallet.source` values, mirrored to Go for the CLI. */
+export { WALLET_SOURCES, isWalletSource } from './wallet-source.ts';
+export type { WalletSource } from './wallet-source.ts';
+
+// How each provenance reads — one vocabulary for every surface that renders a
+// binding, so a CLI link is never labelled as curated.
+export { describeWalletSource } from './wallet.ts';
+export type { WalletSourceDescriptor } from './wallet.ts';
 
 export type Handle = string;
 

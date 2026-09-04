@@ -99,7 +99,9 @@ export function ConnectWallet({
       }, 1500);
     } catch (err) {
       if (err instanceof RegistryNotConfiguredError) {
-        setStatus('On-chain claim launches in Phase 2 — registry not yet deployed.');
+        setStatus(
+          'On-chain claim is unavailable — this deployment is not configured against an Identity Registry contract.',
+        );
       } else {
         setStatus(err instanceof Error ? err.message : 'Claim failed');
       }
@@ -171,8 +173,8 @@ export function ConnectWallet({
             className="max-w-[260px] text-[10px] leading-tight text-[#8a8779]"
             style={{ fontFamily: 'var(--font-mono)' }}
           >
-            The registry contract is immutable. If it is ever replaced, handles
-            are re-claimed on the new one — held for your wallet, one signature.
+            The registry contract is immutable. If it is ever replaced, handles are re-claimed on
+            the new one — held for your wallet, one signature.
           </span>
           <div className="flex gap-2">
             <button

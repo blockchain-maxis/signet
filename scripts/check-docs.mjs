@@ -140,6 +140,11 @@ const ENV_ALLOW = new Set([
   'NETWORK', // shell override for deploy-contract.sh
   'STELLAR_ACCOUNT', // shell override for deploy-contract.sh
   'ADMIN_ADDRESS', // shell override for deploy-contract.sh
+  'SIGNET_URL', // shell env for the cli/ Go module, not the pnpm workspace's .env
+  'WAYLAND_DISPLAY', // standard desktop-session env var, not app config
+  'CLI_RELEASE_ENABLED', // GitHub repo variable, not app env — see release-cli.yml
+  'NPM_TOKEN', // GitHub Actions secret, not app env — see release-cli.yml
+  'SIGNET_SIMULATOR_PATH', // docs/CLI_RUST_BRIDGE.md — future Go CLI env, not this web app's
 ]);
 
 /**
@@ -155,8 +160,6 @@ const NOT_ENV_IDENTIFIERS = new Set([
   'BASE_FEE', // @stellar/stellar-sdk constant
   'MAX_BATCH_SIZE', // identity-registry contract constant
   'MAX_HANDLE_LEN', // identity-registry contract constant
-  'LINK_PAIR_TTL_MS', // packages/types — terminal-linking TTL
-  'LINK_POLL_INTERVAL_MS', // packages/types — terminal-linking poll interval
   'DB_OPERATIONS_PER_WALLET', // apps/web/lib/profiles.ts — bounded read, not config
   'HORIZON_MAX_RECORDS', // apps/web/lib/server/horizon.ts — bounded read, not config
 ]);

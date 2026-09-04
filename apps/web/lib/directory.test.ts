@@ -7,6 +7,7 @@ import {
   type Transaction,
 } from '@stellar/stellar-sdk';
 import {
+  decodeEvent,
   reduceBindings,
   listDirectory,
   fetchIndexedDirectory,
@@ -60,6 +61,56 @@ test('reduceBindings keeps only the currently-bound handles', () => {
     bound.map((e) => e.handle),
     ['sorobuilder'],
   );
+});
+
+test('decodeEvent accepts a revoked event (not just claimed/released)', () => {
+  const topics = [
+    nativeToScVal('revoked', { type: 'symbol' }),
+    nativeToScVal('aquawolf', { type: 'string' }),
+  ];
+  const value = nativeToScVal(WALLET, { type: 'address' });
+  assert.deepEqual(decodeEvent(topics, value), {
+    kind: 'revoked',
+    handle: 'aquawolf',
+    wallet: WALLET,
+  });
+});
+
+test('decodeEvent ignores an unrelated topic', () => {
+  // Deliberately not `transferred`: that became a handled topic in #323, so
+  // using it here would assert the opposite of what this test's name says —
+  // it would only pass because the payload shape happens not to match.
+  const topics = [
+    nativeToScVal('bumped', { type: 'symbol' }),
+    nativeToScVal('aquawolf', { type: 'string' }),
+  ];
+  const value = nativeToScVal(WALLET, { type: 'address' });
+  assert.equal(decodeEvent(topics, value), null);
+});
+
+test('reduceBindings drops a handle on revoke, exactly as on release', () => {
+  const events = [
+    { kind: 'claimed' as const, handle: 'aquawolf', wallet: 'GAAA' },
+    { kind: 'claimed' as const, handle: 'sorobuilder', wallet: 'GBBB' },
+    // admin_revoke emits `revoked`; the revoked handle must not linger.
+    { kind: 'revoked' as const, handle: 'aquawolf', wallet: 'GAAA' },
+  ];
+  const bound = reduceBindings(events);
+  assert.deepEqual(
+    bound.map((e) => e.handle),
+    ['sorobuilder'],
+  );
+});
+
+test('reduceBindings lets a handle be re-claimed after revoke', () => {
+  const events = [
+    { kind: 'claimed' as const, handle: 'aquawolf', wallet: 'GAAA' },
+    { kind: 'revoked' as const, handle: 'aquawolf', wallet: 'GAAA' },
+    { kind: 'claimed' as const, handle: 'aquawolf', wallet: 'GBBB' },
+  ];
+  const bound = reduceBindings(events);
+  assert.equal(bound.length, 1);
+  assert.equal(bound[0]!.wallet, 'GBBB');
 });
 
 test('reduceBindings lets a handle be re-claimed after release', () => {

@@ -5,13 +5,15 @@ import { connectDb, disconnectDb, prisma } from './db.js';
 import { createHorizonServer, sleep } from './stellar.js';
 import { createSorobanRpcServer } from './soroban-rpc.js';
 import { runSeedWorker } from './workers/seed.js';
-import { runDeploymentWorker } from './workers/deployment.js';
-import { runActivityWorker } from './workers/activity.js';
+import { runDeploymentWorker, type DeploymentStore } from './workers/deployment.js';
+import { runActivityWorker, type ActivityStore } from './workers/activity.js';
 import { runAttestationWorker } from './workers/attestation.js';
 import { runOperationsWorker, type OperationsStore } from './workers/operations.js';
+import { runPruningWorker, type PruningStore } from './workers/prune.js';
 
 let shuttingDown = false;
 let shuttingDownPrisma = false;
+let lastPrunedAt = 0;
 
 /** Max time (ms) to wait for a graceful shutdown before force-exiting. */
 const SHUTDOWN_TIMEOUT_MS = 10_000;
@@ -20,6 +22,28 @@ const SHUTDOWN_TIMEOUT_MS = 10_000;
 // HEALTHCHECK reads its mtime and reports the worker unhealthy once it goes
 // stale, so a wedged loop (which never completes a tick) can't look healthy.
 const LIVENESS_FILE = process.env.INDEXER_LIVENESS_FILE ?? '/tmp/indexer-alive';
+
+// How often the idle-sleep loop checks for a pending index request (see
+// hasPendingIndexRequest) — the worst-case delay before a just-linked wallet
+// gets scanned, once the current tick has already finished. Deliberately much
+// shorter than the tick interval itself (default 30s) and cheap: one indexed
+// lookup, not a full tick.
+const PENDING_CHECK_INTERVAL_MS = 2_000;
+
+/**
+ * True when any wallet has a pending index request — apps/web/lib/server/
+ * account.ts's linkDeployWallet sets Wallet.indexRequestedAt on every
+ * (re-)link. Lets the idle-sleep loop start the next tick early instead of
+ * waiting out the rest of the configured interval, without any new IPC: the
+ * database the indexer already polls is the signal channel.
+ */
+async function hasPendingIndexRequest(): Promise<boolean> {
+  const pending = await prisma.wallet.findFirst({
+    where: { indexRequestedAt: { not: null } },
+    select: { id: true },
+  });
+  return pending !== null;
+}
 
 async function markAlive(): Promise<void> {
   try {
@@ -40,17 +64,32 @@ async function tick(
   // Attestations: ingest on-chain claim/release events into the DB
   const { eventsDecoded } = await runAttestationWorker(soroban, config);
 
-  // Deployments: find new contract creations for all tracked wallets
+  // Deployments: find new contract creations for all tracked wallets. Wallets
+  // are (re-)read fresh from the store on every call, so one linked mid-life
+  // — after the indexer started — is scanned starting the very next tick.
   const { highestLedger, walletsScanned, contractsFound } = await runDeploymentWorker(
     horizon,
     config,
+    prisma as unknown as DeploymentStore,
   );
 
-  // Activity: refresh snapshots for tracked contracts
-  const { snapshotsWritten } = await runActivityWorker(horizon);
+  // Activity: refresh snapshots for tracked contracts. Same freshness
+  // guarantee as deployments — a contract the deployment worker just found
+  // this tick already shows up in this call's `contract.findMany()`.
+  const { snapshotsWritten } = await runActivityWorker(horizon, prisma as unknown as ActivityStore);
 
   // Operations: pull recent Soroban invocations for tracked wallets
   const { opsUpserted } = await runOperationsWorker(horizon, prisma as unknown as OperationsStore);
+
+  // Pruning: periodically prune historical operations and snapshots beyond retention windows
+  let opsPruned = 0;
+  let snapshotsPruned = 0;
+  if (Date.now() - lastPrunedAt >= config.pruneIntervalMs) {
+    const pruneRes = await runPruningWorker(prisma as unknown as PruningStore, config);
+    opsPruned = pruneRes.opsPruned;
+    snapshotsPruned = pruneRes.snapshotsPruned;
+    lastPrunedAt = Date.now();
+  }
 
   // Persist cursor
   if (highestLedger > 0) {
@@ -70,6 +109,8 @@ async function tick(
       contractsFound,
       opsUpserted,
       snapshotsWritten,
+      opsPruned,
+      snapshotsPruned,
       durationMs: Date.now() - start,
     },
     'tick.summary',
@@ -129,10 +170,21 @@ async function main(): Promise<void> {
 
       if (shuttingDown) break;
 
-      // Sleep in small chunks so we can react to shutdown quickly
+      // Sleep in small chunks so we can react to shutdown quickly, and — on
+      // a slower cadence than the shutdown check, since it costs a query —
+      // to a just-linked wallet's indexRequestedAt: start the next tick
+      // early rather than making it wait out the rest of this interval.
       const end = Date.now() + config.tickIntervalMs;
+      let lastPendingCheck = 0;
       while (!shuttingDown && Date.now() < end) {
         await sleep(250);
+        if (Date.now() - lastPendingCheck >= PENDING_CHECK_INTERVAL_MS) {
+          lastPendingCheck = Date.now();
+          if (await hasPendingIndexRequest()) {
+            logger.debug({}, 'tick.pendingIndexRequest');
+            break;
+          }
+        }
       }
     }
   } finally {

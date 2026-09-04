@@ -44,6 +44,7 @@ export type Profile = {
   bio: string;
   joined: string;
   source: ProfileSource;
+  archived?: boolean;
 };
 
 export type Operation = {
@@ -195,8 +196,25 @@ export interface ProfileStats {
   reputation: number;
 }
 
+/**
+ * Stats plus whether they are exact. `exact` is true only when they came from a
+ * database aggregate over the whole history rather than from a capped window.
+ */
+export interface ProfileStatsResult extends ProfileStats {
+  exact: boolean;
+}
+
 function functionOf(op: Operation): string {
   return op.decoded_function ?? op.function ?? 'invoke_contract';
+}
+
+/**
+ * The reputation heuristic itself, shared by the in-memory and the database
+ * paths so the two can never drift apart.
+ * 6 pts per invocation (cap 60) + 10 pts per distinct function (cap 40).
+ */
+function scoreOf(invocations: number, uniqueFunctions: number): number {
+  return Math.min(100, Math.min(60, invocations * 6) + Math.min(40, uniqueFunctions * 10));
 }
 
 /**
@@ -209,12 +227,7 @@ export function computeStats(operations: Operation[] | null | undefined): Profil
   const successful = source.filter((op) => op.transaction_successful !== false);
   const uniqueFunctions = new Set(successful.map(functionOf)).size;
   const invocations = successful.length;
-  // 6 pts per invocation (cap 60) + 10 pts per distinct function (cap 40).
-  const reputation = Math.min(
-    100,
-    Math.min(60, invocations * 6) + Math.min(40, uniqueFunctions * 10),
-  );
-  return { invocations, uniqueFunctions, reputation };
+  return { invocations, uniqueFunctions, reputation: scoreOf(invocations, uniqueFunctions) };
 }
 
 export async function listHandles(): Promise<string[]> {
@@ -363,6 +376,20 @@ export async function safeChainProfile(handle: string): Promise<Profile | null> 
       .build();
 
     const sim = await server.simulateTransaction(tx);
+    // An archived persistent entry simulates "as if" it were present and
+    // reports what must be restored in `restorePreamble`. `isSimulationRestore`
+    // is the SDK's own guard for that and additionally requires the preamble to
+    // carry `transactionData` — a preamble without it names nothing to restore.
+    if (rpc.Api.isSimulationRestore(sim)) {
+      return {
+        name: handle,
+        wallet: '',
+        bio: '',
+        joined: '',
+        source: 'chain',
+        archived: true,
+      };
+    }
     if (rpc.Api.isSimulationError(sim) || !sim.result) return null;
 
     const wallet = decodeResolvedAddress(scValToNative(sim.result.retval));
@@ -507,4 +534,69 @@ export async function getPagedOperations(
 export async function safeDbOperations(handle: string): Promise<Operation[] | null> {
   const result = await safeDbOperationsResult(handle);
   return result ? result.operations : null;
+}
+
+/**
+ * Best-effort database aggregation of a profile's stats over its *whole*
+ * operation history. `safeDbOperationsResult` reads a capped window per wallet,
+ * so stats derived from it are lower bounds; this instead pushes a `count` and
+ * a `distinct` into the database, so the invocation count, the function
+ * diversity and the score they feed are exact no matter how long the history is.
+ *
+ * Returns null when there is no database, the handle resolves to nothing in it,
+ * or the profile has no indexed activity — in every one of those cases the
+ * caller has to fall back to computing over whichever layer actually served the
+ * operations, or it would report a confident zero next to a non-empty list.
+ */
+export async function safeDbProfileStats(handle: string): Promise<ProfileStats | null> {
+  if (!process.env.DATABASE_URL || !isValidHandle(handle)) return null;
+  try {
+    const { prisma } = await import('@signet/db');
+    const profile = await prisma.profile.findUnique({
+      where: { handle: handle.toLowerCase() },
+      select: { id: true, wallets: { select: { id: true } } },
+    });
+    if (!profile || profile.wallets.length === 0) return null;
+    const walletIds = profile.wallets.map((w) => w.id);
+
+    const where = { walletId: { in: walletIds }, successful: true };
+    const [invocations, distinctOps] = await Promise.all([
+      prisma.operation.count({ where }),
+      prisma.operation.findMany({
+        where,
+        select: { function: true, decodedFunction: true },
+        distinct: ['function', 'decodedFunction'],
+      }),
+    ]);
+
+    // No indexed activity is indistinguishable from "not indexed yet", and the
+    // operations list may still be served by Horizon or the curated demo JSON.
+    // Fall back rather than contradict it.
+    if (invocations === 0) return null;
+
+    const uniqueFunctions = new Set(
+      distinctOps.map((op) => op.decodedFunction ?? op.function ?? 'invoke_contract'),
+    ).size;
+
+    return { invocations, uniqueFunctions, reputation: scoreOf(invocations, uniqueFunctions) };
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Stats for a handle, preferring exact database aggregates over the full
+ * history and falling back to computing over the operations the caller already
+ * has. `exact` says which happened: when it is false the numbers inherit the
+ * truncation of the window they came from, and every surface that renders them
+ * must qualify them as lower bounds.
+ */
+export async function getProfileStats(
+  handle: string,
+  operations?: Operation[] | null,
+): Promise<ProfileStatsResult> {
+  const dbStats = await safeDbProfileStats(handle);
+  if (dbStats) return { ...dbStats, exact: true };
+  const ops = operations ?? (await getOperations(handle));
+  return { ...computeStats(ops), exact: false };
 }
