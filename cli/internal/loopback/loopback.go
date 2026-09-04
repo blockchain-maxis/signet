@@ -7,6 +7,9 @@ package loopback
 
 import (
 	"context"
+	"crypto/rand"
+	"crypto/subtle"
+	"encoding/base64"
 	"errors"
 	"fmt"
 	"net"
@@ -29,6 +32,41 @@ const (
 // callbackResponse is served to the browser once the callback lands, so the
 // tab doesn't sit on a blank page — signet itself has already moved on.
 const callbackResponse = "Signet: link received. You can close this tab.\n"
+
+// rejectedResponse is served to a callback whose state does not match. It is
+// deliberately not an invitation to try again — the only party that should be
+// hitting this port already knows the state.
+const rejectedResponse = "Signet: this request was not expected. Ignoring it.\n"
+
+// Accept decides whether a callback is the one being waited for. Returning
+// false rejects that request *without* ending the wait.
+type Accept func(url.Values) bool
+
+// NewState returns a cryptographically random value to thread through the
+// approval link and back in the callback.
+func NewState() (string, error) {
+	buf := make([]byte, 32)
+	if _, err := rand.Read(buf); err != nil {
+		return "", fmt.Errorf("loopback: generating state: %w", err)
+	}
+	return base64.RawURLEncoding.EncodeToString(buf), nil
+}
+
+// MatchState is the Accept that RFC 8252's loopback-redirect hardening calls
+// for: the callback must carry exactly the state that went out in the link.
+//
+// While `signet link` is listening, *any* page the developer's browser visits
+// can issue requests to this port. Without this check a hostile page could
+// hand the CLI its own payload — linking an attacker-chosen account — or
+// simply hit the port to abort the developer's link. Compared in constant time
+// out of habit rather than need: the state is not a secret an attacker gets to
+// guess a byte at a time, but a timing-safe compare costs nothing here.
+func MatchState(expected string) Accept {
+	return func(values url.Values) bool {
+		got := values.Get("state")
+		return subtle.ConstantTimeCompare([]byte(got), []byte(expected)) == 1
+	}
+}
 
 // Server is a one-shot loopback HTTP server. Create with New, read Port to
 // build the callback URL, then call Wait exactly once to block until that
@@ -79,10 +117,23 @@ func (s *Server) Close() error {
 //
 // The returned url.Values are the callback request's query parameters.
 func (s *Server) Wait(ctx context.Context, timeout time.Duration) (url.Values, error) {
+	return s.WaitFor(ctx, timeout, func(url.Values) bool { return true })
+}
+
+// WaitFor is Wait, but only a callback that `accept` approves ends it.
+//
+// A rejected callback is answered and discarded, and the server keeps
+// listening — the wait must survive a hostile or stray request rather than
+// being terminated by one, which is the whole point of #256. It still serves
+// at most one *accepted* callback.
+func (s *Server) WaitFor(ctx context.Context, timeout time.Duration, accept Accept) (url.Values, error) {
 	if s.waited {
 		return nil, ErrAlreadyWaiting
 	}
 	s.waited = true
+	if accept == nil {
+		accept = func(url.Values) bool { return true }
+	}
 
 	type result struct {
 		values url.Values
@@ -92,15 +143,23 @@ func (s *Server) Wait(ctx context.Context, timeout time.Duration) (url.Values, e
 
 	mux := http.NewServeMux()
 	mux.HandleFunc(s.path, func(w http.ResponseWriter, r *http.Request) {
+		values := r.URL.Query()
 		w.Header().Set("content-type", "text/plain; charset=utf-8")
+
+		if !accept(values) {
+			w.WriteHeader(http.StatusBadRequest)
+			_, _ = fmt.Fprint(w, rejectedResponse)
+			return
+		}
+
 		w.WriteHeader(http.StatusOK)
 		_, _ = fmt.Fprint(w, callbackResponse)
 		select {
-		case done <- result{values: r.URL.Query()}:
+		case done <- result{values: values}:
 		default:
-			// A second request raced the first here — first one wins, this
-			// one's result is simply dropped; the shutdown below tears down
-			// the listener regardless.
+			// A second accepted request raced the first here — first one
+			// wins, this one's result is simply dropped; the shutdown below
+			// tears down the listener regardless.
 		}
 	})
 

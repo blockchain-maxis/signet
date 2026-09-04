@@ -2,8 +2,10 @@ package loopback
 
 import (
 	"context"
+	"errors"
 	"net"
 	"net/http"
+	"net/url"
 	"strings"
 	"testing"
 	"time"
@@ -149,5 +151,120 @@ func TestWait_SecondCallIsAnError(t *testing.T) {
 
 	if _, err := s.Wait(context.Background(), 50*time.Millisecond); err != ErrAlreadyWaiting {
 		t.Fatalf("got %v, want ErrAlreadyWaiting", err)
+	}
+}
+
+// ── state verification (RFC 8252 loopback-redirect hardening) ────────────
+
+func TestNewState_IsRandomAndUrlSafe(t *testing.T) {
+	a, err := NewState()
+	if err != nil {
+		t.Fatalf("NewState: %v", err)
+	}
+	b, err := NewState()
+	if err != nil {
+		t.Fatalf("NewState: %v", err)
+	}
+	if a == b {
+		t.Fatal("NewState returned the same value twice")
+	}
+	if len(a) < 32 {
+		t.Fatalf("state %q is too short to be unguessable", a)
+	}
+	if strings.ContainsAny(a, "+/=&?#") {
+		t.Fatalf("state %q is not safe to put in a URL unescaped", a)
+	}
+}
+
+func TestMatchState(t *testing.T) {
+	accept := MatchState("expected")
+	if !accept(url.Values{"state": {"expected"}}) {
+		t.Fatal("rejected the matching state")
+	}
+	for _, wrong := range []url.Values{
+		{"state": {"other"}},
+		{"state": {"expected "}},
+		{"state": {"EXPECTED"}},
+		{"state": {""}},
+		{},
+	} {
+		if accept(wrong) {
+			t.Fatalf("accepted %v", wrong)
+		}
+	}
+}
+
+func TestWaitFor_RejectsMismatchedStateWithoutEndingTheWait(t *testing.T) {
+	s, err := New("/callback")
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	target := s.URL()
+
+	go func() {
+		// A hostile page hits the port first with its own state. The wait
+		// must survive this — the whole attack is aborting or hijacking the
+		// developer's link.
+		time.Sleep(20 * time.Millisecond)
+		_ = getAndDiscard(http.DefaultClient, target+"?state=attacker&code=evil")
+		time.Sleep(20 * time.Millisecond)
+		_ = getAndDiscard(http.DefaultClient, target+"?state=expected&code=real")
+	}()
+
+	values, err := s.WaitFor(context.Background(), 5*time.Second, MatchState("expected"))
+	if err != nil {
+		t.Fatalf("WaitFor: %v", err)
+	}
+	if values.Get("code") != "real" {
+		t.Fatalf("returned the attacker's callback: %v", values)
+	}
+}
+
+func TestWaitFor_MismatchedStateGetsA400(t *testing.T) {
+	s, err := New("/callback")
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	target := s.URL()
+
+	codes := make(chan int, 1)
+	go func() {
+		time.Sleep(20 * time.Millisecond)
+		resp, err := http.Get(target + "?state=wrong")
+		if err == nil {
+			codes <- resp.StatusCode
+			_ = resp.Body.Close()
+		} else {
+			codes <- 0
+		}
+		time.Sleep(20 * time.Millisecond)
+		_ = getAndDiscard(http.DefaultClient, target+"?state=right")
+	}()
+
+	if _, err := s.WaitFor(context.Background(), 5*time.Second, MatchState("right")); err != nil {
+		t.Fatalf("WaitFor: %v", err)
+	}
+	if got := <-codes; got != http.StatusBadRequest {
+		t.Fatalf("mismatched callback got %d, want 400", got)
+	}
+}
+
+func TestWaitFor_StillTimesOutIfOnlyMismatchesArrive(t *testing.T) {
+	s, err := New("/callback")
+	if err != nil {
+		t.Fatalf("New: %v", err)
+	}
+	target := s.URL()
+
+	go func() {
+		for i := 0; i < 3; i++ {
+			time.Sleep(10 * time.Millisecond)
+			_ = getAndDiscard(http.DefaultClient, target+"?state=wrong")
+		}
+	}()
+
+	_, err = s.WaitFor(context.Background(), 150*time.Millisecond, MatchState("right"))
+	if !errors.Is(err, context.DeadlineExceeded) {
+		t.Fatalf("err = %v, want a deadline error", err)
 	}
 }
