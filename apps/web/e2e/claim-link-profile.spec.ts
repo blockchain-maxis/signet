@@ -1,7 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { execFileSync } from 'node:child_process';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { Keypair, TransactionBuilder } from '@stellar/stellar-sdk';
 import { apiSignIn } from './support';
 
@@ -55,7 +54,11 @@ import { apiSignIn } from './support';
  */
 
 const HAS_DB = Boolean(process.env.DATABASE_URL);
-const here = path.dirname(fileURLToPath(import.meta.url));
+// `__dirname`, not `import.meta.url`: apps/web is not `"type": "module"`, so
+// Playwright loads specs as CommonJS and `import.meta` is a syntax error — one
+// that breaks collection for the whole directory, taking the unrelated smoke
+// specs down with it.
+const here = __dirname;
 
 test.describe('claim → link → indexer → profile', () => {
   test.skip(
@@ -149,7 +152,10 @@ test.describe('claim → link → indexer → profile', () => {
       [
         '--import',
         'tsx',
-        path.join(here, 'indexer-tick.ts'),
+        // `.mts` so it is unambiguously ESM: it uses top-level await, and the
+        // nearest package.json (apps/web) is not a module, so a plain `.ts`
+        // would be loaded as CommonJS and fail.
+        path.join(here, 'indexer-tick.mts'),
         deployer.publicKey(),
         contractAddress,
       ],
