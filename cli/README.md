@@ -1,0 +1,253 @@
+# signet CLI
+
+The `signet` command-line companion to the Signet developer identity registry
+on Stellar/Soroban. It lives beside the pnpm workspace rather than inside it —
+this is a standalone Go module, not a pnpm package — mirroring the split
+between orchestration/UX (Go, here) and anything that must execute Soroban
+semantics (Rust, `packages/contracts`).
+
+This module is currently a scaffold: the command tree, configuration, and
+identity resolution exist, and `link` validates its inputs and reports a
+structured result, but it doesn't yet perform a real on-chain claim or call a
+deployment's HTTP API — that (along with local key management) lands in
+follow-up issues once `internal/keys`/`internal/spec` are implemented.
+
+## The `stellar` CLI dependency
+
+`internal/keys` delegates identity resolution and signing to the [Stellar
+CLI](https://developers.stellar.org/docs/tools/cli) (`stellar keys ...`,
+`stellar tx sign ...`) rather than owning key storage itself.
+`keys.CheckStellarCLI` verifies it's on `PATH` and reports at least
+`keys.MinimumStellarVersion` (currently `25.2.0` — where `tx sign` gained
+`--sign-with-key` and reading the transaction from stdin) before any command
+that needs it does real work. A missing binary and a too-old version each
+produce a distinct, actionable error naming
+`keys.StellarInstallURL` and the required version — never a raw exec error or
+an unrecognized-flag message pointing at the wrong tool.
+
+## Opening a browser
+
+`internal/browser.OpenOrPrint(out, url, noBrowser)` is what a future
+interactive approval flow (`signet link` opening a page for a human to
+confirm) uses to show that page: it attempts the platform opener (`open` on
+macOS, `xdg-open` on Linux, `rundll32 url.dll,FileProtocolHandler` on
+Windows — Go has no stdlib opener, so this is an explicit per-OS call rather
+than a dependency), and falls back to printing the URL to `out` instead —
+never treating the opener's failure as fatal — when `noBrowser` is set, when
+no display is detected (`DISPLAY`/`WAYLAND_DISPLAY` on Linux; macOS/Windows
+are assumed to always have one), or when the platform opener itself fails to
+launch (e.g. it isn't installed). Both paths reach the developer at exactly
+the same URL.
+
+Not yet wired into any command: `link` doesn't perform a real approval flow
+yet (see "Commands" below), so there's nothing to open a browser to. The
+package is built and tested ahead of that landing, same as `internal/keys`
+and `internal/spec`.
+
+## Commands
+
+### `signet link`
+
+Attaches the wallet you deploy contracts from to your Signet handle.
+
+```bash
+signet link
+# Approve this link in your browser:
+#
+#     https://signet.example/link?callback=…&code=…
+#
+# Waiting for approval… 4m58s remaining
+# Approved. Proving control of the deploy key…
+# Linked GASAAEJC6P5UZGRLYJ2I2KYLR7RXGF44JZXDYGCFBN7T5VIHECUUEMCD to @aquawolf on testnet.
+```
+
+There is no handle argument: the handle is whichever one you are signed in as
+when you approve in the browser. Asking for it here would invite typing one you
+do not own, and the server would refuse it anyway. There is no `--public-key`
+either — the key is resolved from your local `stellar` identity, so what gets
+signed and what gets linked cannot disagree.
+
+Approving proves you own the handle; signing a challenge proves you control the
+deploy key. Both are required.
+
+`--json` writes a single JSON object to stdout instead — `{handle, publicKey,
+network, status}` — and sends progress to stderr, so a CI pipeline can parse
+the result without scraping text that is free to change between releases:
+
+```bash
+signet link --json
+# {"handle":"aquawolf","publicKey":"GASAAEJC6P5UZGRLYJ2I2KYLR7RXGF44JZXDYGCFBN7T5VIHECUUEMCD","network":"testnet","status":"linked"}
+```
+
+`--no-browser` prints the approval URL instead of trying to open one.
+`--network` defaults to `testnet`; pass `--network mainnet` for mainnet.
+
+### `signet unlink`
+
+Removes the binding, proving control of the same deploy key.
+
+```bash
+signet unlink
+# Unlink GASAAEJC6P5UZGRLYJ2I2KYLR7RXGF44JZXDYGCFBN7T5VIHECUUEMCD from its Signet profile? [y/N] y
+# Unlinked GASAAEJC6P5UZGRLYJ2I2KYLR7RXGF44JZXDYGCFBN7T5VIHECUUEMCD from @aquawolf.
+```
+
+`--yes` skips the confirmation, for non-interactive use. Unlinking needs only
+key control — no browser step — because it withdraws an attestation rather than
+making one.
+
+On any failure stdout stays empty (in both modes) and the error goes to stderr
+with a non-zero exit code — stdout is always safe to parse as either the one
+JSON object or nothing at all.
+
+### Non-interactive use (CI)
+
+An interactive identity prompt has nothing to answer it in CI. Set the identity
+and no prompt appears:
+
+```bash
+# stellar already reads this for `tx sign`; signet honours the same variable,
+# so there is only one name to keep in sync.
+export STELLAR_SIGN_WITH_KEY=ci-deploy
+signet link --json
+```
+
+or per-invocation:
+
+```bash
+signet link --sign-with-key ci-deploy --json
+```
+
+Pass an **identity name**, not a secret. signet resolves your public key with
+`stellar keys address <name>` before it can request a challenge — that is how
+key material stays out of this process — and a secret on the command line is
+visible in shell history and to anyone who can run `ps`. A value that looks
+like a secret seed or a seed phrase is refused, and the value is never echoed
+back in the error. Add the key once in the job and pass its name:
+
+```bash
+stellar keys add ci-deploy --secret-key "$SIGNET_DEPLOY_KEY"
+```
+
+Unlike `--source`, neither `--sign-with-key` nor `STELLAR_SIGN_WITH_KEY` is
+written to the config file.
+
+## Exit codes
+
+Stable and documented — scripts and CI wrapping this command can branch on
+the code instead of scraping message text, which is free to change between
+releases.
+
+| Code | Meaning |
+|------|---------|
+| `0` | Success |
+| `1` | Generic/unexpected error |
+| `2` | Invalid input (e.g. a malformed handle or public key) |
+| `3` | Configuration error — the config file, a flag/env var, or the local `stellar` CLI (missing, or older than the required minimum version) is unusable |
+| `4` | No identity — `stellar` couldn't resolve the requested identity |
+| `5` | Signing failed |
+| `6` | Network error — a Signet deployment couldn't be reached, or returned an unexpected response |
+| `7` | Timed out |
+| `8` | Approval rejected — the developer (or the deployment, on their behalf) explicitly declined |
+| `9` | Already linked — the target wallet already has a conflicting binding |
+
+Every code has a real caller now: `link` and `unlink` raise `3`–`9` between
+them (configuration, identity resolution, `stellar tx sign`, reaching the
+deployment, the approval wait, a refusal, and a wallet already bound
+elsewhere). See [`docs/CLI.md`](../docs/CLI.md) for a symptom → cause → fix
+table keyed to them.
+
+Every code beyond `2` is a sentinel error in `internal/exitcode`
+(`ErrConfiguration`, `ErrNoIdentity`, etc.), wrapped with `fmt.Errorf`'s `%w`
+wherever it actually happens and matched with `errors.Is` — see
+`internal/cmd.ExitCode`. `2` is the one exception, implemented via
+`link.ValidationError`'s own `ExitCoder` interface rather than a shared
+sentinel, since malformed input is caught before any of the other failure
+classes could apply. An error that matches neither mechanism maps to `1`.
+
+## Configuration
+
+Every command reads two settings — which Signet deployment to talk to, and
+which local identity to sign as — resolved in this order, highest priority
+first:
+
+1. A command-line flag: `--url` / `--source` / `--sign-with-key`
+   (`--sign-with-key` outranks `--source`: it is the more specific statement
+   of intent)
+2. An environment variable: `SIGNET_URL` for the deployment URL,
+   `STELLAR_SIGN_WITH_KEY` for the identity
+3. The config file: `$XDG_CONFIG_HOME/signet/config.json` on Linux,
+   `~/Library/Application Support/signet/config.json` on macOS,
+   `%AppData%\signet\config.json` on Windows (`os.UserConfigDir()`)
+4. The built-in default deployment — no config file is required to use it
+
+```json
+{
+  "baseUrl": "https://my-self-hosted-signet.example",
+  "source": "alice"
+}
+```
+
+Passing `--source` explicitly updates the config file's `source` so the next
+invocation doesn't have to repeat it. `--sign-with-key` and
+`STELLAR_SIGN_WITH_KEY` deliberately do not — `stellar tx sign` accepts key
+material for that setting, and persisting a secret to disk on your behalf is
+not signet's call — that's what makes repeat runs not
+re-ask which identity to use. `--url` is read from the config file but never
+written back by a flag; edit the file (or keep using `--url`/`SIGNET_URL`) to
+change the configured deployment. See `internal/config` for the resolution
+logic and its tests.
+
+## Build
+
+```bash
+cd cli
+go build -o bin/signet ./cmd/signet
+```
+
+To bake a version string and commit hash into the binary:
+
+```bash
+go build \
+  -ldflags "-X main.version=$(git describe --tags --always) -X main.commit=$(git rev-parse --short HEAD)" \
+  -o bin/signet ./cmd/signet
+```
+
+## Test / lint
+
+```bash
+go vet ./...
+go test -race ./...
+golangci-lint run ./...
+```
+
+`-race` needs a C toolchain (cgo) to build the instrumented test binary —
+unrelated to the production build's `CGO_ENABLED=0` requirement below, since
+the test binary is never distributed. If you don't have a C compiler
+installed, drop `-race` locally; CI (`ubuntu-latest`) always runs with it.
+
+`internal/keys`' tests compile a throwaway `stellar` CLI stand-in from
+`internal/keys/testdata/fakestellar` on first use (the standard Go
+"helper binary" pattern) so `ResolvePublicKey`'s `exec.Command` wiring is
+exercised for real, without needing the actual Stellar CLI installed.
+
+No cgo is used anywhere in this module, so it cross-compiles with the
+standard `GOOS`/`GOARCH` combinations, e.g.:
+
+```bash
+GOOS=darwin GOARCH=arm64 go build -o bin/signet-darwin-arm64 ./cmd/signet
+GOOS=linux  GOARCH=amd64 go build -o bin/signet-linux-amd64  ./cmd/signet
+```
+
+## Layout
+
+| Path | Purpose |
+|------|---------|
+| `cmd/signet` | `main.go` — the binary's entrypoint |
+| `internal/cmd` | Cobra command tree |
+| `internal/config` | Resolves `--url`/`--source`/`SIGNET_URL`/the config file into the settings a run uses |
+| `internal/link` | `signet link` — validates a handle/public key and reports a structured result; the actual on-chain claim / API call is not yet implemented |
+| `internal/keys` | Resolves a named local identity to its public key, and checks the local `stellar` CLI is present and new enough, by shelling out to it; signing itself is not yet implemented |
+| `internal/spec` | Typed request/response models for a Signet deployment's HTTP API (scaffolded, not yet implemented) |
+| `internal/exitcode` | The exit-code taxonomy (see "Exit codes" above) — its own leaf package so both `internal/cmd` and packages like `internal/keys` can depend on it without a cycle |
+| `internal/browser` | Opens a URL in the default browser for an approval flow, falling back to printing it — not yet wired into any command |

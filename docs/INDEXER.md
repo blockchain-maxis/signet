@@ -3,7 +3,21 @@
 `apps/indexer` is a single long-running Node process that keeps the Signet database in
 sync with Stellar. It has no HTTP surface and no scheduler: it loops forever, and each
 pass through the loop (a **tick**) runs every worker in a fixed order, then sleeps
-`INDEXER_TICK_INTERVAL_MS` (default 30 s).
+`INDEXER_TICK_INTERVAL_MS` (default 30 s) — checking every 2s during that sleep for a
+pending index request (see below) and starting the next tick early if one exists, rather
+than always waiting out the full interval.
+
+**Linking a wallet triggers indexing promptly, not just on the next scheduled tick.**
+`apps/web/lib/server/account.ts`'s `linkDeployWallet` sets `Wallet.indexRequestedAt` on
+every (re-)link — no new IPC, the database the indexer already polls is the signal
+channel. The deployment worker clears it once the wallet has actually been scanned
+(success or failure — a failed scan still *attempted* one promptly, and leaving it set
+after a transient Horizon error would keep forcing short ticks for as long as Horizon
+stays down). A plain timestamp column, not a queue, so relinking just overwrites it —
+the trigger itself is idempotent under repeated links. The dashboard shows an
+"indexing…" state for a wallet with `indexRequestedAt` still set
+(`LinkedWallet.indexingPending`), instead of rendering a just-linked wallet as if it
+were confirmed to have no activity.
 
 This document is for whoever has to answer "is it healthy", "where did it stop" and "how
 do I restart it safely". For the data model see [`packages/db/prisma/schema.prisma`](../packages/db/prisma/schema.prisma);
@@ -22,9 +36,10 @@ is caught by the tick, logged as `tick.error`, and the loop continues.
 |---|--------|------|-------|--------|
 | 0 | **seed** | Once at startup, only when the `main` cursor row is missing or `--reseed` was passed | the hard-coded list in [`src/seed-data.ts`](../apps/indexer/src/seed-data.ts) | `Profile`, `Wallet` (`source: 'curated'`) |
 | 1 | **attestation** | Every tick, **skipped entirely** when no registry contract id is configured | Soroban RPC `getEvents` on the Identity Registry | `Profile`, `Wallet` (`source: 'onchain'`), cursor `attestation` |
-| 2 | **deployment** | Every tick | Horizon `/accounts/{pubkey}/operations` for every `Wallet` row (200 most recent, desc), plus a transaction fetch per contract-creation op | `Contract` |
+| 2 | **deployment** | Every tick | Horizon `/accounts/{pubkey}/operations` for every `Wallet` row — paginated backward from `Wallet.deploymentCursor` (50/page, up to 10 pages/tick) until fully backfilled, then paginated forward from `Wallet.deploymentWatermark` — plus a transaction fetch per contract-creation op | `Contract`, `Wallet.deploymentCursor`/`deploymentBackfilledAt`/`deploymentWatermark`, clears `Wallet.indexRequestedAt` |
 | 3 | **activity** | Every tick | Horizon `/accounts/{contract}/transactions` for every `Contract` whose newest snapshot is older than 5 min | `ContractSnapshot` |
 | 4 | **operations** | Every tick | Horizon `/accounts/{pubkey}/operations` for every `Wallet` (50 most recent, desc) | `Operation` |
+| 5 | **prune** | Periodic (`INDEXER_PRUNE_INTERVAL_MS`, default 1h) | `Operation`, `ContractSnapshot` | Deletes historical records older than retention windows |
 
 Notes that matter in production:
 
@@ -57,12 +72,41 @@ contract's own method and event reference.
 
 ## 2. Cursors and resumption
 
-Cursors live in the `IndexerCursor` table — one row per cursor, `id` is the name:
+Two kinds of cursor exist. The `IndexerCursor` table holds one **global** row per cursor,
+`id` is the name:
 
 | Cursor id | Written by | Value | Used for |
 |-----------|-----------|-------|----------|
-| `main` | end of each tick, **only if** the deployment worker saw a ledger > 0 | highest ledger sequence observed while scanning wallet operations | Only as a "have we ever run" flag — it decides whether the seed worker runs at startup. **It is not a resume point**; the deployment worker always rescans the most recent 200 operations per wallet. |
+| `main` | end of each tick, **only if** the deployment worker saw a ledger > 0 | highest ledger sequence observed while scanning wallet operations | Only as a "have we ever run" flag — it decides whether the seed worker runs at startup. **It is not a resume point** for any per-wallet scan; see the per-wallet backfill state below for that. |
 | `attestation` | end of the attestation worker, whenever the RPC call succeeded | `latestLedger` reported by the last `getEvents` response | The real resume point. Next tick reads from `lastLedger + 1`. |
+
+Deployment backfill is tracked **per wallet** instead, on the `Wallet` row itself
+(`deploymentCursor`, `deploymentBackfilledAt`, `deploymentWatermark`) — a single global
+position can't tell you
+where any one wallet's own backfill stands, and wallets get linked at different times.
+`deploymentCursor` is the Horizon `paging_token` of the oldest operation walked back to so
+far; `null` means backfill hasn't started. The deployment worker resumes the backward walk
+from exactly that point (Horizon's own `?cursor=` param), up to 10 pages of 50 operations per
+tick, and sets `deploymentBackfilledAt` once Horizon returns an empty page — meaning the
+wallet's entire history has been walked. Both the cursor and the watermark are written
+**after every page**, not once at the end of the tick, so a crash mid-walk costs one page
+rather than up to ten.
+
+From then on the worker walks *forward* instead, from `deploymentWatermark` — the
+`paging_token` of the newest operation it has actually examined. The first post-backfill
+tick has no watermark yet, so it reads one bounded newest-first page to establish one, and
+every tick after that resumes from it.
+
+A fixed "newest 200 each tick" check was the obvious design here and is wrong: that window
+is anchored to *now* rather than to how far the worker got, so a wallet that accumulates
+more than 200 operations between two ticks loses whatever fell out of it — permanently,
+since the backward walk is already finished and never revisits. A deploy script, a busy
+testnet key, or a long idle interval all reach that, and the symptom is invisible (the
+profile quietly misses contracts). Anchoring to the watermark is what closes it.
+
+A wallet with a deep history therefore backfills over several ticks rather than either
+being silently truncated at 200 operations or re-scanning its full history on every tick,
+and a busy wallet cannot outrun the forward scan afterwards.
 
 Consequences worth knowing before an incident:
 
@@ -95,9 +139,12 @@ behind the tip than `INDEXER_EVENT_WINDOW_LEDGERS`, the worker does not read eve
 it **reconciles against contract state** instead (sweeps every handle the database knows
 through `resolve`, applying claims, transfers and releases idempotently), cross-checks the
 registry's `count()` and logs an error naming the shortfall when bindings exist on-chain
-that the database has never seen, then resumes the cursor from the tip. Recovery needs no
-manual database edit. What the sweep cannot do is *name* a handle the database has never
-seen — recovering those still takes the archival-RPC backfill below.
+that the database has never seen, then resumes the cursor from the near edge of the
+servable window — so the next tick replays the still-readable tail of events
+(idempotently) and picks up claims of handles the sweep could not know about. Recovery
+needs no manual database edit. What remains unrecoverable from this endpoint is a
+never-seen handle claimed in the truly unservable middle of the gap — those take the
+archival-RPC backfill below, and the `count()` cross-check tells you whether any exist.
 
 `8000` leaves real margin below that floor. **A first run therefore only sees the last ~11
 hours of claims** — bindings older than the window are not reconstructed, and cannot be, from
@@ -109,6 +156,16 @@ the curated seed data as the baseline and let on-chain events accumulate from no
 Each `getEvents` call takes at most **200 events**. A window with more than 200 events in
 it yields the first 200; the cursor then jumps to `latestLedger`, so **the remainder of
 that window is skipped**. This only bites on a busy backfill, not in steady state.
+
+### Why the web app cares
+
+The public directory at `/handles` reads the bindings this worker writes whenever the web
+app has a `DATABASE_URL`, and falls back to its own cursor-less `getEvents` scan only when
+it does not. That fallback carries the same ~11h horizon described above, with none of the
+accumulation: it re-derives the whole list on every request, so handles claimed before the
+window disappear from the page permanently while the contract's `count()` keeps counting
+them. Provisioning this indexer is what makes the directory durable — see
+[`apps/web/lib/directory.ts`](../apps/web/lib/directory.ts).
 
 ---
 
@@ -211,12 +268,40 @@ wedged or dead. That line is the single best thing to alert on.
 | `attestation.done` | debug | Event window processed; `throughLedger` is the new cursor. | Confirms the cursor is advancing. |
 | `attestation.applied` | debug | One binding applied. | — |
 | `attestation.fetchFailed` | **error** | RPC call failed; cursor left in place, window retried next tick. | Isolated → ignore. Repeating → §6. |
+| `pairing.linkStarted` | info | A registry event named a handle↔wallet pairing and is about to be applied. | The head of the audit trail for one binding. |
+| `pairing.linkCompleted` | info | The binding was written. Carries `handle` and the public `wallet`. | Retain these — this is how an account becomes attributed to a person. |
+| `pairing.unlinked` | info | A binding was dropped. `reason` is `released`, `revoked`, `transferred` or `no-longer-bound`. | Expected after a release; unexpected ones are worth investigating with the `wallet` field. |
+| `pairing.linkRejected` | **warn** | A registry event could not be decoded, so no pairing was applied. `reason: undecodable-event`. | Repeating → the contract emits a shape this build does not know; check the registry version. |
 | `deployments.txFetchFailed` | **warn** | One transaction couldn't be fetched; that contract is skipped this tick. | Self-heals; a permanent one means the tx is outside Horizon's retention. |
 | `deployments.scanFailed` / `operations.scanFailed` | **error** | Horizon scan failed for one wallet. Other wallets still run. | §6 — usually a missing account or a 429. |
 | `activity.queryFailed` | **warn** | No transactions readable for a contract; a snapshot with **zero counts is still written**. | Watch for zeroed snapshots on a contract you know is active. |
 | `tick.error` | **error** | An exception escaped a worker; this tick is abandoned, the loop continues. | Read the `error` field; persistent → restart. |
 | `indexer.shutdown` / `indexer.stopping` | info | Signal received / loop exited. | — |
 | `[indexer] fatal: …` | plain stderr | Startup failure. **The process exits 1.** | §6. |
+
+
+### The pairing audit trail
+
+Linking is the operation most worth an audit trail: it is how an account
+becomes attributed to a person, so a disputed or hijacked binding has to be
+investigable after the fact. Every stage emits one line at `info` — not
+`debug`, which production commonly switches off:
+
+```json
+{"lvl":"info","msg":"pairing.linkCompleted","outcome":"completed","source":"attestation-worker","handle":"aquawolf","wallet":"GASA…EMCD"}
+```
+
+`source` distinguishes the event stream (`attestation-worker`) from a
+rebuild-from-contract pass (`reconcile`). The fields are built by
+`pairingEvent` in `@signet/types`, which **refuses** to emit a line containing
+key material — a field named like a secret, or any value shaped like a Stellar
+secret seed, throws rather than being logged. The trail records what is already
+public: the handle, the wallet's public address, and the outcome.
+
+The web tier reports whether pairing is operational at all: `GET /api/health`
+carries `checks.pairing`, which is `down` when either the registry or Postgres
+is — a binding is proved on-chain and served from the database, so it needs
+both.
 
 ---
 

@@ -29,9 +29,24 @@ export default function MarketingPage() {
         />
 
         <Hero />
-        <Profile />
+        {/*
+          Profile and Compound pin their root <section> with ScrollTrigger,
+          which moves that element into a `div.pin-spacer` it inserts in the
+          section's place. React does not know the node moved, so any later
+          insertion that uses it as the reference sibling — the remaining
+          ssr:false sections arriving on their own chunks — throws
+          NotFoundError from insertBefore and the error boundary swallows the
+          page. Each pinned section gets a wrapper React owns instead: the
+          spacer is created inside the wrapper, and the page's own child list
+          only ever holds nodes GSAP leaves alone.
+        */}
+        <div>
+          <Profile />
+        </div>
         <Mechanism />
-        <Compound />
+        <div>
+          <Compound />
+        </div>
         <Unlocks />
         <Demos />
         <Featured />

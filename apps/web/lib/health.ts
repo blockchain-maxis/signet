@@ -65,6 +65,21 @@ export interface HealthChecks {
    * a reason to call the deployment degraded.
    */
   rateLimitStore: StoreStatus;
+  /**
+   * Pairing: whether a wallet↔handle binding can be established and read right
+   * now. It has no dependency of its own — it is the *composition* of the two
+   * that a binding needs, which is why it earns a check rather than being left
+   * for an operator to infer from `db` and `registry`:
+   *
+   *   • the **registry** is where a claim is written and proved, and
+   *   • **Postgres** is where the resulting binding is stored and served from,
+   *     so a linked wallet stops appearing on the dashboard without it.
+   *
+   * Either one down means pairing is not operational. `skipped` only when both
+   * are skipped: a deployment with neither configured is not doing pairing at
+   * all, while a deployment with one of them configured and broken is.
+   */
+  pairing: CheckStatus;
 }
 
 export interface HealthReport {
@@ -134,8 +149,20 @@ export async function checkRegistry(options: RegistryReadOptions = {}): Promise<
  * probe, so it is surfaced in `checks` and deliberately excluded here.
  */
 export function overallStatus(checks: HealthChecks): 'ok' | 'degraded' {
-  const degrading = [checks.db, checks.registry, checks.nonceStore];
+  const degrading = [checks.db, checks.registry, checks.nonceStore, checks.pairing];
   return degrading.includes('down') ? 'degraded' : 'ok';
+}
+
+/**
+ * Pairing readiness, derived from the checks it is built on rather than probed
+ * separately — a second `SELECT 1` and a second `count()` would double the
+ * probe's cost to learn nothing new, and could disagree with the checks
+ * reported beside it.
+ */
+export function pairingStatus(db: CheckStatus, registry: CheckStatus): CheckStatus {
+  if (db === 'down' || registry === 'down') return 'down';
+  if (db === 'skipped' && registry === 'skipped') return 'skipped';
+  return 'up';
 }
 
 /** Probes to run. Overridable so tests need neither a database nor an RPC. */
@@ -161,7 +188,13 @@ export async function collectHealth(probes: HealthProbes = {}): Promise<HealthRe
     (probes.rateLimitStore ?? getRateLimitStoreStatus)(),
   ]);
 
-  const checks: HealthChecks = { db, registry, nonceStore, rateLimitStore };
+  const checks: HealthChecks = {
+    db,
+    registry,
+    nonceStore,
+    rateLimitStore,
+    pairing: pairingStatus(db, registry),
+  };
   return {
     status: overallStatus(checks),
     service: 'signet-web',

@@ -1,0 +1,42 @@
+{
+  "name": "@signet/cli",
+  "version": "0.0.0",
+  "description": "signet — link wallets and manage identity on the Signet developer identity registry (Stellar/Soroban)",
+  "license": "Apache-2.0",
+  "keywords": [
+    "signet",
+    "stellar",
+    "soroban",
+    "cli"
+  ],
+  "homepage": "https://github.com/blockchain-maxis/signet/tree/main/cli#readme",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/blockchain-maxis/signet.git",
+    "directory": "cli"
+  },
+  "bin": {
+    "signet": "bin/signet.js"
+  },
+  "files": [
+    "bin"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "os": [
+    "linux",
+    "darwin",
+    "win32"
+  ],
+  "cpu": [
+    "x64",
+    "arm64"
+  ],
+  "optionalDependencies": {
+    "@signet/cli-linux-x64": "0.0.0",
+    "@signet/cli-linux-arm64": "0.0.0",
+    "@signet/cli-darwin-arm64": "0.0.0",
+    "@signet/cli-windows-x64": "0.0.0"
+  }
+}

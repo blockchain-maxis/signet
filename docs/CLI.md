@@ -1,367 +1,222 @@
 # Signet CLI
 
-`signet link` binds the wallet you deploy contracts with to your Signet handle.
-That binding is what turns on-chain deploys into a verifiable career record, so
-the flow is built to prove the link rather than to assert it.
+`signet` binds the wallet you deploy contracts from to your Signet handle, so
+the contracts that wallet has deployed are attributed to you.
 
-> **Status.** The CLI is being built across [#251](https://github.com/blockchain-maxis/signet/issues/251)
-> and the issues that follow it. This document describes the designed
-> behaviour and is the contract those issues are implemented against — where a
-> section describes something not yet on `main`, the issue that lands it is
-> named. The one part enforced today is
-> [Linking requires a database](#linking-requires-a-database).
+That binding is the thing the whole product rests on, so the CLI is deliberately
+careful about what it proves and what it never touches. Two facts to hold onto
+while reading the rest:
 
----
-
-## Contents
-
-- [Install](#install)
-- [Prerequisites](#prerequisites)
-- [The link flow, and what each step proves](#the-link-flow-and-what-each-step-proves)
-- [Choosing an identity](#choosing-an-identity)
-- [Configuration and precedence](#configuration-and-precedence)
-- [Using it from CI](#using-it-from-ci)
-- [Self-hosted deployments](#self-hosted-deployments)
-- [Machine-readable output](#machine-readable-output)
-- [Exit codes](#exit-codes)
-- [Linking requires a database](#linking-requires-a-database)
-- [Troubleshooting](#troubleshooting)
-
----
+- **signet never reads your secret key.** Signing goes through your local
+  `stellar` CLI (`stellar tx sign --sign-with-key`), which already owns key
+  storage. signet passes it a transaction and gets a signed one back.
+- **Linking takes two independent proofs.** Approving in the browser proves you
+  own the handle. Signing a challenge proves you control the deploy key.
+  Neither alone is enough, because accepting either on its own is exactly how
+  someone would claim another developer's contracts.
 
 ## Install
-
-No install step is required:
 
 ```bash
 npx @signet/cli link
 ```
 
-The npm package is a thin wrapper that fetches the cross-compiled binary for
-your platform ([#293](https://github.com/blockchain-maxis/signet/issues/293)).
-For repeated use, install it once:
+`npx` fetches a small wrapper that downloads the right prebuilt binary for your
+platform. To keep it around:
 
 ```bash
 npm install -g @signet/cli
-signet link
+signet --version
 ```
 
-`npx` is the documented default because linking is something most developers do
-once per machine, and a one-shot command should not leave a global install
-behind.
+Building from source needs Go (see `cli/go.mod` for the version):
 
----
-
-## Prerequisites
-
-**The [`stellar` CLI](https://developers.stellar.org/docs/tools/cli/install-cli),
-version 25.2.0 or newer, on your `PATH`.**
-
-This is not an incidental dependency. The Signet CLI **never handles your
-secret key** — not in memory, not in `argv`, not in logs, not in a crash dump.
-Identity listing, public-key resolution and signing are all delegated to
-`stellar`:
-
-```
-stellar keys ls                              # which identities exist
-stellar keys public-key <identity>           # resolve the G… address
-stellar tx sign --sign-with-key <identity>   # sign; the secret never leaves stellar
+```bash
+cd cli && go build ./cmd/signet
 ```
 
-Delegating means Signet takes on no key custody, and inherits `stellar`'s OS
-secure-store support and `--sign-with-ledger` hardware signing for free
-([#253](https://github.com/blockchain-maxis/signet/issues/253)).
+## Prerequisite: the `stellar` CLI
 
-The version is checked before any work happens, so a missing or too-old
-`stellar` produces a message naming the required version and the install page,
-rather than a raw exec error pointing at the wrong tool
-([#297](https://github.com/blockchain-maxis/signet/issues/297)).
+signet shells out to `stellar` for identity and signing, and refuses to run
+without it rather than half-working:
 
-If you have no `stellar` identity, you have deployed no contracts and have
-nothing to link yet.
+```bash
+stellar --version   # must be >= 25.2.0
+```
 
----
+25.2.0 is where `tx sign` gained `--sign-with-key` and reading the transaction
+from stdin — the two things that let signet sign without ever holding the
+secret. Install instructions:
+<https://developers.stellar.org/docs/tools/cli/install-cli>.
 
 ## The link flow, and what each step proves
 
-```
-$ signet link
-
-  ✓ stellar 25.2.0
-  ✓ identity: deploy-key (GCEX…7QK4)
-
-  Opening https://signet.dev/link/HRTV-2K9P
-
-  Waiting for approval… (expires in 5:00)
-
-  ✓ linked  @aquawolf  ←  GCEX…7QK4
+```bash
+signet link
 ```
 
-Five steps, each proving something the next one relies on:
+1. **Resolve the deploy identity.** `stellar keys ls` / `stellar keys address`
+   turn your chosen identity into a public key. If you have exactly one
+   identity it is used; if you have several you are asked which. *Proves
+   nothing yet — it is just deciding which key the rest of the flow is about.*
+2. **Mint a pairing.** signet calls `POST /api/cli/pair/start`, declaring that
+   public key. The declaration is **not** trusted; it exists so the browser can
+   show you which key you are approving.
+3. **Approve in the browser.** signet prints (and tries to open) a `/link` URL.
+   The page shows the deploy key and the handle, and you approve or reject.
+   *Proves you own the handle*, via your signed-in session.
+4. **Prove the key.** signet fetches a SEP-10 challenge for the deploy account
+   and signs it with `stellar tx sign`. *Proves you control the deploy key.*
+5. **Complete.** `POST /api/cli/pair/complete` checks both proofs and writes the
+   binding. It refuses if the challenge was signed by any key other than the one
+   the browser was shown — so what you approved is what gets linked.
 
-| Step         | What happens                                                                                               | What it proves                                                                                                                                       |
-| ------------ | ---------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------- |
-| 1. Preflight | `stellar --version` is checked; an identity is resolved                                                    | The signer exists and can be reached before anything user-visible starts                                                                             |
-| 2. Pair      | The CLI asks the deployment to mint a single-use pairing code, and starts a loopback server on `127.0.0.1` | The pairing is bound to _this_ process; the code is useless to anyone who did not start it                                                           |
-| 3. Approve   | Your browser opens the approval page; you sign in as your handle and approve                               | **You control the handle.** Browser-side session, never the CLI's business                                                                           |
-| 4. Sign      | The CLI signs a challenge with the deploy identity via `stellar tx sign`                                   | **You control the wallet.** The signature is over a challenge scoped to this pairing ([#269](https://github.com/blockchain-maxis/signet/issues/269)) |
-| 5. Complete  | The browser posts back to the loopback server; the CLI completes the pairing                               | Both proofs arrived in one session, so the handle and the wallet are the same person                                                                 |
+Two things race in step 3, and whichever answers first wins:
 
-Steps 3 and 4 are separate on purpose. The handle proof happens in the browser
-where the session lives; the wallet proof happens on the machine where the key
-lives. Neither component ever sees the other's secret.
+- a **loopback callback** — signet listens on `127.0.0.1` and the approval page
+  calls it, so the command finishes the instant you approve;
+- **polling** — signet asks the server for the pairing's status.
 
-**No browser?** Over SSH, in a container, or with `--no-browser`, the CLI
-prints the URL for you to open manually. The auto-open failing is never fatal —
-a command that hangs with no visible way to proceed is the worst first-run
-experience on a remote box
-([#257](https://github.com/blockchain-maxis/signet/issues/257)).
+The callback is unreachable in plenty of real setups (SSH, containers, locked
+down browsers), which is exactly why polling exists. Neither is trusted on its
+own: both paths end at the same `complete`, which re-checks everything.
 
----
+### Unlinking
+
+```bash
+signet unlink            # asks first
+signet unlink --yes      # for scripts
+```
+
+Unlinking needs only the key proof — no browser step. Attaching a wallet makes
+a claim about a profile; detaching withdraws one, and the person holding the key
+is the one whose attestation the profile was showing. Requiring the handle
+owner's consent too would mean a developer who left a team could not stop their
+key feeding a profile they no longer control.
+
+The **primary** wallet cannot be unlinked this way: it is the handle→wallet
+claim itself, so releasing it is an on-chain registry operation.
 
 ## Choosing an identity
 
-The CLI lists identities with `stellar keys ls` and picks one by this rule:
-
-1. `--source <identity>` if given.
-2. The last identity you linked with, from the config file.
-3. If exactly one identity exists, that one.
-4. Otherwise, prompt.
+signet uses your `stellar` keystore; it has no keystore of its own.
 
 ```bash
-signet link --source deploy-key
+stellar keys ls                          # what you have
+stellar keys generate deploy             # make one
+stellar keys add deploy --secret-key …   # import one
+signet link --source deploy              # use a specific one
 ```
 
-### Where the keystore lives
+`--source` is remembered, so later runs do not ask again. It is stored with the
+deployment URL in a config file:
 
-You do not need to know this — `stellar` owns the format and may change it, and
-the Signet CLI never reads it directly. It is documented only so you know
-whether an identity is available to the account running the command:
+| Platform | Location |
+| --- | --- |
+| Linux | `$XDG_CONFIG_HOME/signet/config.json` (usually `~/.config/signet/config.json`) |
+| macOS | `~/Library/Application Support/signet/config.json` |
+| Windows | `%AppData%\signet\config.json` |
 
-| Platform | Location                                                                     |
-| -------- | ---------------------------------------------------------------------------- |
-| Linux    | `$XDG_CONFIG_HOME/stellar/identity/` (usually `~/.config/stellar/identity/`) |
-| macOS    | `~/.config/stellar/identity/`                                                |
-| Windows  | `%APPDATA%\stellar\identity\`                                                |
-
-The practical consequence: an identity created as your user is not visible to
-`root`, to a different user, or inside a container that does not mount that
-directory. That is the usual cause of "no identity found" on a machine where
-`stellar keys ls` clearly works.
-
----
-
-## Configuration and precedence
-
-The CLI reads a config file from your OS config directory
-(`os.UserConfigDir()`) for the deployment URL and the last identity used, so
-repeat runs need no flags
-([#262](https://github.com/blockchain-maxis/signet/issues/262)).
-
-**Precedence, highest first:**
-
-```
---url / --source  >  SIGNET_URL / STELLAR_SIGN_WITH_KEY  >  config file  >  default
+```json
+{
+  "baseUrl": "https://signet.example",
+  "source": "deploy"
+}
 ```
 
-| Setting          | Flag       | Environment             | Config key | Default              |
-| ---------------- | ---------- | ----------------------- | ---------- | -------------------- |
-| Deployment URL   | `--url`    | `SIGNET_URL`            | `baseUrl`  | `https://signet.dev` |
-| Signing identity | `--source` | `STELLAR_SIGN_WITH_KEY` | `identity` | prompt               |
+Settings resolve highest-priority first: flag → environment → config file →
+built-in default.
 
-No config file is needed for the default deployment.
+## Self-hosted deployments
 
----
+Point the CLI at your own instance:
 
-## Using it from CI
+```bash
+signet link --url https://signet.internal.example      # once
+export SIGNET_URL=https://signet.internal.example      # for a shell
+```
 
-CI cannot answer an interactive prompt, so the signing identity must come from
-the environment. `stellar tx sign --sign-with-key` accepts an identity name, a
-raw `SC…` secret, or a seed phrase, and reads `STELLAR_SIGN_WITH_KEY` itself
-([#254](https://github.com/blockchain-maxis/signet/issues/254)).
+`--url` is read from the config file but never written back by the flag — edit
+the file to change the default deployment.
+
+The origin you point at is also the only origin allowed to reach the loopback
+callback while the command runs.
+
+## CI
+
+CI has no terminal to answer an identity prompt, so give it the identity up
+front. `stellar tx sign` already reads `STELLAR_SIGN_WITH_KEY`, and signet
+honours the same variable — one name, nothing to keep in sync.
 
 ```yaml
 - name: Link the deploy wallet
   env:
-    STELLAR_SIGN_WITH_KEY: ${{ secrets.SIGNET_DEPLOY_KEY }}
-  run: npx @signet/cli link --no-browser --json
+    STELLAR_SIGN_WITH_KEY: ci-deploy
+  run: |
+    stellar keys add ci-deploy --secret-key "$SIGNET_DEPLOY_KEY"
+    npx @signet/cli link --json
+  # SIGNET_DEPLOY_KEY comes from secrets, and is only ever handed to
+  # `stellar keys add` — never to signet.
 ```
 
-Store the deploy key in your CI secret store under whatever name you like —
-`SIGNET_DEPLOY_KEY` above is a convention, not something the CLI reads. The CLI
-reads **`STELLAR_SIGN_WITH_KEY`**, because that is the variable `stellar tx
-sign` already honours, and introducing a second name for the same secret would
-mean copying it between variables in every pipeline.
+**Pass an identity name, not a secret.** signet resolves your public key with
+`stellar keys address <name>` before it can request a challenge — that is how
+key material stays out of the process — and a secret on a command line is
+visible in shell history and to anyone who can run `ps`. A secret-shaped value
+or a seed phrase is refused, and the value is never echoed back into the log.
 
-When either `--sign-with-key` or `STELLAR_SIGN_WITH_KEY` is set, no prompt
-appears. The value is never echoed and never logged.
+Unlike `--source`, neither `--sign-with-key` nor `STELLAR_SIGN_WITH_KEY` is
+written to the config file: persisting something that might be a secret is not
+signet's call.
 
-> The approval step still needs a human in a browser once. CI usage is for
-> re-linking and verification after the first interactive link, not for
-> bootstrapping a handle unattended — an unattended path would defeat the
-> handle proof in step 3.
+`--json` writes one JSON object to stdout and sends progress to stderr, so a
+pipeline can parse the result without scraping human text:
 
----
-
-## Self-hosted deployments
-
-Signet is Apache-2.0 and [`docs/DEPLOYMENT.md`](DEPLOYMENT.md) documents running
-your own. Point the CLI at it:
-
-```bash
-signet link --url https://signet.internal.example
-# or persist it
-SIGNET_URL=https://signet.internal.example signet link
+```json
+{ "handle": "aquawolf", "publicKey": "GASA…", "network": "testnet", "status": "linked" }
 ```
 
-The URL must be `https` in any deployment reachable off `localhost`: the
-approval page posts back to a loopback address, and browsers apply
-[Private Network Access](https://developer.chrome.com/blog/private-network-access-preflight)
-rules to that request. See
-[loopback blocked](#loopback-blocked) below.
-
-Your deployment **must have a database** — see the next section.
-
----
-
-## Machine-readable output
-
-`--json` writes a single JSON object to stdout and nothing else, so a pipeline
-can parse the result without scraping human-formatted text that is free to
-change between releases ([#264](https://github.com/blockchain-maxis/signet/issues/264)):
-
-```console
-$ signet link --json
-{"handle":"aquawolf","publicKey":"GCEX…7QK4","network":"testnet","status":"linked"}
-```
-
-All human-facing output goes to stderr in this mode, so `stdout` stays valid
-JSON even when the command is also printing progress.
-
----
+On failure stdout stays empty and the error goes to stderr, so stdout is always
+either the one object or nothing.
 
 ## Exit codes
 
-Scripts wrap this command, and an undifferentiated non-zero exit forces log
-parsing. Every failure class has its own code
-([#259](https://github.com/blockchain-maxis/signet/issues/259)):
+Stable, so scripts can branch on the code rather than on message text.
 
-| Code | Meaning                                                                      | Retryable                       |
-| ---- | ---------------------------------------------------------------------------- | ------------------------------- |
-| `0`  | Linked                                                                       | —                               |
-| `1`  | Unexpected error                                                             | No — report it                  |
-| `2`  | Configuration error (bad `--url`, unparseable config, missing/old `stellar`) | No                              |
-| `3`  | No identity found                                                            | No                              |
-| `4`  | Signing failed                                                               | No                              |
-| `5`  | Network error reaching the deployment                                        | Yes                             |
-| `6`  | Timed out waiting for approval                                               | Yes                             |
-| `7`  | Approval rejected in the browser                                             | No                              |
-| `8`  | Wallet already linked to another handle                                      | No                              |
-| `9`  | Deployment cannot link — no database configured                              | Yes, once the operator fixes it |
-
-Codes `5`, `6` and `9` are the only ones worth retrying automatically. `9` in
-particular is not your problem to fix — see below.
-
----
-
-## Linking requires a database
-
-**A Signet deployment with no `DATABASE_URL` configured cannot link a wallet.**
-Linking is refused up front rather than failing later.
-
-### Why
-
-A wallet link is a `Wallet` row in Postgres. There is no other place it can go.
-
-Everything on the _read_ path degrades gracefully without a database:
-`safeDbProfile` and `safeDbOperations` in
-[`apps/web/lib/profiles.ts`](../apps/web/lib/profiles.ts) return `null` and the
-caller falls through to a live chain read, then to the curated demo profiles.
-A preview deployment with nothing provisioned still renders `/p/{handle}`.
-
-The write path cannot do that. If linking fell through the same way, the link
-would _appear_ to succeed and persist nothing: the CLI would print success, the
-developer would believe they were linked, and the failure would surface later
-from some unrelated command that needed the binding. **A link that silently
-persists nothing is worse than a refusal.**
-
-See [#191](https://github.com/blockchain-maxis/signet/issues/191) for database
-provisioning, and [`ENVIRONMENT.md`](ENVIRONMENT.md) for `DATABASE_URL` itself.
-
-### What you see
-
-| Where                         | With no `DATABASE_URL`                                                   |
-| ----------------------------- | ------------------------------------------------------------------------ |
-| `POST /api/cli/pair/complete` | `503` with `{"error":"database_required","isConfigurationError":true,…}` |
-| `GET /api/cli/pair/complete`  | `{"available":false,"reason":"database_required"}`                       |
-| `/link`                       | Approval is disabled, with an explanation, **before** you approve        |
-| CLI                           | Exit code `9`, naming `DATABASE_URL` — not a wallet or signature error   |
-
-The status is **`503`, not `4xx`**: nothing about the request was wrong, and
-nothing the developer does to their own account will change the outcome. The
-`isConfigurationError` flag is there so a client can classify it without
-string-matching a message.
-
-`/link` checks the same signal server-side and refuses _before_ approval, so
-nobody signs an approval that cannot be stored.
-
-### Fixing it
-
-This is for whoever operates the deployment, not for the developer trying to
-link:
-
-1. Provision Postgres and set `DATABASE_URL` for `apps/web`.
-2. Apply migrations — `pnpm db:deploy` (or `pnpm db:migrate` locally).
-3. Confirm with `GET /api/health`: `checks.db` should no longer report
-   `"skipped"`.
-
-`GET /api/cli/pair/complete` returning `{"available":true}` means linking can
-proceed.
-
----
+| Code | Meaning |
+| --- | --- |
+| `0` | Success |
+| `1` | Generic or unexpected error |
+| `2` | Invalid input — a malformed handle or public key |
+| `3` | Configuration — the config file, a flag or env var, the `stellar` CLI (missing or too old), or a deployment with no database |
+| `4` | No identity — `stellar` could not resolve the requested identity |
+| `5` | Signing failed |
+| `6` | Network — the deployment could not be reached, or answered unexpectedly |
+| `7` | Timed out waiting for approval |
+| `8` | Approval rejected in the browser |
+| `9` | Already linked — the wallet has a conflicting binding |
 
 ## Troubleshooting
 
-Symptom → cause → fix, following the same shape as
-[`TROUBLESHOOTING.md`](TROUBLESHOOTING.md).
+| Symptom | Cause | Fix |
+| --- | --- | --- |
+| `no identity available` (exit `4`) | No identity in the `stellar` keystore, or the named one does not exist | `stellar keys ls` to see what you have; `stellar keys generate <name>` or `stellar keys add <name> --secret-key …`; then `signet link --source <name>` |
+| `stellar CLI not found on PATH` (exit `3`) | signet cannot sign without it | Install it: <https://developers.stellar.org/docs/tools/cli/install-cli> |
+| `stellar CLI is older than the required minimum version` (exit `3`) | Older than 25.2.0, so `tx sign --sign-with-key` / stdin are missing | Upgrade `stellar` |
+| Nothing opens; the URL is printed instead | No display detected — SSH, a container, or a headless box. Not an error | Open the printed URL on any machine you can browse from. The link still works: signet polls for the approval |
+| Approved in the browser, terminal still waiting a few seconds | The browser could not reach `127.0.0.1` — normal over SSH or in a container | Nothing. Polling picks it up on the next check. The page says so when it happens |
+| Chrome shows a network error calling the callback | Private Network Access preflight refused | Check the deployment URL matches the one you passed: only that origin is allowed to reach the callback |
+| `no approval within 5m0s` (exit `7`) | The pairing expired before it was approved | Run `signet link` again; the printed URL is in the message |
+| `the approval was refused in the browser` (exit `8`) | Reject was clicked | Nothing was linked. Re-run to try again |
+| `This deploy account is already bound to a different profile` (exit `9`) | Another profile holds this wallet | Whoever holds it unlinks it from **Wallets** in the dashboard, then link again. The error deliberately does not say who holds it — see [`WALLET_ATTACHMENT.md`](WALLET_ATTACHMENT.md) |
+| `This challenge was signed by a different account than the one approved in the browser` | The identity changed between approving and signing | Re-run `signet link` so the key shown and the key signed are the same |
+| `CLI linking requires a database, and this deployment has none configured` (exit `3`) | The deployment has no `DATABASE_URL`; a link would have nowhere to be written | The operator provisions one (tracked in #191). Not something you can fix from the terminal — and `/link` says so before you approve |
+| `That confirmation code does not match the one shown in the browser` | The pasted handoff code is wrong or from another attempt | Copy it again from the approval page, or re-run `signet link` |
 
-| Symptom                                                                   | Cause                                                          | Fix                                                                                                                          |
-| ------------------------------------------------------------------------- | -------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------- |
-| `no identity found` (exit `3`)                                            | No `stellar` identity, or one that belongs to a different user | `stellar keys generate <name>`, or run as the user who owns the keystore — see [Choosing an identity](#choosing-an-identity) |
-| `stellar: command not found` / `unknown flag: --sign-with-key` (exit `2`) | `stellar` missing or older than 25.2.0                         | Install or upgrade from the [CLI install page](https://developers.stellar.org/docs/tools/cli/install-cli)                    |
-| Nothing opens; command sits at "Waiting for approval"                     | No browser — SSH, container, or headless                       | Open the printed URL manually, or pass `--no-browser`                                                                        |
-| Browser shows the page, approval appears to work, CLI never returns       | [Loopback blocked](#loopback-blocked)                          | Update the CLI; check the browser console for a CORS/Private Network Access error                                            |
-| `timed out waiting for approval` (exit `6`)                               | The approval window expired                                    | Re-run `signet link` and approve while it is waiting                                                                         |
-| `wallet already linked` (exit `8`)                                        | That `G…` address is bound to a different handle               | Unlink from the other handle first (`signet unlink`), or link a different wallet                                             |
-| `linking requires a database` (exit `9`)                                  | The **deployment** has no `DATABASE_URL`                       | Not yours to fix — see [Linking requires a database](#linking-requires-a-database)                                           |
+## See also
 
-### Loopback blocked
-
-The approval page is served over HTTPS; the callback target is
-`http://127.0.0.1:<port>`. Loopback is a potentially-trustworthy origin, so
-mixed-content blocking does not apply — but Chrome sends a CORS preflight for
-public → private requests and refuses the real request unless the loopback
-server opts in with `Access-Control-Allow-Private-Network: true`.
-
-An older CLI that does not answer that preflight fails **silently**: the browser
-reports an opaque network error and the CLI simply waits out its timeout. It is
-also invisible in local development, because `localhost → localhost` is not a
-public → private transition.
-
-**Fix:** update the CLI. If it persists, open the browser console on the
-approval page — a `Private Network Access` or CORS error there confirms it, and
-anything else points elsewhere. See
-[#272](https://github.com/blockchain-maxis/signet/issues/272).
-
-### Still stuck
-
-Re-run with `--json` and include stdout, the exit code, `stellar --version`, and
-your OS in an issue. Never paste a secret key or the contents of your keystore.
-
----
-
-## Related docs
-
-- [`ENVIRONMENT.md`](ENVIRONMENT.md) — every variable Signet reads
-- [`DEPLOYMENT.md`](DEPLOYMENT.md) — running your own deployment
-- [`TROUBLESHOOTING.md`](TROUBLESHOOTING.md) — first-run failures elsewhere in the project
+- [`WALLET_ATTACHMENT.md`](WALLET_ATTACHMENT.md) — the policy for a wallet
+  already attached elsewhere, and how a contested one is released.
+- [`ENVIRONMENT.md`](ENVIRONMENT.md) — what a deployment needs configured,
+  including what degrades without a database.
+- `cli/README.md` — building, testing, and the module layout.

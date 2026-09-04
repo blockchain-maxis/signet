@@ -1,7 +1,7 @@
 'use client';
 
-import { useEffect, useState } from 'react';
-import { trpc } from '@/lib/trpc-client';
+import { useEffect, useRef, useState } from 'react';
+import { trpc } from '@/lib/trpc';
 
 type Status = 'loading' | 'ready' | 'no-profile' | 'error';
 
@@ -10,54 +10,63 @@ type Status = 'loading' | 'ready' | 'no-profile' | 'error';
  * Loads the current values via `account.me` and saves through `account.update`
  * (both gated by the session cookie). When no profile is bound to the wallet
  * yet, it tells the user to claim a handle on-chain first instead of failing.
+ *
+ * Both calls go through the React Query tRPC hooks, so a successful save
+ * invalidates the cached `account.me` and the surrounding dashboard refetches
+ * the new values instead of holding stale ones.
  */
 export function ProfileEditor() {
-  const [status, setStatus] = useState<Status>('loading');
-  const [handle, setHandle] = useState<string | null>(null);
+  const me = trpc.account.me.useQuery();
+  const utils = trpc.useUtils();
+
   const [displayName, setDisplayName] = useState('');
   const [bio, setBio] = useState('');
-  const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  // Seed the form from the server once, the first time the query resolves;
+  // later refetches (e.g. after a save) must not clobber in-flight edits.
+  const seeded = useRef(false);
 
   useEffect(() => {
-    let active = true;
-    trpc.account.me
-      .query()
-      .then((me) => {
-        if (!active) return;
-        if (!me.dbConfigured) {
-          setStatus('error');
-          setMessage('Profile editing requires a configured database.');
-          return;
-        }
-        setHandle(me.handle);
-        setDisplayName(me.displayName ?? '');
-        setBio(me.bio ?? '');
-        // A handle can be resolved from the registry before the indexer has
-        // created the profile row backing these fields — `editable`, not the
-        // handle, is what says there is something here to write to.
-        setStatus(me.editable ? 'ready' : 'no-profile');
-      })
-      .catch(() => active && setStatus('error'));
-    return () => {
-      active = false;
-    };
-  }, []);
+    if (seeded.current || !me.data) return;
+    seeded.current = true;
+    if (!me.data.dbConfigured) {
+      setMessage('Profile editing requires a configured database.');
+      return;
+    }
+    setDisplayName(me.data.displayName ?? '');
+    setBio(me.data.bio ?? '');
+  }, [me.data]);
 
-  async function save(e: React.FormEvent) {
-    e.preventDefault();
-    setSaving(true);
-    setMessage(null);
-    try {
-      const updated = await trpc.account.update.mutate({ displayName, bio });
+  const update = trpc.account.update.useMutation({
+    onSuccess: (updated) => {
       setDisplayName(updated.displayName ?? '');
       setBio(updated.bio ?? '');
       setMessage('Saved.');
-    } catch (err) {
-      setMessage(err instanceof Error ? err.message : 'Could not save changes');
-    } finally {
-      setSaving(false);
-    }
+      // Refresh the cached profile so anything else reading it sees the edit.
+      void utils.account.me.invalidate();
+    },
+    onError: (err) => setMessage(err.message || 'Could not save changes'),
+  });
+
+  const handle = me.data?.handle ?? null;
+  const saving = update.isPending;
+  // A handle can be resolved from the registry before the indexer has created
+  // the profile row backing these fields — `editable`, not the handle, is what
+  // says there is something here to write to.
+  const status: Status = me.isError
+    ? 'error'
+    : me.isPending
+      ? 'loading'
+      : !me.data.dbConfigured
+        ? 'error'
+        : me.data.editable
+          ? 'ready'
+          : 'no-profile';
+
+  function save(e: React.FormEvent) {
+    e.preventDefault();
+    setMessage(null);
+    update.mutate({ displayName, bio });
   }
 
   if (status === 'loading') {
