@@ -46,28 +46,91 @@ and `internal/spec`.
 
 ## Commands
 
-### `signet link <handle>`
+### `signet link`
+
+Attaches the wallet you deploy contracts from to your Signet handle.
 
 ```bash
-signet link aquawolf --public-key GASAAEJC6P5UZGRLYJ2I2KYLR7RXGF44JZXDYGCFBN7T5VIHECUUEMCD
-# Linked aquawolf to GASAAEJC6P5UZGRLYJ2I2KYLR7RXGF44JZXDYGCFBN7T5VIHECUUEMCD (testnet)
+signet link
+# Approve this link in your browser:
+#
+#     https://signet.example/link?callback=…&code=…
+#
+# Waiting for approval… 4m58s remaining
+# Approved. Proving control of the deploy key…
+# Linked GASAAEJC6P5UZGRLYJ2I2KYLR7RXGF44JZXDYGCFBN7T5VIHECUUEMCD to @aquawolf on testnet.
 ```
+
+There is no handle argument: the handle is whichever one you are signed in as
+when you approve in the browser. Asking for it here would invite typing one you
+do not own, and the server would refuse it anyway. There is no `--public-key`
+either — the key is resolved from your local `stellar` identity, so what gets
+signed and what gets linked cannot disagree.
+
+Approving proves you own the handle; signing a challenge proves you control the
+deploy key. Both are required.
 
 `--json` writes a single JSON object to stdout instead — `{handle, publicKey,
-network, status}` — and suppresses the human-readable summary entirely, so a
-CI pipeline can parse the result without scraping text that's free to change
-between releases:
+network, status}` — and sends progress to stderr, so a CI pipeline can parse
+the result without scraping text that is free to change between releases:
 
 ```bash
-signet link aquawolf --public-key GASAAEJC6P5UZGRLYJ2I2KYLR7RXGF44JZXDYGCFBN7T5VIHECUUEMCD --json
-# {"handle":"aquawolf","publicKey":"GASAAEJC6P5UZGRLYJ2I2KYLR7RXGF44JZXDYGCFBN7T5VIHECUUEMCD","network":"testnet","status":"ok"}
+signet link --json
+# {"handle":"aquawolf","publicKey":"GASAAEJC6P5UZGRLYJ2I2KYLR7RXGF44JZXDYGCFBN7T5VIHECUUEMCD","network":"testnet","status":"linked"}
 ```
 
-On an invalid handle or public key, stdout stays empty (in both modes) and
-the error goes to stderr with a non-zero exit code — stdout is always safe
-to parse as either the one JSON object or nothing at all.
-
+`--no-browser` prints the approval URL instead of trying to open one.
 `--network` defaults to `testnet`; pass `--network mainnet` for mainnet.
+
+### `signet unlink`
+
+Removes the binding, proving control of the same deploy key.
+
+```bash
+signet unlink
+# Unlink GASAAEJC6P5UZGRLYJ2I2KYLR7RXGF44JZXDYGCFBN7T5VIHECUUEMCD from its Signet profile? [y/N] y
+# Unlinked GASAAEJC6P5UZGRLYJ2I2KYLR7RXGF44JZXDYGCFBN7T5VIHECUUEMCD from @aquawolf.
+```
+
+`--yes` skips the confirmation, for non-interactive use. Unlinking needs only
+key control — no browser step — because it withdraws an attestation rather than
+making one.
+
+On any failure stdout stays empty (in both modes) and the error goes to stderr
+with a non-zero exit code — stdout is always safe to parse as either the one
+JSON object or nothing at all.
+
+### Non-interactive use (CI)
+
+An interactive identity prompt has nothing to answer it in CI. Set the identity
+and no prompt appears:
+
+```bash
+# stellar already reads this for `tx sign`; signet honours the same variable,
+# so there is only one name to keep in sync.
+export STELLAR_SIGN_WITH_KEY=ci-deploy
+signet link --json
+```
+
+or per-invocation:
+
+```bash
+signet link --sign-with-key ci-deploy --json
+```
+
+Pass an **identity name**, not a secret. signet resolves your public key with
+`stellar keys address <name>` before it can request a challenge — that is how
+key material stays out of this process — and a secret on the command line is
+visible in shell history and to anyone who can run `ps`. A value that looks
+like a secret seed or a seed phrase is refused, and the value is never echoed
+back in the error. Add the key once in the job and pass its name:
+
+```bash
+stellar keys add ci-deploy --secret-key "$SIGNET_DEPLOY_KEY"
+```
+
+Unlike `--source`, neither `--sign-with-key` nor `STELLAR_SIGN_WITH_KEY` is
+written to the config file.
 
 ## Exit codes
 
@@ -107,9 +170,11 @@ Every command reads two settings — which Signet deployment to talk to, and
 which local identity to sign as — resolved in this order, highest priority
 first:
 
-1. A command-line flag: `--url` / `--source`
-2. An environment variable: `SIGNET_URL` (for the deployment URL only —
-   there is no environment override for the identity)
+1. A command-line flag: `--url` / `--source` / `--sign-with-key`
+   (`--sign-with-key` outranks `--source`: it is the more specific statement
+   of intent)
+2. An environment variable: `SIGNET_URL` for the deployment URL,
+   `STELLAR_SIGN_WITH_KEY` for the identity
 3. The config file: `$XDG_CONFIG_HOME/signet/config.json` on Linux,
    `~/Library/Application Support/signet/config.json` on macOS,
    `%AppData%\signet\config.json` on Windows (`os.UserConfigDir()`)
@@ -123,7 +188,10 @@ first:
 ```
 
 Passing `--source` explicitly updates the config file's `source` so the next
-invocation doesn't have to repeat it — that's what makes repeat runs not
+invocation doesn't have to repeat it. `--sign-with-key` and
+`STELLAR_SIGN_WITH_KEY` deliberately do not — `stellar tx sign` accepts key
+material for that setting, and persisting a secret to disk on your behalf is
+not signet's call — that's what makes repeat runs not
 re-ask which identity to use. `--url` is read from the config file but never
 written back by a flag; edit the file (or keep using `--url`/`SIGNET_URL`) to
 change the configured deployment. See `internal/config` for the resolution

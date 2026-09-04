@@ -11,6 +11,7 @@ import (
 
 	"github.com/blockchain-maxis/signet/cli/internal/config"
 	"github.com/blockchain-maxis/signet/cli/internal/exitcode"
+	"github.com/blockchain-maxis/signet/cli/internal/keys"
 )
 
 func newRootCmd(version, commit string) *cobra.Command {
@@ -31,6 +32,8 @@ instance) over its HTTP API.`,
 		fmt.Sprintf("Signet deployment URL (overrides %s, the config file, and the default)", config.EnvBaseURL))
 	root.PersistentFlags().String("source", "",
 		"identity to sign as (remembered in the config file for next time)")
+	root.PersistentFlags().String("sign-with-key", "",
+		fmt.Sprintf("identity to sign with, for non-interactive use (same value as %s; not remembered)", config.EnvSignWithKey))
 
 	// Resolves --url/--source/SIGNET_URL/the config file into the
 	// configuration this run actually uses, and attaches it to the command's
@@ -45,16 +48,28 @@ instance) over its HTTP API.`,
 
 		flagURL, _ := cmd.Flags().GetString("url")
 		flagSource, _ := cmd.Flags().GetString("source")
+		flagSignWith, _ := cmd.Flags().GetString("sign-with-key")
+		if cmd.Flags().Changed("sign-with-key") {
+			if err := keys.ValidateSignWithKey(flagSignWith); err != nil {
+				return err
+			}
+		}
 		opts := config.ResolveOptions{
-			FlagURL:       flagURL,
-			FlagURLSet:    cmd.Flags().Changed("url"),
-			FlagSource:    flagSource,
-			FlagSourceSet: cmd.Flags().Changed("source"),
-			EnvBaseURL:    os.Getenv(config.EnvBaseURL),
+			FlagURL:            flagURL,
+			FlagURLSet:         cmd.Flags().Changed("url"),
+			FlagSource:         flagSource,
+			FlagSourceSet:      cmd.Flags().Changed("source"),
+			FlagSignWithKey:    flagSignWith,
+			FlagSignWithKeySet: cmd.Flags().Changed("sign-with-key"),
+			EnvBaseURL:         os.Getenv(config.EnvBaseURL),
+			EnvSignWithKey:     os.Getenv(config.EnvSignWithKey),
 		}
 		resolved := config.Resolve(opts, file)
 		cmd.SetContext(config.WithResolved(cmd.Context(), resolved))
 
+		// Deliberately only --source: --sign-with-key and STELLAR_SIGN_WITH_KEY
+		// are not written to the config file, because either may carry a secret
+		// and neither is a preference the user asked signet to remember.
 		if opts.FlagSourceSet {
 			if err := config.RememberSource(resolved.Source); err != nil {
 				return fmt.Errorf("%w: saving identity to config file: %w", exitcode.ErrConfiguration, err)

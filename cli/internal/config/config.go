@@ -19,6 +19,12 @@ const DefaultBaseURL = "https://signet-web-pearl.vercel.app"
 // BaseURL, one level below an explicit --url flag.
 const EnvBaseURL = "SIGNET_URL"
 
+// EnvSignWithKey is the identity `stellar tx sign --sign-with-key` already
+// reads from the environment. signet honours the same variable rather than
+// inventing a second one, so a CI job exports its deploy identity once and
+// both tools see it (#254).
+const EnvSignWithKey = "STELLAR_SIGN_WITH_KEY"
+
 // fileName is the config file's name inside Dir().
 const fileName = "config.json"
 
@@ -127,10 +133,20 @@ type ResolveOptions struct {
 	FlagURLSet    bool
 	FlagSource    string
 	FlagSourceSet bool
+	// FlagSignWithKey is --sign-with-key. It outranks --source because it is
+	// the more specific statement of intent ("sign non-interactively, as
+	// this"), and unlike --source it is never written to the config file:
+	// `stellar tx sign` accepts a raw secret or seed phrase for this, and
+	// persisting one to disk on the user's behalf is not signet's call.
+	FlagSignWithKey    string
+	FlagSignWithKeySet bool
 	// EnvBaseURL is the SIGNET_URL environment variable's value, or "" if
 	// unset. Passed in rather than read via os.Getenv inside Resolve so tests
 	// don't need to mutate process-global environment state.
 	EnvBaseURL string
+	// EnvSignWithKey is STELLAR_SIGN_WITH_KEY's value, or "" if unset. Same
+	// reasoning as EnvBaseURL for why it is passed rather than read here.
+	EnvSignWithKey string
 }
 
 // Resolve combines flags, environment, the config file, and the built-in
@@ -152,8 +168,18 @@ func Resolve(opts ResolveOptions, file File) Resolved {
 		r.BaseURL = opts.FlagURL
 	}
 
+	// Environment beats the config file but loses to an explicit flag, the same
+	// precedence BaseURL uses. The point is that a CI job which exports
+	// STELLAR_SIGN_WITH_KEY never reaches the interactive identity prompt —
+	// there is no terminal there to answer it.
+	if opts.EnvSignWithKey != "" {
+		r.Source = opts.EnvSignWithKey
+	}
 	if opts.FlagSourceSet {
 		r.Source = opts.FlagSource
+	}
+	if opts.FlagSignWithKeySet {
+		r.Source = opts.FlagSignWithKey
 	}
 
 	return r

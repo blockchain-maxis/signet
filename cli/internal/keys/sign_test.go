@@ -113,3 +113,39 @@ func TestLooksLikeXDR(t *testing.T) {
 		}
 	}
 }
+
+// ── non-interactive signing (#254) ───────────────────────────────────────
+
+func TestValidateSignWithKey_AcceptsAnIdentityName(t *testing.T) {
+	for _, ok := range []string{"alice", "ci-deploy", "deploy_key_1"} {
+		if err := ValidateSignWithKey(ok); err != nil {
+			t.Fatalf("ValidateSignWithKey(%q) = %v", ok, err)
+		}
+	}
+}
+
+func TestValidateSignWithKey_RefusesKeyMaterial(t *testing.T) {
+	secret := "S" + strings.Repeat("A", 55)
+	phrase := "abandon ability able about above absent absorb abstract absurd abuse access accident"
+
+	for _, bad := range []string{secret, phrase} {
+		err := ValidateSignWithKey(bad)
+		if err == nil {
+			t.Fatalf("accepted key material: %q", bad[:8])
+		}
+		if !errors.Is(err, exitcode.ErrConfiguration) {
+			t.Fatalf("err = %v, want a configuration error", err)
+		}
+		// The whole point: the value must not come back out in the message,
+		// which is headed for a terminal, a CI log, and a pasted bug report.
+		if strings.Contains(err.Error(), bad) {
+			t.Fatal("echoed the secret back in the error")
+		}
+	}
+}
+
+func TestValidateSignWithKey_RefusesEmpty(t *testing.T) {
+	if err := ValidateSignWithKey("   "); !errors.Is(err, exitcode.ErrConfiguration) {
+		t.Fatalf("err = %v", err)
+	}
+}

@@ -178,3 +178,53 @@ func TestResolveAnExplicitlyEmptyFlagStillWins(t *testing.T) {
 		t.Fatalf("BaseURL = %q, want the explicit empty flag value to win", got.BaseURL)
 	}
 }
+
+// ── non-interactive identity (#254) ──────────────────────────────────────
+
+func TestResolve_EnvSignWithKeySuppliesTheIdentity(t *testing.T) {
+	// A CI job exports STELLAR_SIGN_WITH_KEY once; both `stellar tx sign` and
+	// signet read it, so there is no second variable to keep in sync and no
+	// interactive prompt to hang on.
+	got := Resolve(ResolveOptions{EnvSignWithKey: "ci-deploy"}, File{})
+	if got.Source != "ci-deploy" {
+		t.Fatalf("Source = %q, want ci-deploy", got.Source)
+	}
+}
+
+func TestResolve_EnvSignWithKeyBeatsTheConfigFile(t *testing.T) {
+	got := Resolve(ResolveOptions{EnvSignWithKey: "ci-deploy"}, File{Source: "laptop"})
+	if got.Source != "ci-deploy" {
+		t.Fatalf("Source = %q, want the environment to win over the config file", got.Source)
+	}
+}
+
+func TestResolve_FlagsBeatTheEnvironment(t *testing.T) {
+	got := Resolve(ResolveOptions{
+		EnvSignWithKey: "ci-deploy",
+		FlagSource:     "laptop",
+		FlagSourceSet:  true,
+	}, File{})
+	if got.Source != "laptop" {
+		t.Fatalf("Source = %q, want --source to win", got.Source)
+	}
+}
+
+func TestResolve_SignWithKeyFlagOutranksSource(t *testing.T) {
+	// --sign-with-key is the more specific statement of intent.
+	got := Resolve(ResolveOptions{
+		FlagSource:         "laptop",
+		FlagSourceSet:      true,
+		FlagSignWithKey:    "ci-deploy",
+		FlagSignWithKeySet: true,
+	}, File{})
+	if got.Source != "ci-deploy" {
+		t.Fatalf("Source = %q, want --sign-with-key to win", got.Source)
+	}
+}
+
+func TestResolve_UnsetSignWithKeyChangesNothing(t *testing.T) {
+	got := Resolve(ResolveOptions{}, File{Source: "laptop"})
+	if got.Source != "laptop" {
+		t.Fatalf("Source = %q, want the config file's identity", got.Source)
+	}
+}

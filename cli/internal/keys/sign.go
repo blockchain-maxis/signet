@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"os/exec"
+	"regexp"
 	"strings"
 
 	"github.com/blockchain-maxis/signet/cli/internal/exitcode"
@@ -26,6 +27,9 @@ func runCommandWithStdin(binary, stdin string, args ...string) ([]byte, []byte, 
 }
 
 var runStdin stdinRunner = runCommandWithStdin
+
+// secretKeyPattern matches a Stellar StrKey secret seed.
+var secretKeyPattern = regexp.MustCompile(`^S[A-Z2-7]{55}$`)
 
 // SignChallenge signs a SEP-10 challenge transaction with the named local
 // identity and returns the signed envelope.
@@ -100,4 +104,39 @@ func looksLikeXDR(s string) bool {
 		}
 	}
 	return true
+}
+
+// seedPhrasePattern matches a value that looks like a BIP-39 mnemonic: several
+// lowercase words separated by single spaces.
+var seedPhrasePattern = regexp.MustCompile(`^(?:[a-z]+ ){11,}[a-z]+$`)
+
+// ValidateSignWithKey rejects key *material* passed where an identity name
+// belongs.
+//
+// `stellar tx sign --sign-with-key` accepts a raw secret or a seed phrase, but
+// signet cannot: it has to resolve the deploy account's public key before it
+// can ask for a challenge, and it does that with `stellar keys address <name>`
+// precisely so key material never enters this process. Accepting a secret here
+// would mean either holding it or lying about what got linked.
+//
+// It is also the wrong place for a secret regardless of what signet does with
+// it — a value on argv is visible in shell history and to anyone who can run
+// `ps`. Use `stellar keys add <name>` once and pass the name.
+//
+// The offending value is never echoed back, which is the point.
+func ValidateSignWithKey(value string) error {
+	trimmed := strings.TrimSpace(value)
+	if trimmed == "" {
+		return fmt.Errorf("%w: --sign-with-key was given an empty value", exitcode.ErrConfiguration)
+	}
+	if secretKeyPattern.MatchString(trimmed) || seedPhrasePattern.MatchString(trimmed) {
+		return fmt.Errorf(
+			"%w: --sign-with-key looks like key material, not an identity name. "+
+				"signet resolves your public key through `stellar keys address`, so it needs a "+
+				"name — and a secret on the command line is visible in shell history and to `ps`. "+
+				"Run `stellar keys add <name>` once, then pass that name",
+			exitcode.ErrConfiguration,
+		)
+	}
+	return nil
 }
