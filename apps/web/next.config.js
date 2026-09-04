@@ -16,7 +16,7 @@ const nextConfig = {
   poweredByHeader: false,
   // Workspace packages are consumed as TypeScript source, so Next must
   // transpile them.
-  transpilePackages: ['@signet/types', '@signet/ui', '@signet/sdk', '@signet/db'],
+  transpilePackages: ['@signet/types', '@signet/sdk', '@signet/db'],
   async headers() {
     return [{ source: '/:path*', headers: securityHeaders }];
   },

@@ -1,11 +1,8 @@
 import { getNetworkPassphrase, getServerKeypair, Sep10ConfigError } from '@/lib/sep10';
 import { logger } from '@/lib/logger';
+import { appUrl } from '@/lib/public-env';
 
 export const runtime = 'nodejs';
-
-function appUrl(): string {
-  return process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000';
-}
 
 /**
  * SEP-1 (stellar.toml) — the discovery document SEP-10 clients read to find

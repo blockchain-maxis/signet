@@ -21,8 +21,9 @@ var (
 )
 
 func main() {
-	if err := cmd.Execute(version, commit); err != nil {
+	err := cmd.Execute(version, commit)
+	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
-		os.Exit(1)
 	}
+	os.Exit(cmd.ExitCode(err))
 }
