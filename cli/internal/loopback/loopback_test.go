@@ -9,12 +9,24 @@ import (
 	"time"
 )
 
+// getAndDiscard issues a GET and closes the response body. These tests only
+// care that the request reached the server and how it answered at the
+// transport level, never about the body itself — but an unclosed body leaks a
+// connection, so it is closed rather than ignored.
+func getAndDiscard(client *http.Client, url string) error {
+	resp, err := client.Get(url)
+	if err != nil {
+		return err
+	}
+	return resp.Body.Close()
+}
+
 func TestNew_BindsLoopbackOnly(t *testing.T) {
 	s, err := New("/callback")
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
-	defer s.Close()
+	defer func() { _ = s.Close() }()
 
 	host, _, err := net.SplitHostPort(s.listener.Addr().String())
 	if err != nil {
@@ -30,7 +42,7 @@ func TestNew_PortIsAvailableBeforeWait(t *testing.T) {
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
-	defer s.Close()
+	defer func() { _ = s.Close() }()
 
 	if s.Port() == 0 {
 		t.Fatal("Port() is 0 before Wait was called")
@@ -48,7 +60,7 @@ func TestWait_ReturnsCallbackQueryParams(t *testing.T) {
 
 	go func() {
 		time.Sleep(20 * time.Millisecond)
-		_, _ = http.Get(s.URL() + "?code=abc123&state=xyz")
+		_ = getAndDiscard(http.DefaultClient, s.URL()+"?code=abc123&state=xyz")
 	}()
 
 	values, err := s.Wait(context.Background(), 5*time.Second)
@@ -69,7 +81,7 @@ func TestWait_ServesExactlyOnce(t *testing.T) {
 
 	go func() {
 		time.Sleep(20 * time.Millisecond)
-		_, _ = http.Get(url + "?code=first")
+		_ = getAndDiscard(http.DefaultClient, url+"?code=first")
 	}()
 
 	if _, err := s.Wait(context.Background(), 5*time.Second); err != nil {
@@ -79,7 +91,7 @@ func TestWait_ServesExactlyOnce(t *testing.T) {
 	// The listener is torn down as part of Wait's shutdown — a second request
 	// must not be served.
 	client := &http.Client{Timeout: 500 * time.Millisecond}
-	_, err = client.Get(url + "?code=second")
+	err = getAndDiscard(client, url+"?code=second")
 	if err == nil {
 		t.Fatal("a second request was served after the server should have shut down")
 	}

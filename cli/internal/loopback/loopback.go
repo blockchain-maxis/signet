@@ -94,7 +94,7 @@ func (s *Server) Wait(ctx context.Context, timeout time.Duration) (url.Values, e
 	mux.HandleFunc(s.path, func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("content-type", "text/plain; charset=utf-8")
 		w.WriteHeader(http.StatusOK)
-		fmt.Fprint(w, callbackResponse)
+		_, _ = fmt.Fprint(w, callbackResponse)
 		select {
 		case done <- result{values: r.URL.Query()}:
 		default:
