@@ -77,6 +77,7 @@ instance) over its HTTP API.`,
 	root.SetVersionTemplate("signet version {{.Version}}\n")
 
 	root.AddCommand(newLinkCmd())
+	root.AddCommand(newUnlinkCmd())
 	root.AddCommand(newIdentityCmd())
 
 	return root

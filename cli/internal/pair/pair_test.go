@@ -108,3 +108,40 @@ func TestDo_SurfacesTheServersOwnMessage(t *testing.T) {
 		t.Fatalf("error is not classified: %v", err)
 	}
 }
+
+func TestUnlink_PostsTheSignedChallengeAndReportsWhatWasRemoved(t *testing.T) {
+	var got map[string]string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		body, _ := io.ReadAll(r.Body)
+		_ = json.Unmarshal(body, &got)
+		_, _ = io.WriteString(w, `{"ok":true,"wallet":"GABC","handle":"alice"}`)
+	}))
+	defer srv.Close()
+
+	result, err := New(srv.URL).Unlink(context.Background(), "SIGNED")
+	if err != nil {
+		t.Fatalf("Unlink: %v", err)
+	}
+	if result.Wallet != "GABC" || result.Handle != "alice" {
+		t.Fatalf("result = %+v", result)
+	}
+	if got["transaction"] != "SIGNED" {
+		t.Fatalf("posted %+v", got)
+	}
+}
+
+func TestUnlink_SurfacesARefusal(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusConflict)
+		_, _ = io.WriteString(w, `{"error":"That wallet is the profile’s primary wallet"}`)
+	}))
+	defer srv.Close()
+
+	_, err := New(srv.URL).Unlink(context.Background(), "SIGNED")
+	if err == nil {
+		t.Fatal("expected an error")
+	}
+	if !strings.Contains(err.Error(), "primary wallet") {
+		t.Fatalf("error lost the server's message: %v", err)
+	}
+}

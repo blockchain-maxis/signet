@@ -104,6 +104,26 @@ func (c *Client) Complete(ctx context.Context, state, challengeXDR, handoffCode 
 	return out.Handle, nil
 }
 
+// Unlinked is what `POST /api/cli/unlink` reports back.
+type Unlinked struct {
+	Wallet string `json:"wallet"`
+	Handle string `json:"handle"`
+}
+
+// Unlink detaches the wallet whose key signed challengeXDR.
+//
+// No pairing and no browser step: unlinking withdraws an attestation rather
+// than making one, so control of the key is the whole proof (see
+// apps/web/lib/server/cli-unlink.ts for why that asymmetry is deliberate).
+func (c *Client) Unlink(ctx context.Context, challengeXDR string) (Unlinked, error) {
+	var out Unlinked
+	body := map[string]string{"transaction": challengeXDR}
+	if err := c.do(ctx, http.MethodPost, "/api/cli/unlink", body, &out); err != nil {
+		return Unlinked{}, err
+	}
+	return out, nil
+}
+
 // do issues one request and decodes a JSON response into out (which may be
 // nil). A non-2xx response is turned into an error carrying the server's own
 // message where it sent one, since those messages are written to be read by

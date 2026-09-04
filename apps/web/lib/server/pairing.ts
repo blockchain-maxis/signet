@@ -1,5 +1,5 @@
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
-import { consumeNonce } from '../nonce-store.ts';
+import { spendChallenge } from './challenge-spend.ts';
 import { verifyChallenge, getNetworkPassphrase, Sep10Error } from '../sep10.ts';
 import { logger } from '../logger.ts';
 
@@ -32,8 +32,6 @@ import { logger } from '../logger.ts';
  */
 
 const PAIRING_TTL_MS = 5 * 60 * 1000;
-/** How long a spent challenge's nonce is remembered — must outlive the SEP-10 challenge's own timebounds. */
-const CHALLENGE_REPLAY_TTL_MS = 10 * 60 * 1000;
 
 /**
  * Alphabet for the handoff code: Crockford base32 minus the characters that
@@ -435,12 +433,13 @@ export async function completePairing(
     return fail(state, 'key-mismatch');
   }
 
-  // One nonce per distinct signed challenge — a byte-identical resubmission
+  // One spend per distinct signed challenge — a byte-identical resubmission
   // (the only kind an attacker who intercepted the signed XDR could produce)
   // hashes the same and is rejected; a *fresh* challenge for a *completed*
-  // pairing is caught separately, by the transaction below.
-  const nonce = createHash('sha256').update(challengeXdr).digest('hex');
-  if (!(await consumeNonce(`pair:${nonce}`, CHALLENGE_REPLAY_TTL_MS))) {
+  // pairing is caught separately, by the transaction below. The namespace is
+  // shared with every other operation that accepts a challenge, so the same
+  // envelope cannot be redeemed once here and once somewhere else.
+  if (!(await spendChallenge(challengeXdr))) {
     return fail(state, 'replayed');
   }
 
