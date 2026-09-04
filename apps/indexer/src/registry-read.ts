@@ -117,7 +117,10 @@ export function createRegistryReader(
         const n = typeof raw === 'bigint' ? Number(raw) : raw;
         return typeof n === 'number' && Number.isFinite(n) && n >= 0 ? Math.trunc(n) : null;
       } catch (err) {
-        logger.debug({ error: String(err) }, 'registryRead.countFailed');
+        // Not debug: a failed count() silently disarms the reconcile pass's
+        // unknown-bindings cross-check, and whoever reads the reconcile log
+        // needs to know the check did not run.
+        logger.warn({ error: String(err) }, 'registryRead.countFailed');
         return null;
       }
     },

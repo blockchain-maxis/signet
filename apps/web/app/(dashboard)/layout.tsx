@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { cookies } from 'next/headers';
 import { SignetMonogram } from '../(marketing)/components/signet-monogram';
 import { verifySession, SESSION_COOKIE } from '@/lib/auth';
+import { TRPCProvider } from '@/lib/trpc-provider';
 import { SignInGate } from './components/sign-in-gate';
 
 /**
@@ -51,7 +52,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
         </span>
       </nav>
       <main className="mx-auto max-w-5xl px-8 py-16 md:px-14">
-        {address ? children : <SignInGate />}
+        {address ? <TRPCProvider>{children}</TRPCProvider> : <SignInGate />}
       </main>
     </div>
   );
