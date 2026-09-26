@@ -530,10 +530,10 @@ export async function safeDbOperations(handle: string): Promise<Operation[] | nu
  * window. When operation pruning is disabled, that window is the full indexed
  * history.
  *
- * Returns null when there is no database, the handle resolves to nothing in it,
- * or the profile has no indexed activity — in every one of those cases the
- * caller has to fall back to computing over whichever layer actually served the
- * operations, or it would report a confident zero next to a non-empty list.
+ * Returns null when there is no database or the handle resolves to nothing in
+ * it. A profile with linked wallets but zero retained activity returns a real
+ * zeroed aggregate so the caller can label that zero with the retention scope
+ * instead of mistaking it for a lifetime total.
  */
 export async function safeDbProfileStats(handle: string): Promise<ProfileStats | null> {
   if (!process.env.DATABASE_URL || !isValidHandle(handle)) return null;
