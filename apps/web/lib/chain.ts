@@ -16,6 +16,7 @@
  * importing it lazily.
  */
 
+import { normalizeNetwork, networkPassphrase, type Network } from '@signet/types';
 import { assertNetworkUrls } from './network-guard.ts';
 
 export const REGISTRY_CONTRACT_ID =
@@ -26,12 +27,11 @@ export const SOROBAN_RPC_URL =
   process.env.NEXT_PUBLIC_SOROBAN_RPC_URL ??
   'https://soroban-testnet.stellar.org';
 
-export const STELLAR_NETWORK = (process.env.NEXT_PUBLIC_STELLAR_NETWORK ?? 'testnet').toLowerCase();
+export const STELLAR_NETWORK: Network = normalizeNetwork(
+  process.env.NEXT_PUBLIC_STELLAR_NETWORK ?? 'testnet',
+);
 
-export const NETWORK_PASSPHRASE =
-  STELLAR_NETWORK === 'mainnet' || STELLAR_NETWORK === 'public'
-    ? 'Public Global Stellar Network ; September 2015'
-    : 'Test SDF Network ; September 2015';
+export const NETWORK_PASSPHRASE = networkPassphrase(STELLAR_NETWORK);
 
 // Fail fast if the network and the RPC endpoint disagree (e.g. network flipped
 // to mainnet but SOROBAN_RPC_URL left at its testnet default) — otherwise every

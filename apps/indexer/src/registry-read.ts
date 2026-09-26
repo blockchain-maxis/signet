@@ -2,13 +2,13 @@ import {
   Account,
   BASE_FEE,
   Contract,
-  Networks,
   TransactionBuilder,
   nativeToScVal,
   rpc,
   scValToNative,
   xdr,
 } from '@stellar/stellar-sdk';
+import { normalizeNetwork, networkPassphrase } from '@signet/types';
 import { logger } from './logger.js';
 
 /**
@@ -43,7 +43,7 @@ export interface RegistryReader {
 }
 
 function passphraseFor(network: string): string {
-  return network === 'mainnet' || network === 'public' ? Networks.PUBLIC : Networks.TESTNET;
+  return networkPassphrase(normalizeNetwork(network));
 }
 
 async function simulateRead(

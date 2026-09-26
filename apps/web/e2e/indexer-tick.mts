@@ -47,20 +47,20 @@ function contractCreationMetaXdr(address: string): string {
   const scAddress = xdr.ScAddress.scAddressTypeContract(
     contractId as unknown as Parameters<typeof xdr.ScAddress.scAddressTypeContract>[0],
   );
-  const sorobanMeta = new xdr.SorobanTransactionMeta({
+  const sorobanMeta = new xdr.SorobanTransactionMetaV2({
     ext: new xdr.SorobanTransactionMetaExt(0),
-    events: [],
     returnValue: xdr.ScVal.scvAddress(scAddress),
-    diagnosticEvents: [],
   });
-  const v3 = new xdr.TransactionMetaV3({
+  const v4 = new xdr.TransactionMetaV4({
     ext: new xdr.ExtensionPoint(0),
     txChangesBefore: [],
     operations: [],
     txChangesAfter: [],
     sorobanMeta,
+    events: [],
+    diagnosticEvents: [],
   });
-  return new xdr.TransactionMeta(3, v3).toXDR('base64');
+  return new xdr.TransactionMeta(4, v4).toXDR('base64');
 }
 
 /**

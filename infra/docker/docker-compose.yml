@@ -17,5 +17,29 @@ services:
       timeout: 5s
       retries: 5
 
+  indexer:
+    profiles:
+      - indexer
+    build:
+      context: ../..
+      dockerfile: apps/indexer/Dockerfile
+    container_name: signet-indexer
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql://signet:signet@postgres:5432/signet?schema=public
+      INDEXER_NETWORK: ${INDEXER_NETWORK:-testnet}
+      INDEXER_HORIZON_URL: ${INDEXER_HORIZON_URL:-https://horizon-testnet.stellar.org}
+      INDEXER_RPC_URL: ${INDEXER_RPC_URL:-https://soroban-testnet.stellar.org}
+      INDEXER_TICK_INTERVAL_MS: ${INDEXER_TICK_INTERVAL_MS:-30000}
+      INDEXER_LOG_LEVEL: ${INDEXER_LOG_LEVEL:-info}
+      INDEXER_REGISTRY_CONTRACT_ID: ${INDEXER_REGISTRY_CONTRACT_ID:-}
+      INDEXER_EVENT_WINDOW_LEDGERS: ${INDEXER_EVENT_WINDOW_LEDGERS:-8000}
+      INDEXER_OPERATIONS_RETENTION_DAYS: ${INDEXER_OPERATIONS_RETENTION_DAYS:-90}
+      INDEXER_SNAPSHOTS_RETENTION_DAYS: ${INDEXER_SNAPSHOTS_RETENTION_DAYS:-30}
+      INDEXER_PRUNE_INTERVAL_MS: ${INDEXER_PRUNE_INTERVAL_MS:-3600000}
+
 volumes:
   signet-pgdata:

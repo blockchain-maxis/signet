@@ -7,9 +7,11 @@
  * wrong network's explorer, so the mapping lives in exactly one place here.
  */
 
+import { normalizeNetwork, type Network } from '@signet/types';
+
 export interface ResolvedNetwork {
-  /** Normalized network id, e.g. `testnet` / `mainnet` / `public`. */
-  network: string;
+  /** Normalized canonical network id (`testnet` / `mainnet` / `futurenet` / `local`). */
+  network: Network;
   /** Stellar Expert path segment: `public` for mainnet, otherwise `testnet`. */
   explorer: 'public' | 'testnet';
   /** Human display label, e.g. `Testnet` / `Mainnet`. */
@@ -17,13 +19,18 @@ export interface ResolvedNetwork {
 }
 
 /**
- * Pure resolver: maps a raw `NEXT_PUBLIC_STELLAR_NETWORK` value to the network
- * id, its Stellar Expert path segment, and a display label. Defaults to testnet
- * when unset. `public` is accepted as an alias for `mainnet`.
+ * Pure resolver: maps a raw `NEXT_PUBLIC_STELLAR_NETWORK` value to the canonical
+ * network id, its Stellar Expert path segment, and a display label. Defaults to testnet
+ * when unset. `public` and `pubnet` are accepted as aliases for `mainnet`.
  */
 export function resolveNetwork(raw: string | undefined): ResolvedNetwork {
-  const network = (raw ?? 'testnet').toLowerCase();
-  const isMainnet = network === 'mainnet' || network === 'public';
+  let network: Network;
+  try {
+    network = normalizeNetwork(raw ?? 'testnet');
+  } catch {
+    network = 'testnet';
+  }
+  const isMainnet = network === 'mainnet';
   return {
     network,
     explorer: isMainnet ? 'public' : 'testnet',
