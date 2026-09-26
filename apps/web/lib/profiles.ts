@@ -162,11 +162,35 @@ export interface ProfileStats {
 }
 
 /**
- * Stats plus whether they are exact. `exact` is true only when they came from a
- * database aggregate over the whole history rather than from a capped window.
+ * Stats plus completeness metadata. `exact` means the numbers exactly cover
+ * the scope represented by this result. When `retentionWindowDays` is
+ * non-null, that scope is the retained operation window rather than lifetime
+ * history.
  */
 export interface ProfileStatsResult extends ProfileStats {
   exact: boolean;
+  retentionWindowDays: number | null;
+}
+
+const DEFAULT_OPERATIONS_RETENTION_DAYS = 90;
+
+/**
+ * The Operation retention window the indexer uses. The web process reads the
+ * same setting only so it can label profile statistics honestly; when the
+ * setting is absent both services use the 90-day default.
+ */
+export function getOperationsRetentionDays(): number {
+  const configured = process.env.INDEXER_OPERATIONS_RETENTION_DAYS;
+  if (configured === undefined) return DEFAULT_OPERATIONS_RETENTION_DAYS;
+
+  const days = Number(configured);
+  return Number.isFinite(days) && days >= 0 ? days : DEFAULT_OPERATIONS_RETENTION_DAYS;
+}
+
+/** Human-readable label for a retention-scoped aggregate. */
+export function formatStatsWindow(retentionWindowDays: number | null): string | null {
+  if (retentionWindowDays === null) return null;
+  return `last ${retentionWindowDays} ${retentionWindowDays === 1 ? 'day' : 'days'}`;
 }
 
 function functionOf(op: Operation): string {
@@ -498,11 +522,13 @@ export async function safeDbOperations(handle: string): Promise<Operation[] | nu
 }
 
 /**
- * Best-effort database aggregation of a profile's stats over its *whole*
- * operation history. `safeDbOperationsResult` reads a capped window per wallet,
- * so stats derived from it are lower bounds; this instead pushes a `count` and
- * a `distinct` into the database, so the invocation count, the function
- * diversity and the score they feed are exact no matter how long the history is.
+ * Best-effort database aggregation of a profile's stats over the Operation
+ * rows that are currently retained. `safeDbOperationsResult` reads a capped
+ * window per wallet, so stats derived from it can be lower bounds; this instead
+ * pushes a `count` and a `distinct` into the database, so the invocation
+ * count, function diversity and score are exact for the configured retention
+ * window. When operation pruning is disabled, that window is the full indexed
+ * history.
  *
  * Returns null when there is no database, the handle resolves to nothing in it,
  * or the profile has no indexed activity — in every one of those cases the
@@ -546,18 +572,27 @@ export async function safeDbProfileStats(handle: string): Promise<ProfileStats |
 }
 
 /**
- * Stats for a handle, preferring exact database aggregates over the full
- * history and falling back to computing over the operations the caller already
- * has. `exact` says which happened: when it is false the numbers inherit the
- * truncation of the window they came from, and every surface that renders them
- * must qualify them as lower bounds.
+ * Stats for a handle, preferring an exact database aggregate over the retained
+ * Operation rows and falling back to computing over the operations the caller
+ * already has. `exact` says whether the represented scope is complete;
+ * `retentionWindowDays` says when that scope is a time-bounded retention
+ * window rather than lifetime history. When `exact` is false the numbers can
+ * inherit truncation from the operation window and must be qualified as lower
+ * bounds.
  */
 export async function getProfileStats(
   handle: string,
   operations?: Operation[] | null,
 ): Promise<ProfileStatsResult> {
   const dbStats = await safeDbProfileStats(handle);
-  if (dbStats) return { ...dbStats, exact: true };
+  if (dbStats) {
+    const retentionDays = getOperationsRetentionDays();
+    return {
+      ...dbStats,
+      exact: true,
+      retentionWindowDays: retentionDays === 0 ? null : retentionDays,
+    };
+  }
   const ops = operations ?? (await getOperations(handle));
-  return { ...computeStats(ops), exact: false };
+  return { ...computeStats(ops), exact: false, retentionWindowDays: null };
 }
