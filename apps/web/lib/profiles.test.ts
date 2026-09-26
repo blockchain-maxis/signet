@@ -15,6 +15,8 @@ import {
   safeDbProfileStats,
   getOperationsResult,
   formatCount,
+  getOperationsRetentionDays,
+  formatStatsWindow,
 } from './profiles.ts';
 
 test('isValidHandle accepts the registry charset', () => {
@@ -127,6 +129,40 @@ test('formatCount only claims a total when the record is complete', () => {
   // A capped read supports "at least 412", never "412".
   assert.equal(formatCount(412, true), '412+');
   assert.equal(formatCount(0, true), '0+');
+});
+
+test('profile stats expose the configured Operation retention window', () => {
+  const previous = process.env.INDEXER_OPERATIONS_RETENTION_DAYS;
+  try {
+    delete process.env.INDEXER_OPERATIONS_RETENTION_DAYS;
+    assert.equal(getOperationsRetentionDays(), 90);
+    assert.equal(formatStatsWindow(getOperationsRetentionDays()), 'last 90 days');
+
+    process.env.INDEXER_OPERATIONS_RETENTION_DAYS = '30';
+    assert.equal(getOperationsRetentionDays(), 30);
+    assert.equal(formatStatsWindow(getOperationsRetentionDays()), 'last 30 days');
+
+    process.env.INDEXER_OPERATIONS_RETENTION_DAYS = '0';
+    assert.equal(getOperationsRetentionDays(), 0);
+    assert.equal(formatStatsWindow(null), null);
+  } finally {
+    if (previous === undefined) delete process.env.INDEXER_OPERATIONS_RETENTION_DAYS;
+    else process.env.INDEXER_OPERATIONS_RETENTION_DAYS = previous;
+  }
+});
+
+test('invalid Operation retention settings fall back to the documented default', () => {
+  const previous = process.env.INDEXER_OPERATIONS_RETENTION_DAYS;
+  try {
+    process.env.INDEXER_OPERATIONS_RETENTION_DAYS = 'not-a-number';
+    assert.equal(getOperationsRetentionDays(), 90);
+
+    process.env.INDEXER_OPERATIONS_RETENTION_DAYS = '-1';
+    assert.equal(getOperationsRetentionDays(), 90);
+  } finally {
+    if (previous === undefined) delete process.env.INDEXER_OPERATIONS_RETENTION_DAYS;
+    else process.env.INDEXER_OPERATIONS_RETENTION_DAYS = previous;
+  }
 });
 
 test('getOperationsResult has no static fallback without a DB or a bound wallet', async () => {
