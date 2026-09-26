@@ -260,7 +260,7 @@ variable there is listed below so docs and the example file stay in lockstep
 [`ci.yml`](.github/workflows/ci.yml) runs on every push/PR:
 
 - **web** — `lint` · `typecheck` · `test` · `build`
-- **contracts** — `cargo test` + `cargo build --target wasm32v1-none --release`
+- **contracts** — `cargo test` + `stellar contract build`
 - **security** — `pnpm audit` + `cargo audit` (advisory)
 - **docs** — relative link/anchor check, env-var lockstep with `.env.example`,
   and `pnpm`/`cargo` script names cited in markdown (`scripts/check-docs.mjs`)

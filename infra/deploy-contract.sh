@@ -38,7 +38,7 @@ if [ "$ADMIN" != "$DEPLOYER_ADDRESS" ]; then
 fi
 
 echo "→ Building wasm (release)…"
-( cd "$CONTRACTS" && cargo build --target wasm32v1-none --release )
+( cd "$CONTRACTS" && stellar contract build )
 
 echo "→ Optimizing…"
 stellar contract optimize --wasm "$WASM" || true
