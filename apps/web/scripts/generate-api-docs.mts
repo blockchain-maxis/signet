@@ -159,7 +159,7 @@ function docForOutput(path: string): string {
       '```ts\n{\n' +
       '  handle: string;\n' +
       '  profile: Profile;\n' +
-      '  stats: ProfileStats;\n' +
+      '  stats: ProfileStatsResult;\n' +
       '  operations: Operation[];\n' +
       '  truncated: boolean;\n' +
       '  cap: number | null;\n' +
