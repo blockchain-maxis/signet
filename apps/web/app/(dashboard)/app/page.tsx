@@ -24,8 +24,9 @@ export default async function DashboardPage() {
     account?.handle && operations
       ? await getProfileStats(account.handle, operations.operations)
       : null;
-  // Counts drawn from a capped window are lower bounds; they render as "N+".
-  // Database aggregates cover the whole history, so those stay bare totals.
+  // Counts drawn from a capped operation read are lower bounds; database
+  // aggregates stay bare totals for their represented scope. When pruning is
+  // enabled, the labels below disclose that scope as a retention window.
   const truncated = (operations?.truncated ?? false) && !(stats?.exact ?? false);
   const statsWindow = formatStatsWindow(stats?.retentionWindowDays ?? null);
   const wallets = account?.handle && address ? await getAccountWallets(address) : [];
