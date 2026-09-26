@@ -18,6 +18,7 @@ export type {
   StellarAddress,
   SignetProfile,
   ProfileStats,
+  ProfileStatsResult,
   ProfileResponse,
   RegistryEntry,
   RegistryCount,
