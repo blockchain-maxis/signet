@@ -39,7 +39,7 @@ A well-formed handle: 1–32 chars of `[a-z0-9_-]`. Validated by `handleInput()`
 {
   handle: string;
   profile: Profile;
-  stats: ProfileStats;
+  stats: ProfileStatsResult;
   operations: Operation[];
   truncated: boolean;
   cap: number | null;
