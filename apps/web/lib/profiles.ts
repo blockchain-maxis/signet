@@ -556,11 +556,11 @@ export async function safeDbProfileStats(handle: string): Promise<ProfileStats |
       }),
     ]);
 
-    // No indexed activity is indistinguishable from "not indexed yet", and the
-    // operations list may still be served by Horizon or the curated demo JSON.
-    // Fall back rather than contradict it.
-    if (invocations === 0) return null;
-
+    // Zero is still meaningful for a retention-scoped aggregate: a previously
+    // active profile can legitimately age down to zero once all of its indexed
+    // operations leave the configured window. Returning the aggregate lets the
+    // caller label that zero with the retention scope instead of presenting it
+    // as an unqualified lifetime value.
     const uniqueFunctions = new Set(
       distinctOps.map((op) => op.decodedFunction ?? op.function ?? 'invoke_contract'),
     ).size;
