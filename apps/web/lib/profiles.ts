@@ -572,6 +572,28 @@ export async function safeDbProfileStats(handle: string): Promise<ProfileStats |
 }
 
 /**
+ * Pick between a database aggregate and stats computed from the operations the
+ * caller has. A zero aggregate next to a non-empty operations list means the
+ * indexer has not scanned those wallets yet (Horizon or another layer served
+ * the list), so the operations win and are reported as a lower bound; a zero
+ * aggregate with no operations is a genuine zero for the retention window.
+ */
+export function resolveProfileStats(
+  dbStats: ProfileStats | null,
+  operations: Operation[],
+  retentionDays: number,
+): ProfileStatsResult {
+  if (dbStats && (dbStats.invocations > 0 || operations.length === 0)) {
+    return {
+      ...dbStats,
+      exact: true,
+      retentionWindowDays: retentionDays === 0 ? null : retentionDays,
+    };
+  }
+  return { ...computeStats(operations), exact: false, retentionWindowDays: null };
+}
+
+/**
  * Stats for a handle, preferring an exact database aggregate over the retained
  * Operation rows and falling back to computing over the operations the caller
  * already has. `exact` says whether the represented scope is complete;
@@ -585,14 +607,9 @@ export async function getProfileStats(
   operations?: Operation[] | null,
 ): Promise<ProfileStatsResult> {
   const dbStats = await safeDbProfileStats(handle);
-  if (dbStats) {
-    const retentionDays = getOperationsRetentionDays();
-    return {
-      ...dbStats,
-      exact: true,
-      retentionWindowDays: retentionDays === 0 ? null : retentionDays,
-    };
+  if (dbStats && dbStats.invocations > 0) {
+    return resolveProfileStats(dbStats, [], getOperationsRetentionDays());
   }
   const ops = operations ?? (await getOperations(handle));
-  return { ...computeStats(ops), exact: false, retentionWindowDays: null };
+  return resolveProfileStats(dbStats, ops, getOperationsRetentionDays());
 }

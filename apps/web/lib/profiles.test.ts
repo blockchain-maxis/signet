@@ -12,6 +12,7 @@ import {
   decodeResolvedAddress,
   computeStats,
   getProfileStats,
+  resolveProfileStats,
   safeDbProfileStats,
   getOperationsResult,
   formatCount,
@@ -165,6 +166,49 @@ test('invalid Operation retention settings fall back to the documented default',
   }
 });
 
+const RETAINED_OP = {
+  id: '1',
+  type: 'invoke',
+  function: 'mint',
+  created_at: '2026-08-30T00:00:00Z',
+  transaction_successful: true,
+};
+
+test('resolveProfileStats labels a database aggregate with the retention window', () => {
+  const db = { invocations: 5, uniqueFunctions: 2, reputation: 12 };
+  assert.deepEqual(resolveProfileStats(db, [], 90), {
+    ...db,
+    exact: true,
+    retentionWindowDays: 90,
+  });
+  // Pruning disabled: the aggregate covers the whole indexed history.
+  assert.equal(resolveProfileStats(db, [], 0).retentionWindowDays, null);
+});
+
+test('resolveProfileStats keeps a genuine zero, labelled, when nothing is retained', () => {
+  const zero = { invocations: 0, uniqueFunctions: 0, reputation: 0 };
+  assert.deepEqual(resolveProfileStats(zero, [], 90), {
+    ...zero,
+    exact: true,
+    retentionWindowDays: 90,
+  });
+});
+
+test('resolveProfileStats prefers served operations over a zero aggregate for an unindexed profile', () => {
+  const zero = { invocations: 0, uniqueFunctions: 0, reputation: 0 };
+  const result = resolveProfileStats(zero, [RETAINED_OP], 90);
+  assert.equal(result.invocations, 1);
+  assert.equal(result.exact, false);
+  assert.equal(result.retentionWindowDays, null);
+});
+
+test('resolveProfileStats computes from operations when there is no database aggregate', () => {
+  const result = resolveProfileStats(null, [RETAINED_OP], 90);
+  assert.equal(result.invocations, 1);
+  assert.equal(result.exact, false);
+  assert.equal(result.retentionWindowDays, null);
+});
+
 test('getOperationsResult has no static fallback without a DB or a bound wallet', async () => {
   // No DATABASE_URL and no registry: the DB misses, no profile resolves a
   // wallet for Horizon to read, and nothing else is consulted.
@@ -186,10 +230,7 @@ test('getOperationsResult is empty and complete for an unknown handle', async ()
 });
 
 test('getOperations still returns a bare array of operations', async () => {
-  const [bare, result] = await Promise.all([
-    getOperations('alice'),
-    getOperationsResult('alice'),
-  ]);
+  const [bare, result] = await Promise.all([getOperations('alice'), getOperationsResult('alice')]);
   assert.deepEqual(bare, result.operations);
 });
 
