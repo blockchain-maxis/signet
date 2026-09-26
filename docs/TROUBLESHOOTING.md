@@ -153,12 +153,12 @@ added by default.
 rustup target add wasm32v1-none
 cd packages/contracts
 cargo test
-cargo build --target wasm32v1-none --release
+stellar contract build
 ```
 
 See [`packages/contracts/README.md`](../packages/contracts/README.md).
 
-**Verified:** `cargo build --target wasm32v1-none --release` produces
+**Verified:** `stellar contract build` produces
 `identity_registry.wasm` after the target is added.
 
 ---

@@ -82,7 +82,7 @@ locally when you touch Rust:
 ```bash
 cd packages/contracts
 cargo test
-cargo build --target wasm32v1-none --release
+stellar contract build
 ```
 
 CI also enforces a **wasm size budget** (20 KB for `identity_registry`). If a

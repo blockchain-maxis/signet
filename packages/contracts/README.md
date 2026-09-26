@@ -18,10 +18,10 @@ Rust/Soroban smart contracts for Signet, managed as a Cargo workspace
   rustup target add wasm32v1-none
   ```
 
-- (Optional) Soroban CLI for deployment:
+- Stellar CLI v25.2.0 or newer (required: soroban-sdk 28 only builds through `stellar contract build`):
 
   ```bash
-  cargo install --locked soroban-cli
+  cargo install --locked stellar-cli
   ```
 
 ## Build
@@ -31,9 +31,7 @@ Rust/Soroban smart contracts for Signet, managed as a Cargo workspace
 cargo test --manifest-path packages/contracts/Cargo.toml
 
 # Wasm build (deployment artifact)
-cargo build \
-  --manifest-path packages/contracts/identity-registry/Cargo.toml \
-  --target wasm32v1-none --release
+cd packages/contracts && stellar contract build
 ```
 
 ## Testing

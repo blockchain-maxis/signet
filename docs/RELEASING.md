@@ -56,7 +56,7 @@ node scripts/check-contract-errors.mjs
 # 3. Contract unit tests and wasm size budget
 cd packages/contracts
 cargo test
-cargo build --target wasm32v1-none --release
+stellar contract build
 cd ../..
 ```
 
