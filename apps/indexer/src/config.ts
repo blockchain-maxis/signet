@@ -1,13 +1,13 @@
+import { normalizeNetwork, type Network } from '@signet/types';
 import { assertNetworkUrls } from './network-guard.js';
 
 export interface IndexerConfig {
   databaseUrl: string;
-  network: string;
+  network: Network;
   horizonUrl: string;
   rpcUrl: string;
   tickIntervalMs: number;
   logLevel: string;
-  reseed: boolean;
   /** Identity Registry contract id (C…). Empty until the contract is deployed. */
   registryContractId: string;
   /**
@@ -24,13 +24,24 @@ export interface IndexerConfig {
   snapshotsRetentionDays: number;
   /** Interval in ms between background pruning passes (default: 3600000 = 1 hour). */
   pruneIntervalMs: number;
+  /** Interval in ms between executable refresh passes (default: 21600000 = 6 hours). */
+  executableRefreshIntervalMs: number;
 }
 
 export function loadConfig(): IndexerConfig {
   const databaseUrl = process.env.DATABASE_URL;
   if (!databaseUrl) throw new Error('[indexer] DATABASE_URL is required');
 
-  const network    = process.env.INDEXER_NETWORK     ?? 'testnet';
+  const rawNetwork = process.env.INDEXER_NETWORK ?? 'testnet';
+  let network: Network;
+  try {
+    network = normalizeNetwork(rawNetwork);
+  } catch {
+    throw new Error(
+      `[indexer] Invalid INDEXER_NETWORK: "${rawNetwork}". Expected one of: testnet, mainnet, futurenet, local (or aliases: public, pubnet)`,
+    );
+  }
+
   const horizonUrl = process.env.INDEXER_HORIZON_URL ?? 'https://horizon-testnet.stellar.org';
   const rpcUrl     = process.env.INDEXER_RPC_URL     ?? 'https://soroban-testnet.stellar.org';
 
@@ -49,7 +60,6 @@ export function loadConfig(): IndexerConfig {
     rpcUrl,
     tickIntervalMs:  Number(process.env.INDEXER_TICK_INTERVAL_MS ?? 30_000),
     logLevel:        process.env.INDEXER_LOG_LEVEL        ?? 'info',
-    reseed:          process.argv.includes('--reseed'),
     registryContractId:
       process.env.INDEXER_REGISTRY_CONTRACT_ID ??
       process.env.NEXT_PUBLIC_IDENTITY_REGISTRY_ID ??
@@ -58,5 +68,6 @@ export function loadConfig(): IndexerConfig {
     operationsRetentionDays: Number(process.env.INDEXER_OPERATIONS_RETENTION_DAYS ?? 90),
     snapshotsRetentionDays: Number(process.env.INDEXER_SNAPSHOTS_RETENTION_DAYS ?? 30),
     pruneIntervalMs: Number(process.env.INDEXER_PRUNE_INTERVAL_MS ?? 3_600_000),
+    executableRefreshIntervalMs: Number(process.env.INDEXER_EXECUTABLE_REFRESH_MS ?? 21_600_000),
   };
 }

@@ -26,9 +26,9 @@
 1. **Deploy the Identity Registry** to testnet then mainnet; set
    `NEXT_PUBLIC_IDENTITY_REGISTRY_ID` and initialize the admin. This flips the
    claim flow live.
-2. **Provision Postgres + run the indexer** (`apps/indexer`) against the curated
-   wallets to populate full deployment/activity history, then have `/p` read
-   from the DB with a static fallback (`safeDbProfile` is already wired).
+2. **Provision Postgres + run the indexer** (`apps/indexer`) against the
+   on-chain-bound wallets to populate full deployment/activity history; `/p`
+   already reads the DB first, falling back to the chain (`safeDbProfile`).
 3. **Build out the dashboard** (`apps/web/app/(dashboard)`) behind wallet auth:
    profile editing, wallet linking, settings.
 4. **"Verified by Signet" badge** — a small embeddable snippet powered by
@@ -55,7 +55,7 @@ The codebase is deploy-ready. What's left to reach a live 8/10 MVP is operationa
   per-ip rate limiting on the API.
 - **Wallet session auth (SIWS)** — challenge/verify/logout routes + HMAC session;
   the dashboard is gated behind a real sign-in wall (`lib/auth.ts`, 5 tests).
-- **`/p` is DB-preferred** with a static fallback (`safeDbProfile`).
+- **`/p` is DB-preferred** with a chain + Horizon fallback (`safeDbProfile`).
 - **Reputation signal** + **OG images** on profiles.
 - **Tests** — 29 TS (web 20 · sdk 4 · indexer 5) + 14 cargo; CI gates all.
 - **Deploy scaffolding** — indexer `Dockerfile`, `infra/deploy-contract.sh`.

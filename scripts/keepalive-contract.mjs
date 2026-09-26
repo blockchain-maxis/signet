@@ -11,14 +11,15 @@
  * the required `RestoreFootprint` action.
  *
  * Usage:
- *   node scripts/keepalive-contract.mjs [handle1] [handle2] ...
+ *   node scripts/keepalive-contract.mjs <handle1> [handle2] ...
+ *
+ * At least one handle is required: there is no built-in default list, since
+ * only handles actually bound on the registry are worth keeping alive.
  *
  * Env:
  *   SOROBAN_RPC_URL                    Soroban RPC endpoint (default: testnet)
  *   NEXT_PUBLIC_IDENTITY_REGISTRY_ID   Contract ID of the Identity Registry
  */
-
-import { DEMO_PROFILES } from '../packages/types/src/index.ts';
 
 const RPC_URL =
   process.env.SOROBAN_RPC_URL ??
@@ -33,7 +34,13 @@ const CONTRACT_ID =
 const SIMULATION_SOURCE = 'GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF';
 
 const cliHandles = process.argv.slice(2).filter((h) => !h.startsWith('-'));
-const targetHandles = cliHandles.length > 0 ? cliHandles : DEMO_PROFILES.map((p) => p.handle);
+const targetHandles = cliHandles;
+
+if (targetHandles.length === 0) {
+  console.error('Usage: node scripts/keepalive-contract.mjs <handle1> [handle2] ...');
+  console.error('Pass the handles to sweep; there is no default list.');
+  process.exit(1);
+}
 
 if (!CONTRACT_ID) {
   console.error('Error: Identity Registry Contract ID is not set.');

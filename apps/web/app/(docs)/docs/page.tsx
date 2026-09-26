@@ -116,15 +116,16 @@ export default function DocsPage() {
 {`import { SignetClient } from '@signet/sdk';
 
 const signet = new SignetClient({ baseUrl: 'https://your-deployment.example' });
-const profile = await signet.getProfile('aquawolf');
+const profile = await signet.getProfile('yourhandle');
 // → { handle, profile, stats: { invocations, uniqueFunctions } }`}
         </pre>
 
         <H>Phases</H>
         <ul className="mt-4 space-y-2 text-[14px] leading-[1.7] text-[#b8b5a8]">
           <li>
-            <strong>Phase 1 (live):</strong> curated handle→wallet bindings, real
-            on-chain activity, public profiles and SDK.
+            <strong>Phase 1 (done):</strong> public profiles, real on-chain
+            activity and the SDK. Its curated handle→wallet bindings have been
+            retired — only handles bound on-chain are served.
           </li>
           <li>
             <strong>Phase 2 (live):</strong> self-sovereign claims via the

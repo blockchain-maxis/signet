@@ -16,12 +16,12 @@ function mockFetch(payload: unknown, opts: { ok?: boolean; status?: number } = {
 }
 
 test('getProfile unwraps the tRPC result envelope', async () => {
-  const data = { handle: 'aquawolf', profile: { name: 'Aqua Wolf' }, stats: { invocations: 2 } };
+  const data = { handle: 'alice', profile: { name: 'Alice' }, stats: { invocations: 2 } };
   const client = new SignetClient({
     baseUrl: 'https://signet.dev',
     fetch: mockFetch({ result: { data } }),
   });
-  const res = await client.getProfile('aquawolf');
+  const res = await client.getProfile('alice');
   assert.deepEqual(res, data);
 });
 
@@ -32,9 +32,9 @@ test('getProfile encodes the handle into the input query', async () => {
     return { ok: true, status: 200, json: async () => ({ result: { data: null } }) } as Response;
   }) as unknown as typeof fetch;
   const client = new SignetClient({ baseUrl: 'https://signet.dev/', fetch: fetchSpy });
-  await client.getProfile('aquawolf');
+  await client.getProfile('alice');
   assert.ok(seen.includes('/api/trpc/profile.byHandle'));
-  assert.ok(seen.includes(encodeURIComponent('{"handle":"aquawolf"}')));
+  assert.ok(seen.includes(encodeURIComponent('{"handle":"alice"}')));
 });
 
 test('getProfile returns null on a 404 (not found)', async () => {
@@ -79,9 +79,9 @@ test('listHandles defaults to an empty array', async () => {
 });
 
 test('resolveHandle calls registry.resolve and unwraps the result', async () => {
-  const data = { handle: 'aquawolf', wallet: 'GAAA...' };
+  const data = { handle: 'alice', wallet: 'GAAA...' };
   const client = new SignetClient({ baseUrl: 'https://signet.dev', fetch: mockFetch({ result: { data } }) });
-  const res = await client.resolveHandle('aquawolf');
+  const res = await client.resolveHandle('alice');
   assert.deepEqual(res, data);
 });
 
@@ -92,9 +92,9 @@ test('resolveHandle encodes the handle into the procedure URL', async () => {
     return { ok: true, json: async () => ({ result: { data: null } }) } as Response;
   }) as unknown as typeof fetch;
   const client = new SignetClient({ baseUrl: 'https://signet.dev/', fetch: fetchSpy });
-  await client.resolveHandle('aquawolf');
+  await client.resolveHandle('alice');
   assert.ok(seen.includes('/api/trpc/registry.resolve'));
-  assert.ok(seen.includes(encodeURIComponent('{"handle":"aquawolf"}')));
+  assert.ok(seen.includes(encodeURIComponent('{"handle":"alice"}')));
 });
 
 test('resolveHandle returns null on a 404 (unregistered)', async () => {
@@ -117,7 +117,7 @@ test('resolveHandle throws ApiError on a server error', async () => {
 });
 
 test('lookupWallet calls registry.lookup', async () => {
-  const data = { handle: 'aquawolf', wallet: 'GAAA...' };
+  const data = { handle: 'alice', wallet: 'GAAA...' };
   const client = new SignetClient({ baseUrl: 'https://signet.dev', fetch: mockFetch({ result: { data } }) });
   const res = await client.lookupWallet('GAAA...');
   assert.deepEqual(res, data);
@@ -154,11 +154,11 @@ test('retries a 5xx and returns the result from a later attempt', async () => {
   const flaky = (async () => {
     calls++;
     if (calls < 3) return { ok: false, status: 502, json: async () => ({}) } as Response;
-    return { ok: true, status: 200, json: async () => ({ result: { data: ['aquawolf'] } }) } as Response;
+    return { ok: true, status: 200, json: async () => ({ result: { data: ['alice'] } }) } as Response;
   }) as unknown as typeof fetch;
 
   const client = new SignetClient({ baseUrl: 'https://signet.dev', fetch: flaky, maxRetries: 3 });
-  assert.deepEqual(await client.listHandles(), ['aquawolf']);
+  assert.deepEqual(await client.listHandles(), ['alice']);
   assert.equal(calls, 3);
 });
 

@@ -22,19 +22,30 @@ pass, commit conventions, and how issue points work.
 git clone https://github.com/blockchain-maxis/signet.git && cd signet
 pnpm install
 
-# Run just the web app (no database needed for the demo routes)
+# Run just the web app (no database needed)
 pnpm --filter @signet/web dev
 ```
 
 Visit `http://localhost:3000`.
 
-The database and indexer are optional for most web work — the demo profiles
-render from static JSON. If you do need them:
+The database and indexer are optional for most web work — profiles fall back
+to live chain (`resolve`) and Horizon reads when no `DATABASE_URL` is set. Set
+`NEXT_PUBLIC_IDENTITY_REGISTRY_ID` in `.env` to see real handles; without it,
+`/handles` is empty and says why. If you do need the database and indexer:
 
 ```bash
 pnpm db:up        # start Postgres via infra/docker/docker-compose.yml
 pnpm db:migrate   # apply migrations
 pnpm indexer:dev  # run the indexer
+```
+
+### Local stack
+
+To run Postgres and the indexer together in a single local Docker stack:
+
+```bash
+pnpm stack:up     # build and start Postgres + indexer containers
+pnpm stack:down   # stop the stack
 ```
 
 ## The gates

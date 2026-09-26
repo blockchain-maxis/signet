@@ -42,6 +42,10 @@ For release instructions and versioning procedures, see [`docs/RELEASING.md`](do
 - Smoke tests now rely on semantic heading selectors instead of brittle copy assertions ([#219](https://github.com/blockchain-maxis/signet/issues/219)).
 - Extended contract instance TTL on read paths to prevent storage archival of active registries ([#242](https://github.com/blockchain-maxis/signet/pull/242)).
 
+### Removed
+
+- The synthetic demo profiles (`aquawolf`, `sorobuilder`, `stellardev`) and everything that served them: the shared persona list in `@signet/types`, the static operation fixtures under `apps/web/public/data/`, the indexer's demo seed and its `--reseed` flag / `indexer:seed` script, the landing page's "See it in action" and fabricated featured-developer sections, and the demo-wallet check workflow. Profiles now resolve database → chain only, activity database → Horizon only, and `/handles` lists only handles confirmed on the Identity Registry — with no registry configured it says so and lists nothing.
+
 ---
 
 ## [0.1.0] — not yet tagged

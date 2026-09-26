@@ -16,7 +16,7 @@ If your failure is not listed, open an issue with the full command and stderr.
 | `stellar keys generate … --fund` fails / account unfunded           | Friendbot via CLI flaky or blocked by the alias bug | Fund with Friendbot HTTP, then retry without `--fund`                    |
 | `pnpm install` / Next build fails on Node 18/20                     | Engines require Node 22+                            | Upgrade Node (`nvm use` / install 22); see `.nvmrc`                      |
 | `error: could not find native static library` / missing wasm target | `wasm32v1-none` not installed                       | `rustup target add wasm32v1-none`                                        |
-| Web app needs Postgres?                                             | No — demo routes are static                         | Run `pnpm --filter @signet/web dev` without `DATABASE_URL`               |
+| Web app needs Postgres?                                             | No — profiles fall back to the chain and Horizon    | Run `pnpm --filter @signet/web dev` without `DATABASE_URL`               |
 | Claim button shows "not configured"                                 | `NEXT_PUBLIC_IDENTITY_REGISTRY_ID` unset            | Set the deployed testnet contract id in `.env`                           |
 | Indexer starts but never attests claims                             | Registry id unset                                   | Set `INDEXER_REGISTRY_CONTRACT_ID` or `NEXT_PUBLIC_IDENTITY_REGISTRY_ID` |
 
@@ -172,25 +172,29 @@ without a database.
 
 **Cause**
 
-The indexer and Prisma paths need `DATABASE_URL`, but the canonical demo
-profiles do **not**. `apps/web/lib/profiles.ts` falls back to
-`apps/web/public/data/*.json` whenever the DB is unset or unreachable
-(`safeDbProfile` / `safeDbOperations`).
+The indexer and Prisma paths need `DATABASE_URL`, but the web app does **not**.
+`apps/web/lib/profiles.ts` resolves a handle through the database first and,
+when it is unset or unreachable (`safeDbProfile` / `safeDbOperations` return
+null), falls back to a live `resolve` against the Identity Registry and to
+Horizon for activity. There is no static fixture data: with neither a database
+nor a registry configured, every `/p/{handle}` is a clean 404 and `/handles`
+says no registry is configured.
 
 **Fix**
 
 ```bash
-# No .env and no Docker required for demos:
+# No Docker required; set NEXT_PUBLIC_IDENTITY_REGISTRY_ID in .env to see
+# real on-chain handles:
 pnpm install
 pnpm --filter @signet/web dev
-# open http://localhost:3000/p/aquawolf
+# open http://localhost:3000/handles and follow any listed handle
 ```
 
 Only set `DATABASE_URL` (and run `pnpm db:up` + `pnpm db:migrate`) when you
 want the indexer or DB-backed reads. Leave it unset for pure UI work.
 
-**Verified:** with `DATABASE_URL` unset, `/`, `/how-it-works`, and
-`/p/aquawolf` render from static fixtures.
+**Verified:** with `DATABASE_URL` unset, `/`, `/how-it-works` and `/handles`
+render, and `/p/{handle}` renders any handle the registry resolves.
 
 ---
 
@@ -276,8 +280,8 @@ Soroban smart contracts enforce a Time-To-Live (TTL) of ~30 days on persistent s
 Restore the binding footprint via the web app or Stellar CLI, or run the keep-alive sweep script:
 
 ```bash
-# Keep-alive sweep to bump active bindings
-node scripts/keepalive-contract.mjs
+# Keep-alive sweep to bump active bindings (pass the handles to sweep)
+node scripts/keepalive-contract.mjs <handle> [handle ...]
 
 # Detailed runbook:
 # See docs/ARCHIVAL_AND_RESTORATION.md

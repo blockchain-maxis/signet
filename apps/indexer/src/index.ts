@@ -4,12 +4,15 @@ import { logger, setLogLevel } from './logger.js';
 import { connectDb, disconnectDb, prisma } from './db.js';
 import { createHorizonServer, sleep } from './stellar.js';
 import { createSorobanRpcServer } from './soroban-rpc.js';
-import { runSeedWorker } from './workers/seed.js';
 import { runDeploymentWorker, type DeploymentStore } from './workers/deployment.js';
 import { runActivityWorker, type ActivityStore } from './workers/activity.js';
 import { runAttestationWorker } from './workers/attestation.js';
 import { runOperationsWorker, type OperationsStore } from './workers/operations.js';
 import { runPruningWorker, type PruningStore } from './workers/prune.js';
+import {
+  runExecutableRefreshWorker,
+  type ExecutableRefreshStore,
+} from './workers/executable-refresh.js';
 
 let shuttingDown = false;
 let shuttingDownPrisma = false;
@@ -81,6 +84,13 @@ async function tick(
   // Operations: pull recent Soroban invocations for tracked wallets
   const { opsUpserted } = await runOperationsWorker(horizon, prisma as unknown as OperationsStore);
 
+  // Executable refresh: backfill missing WASM hashes and detect on-chain contract upgrades
+  const { wasmChanged } = await runExecutableRefreshWorker(
+    soroban,
+    config,
+    prisma as unknown as ExecutableRefreshStore,
+  );
+
   // Pruning: periodically prune historical operations and snapshots beyond retention windows
   let opsPruned = 0;
   let snapshotsPruned = 0;
@@ -109,6 +119,7 @@ async function tick(
       contractsFound,
       opsUpserted,
       snapshotsWritten,
+      wasmChanged,
       opsPruned,
       snapshotsPruned,
       durationMs: Date.now() - start,
@@ -136,13 +147,6 @@ async function main(): Promise<void> {
 
   const horizon = createHorizonServer(config.horizonUrl);
   const soroban = createSorobanRpcServer(config.rpcUrl);
-
-  // Check if we need to seed
-  const cursor = await prisma.indexerCursor.findUnique({ where: { id: 'main' } });
-  if (!cursor || config.reseed) {
-    logger.info({ reseed: config.reseed }, 'indexer.seeding');
-    await runSeedWorker();
-  }
 
   // Graceful shutdown
   function onSignal(signal: string) {

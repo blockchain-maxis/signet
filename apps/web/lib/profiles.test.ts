@@ -12,13 +12,16 @@ import {
   decodeResolvedAddress,
   computeStats,
   getProfileStats,
+  resolveProfileStats,
   safeDbProfileStats,
   getOperationsResult,
   formatCount,
+  getOperationsRetentionDays,
+  formatStatsWindow,
 } from './profiles.ts';
 
 test('isValidHandle accepts the registry charset', () => {
-  for (const h of ['aquawolf', 'dev_01', 'a-b-c', 'x'.repeat(32)]) {
+  for (const h of ['alice', 'dev_01', 'a-b-c', 'x'.repeat(32)]) {
     assert.ok(isValidHandle(h), `expected ${h} valid`);
   }
 });
@@ -29,29 +32,20 @@ test('isValidHandle rejects malformed handles', () => {
   }
 });
 
-test('getProfile returns curated data for a known handle', async () => {
-  const p = await getProfile('aquawolf');
-  assert.ok(p, 'aquawolf profile should exist');
-  assert.match(p!.wallet, /^G[A-Z0-9]{55}$/, 'wallet is a Stellar account id');
-  assert.ok(p!.name.length > 0);
-});
-
 test('getProfile rejects invalid handles without filesystem access', async () => {
   assert.equal(await getProfile('../../etc/passwd'), null);
 });
 
-test('curated profiles still resolve when neither a DB nor a registry is configured', async () => {
+test('getProfile misses when neither a DB nor a registry is configured', async () => {
   // No DATABASE_URL and no REGISTRY_CONTRACT_ID here, so both the database and
-  // chain layers no-op and resolution falls through to the static manifest.
-  const p = await getProfile('aquawolf');
-  assert.ok(p, 'aquawolf should resolve from the static manifest');
-  assert.equal(p!.source, 'demo');
+  // chain layers no-op. There is no static fallback: nothing is invented.
+  assert.equal(await getProfile('alice'), null);
 });
 
 test('safeChainProfile is a no-op when the registry is not configured', async () => {
   // Returns without any network access — an unconfigured registry must not
   // cost a doomed RPC round trip on every profile render.
-  assert.equal(await safeChainProfile('aquawolf'), null);
+  assert.equal(await safeChainProfile('alice'), null);
 });
 
 test('safeChainProfile rejects invalid handles before any network access', async () => {
@@ -75,19 +69,15 @@ test('decodeResolvedAddress rejects an unbound handle and malformed values', () 
   assert.equal(decodeResolvedAddress({ wallet: `G${'A'.repeat(55)}` }), null);
 });
 
-test('listHandles includes the curated profiles', async () => {
-  const handles = await listHandles();
-  assert.ok(handles.includes('aquawolf'));
-  assert.ok(handles.length >= 3);
+test('listAllHandles is empty when neither a DB nor a registry is configured', async () => {
+  // Both real sources degrade to [] on their own, and there is no curated
+  // manifest to fall back to.
+  assert.deepEqual(await listAllHandles(), []);
 });
 
-test('listAllHandles is a deduped superset of the curated handles', async () => {
-  // With neither DATABASE_URL nor a registry configured, the database and chain
-  // sources are both empty, so this is the curated set — but always deduped and
-  // never fewer than the manifest.
-  const [all, curated] = await Promise.all([listAllHandles(), listHandles()]);
-  for (const handle of curated) assert.ok(all.includes(handle));
-  assert.equal(all.length, new Set(all).size);
+test('listHandles is the same DB ∪ chain set as listAllHandles', async () => {
+  const [all, handles] = await Promise.all([listAllHandles(), listHandles()]);
+  assert.deepEqual(handles, all);
 });
 
 test('safeChainHandles is a no-op when the registry is not configured', async () => {
@@ -131,7 +121,7 @@ test('computeStats scores successful invocations and unique function diversity',
 });
 
 test('getOperations returns an array (possibly empty) for any handle', async () => {
-  assert.ok(Array.isArray(await getOperations('aquawolf')));
+  assert.ok(Array.isArray(await getOperations('alice')));
   assert.deepEqual(await getOperations('does-not-exist'), []);
 });
 
@@ -142,12 +132,92 @@ test('formatCount only claims a total when the record is complete', () => {
   assert.equal(formatCount(0, true), '0+');
 });
 
-test('getOperationsResult reports curated demo history as complete', async () => {
-  const result = await getOperationsResult('aquawolf');
-  assert.ok(Array.isArray(result.operations));
-  assert.equal(result.truncated, false);
-  assert.equal(result.cap, null);
-  assert.equal(result.source, result.operations.length > 0 ? 'demo' : 'none');
+test('profile stats expose the configured Operation retention window', () => {
+  const previous = process.env.INDEXER_OPERATIONS_RETENTION_DAYS;
+  try {
+    delete process.env.INDEXER_OPERATIONS_RETENTION_DAYS;
+    assert.equal(getOperationsRetentionDays(), 90);
+    assert.equal(formatStatsWindow(getOperationsRetentionDays()), 'last 90 days');
+
+    process.env.INDEXER_OPERATIONS_RETENTION_DAYS = '30';
+    assert.equal(getOperationsRetentionDays(), 30);
+    assert.equal(formatStatsWindow(getOperationsRetentionDays()), 'last 30 days');
+
+    process.env.INDEXER_OPERATIONS_RETENTION_DAYS = '0';
+    assert.equal(getOperationsRetentionDays(), 0);
+    assert.equal(formatStatsWindow(null), null);
+  } finally {
+    if (previous === undefined) delete process.env.INDEXER_OPERATIONS_RETENTION_DAYS;
+    else process.env.INDEXER_OPERATIONS_RETENTION_DAYS = previous;
+  }
+});
+
+test('invalid Operation retention settings fall back to the documented default', () => {
+  const previous = process.env.INDEXER_OPERATIONS_RETENTION_DAYS;
+  try {
+    process.env.INDEXER_OPERATIONS_RETENTION_DAYS = 'not-a-number';
+    assert.equal(getOperationsRetentionDays(), 90);
+
+    process.env.INDEXER_OPERATIONS_RETENTION_DAYS = '-1';
+    assert.equal(getOperationsRetentionDays(), 90);
+  } finally {
+    if (previous === undefined) delete process.env.INDEXER_OPERATIONS_RETENTION_DAYS;
+    else process.env.INDEXER_OPERATIONS_RETENTION_DAYS = previous;
+  }
+});
+
+const RETAINED_OP = {
+  id: '1',
+  type: 'invoke',
+  function: 'mint',
+  created_at: '2026-08-30T00:00:00Z',
+  transaction_successful: true,
+};
+
+test('resolveProfileStats labels a database aggregate with the retention window', () => {
+  const db = { invocations: 5, uniqueFunctions: 2, reputation: 12 };
+  assert.deepEqual(resolveProfileStats(db, [], 90), {
+    ...db,
+    exact: true,
+    retentionWindowDays: 90,
+  });
+  // Pruning disabled: the aggregate covers the whole indexed history.
+  assert.equal(resolveProfileStats(db, [], 0).retentionWindowDays, null);
+});
+
+test('resolveProfileStats keeps a genuine zero, labelled, when nothing is retained', () => {
+  const zero = { invocations: 0, uniqueFunctions: 0, reputation: 0 };
+  assert.deepEqual(resolveProfileStats(zero, [], 90), {
+    ...zero,
+    exact: true,
+    retentionWindowDays: 90,
+  });
+});
+
+test('resolveProfileStats prefers served operations over a zero aggregate for an unindexed profile', () => {
+  const zero = { invocations: 0, uniqueFunctions: 0, reputation: 0 };
+  const result = resolveProfileStats(zero, [RETAINED_OP], 90);
+  assert.equal(result.invocations, 1);
+  assert.equal(result.exact, false);
+  assert.equal(result.retentionWindowDays, null);
+});
+
+test('resolveProfileStats computes from operations when there is no database aggregate', () => {
+  const result = resolveProfileStats(null, [RETAINED_OP], 90);
+  assert.equal(result.invocations, 1);
+  assert.equal(result.exact, false);
+  assert.equal(result.retentionWindowDays, null);
+});
+
+test('getOperationsResult has no static fallback without a DB or a bound wallet', async () => {
+  // No DATABASE_URL and no registry: the DB misses, no profile resolves a
+  // wallet for Horizon to read, and nothing else is consulted.
+  assert.deepEqual(await getOperationsResult('alice'), {
+    operations: [],
+    source: 'none',
+    truncated: false,
+    cap: null,
+  });
 });
 
 test('getOperationsResult is empty and complete for an unknown handle', async () => {
@@ -160,17 +230,14 @@ test('getOperationsResult is empty and complete for an unknown handle', async ()
 });
 
 test('getOperations still returns a bare array of operations', async () => {
-  const [bare, result] = await Promise.all([
-    getOperations('aquawolf'),
-    getOperationsResult('aquawolf'),
-  ]);
+  const [bare, result] = await Promise.all([getOperations('alice'), getOperationsResult('alice')]);
   assert.deepEqual(bare, result.operations);
 });
 
 test('getPagedOperations is a no-op without a DATABASE_URL', async () => {
   // No DATABASE_URL configured in this test environment, so the DB layer
   // must no-op rather than throwing, letting the route fall back cleanly.
-  assert.equal(await getPagedOperations('aquawolf', 0, 25), null);
+  assert.equal(await getPagedOperations('alice', 0, 25), null);
 });
 
 test('getPagedOperations rejects invalid handles without a DB round trip', async () => {

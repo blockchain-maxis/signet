@@ -8,35 +8,82 @@ export function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+export type ExtractContractReason =
+  | 'not-soroban'
+  | 'no-return-value'
+  | 'not-contract-address'
+  | 'unsupported-meta-version'
+  | 'decode-error';
+
+export type ExtractContractResult =
+  | { ok: true; address: string; metaVersion: number }
+  | { ok: false; reason: ExtractContractReason; metaVersion?: number };
+
 /**
  * Parse a transaction's result_meta_xdr to extract the deployed contract address.
- * Returns null if this isn't a Soroban V3 meta or doesn't contain a contract address.
+ * Handles TransactionMeta v3 and v4 (protocol 23+).
+ * Returns a discriminated result distinguishing successful extraction from decode
+ * or unsupported meta errors.
  */
-export function extractContractAddress(resultMetaXdr: string): string | null {
+export function extractContractAddress(resultMetaXdr: string): ExtractContractResult {
+  let meta: xdr.TransactionMeta;
   try {
-    const meta = xdr.TransactionMeta.fromXDR(resultMetaXdr, 'base64');
-
-    // Only Soroban transactions (V3) carry contract creation results
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const v3 = (meta as any).v3?.() as { sorobanMeta(): SorobanMeta | null } | undefined;
-    if (!v3) return null;
-
-    const sorobanMeta = v3.sorobanMeta();
-    if (!sorobanMeta) return null;
-
-    const returnVal = sorobanMeta.returnValue() as xdr.ScVal;
-    if (returnVal.switch().name !== 'scvAddress') return null;
-
-    const addr = returnVal.address() as xdr.ScAddress;
-    if (addr.switch().name !== 'scAddressTypeContract') return null;
-
-    return StrKey.encodeContract(Buffer.from(addr.contractId() as unknown as Uint8Array));
+    meta = xdr.TransactionMeta.fromXDR(resultMetaXdr, 'base64');
   } catch {
-    return null;
+    return { ok: false, reason: 'decode-error' };
   }
-}
 
-// Internal type for the sorobanMeta accessor
-interface SorobanMeta {
-  returnValue(): xdr.ScVal;
+  const switchVal = meta.switch();
+  let returnVal: xdr.ScVal | null = null;
+  let metaVersion: number;
+
+  switch (switchVal) {
+    case 3: {
+      metaVersion = 3;
+      const v3 = meta.v3();
+      const sorobanMeta = v3.sorobanMeta();
+      if (!sorobanMeta) {
+        return { ok: false, reason: 'not-soroban', metaVersion };
+      }
+      returnVal = sorobanMeta.returnValue();
+      break;
+    }
+    case 4: {
+      metaVersion = 4;
+      const v4 = meta.v4();
+      const sorobanMeta = v4.sorobanMeta();
+      if (!sorobanMeta) {
+        return { ok: false, reason: 'not-soroban', metaVersion };
+      }
+      returnVal = sorobanMeta.returnValue();
+      break;
+    }
+    default:
+      return {
+        ok: false,
+        reason: 'unsupported-meta-version',
+        metaVersion: typeof switchVal === 'number' ? switchVal : undefined,
+      };
+  }
+
+  if (!returnVal) {
+    return { ok: false, reason: 'no-return-value', metaVersion };
+  }
+
+  try {
+    if (returnVal.switch().name !== 'scvAddress') {
+      return { ok: false, reason: 'not-contract-address', metaVersion };
+    }
+
+    const addr = returnVal.address();
+    if (addr.switch().name !== 'scAddressTypeContract') {
+      return { ok: false, reason: 'not-contract-address', metaVersion };
+    }
+
+    const contractId = addr.contractId();
+    const address = StrKey.encodeContract(Buffer.from(contractId as unknown as Uint8Array));
+    return { ok: true, address, metaVersion };
+  } catch {
+    return { ok: false, reason: 'decode-error', metaVersion };
+  }
 }

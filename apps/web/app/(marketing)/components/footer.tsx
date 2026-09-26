@@ -9,7 +9,6 @@ const links = [
   { href: '/', label: 'Home' },
   { href: '/how-it-works', label: 'How it works' },
   { href: '/handles', label: 'Handles' },
-  { href: '/p/aquawolf', label: 'Demo' },
 ];
 
 /**
@@ -83,7 +82,7 @@ export function Footer() {
 
         <div className="mt-10 flex flex-wrap items-center justify-between gap-3 border-t border-[#1f1d19] py-4 text-[10px] uppercase tracking-[0.22em] text-[#3d3a33]">
           <span>Stellar Community Fund · 2026</span>
-          <span>Stellar {STELLAR_NETWORK_NAME.toLowerCase()} · demo</span>
+          <span>Stellar {STELLAR_NETWORK_NAME.toLowerCase()}</span>
         </div>
       </div>
 

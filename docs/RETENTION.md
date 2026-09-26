@@ -24,6 +24,14 @@ Signet adopts an **active window retention policy** with configurable thresholds
 
 > **Indefinite Retention Option:** Setting `INDEXER_OPERATIONS_RETENTION_DAYS=0` or `INDEXER_SNAPSHOTS_RETENTION_DAYS=0` disables pruning and retains records indefinitely. Operators choosing indefinite retention should allocate Postgres storage to accommodate unbounded linear growth.
 
+### Profile statistics and retention
+
+Profile invocation counts, function diversity, and the reputation heuristic are computed from the `Operation` rows that are still present in Postgres. They are therefore **retention-window statistics**, not lifetime statistics, whenever operation pruning is enabled.
+
+With the default configuration, profile statistics represent the **last 90 days** of indexed operations. As operations age out of the retention window, those values can decrease; that is expected behavior for a rolling window and is surfaced explicitly in the profile UI and API metadata.
+
+The web app reads `INDEXER_OPERATIONS_RETENTION_DAYS` only to label this scope. Deployments that override the indexer's default must expose the same value to the web process so the displayed window matches the pruning policy. When the value is `0`, operation pruning is disabled and database-backed statistics cover the full indexed history.
+
 ---
 
 ## 3. Pruning Architecture

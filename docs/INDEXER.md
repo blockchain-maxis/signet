@@ -34,12 +34,12 @@ is caught by the tick, logged as `tick.error`, and the loop continues.
 
 | # | Worker | Runs | Input | Writes |
 |---|--------|------|-------|--------|
-| 0 | **seed** | Once at startup, only when the `main` cursor row is missing or `--reseed` was passed | the hard-coded list in [`src/seed-data.ts`](../apps/indexer/src/seed-data.ts) | `Profile`, `Wallet` (`source: 'curated'`) |
 | 1 | **attestation** | Every tick, **skipped entirely** when no registry contract id is configured | Soroban RPC `getEvents` on the Identity Registry | `Profile`, `Wallet` (`source: 'onchain'`), cursor `attestation` |
 | 2 | **deployment** | Every tick | Horizon `/accounts/{pubkey}/operations` for every `Wallet` row — paginated backward from `Wallet.deploymentCursor` (50/page, up to 10 pages/tick) until fully backfilled, then paginated forward from `Wallet.deploymentWatermark` — plus a transaction fetch per contract-creation op | `Contract`, `Wallet.deploymentCursor`/`deploymentBackfilledAt`/`deploymentWatermark`, clears `Wallet.indexRequestedAt` |
 | 3 | **activity** | Every tick | Horizon `/accounts/{contract}/transactions` for every `Contract` whose newest snapshot is older than 5 min | `ContractSnapshot` |
 | 4 | **operations** | Every tick | Horizon `/accounts/{pubkey}/operations` for every `Wallet` (50 most recent, desc) | `Operation` |
-| 5 | **prune** | Periodic (`INDEXER_PRUNE_INTERVAL_MS`, default 1h) | `Operation`, `ContractSnapshot` | Deletes historical records older than retention windows |
+| 5 | **executable-refresh** | Periodic (`INDEXER_EXECUTABLE_REFRESH_MS`, default 6h) | Soroban RPC `getLedgerEntries` for contracts where `wasmHashCheckedAt` is null or older than the refresh interval (batched, at most 100 keys per call) | `Contract.wasmHash`, `Contract.wasmHashCheckedAt`, `ContractWasmVersion` |
+| 6 | **prune** | Periodic (`INDEXER_PRUNE_INTERVAL_MS`, default 1h) | `Operation`, `ContractSnapshot` | Deletes historical records older than retention windows |
 
 Notes that matter in production:
 
@@ -68,6 +68,15 @@ Anything else is skipped silently. See the
 [identity-registry README](../packages/contracts/identity-registry/README.md) for the
 contract's own method and event reference.
 
+### Executable refresh and upgrade detection
+
+The **executable-refresh** worker ensures contracts have their current WASM hash populated and detects code upgrades over time:
+
+- On each tick, it queries `Contract` rows where `wasmHashCheckedAt` is `null` (backfill) or older than `INDEXER_EXECUTABLE_REFRESH_MS` (default 6h).
+- Instance keys are batched in calls to Soroban RPC `getLedgerEntries` with at most 100 keys per request.
+- When an updated WASM hash is detected, it logs `deployments.wasmChanged` (`{ contract, from, to }`), updates `Contract.wasmHash`, and upserts a `ContractWasmVersion` history row (`observedLedger` records the RPC tip when the hash was noticed).
+- When an instance is archived or missing from the RPC, the previous hash is preserved and `wasmHashCheckedAt` is bumped so the worker does not get stuck in a tight retry loop.
+
 ---
 
 ## 2. Cursors and resumption
@@ -77,7 +86,7 @@ Two kinds of cursor exist. The `IndexerCursor` table holds one **global** row pe
 
 | Cursor id | Written by | Value | Used for |
 |-----------|-----------|-------|----------|
-| `main` | end of each tick, **only if** the deployment worker saw a ledger > 0 | highest ledger sequence observed while scanning wallet operations | Only as a "have we ever run" flag — it decides whether the seed worker runs at startup. **It is not a resume point** for any per-wallet scan; see the per-wallet backfill state below for that. |
+| `main` | end of each tick, **only if** the deployment worker saw a ledger > 0 | highest ledger sequence observed while scanning wallet operations | Only as a "have we ever run" marker. **It is not a resume point** for any per-wallet scan; see the per-wallet backfill state below for that. |
 | `attestation` | end of the attestation worker, whenever the RPC call succeeded | `latestLedger` reported by the last `getEvents` response | The real resume point. Next tick reads from `lastLedger + 1`. |
 
 Deployment backfill is tracked **per wallet** instead, on the `Wallet` row itself
@@ -116,9 +125,8 @@ Consequences worth knowing before an incident:
   so a healthy idle indexer still shows the cursor climbing every tick.
 - On an RPC failure the cursor is deliberately **left untouched** and the same window is
   retried next tick — no events are skipped by a transient outage.
-- If every Horizon scan fails, `highestLedger` stays 0, the `main` row is never created,
-  and the seed worker therefore re-runs on every restart. Harmless (it upserts), but it
-  is why you may see `seed.*` lines on a process that has been running for days.
+- If every Horizon scan fails, `highestLedger` stays 0 and the `main` row is never
+  created. Nothing reads it as a resume point, so this is harmless.
 
 ### Cold start (the ledger window)
 
@@ -151,7 +159,7 @@ hours of claims** — bindings older than the window are not reconstructed, and 
 this endpoint. If you need the complete history, replay it from an archive/full RPC node (set
 `INDEXER_RPC_URL`) that actually retains it — raising `INDEXER_EVENT_WINDOW_LEDGERS` against
 the *public* endpoint does not help, it just silently truncates further out. Otherwise, accept
-the curated seed data as the baseline and let on-chain events accumulate from now on.
+that older bindings are missing and let on-chain events accumulate from now on.
 
 Each `getEvents` call takes at most **200 events**. A window with more than 200 events in
 it yields the first 200; the cursor then jumps to `latestLedger`, so **the remainder of
@@ -185,8 +193,6 @@ requires a restart.
 | `INDEXER_REGISTRY_CONTRACT_ID` | falls back to `NEXT_PUBLIC_IDENTITY_REGISTRY_ID`, then `''` | Identity Registry `C…` id. Empty → attestation worker no-ops. |
 | `INDEXER_EVENT_WINDOW_LEDGERS` | `8000` | Cold-start lookback, in ledgers. See §Cold start — larger values silently under-scan against the public RPC. |
 
-`--reseed` is a CLI flag, not an env var: `pnpm indexer:seed`.
-
 > The indexer reads `INDEXER_HORIZON_URL` / `INDEXER_RPC_URL`, **not** the
 > `STELLAR_HORIZON_URL` / `SOROBAN_RPC_URL` pair used by the web app and the deploy
 > script. Setting only the latter leaves the indexer silently pointed at testnet.
@@ -208,7 +214,6 @@ pnpm indexer:dev                            # tsx watch — reloads on source ch
 Useful variants:
 
 ```bash
-pnpm indexer:seed                                       # re-run the curated seed, then keep ticking
 INDEXER_LOG_LEVEL=debug pnpm indexer:dev                # per-record detail
 INDEXER_TICK_INTERVAL_MS=5000 pnpm indexer:dev          # tighter loop while debugging
 INDEXER_REGISTRY_CONTRACT_ID=C… pnpm indexer:dev        # exercise the attestation worker
@@ -220,9 +225,7 @@ A healthy first minute looks like this:
 ```json
 {"ts":"…","lvl":"info","msg":"indexer.starting","network":"testnet","horizon":"https://horizon-testnet.stellar.org","rpc":"https://soroban-testnet.stellar.org","registry":"(unset)","interval":30000}
 {"ts":"…","lvl":"info","msg":"db.connected"}
-{"ts":"…","lvl":"info","msg":"indexer.seeding","reseed":false}
-{"ts":"…","lvl":"info","msg":"seed.complete","count":3}
-{"ts":"…","lvl":"info","msg":"tick.summary","walletsScanned":3,"eventsDecoded":0,"contractsFound":0,"opsUpserted":0,"snapshotsWritten":0,"durationMs":1841}
+{"ts":"…","lvl":"info","msg":"tick.summary","walletsScanned":0,"eventsDecoded":0,"contractsFound":0,"opsUpserted":0,"snapshotsWritten":0,"durationMs":1841}
 ```
 
 ### In Docker
@@ -262,8 +265,6 @@ wedged or dead. That line is the single best thing to alert on.
 |------|-------|-------|--------|
 | `indexer.starting` | info | Boot. Echoes network, endpoints, registry id (`(unset)` if none), tick interval. | Check the echoed config is what you expect. |
 | `db.connected` / `db.disconnected` | info | Prisma connected / clean shutdown. | — |
-| `indexer.seeding`, `seed.*` | info | Curated seed ran. | Expected on a fresh DB; see §2 if it repeats every boot. |
-| `seed.skippingPlaceholder` | **warn** | Seed data still contains the all-`A` placeholder pubkey. | Replace it in `seed-data.ts`. |
 | `tick.summary` | info | Healthy heartbeat. | Alert on absence, not on zeros. |
 | `attestation.done` | debug | Event window processed; `throughLedger` is the new cursor. | Confirms the cursor is advancing. |
 | `attestation.applied` | debug | One binding applied. | — |
@@ -288,7 +289,7 @@ investigable after the fact. Every stage emits one line at `info` — not
 `debug`, which production commonly switches off:
 
 ```json
-{"lvl":"info","msg":"pairing.linkCompleted","outcome":"completed","source":"attestation-worker","handle":"aquawolf","wallet":"GASA…EMCD"}
+{"lvl":"info","msg":"pairing.linkCompleted","outcome":"completed","source":"attestation-worker","handle":"alice","wallet":"GCKI…PUX6U"}
 ```
 
 `source` distinguishes the event stream (`attestation-worker`) from a
@@ -315,15 +316,15 @@ both.
 | `eventsDecoded` always 0, no `attestation.*` lines even at `debug` | No registry id configured — the worker returns immediately. | Set `INDEXER_REGISTRY_CONTRACT_ID` (or `NEXT_PUBLIC_IDENTITY_REGISTRY_ID`) and restart. Confirm via the `registry` field on `indexer.starting`. |
 | `attestation.fetchFailed` every tick, `startLedger` far above the network's current ledger | Cursor ahead of the chain — a DB restored from another network, or a testnet reset. Note the `error` field currently renders as `[object Object]` for RPC errors. | Compare with the live ledger, then reset: `DELETE FROM "IndexerCursor" WHERE id = 'attestation';` (cold-starts one window back) or `UPDATE "IndexerCursor" SET "lastLedger" = <n> WHERE id = 'attestation';`. |
 | `attestation.fetchFailed` on a `startLedger` older than ~24 h | Public RPC no longer retains that window. | Reset the cursor as above, or point `INDEXER_RPC_URL` at a full-history node. |
-| `deployments.scanFailed` / `operations.scanFailed` with `error: "Error: Not Found"` for every wallet | Those accounts don't exist on the configured network — usually curated seed accounts against the wrong network, or unfunded/reset testnet accounts. | Fund the accounts (friendbot on testnet), fix `INDEXER_HORIZON_URL`, or replace the seed wallets. Note this also keeps the `main` cursor from ever being written. |
+| `deployments.scanFailed` / `operations.scanFailed` with `error: "Error: Not Found"` for every wallet | Those accounts don't exist on the configured network — usually bindings from one network read against another, or unfunded/reset testnet accounts. | Fund the accounts (friendbot on testnet) or fix `INDEXER_HORIZON_URL`. Note this also keeps the `main` cursor from ever being written. |
 | `scanFailed` with a 429 / rate-limit error, worsening as wallets are added | Horizon rate-limits the caller IP; the built-in throttle is only 100 ms between calls, and cost grows linearly with tracked wallets and contracts. | Raise `INDEXER_TICK_INTERVAL_MS`, or move to a dedicated/authenticated Horizon instance. Transient — failed wallets are retried next tick. |
 | `snapshotsWritten: 0` on every tick | Every contract's snapshot is under 5 minutes old. | Normal. Only investigate if `ContractSnapshot` rows also stop appearing over a longer window. |
-| Profile page still shows demo data with the indexer running | The web app falls back to static JSON when the DB has no rows for a handle. | Check the handle exists in `Profile` and that `Operation` rows were written for its wallet. |
+| Profile page shows no indexed activity with the indexer running | The web app falls back to a live Horizon read (or an empty record) when the DB has no rows for a handle. | Check the handle exists in `Profile` and that `Operation` rows were written for its wallet. |
 | No `tick.summary` for several intervals | Process dead, or a worker is blocked on a hung HTTP call. | Check liveness, then restart — the loop has no per-call timeout. |
 
 ---
 
-## 7. Restart, reseed and backfill
+## 7. Restart and backfill
 
 **Safe restart.** `SIGTERM`/`SIGINT` are handled: the current tick finishes, the loop
 exits within ~250 ms of the sleep chunk, Prisma disconnects, exit code 0. Nothing is
@@ -333,15 +334,6 @@ the worst case is re-reading one event window.
 ```bash
 kill -TERM <pid>            # or docker stop / systemctl restart
 ```
-
-**Reseed** — re-apply the curated `seed-data.ts` profiles and wallets:
-
-```bash
-pnpm indexer:seed           # = pnpm --filter @signet/indexer dev -- --reseed
-```
-
-This only upserts profiles and their wallets. It does **not** clear cursors, contracts,
-operations or snapshots, and it does not remove profiles deleted from `seed-data.ts`.
 
 **Backfill attestations** — re-read a wider slice of the registry's event stream:
 
@@ -372,7 +364,7 @@ the trouble.
 ```bash
 docker compose -f infra/docker/docker-compose.yml down -v   # drops the volume
 pnpm db:up && pnpm db:migrate
-pnpm indexer:dev                                            # seeds, then indexes from scratch
+pnpm indexer:dev                                            # indexes from scratch
 ```
 
 **Rotating endpoints or the registry id** requires a restart — config is read once at

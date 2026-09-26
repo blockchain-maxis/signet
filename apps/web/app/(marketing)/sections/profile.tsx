@@ -5,7 +5,7 @@ import { ScrollTrigger } from "gsap/ScrollTrigger";
 import { SectionLabel } from "../components/section-label";
 
 const wallets = [
-  { key: "GAQUA4XKVYSGWNPVU2K7H6P5L3J8BRDM9NK3FCAQT", display: "GAQUA…WOLF", ts: "2024-03-14 · 09:22 UTC" },
+  { key: "GABCD4XKVYSGWNPVU2K7H6P5L3J8BRDM9NK3FWXYZ", display: "GABCD…WXYZ", ts: "2024-03-14 · 09:22 UTC" },
   { key: "GTEAMB2R7NPLK4DXHFM3P8QK9YCVM5J6WTQA2X4", display: "GTEAM…M2X4", ts: "2024-05-02 · 14:47 UTC" },
   { key: "GBKUPR9HKLD3MNTVCW5AXJE7ZQYS5DMKP2FVWP9NK", display: "GBKUP…P9NK", ts: "2024-08-19 · 11:03 UTC" },
 ];
@@ -164,7 +164,7 @@ export function Profile() {
           What a profile contains.
         </h2>
         <p className="mt-5 max-w-[520px] text-[15px] leading-[1.65] tracking-[-0.005em] text-[#8a8779]" style={{ fontFamily: "var(--font-body)" }}>
-          Every profile aggregates a developer&apos;s linked wallets, deployed contracts, and on-chain activity into a single public record.
+          Every profile aggregates a developer&apos;s linked wallets, deployed contracts, and on-chain activity into a single public record. The card below is an illustrative example: its handle, wallets and figures are made up to show the format.
         </p>
       </div>
 
@@ -182,7 +182,7 @@ export function Profile() {
                 className="text-[42px] font-bold leading-none tracking-[-0.025em] text-[#f5f4ee] md:text-[56px]"
                 style={{ fontFamily: "var(--font-display)" }}
               >
-                {"aquawolf".split("").map((char, i) => (
+                {"yourhandle".split("").map((char, i) => (
                   <span key={i} className="inline-block">{char}</span>
                 ))}
               </h3>

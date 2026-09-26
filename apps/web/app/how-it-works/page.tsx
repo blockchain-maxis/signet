@@ -30,7 +30,7 @@ export default function HowItWorksPage() {
           style={{ fontFamily: 'var(--font-mono)' }}
         >
           <a href="/" className="transition-colors hover:text-[#f5f4ee]">Home</a>
-          <a href="/p/aquawolf" className="transition-colors hover:text-[#f5f4ee]">Demo profiles</a>
+          <a href="/handles" className="transition-colors hover:text-[#f5f4ee]">Handles</a>
         </div>
       </nav>
 
@@ -88,10 +88,8 @@ export default function HowItWorksPage() {
           and the <code
             className="px-1.5 py-0.5 bg-[#1f1d19] border border-[#3d3a33] text-[#b8b5a8] text-[13px]"
             style={{ fontFamily: 'var(--font-mono)' }}
-          >/handles</code> directory read those bindings live from the registry. The demo
-          profiles linked below are a separate, explicitly-labelled preview — curated personas
-          rendering synthetic testnet activity to demonstrate the interface — and are not
-          themselves chain-bound handles.
+          >/handles</code> directory read those bindings live from the registry. Nothing is
+          curated or seeded: a handle appears only once it is actually bound on-chain.
         </Section>
 
         <Section title="What's coming">
@@ -139,40 +137,31 @@ export default function HowItWorksPage() {
             className="text-[11px] uppercase tracking-[0.22em] text-[#5e5b51] mb-6"
             style={{ fontFamily: 'var(--font-mono)' }}
           >
-            Live demos
+            Directory
           </p>
-          <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
-            {[
-              { handle: 'aquawolf', name: 'Aqua Wolf', desc: 'Blend Protocol · collateral ops' },
-              { handle: 'sorobuilder', name: 'Soro Builder', desc: 'Soroswap · DEX trades' },
-              { handle: 'stellardev', name: 'Stellar Dev', desc: 'USDC · token transfers' },
-            ].map(({ handle, name, desc }) => (
-              <a
-                key={handle}
-                href={`/p/${handle}`}
-                className="block border border-[#1f1d19] px-5 py-4 transition-colors hover:border-[#3d3a33] hover:bg-[#0e0d0b]"
-              >
-                <p
-                  className="text-[13px] font-medium text-[#f5f4ee]"
-                  style={{ fontFamily: 'var(--font-mono)' }}
-                >
-                  @{handle}
-                </p>
-                <p
-                  className="text-[11px] text-[#5e5b51] mt-1"
-                  style={{ fontFamily: 'var(--font-mono)' }}
-                >
-                  {desc}
-                </p>
-                <p
-                  className="text-[10px] uppercase tracking-[0.2em] text-[#8b1a1a] mt-3"
-                  style={{ fontFamily: 'var(--font-mono)' }}
-                >
-                  View profile →
-                </p>
-              </a>
-            ))}
-          </div>
+          <a
+            href="/handles"
+            className="block border border-[#1f1d19] px-5 py-4 transition-colors hover:border-[#3d3a33] hover:bg-[#0e0d0b]"
+          >
+            <p
+              className="text-[13px] font-medium text-[#f5f4ee]"
+              style={{ fontFamily: 'var(--font-mono)' }}
+            >
+              /handles
+            </p>
+            <p
+              className="text-[11px] text-[#5e5b51] mt-1"
+              style={{ fontFamily: 'var(--font-mono)' }}
+            >
+              Every handle bound on the Identity Registry, confirmed live with resolve
+            </p>
+            <p
+              className="text-[10px] uppercase tracking-[0.2em] text-[#8b1a1a] mt-3"
+              style={{ fontFamily: 'var(--font-mono)' }}
+            >
+              Browse handles →
+            </p>
+          </a>
         </div>
       </div>
 

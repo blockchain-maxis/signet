@@ -16,14 +16,14 @@ model see the contract doc-comment in
 ```
                        ┌──────────────────────────────────────────────┐
                        │                apps/web (Next.js)             │
-   browser ───────────▶│  /p/{handle}   canonical profile (SSG)        │
+   browser ───────────▶│  /p/{handle}   canonical profile (dynamic)    │
                        │  /how-it-works, / (marketing)                 │
                        │  /app/*        dashboard (session-gated)       │
                        │  /api/trpc     profile.* · account.* · health  │
                        │  /api/auth/*   SIWS challenge / verify / logout │
                        └───────┬───────────────────────────┬──────────┘
                                │ reads (DB-first,           │ writes bindings
-                               │ static fallback)           │ (claim, signed)
+                               │ chain fallback)            │ (claim, signed)
                                ▼                            ▼
                        ┌───────────────┐          ┌──────────────────────┐
                        │  packages/db  │          │  Identity Registry    │
@@ -83,8 +83,8 @@ How a wallet becomes bound to a handle, self-sovereignly, with no trusted oracle
      (`source = "onchain"`, `isPrimary = true`) linked to it.
    - `released` → delete the `Wallet` binding.
 
-4. **Result.** The database now holds on-chain-verified bindings. On the website
-   these take precedence over the curated seed mapping (see *Read path* below).
+4. **Result.** The database now holds on-chain-verified bindings, which the
+   website reads first (see *Read path* below).
 
 > The registry is deployed on testnet (see *Deployed vs operational-only*), so
 > this flow runs wherever its contract id is configured. Without an id,
@@ -125,18 +125,17 @@ and skipped without advancing the relevant cursor, so the next tick retries.
 
 ## Read path — how the web app serves it
 
-`/p/{handle}` is statically generated and reads through a single loader,
+`/p/{handle}` is rendered per request and reads through a single loader,
 [`apps/web/lib/profiles.ts`](apps/web/lib/profiles.ts):
 
-- `getProfile` resolves a handle **database → chain → static manifest**:
-  `safeDbProfile` (indexer-synced bindings plus off-chain display fields), then
+- `getProfile` resolves a handle **database → chain**: `safeDbProfile`
+  (indexer-synced bindings plus off-chain display fields), then
   `safeChainProfile` (a read-only `resolve(handle)` simulation against the
-  Identity Registry over Soroban RPC), then the curated manifest in
-  `apps/web/public/data/`. The chain layer is what lets a handle claimed
-  on-chain render before — or entirely without — an indexer sync.
-  `getOperations` is database-then-Horizon-then-static (`safeDbOperations`,
+  Identity Registry over Soroban RPC). The chain layer is what lets a handle
+  claimed on-chain render before — or entirely without — an indexer sync.
+  `getOperations` is database-then-Horizon (`safeDbOperations`,
   `fetchHorizonOperations`), since activity has no single-call on-chain
-  equivalent.
+  equivalent. There is no static or fixture layer: only real data is served.
 - Neither operations layer reads a developer's whole history: the indexer query
   takes the newest `DB_OPERATIONS_PER_WALLET` rows per wallet and the Horizon
   walk stops at `HORIZON_MAX_RECORDS`. `getOperationsResult` therefore returns
@@ -146,11 +145,11 @@ and skipped without advancing the relevant cursor, so the next tick retries.
   labelled as partial and its counts render as lower bounds (`412+`), so no
   surface presents a capped list as a complete career record.
 - Every layer returns `null` rather than throwing when it isn't provisioned —
-  no `DATABASE_URL`, no registry contract id, unreachable RPC — so the demo
-  routes work with zero provisioning (preview, prod, offline) and automatically
-  upgrade to live data as each dependency comes online. A profile carries the
-  layer that resolved it, so `/p/{handle}` can label a curated demo and a
-  genuine on-chain binding differently.
+  no `DATABASE_URL`, no registry contract id, unreachable RPC — so a deployment
+  with nothing provisioned still serves every page: `/p/{handle}` is a clean
+  404 and `/handles` says no registry is configured, rather than a 500. Each
+  surface upgrades to live data as its dependency comes online. A profile
+  carries the layer that resolved it (`database` or `chain`).
 - The same data is exposed over a **tRPC API**
   ([`apps/web/lib/server/trpc.ts`](apps/web/lib/server/trpc.ts)):
   `profile.list`, `profile.byHandle`, and `health` are public (per-IP rate
@@ -198,17 +197,17 @@ and skipped without advancing the relevant cursor, so the next tick retries.
 **Deployed & serving traffic today**
 
 - **Web app** — built and hosted on Netlify via git integration
-  ([`netlify.toml`](netlify.toml)): landing, `/how-it-works`, `/handles`, and the
-  three demo profiles at `/p/{handle}`, rendered from the static manifest using
-  **synthetic testnet data**. The tRPC API and SIWS auth surface ship with it.
+  ([`netlify.toml`](netlify.toml)): landing, `/how-it-works`, `/handles`, and
+  profiles at `/p/{handle}` for every handle bound on the registry. The tRPC API
+  and SIWS auth surface ship with it.
 - **Identity Registry contract** — deployed to Stellar **testnet** on
   **2026-07-09** at `CASFJHI5PQSRWS7JV25CF7FOMRKIVBP3RXRP3E2GH2CV4BCAG7FUJRCN`
   and `initialize`d. Set `NEXT_PUBLIC_IDENTITY_REGISTRY_ID` (web) and
   `INDEXER_REGISTRY_CONTRACT_ID` (indexer) to that id to activate the claim +
   attestation flow. Not yet deployed to mainnet. Once the web app has that id,
-  `getProfile` resolves a handle **database → chain → static manifest**, so a
-  handle bound on-chain renders at `/p/{handle}` immediately — no database or
-  indexer sync required — while the curated demo profiles keep working.
+  `getProfile` resolves a handle **database → chain**, so a handle bound
+  on-chain renders at `/p/{handle}` immediately — no database or indexer sync
+  required.
 
 **Code-complete but operational-only** (built, tested, and containerised —
 needs provisioning to go live; this is "Phase 2")
@@ -220,7 +219,8 @@ needs provisioning to go live; this is "Phase 2")
 - **PostgreSQL + migrations** — Prisma schema and migrations exist; a local
   instance is provided by `infra/docker/docker-compose.yml`, and production
   migrations run via `pnpm db:deploy` in the deploy workflow. Everything reading
-  the DB degrades gracefully to static data until `DATABASE_URL` is set.
+  the DB degrades gracefully to live chain and Horizon reads until `DATABASE_URL`
+  is set.
 
 **Config flags that flip operational-only → live**
 
@@ -236,7 +236,7 @@ variable there is listed below so docs and the example file stay in lockstep
 
 | Variable | Consumed by | Notes |
 | --- | --- | --- |
-| `DATABASE_URL` | web, indexer, db | Optional for demo `/p` routes; required for indexer |
+| `DATABASE_URL` | web, indexer, db | Optional for web (`/p` falls back to chain + Horizon); required for indexer |
 | `STELLAR_NETWORK` | server / tooling | `testnet` or `mainnet` |
 | `STELLAR_HORIZON_URL` | server / indexer | Horizon base URL |
 | `SOROBAN_RPC_URL` | server, `/handles` directory | Soroban RPC; directory also accepts a dedicated override |

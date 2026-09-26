@@ -197,8 +197,8 @@ future light theme, a reader printing a profile) and has to stay correct.
 - **Never hue alone.** A mutating function is marked by a glyph and a label
   _and_ a colour, so the distinction survives greyscale, colour-blindness, and
   a theme that drops the accent. This is the same discipline the profile
-  page's demo-vs-on-chain badges already follow — icon plus text plus colour,
-  not colour alone.
+  page's provenance badge already follows — icon plus text plus colour, not
+  colour alone.
 - **Contrast holds on both grounds.** Text and strokes meet WCAG AA (≥4.5:1
   for text) against both `#0a0908` and a white ground. Minimum _rendered_ text
   size 12px; if the diagram would have to shrink text below that to fit, it
@@ -298,9 +298,9 @@ spec-only layout.
 - Phase-2 marks are labelled _observed via simulation at ledger N_; phase-3
   edges _from indexed activity, N transactions_ — visually distinct from the
   spec-only structure, because they carry a weaker, time-bound guarantee.
-- A demo profile's contracts, if any, are labelled exactly as the rest of a
-  demo profile is (`isDemo` in `apps/web/app/p/[handle]/page.tsx`). A diagram
-  must not lend a curated address the authority of on-chain provenance.
+- A diagram is only ever drawn for a contract a real, chain-bound profile
+  deployed; there is no curated or fixture data for it to lend on-chain
+  authority to.
 
 ### 4.4 Storage
 

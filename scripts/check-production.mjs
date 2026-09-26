@@ -8,8 +8,12 @@
 // Four requests, chosen to cover the distinct serving paths:
 //   /              the marketing home (static)
 //   /handles       the directory (server-rendered, reads the registry)
-//   /p/{handle}    a profile page (the product; {handle} is a demo persona
-//                  from DEMO_PROFILES so it serves even with an empty DB)
+//   /p/{handle}    a profile page (the product). {handle} is PROFILE_HANDLE
+//                  when set, else the first handle the site itself lists via
+//                  tRPC `profile.list` (real DB/chain bindings only). With no
+//                  handle bound anywhere, an unbound handle is requested
+//                  instead and must render the not-found page (404), which
+//                  still proves the route resolves without a 5xx.
 //   /api/health    the liveness/readiness probe ("/health" as a bare path is
 //                  not a route — the probe lives under /api)
 //
@@ -17,25 +21,19 @@
 // the endpoint itself stays HTTP 200 on a DB outage so load balancers don't
 // kill the pods, but the whole point of THIS job is to tell a human.
 //
-// The demo personas come from packages/types, imported by relative path so the
-// script needs no workspace install. Run with `node --experimental-strip-types`.
+// The script has no dependencies. Run with `node --experimental-strip-types`.
 //
 // Env:
 //   PRODUCTION_URL   Site to check (default: the production deployment).
-//   PROFILE_HANDLE   Profile to spot-check (default: first demo persona).
-
-import { DEMO_PROFILES } from '../packages/types/src/index.ts';
+//   PROFILE_HANDLE   Profile to spot-check (default: the first listed handle).
 
 const BASE = (process.env.PRODUCTION_URL ?? 'https://signet-web-pearl.vercel.app').replace(
   /\/+$/,
   '',
 );
-const HANDLE = process.env.PROFILE_HANDLE ?? DEMO_PROFILES[0]?.handle;
 
-if (!HANDLE) {
-  console.error('No profile handle to check (DEMO_PROFILES is empty and PROFILE_HANDLE unset)');
-  process.exit(1);
-}
+/** A syntactically valid handle nobody should ever bind, for the 404 path. */
+const UNBOUND_HANDLE = 'signet-production-check-unbound';
 
 async function request(path) {
   try {
@@ -50,10 +48,33 @@ async function request(path) {
   }
 }
 
+/**
+ * The handle to spot-check: PROFILE_HANDLE, else the first handle the site
+ * lists. Null when nothing is bound anywhere (or the list is unreadable —
+ * which the profile check below then surfaces as its own failure mode).
+ */
+async function pickHandle() {
+  if (process.env.PROFILE_HANDLE) return process.env.PROFILE_HANDLE;
+  const r = await request('/api/trpc/profile.list');
+  if (r.error || r.status !== 200) return null;
+  try {
+    const list = JSON.parse(r.body)?.result?.data;
+    return Array.isArray(list) && typeof list[0] === 'string' ? list[0] : null;
+  } catch {
+    return null;
+  }
+}
+
+const HANDLE = await pickHandle();
+
+const profileCheck = HANDLE
+  ? { path: `/p/${HANDLE}`, expect: (r) => r.status === 200 && r.body.includes(HANDLE) }
+  : { path: `/p/${UNBOUND_HANDLE}`, expect: (r) => r.status === 404 };
+
 const checks = [
   { path: '/', expect: (r) => r.status === 200 && r.body.includes('Signet') },
   { path: '/handles', expect: (r) => r.status === 200 && r.body.includes('Directory') },
-  { path: `/p/${HANDLE}`, expect: (r) => r.status === 200 && r.body.includes(HANDLE) },
+  profileCheck,
   {
     path: '/api/health',
     expect: (r) => {

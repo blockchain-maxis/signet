@@ -74,7 +74,7 @@ async function invoke(
 
 /** Read-only registry call via simulation (free, unsigned). */
 async function read(server: rpc.Server, contract: Contract, method: string, ...args: xdr.ScVal[]) {
-  const source = new Account('GASAAEJC6P5UZGRLYJ2I2KYLR7RXGF44JZXDYGCFBN7T5VIHECUUEMCD', '0');
+  const source = new Account('GBNTPIH54YJW4SFUIF2L7PBARVQZVSRKVE72OKN5IZC2CXMAEQI3VWCA', '0');
   const tx = new TransactionBuilder(source, {
     fee: BASE_FEE,
     networkPassphrase: NETWORK_PASSPHRASE,
@@ -131,8 +131,8 @@ test.describe('claim → resolve → profile (live testnet)', () => {
       await expect(page.getByText(`@${HANDLE}`)).toBeVisible();
       // The full address is in the DOM as the copyable value's title.
       await expect(page.locator(`[title="${wallet}"]`).first()).toBeVisible();
-      // An on-chain binding must not be framed as curated demo data.
-      await expect(page.getByText(/Synthetic data · Testnet demo/i)).toHaveCount(0);
+      // And it is framed as what it is: a binding on the Identity Registry.
+      await expect(page.getByText(/Bound on-chain · Identity Registry/i)).toBeVisible();
     } finally {
       // Leave the shared registry as we found it (best effort — the assertion
       // above has already settled the verdict).

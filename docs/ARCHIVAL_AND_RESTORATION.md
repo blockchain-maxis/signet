@@ -74,11 +74,11 @@ stellar contract restore \
 To prevent active handles from lapsing into archived storage, run the keep-alive sweep script periodically (e.g. via a scheduled cron job or CI):
 
 ```bash
-# Sweep all default demo handles
-node scripts/keepalive-contract.mjs
-
-# Sweep specific handles
-node scripts/keepalive-contract.mjs aquawolf sorobuilder stellardev
+# Sweep specific handles (at least one is required; there is no default list)
+node scripts/keepalive-contract.mjs alice bob
 ```
+
+To sweep every bound handle, take the list from a deployment's directory (`/handles`,
+or tRPC `profile.list`) and pass it in.
 
 The script simulates a `resolve` view call on each handle, which triggers the contract's internal `extend_ttl` to bump the TTL back to ~30 days without incurring transaction submission fees.

@@ -22,13 +22,11 @@ export default async function HandlesPage({
   const requestedPage = Number(pageParam ?? '1');
   const page = Number.isInteger(requestedPage) && requestedPage > 0 ? requestedPage : 1;
 
-  const { entries, boundTotal, source } = await listDirectory();
+  const { registryConfigured, entries, boundTotal, source } = await listDirectory();
 
   // Only handles the contract confirmed just now may be presented as bound.
-  // Everything else is a demo persona and is rendered as such, in its own
-  // section, under its own label — never counted, never mixed in.
+  // A discovered candidate that does not resolve is stale and is not shown.
   const bound = entries.filter((e) => e.bound);
-  const previews = entries.filter((e) => !e.bound);
 
   // Pagination applies to the bound list, the only one that can grow.
   const totalPages = Math.max(1, Math.ceil(bound.length / PAGE_SIZE));
@@ -42,9 +40,10 @@ export default async function HandlesPage({
   // number "currently bound": a binding that lapses from storage unaccessed is
   // never subtracted, so the counter can only drift upward. "Recorded" is the
   // claim the page can actually stand behind.
-  const caption =
-    boundTotal === null
-      ? 'The Identity Registry is not readable from this deployment yet, so no on-chain bindings can be shown.'
+  const caption = !registryConfigured
+    ? 'No Identity Registry is configured for this deployment, so there are no handles to list.'
+    : boundTotal === null
+      ? 'The Identity Registry could not be read just now, so no on-chain bindings can be shown.'
       : `${boundTotal} handle${boundTotal === 1 ? '' : 's'} recorded by the Identity Registry.`;
 
   // The count comes from the contract's counter; what the list can contain
@@ -61,9 +60,10 @@ export default async function HandlesPage({
   const shortfallReason = windowed
     ? "claimed before the registry's event window, or lapsed from storage without the counter noticing"
     : 'not yet synced by the indexer, or lapsed from storage without the counter noticing';
-  const emptyState =
-    boundTotal === null
-      ? { message: 'No registry is configured for this deployment.', invite: false }
+  const emptyState = !registryConfigured
+    ? { message: 'No registry is configured for this deployment.', invite: false }
+    : boundTotal === null
+      ? { message: 'The registry is unreachable right now. Try again shortly.', invite: false }
       : boundTotal === 0
         ? { message: 'Nobody has bound a handle yet.', invite: true }
         : {
@@ -194,56 +194,6 @@ export default async function HandlesPage({
           </>
         )}
 
-        {previews.length > 0 && (
-          <section className="mt-14">
-            <div className="flex flex-wrap items-center gap-3">
-              <h2
-                className="text-[10px] uppercase tracking-[0.26em] text-[#8a8779]"
-                style={{ fontFamily: 'var(--font-mono)' }}
-              >
-                Demo profiles
-              </h2>
-              <span className="inline-flex items-center gap-2 border border-amber-800 bg-amber-950/30 px-3 py-1.5">
-                <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
-                <span
-                  className="text-[10px] uppercase tracking-[0.22em] text-amber-400"
-                  style={{ fontFamily: 'var(--font-mono)' }}
-                >
-                  Not bound on-chain
-                </span>
-              </span>
-            </div>
-
-            <p className="mt-4 max-w-[560px] text-[13px] leading-[1.7] text-[#5e5b51]">
-              Curated personas with synthetic testnet activity, kept here so the directory has
-              something to show before the first real claim. They are not registry bindings and are
-              not counted above.
-            </p>
-
-            <div className="mt-6 grid grid-cols-1 gap-px border border-[#1f1d19] bg-[#1f1d19] sm:grid-cols-2">
-              {previews.map(({ handle }) => (
-                <a
-                  key={handle}
-                  href={`/p/${handle}`}
-                  className="flex items-center justify-between gap-4 bg-[#0a0908] px-5 py-4 transition-colors hover:bg-[#0e0d0b]"
-                >
-                  <span
-                    className="text-[14px] font-medium text-[#8a8779]"
-                    style={{ fontFamily: 'var(--font-mono)' }}
-                  >
-                    @{handle}
-                  </span>
-                  <span
-                    className="text-[10px] uppercase tracking-[0.2em] text-[#5e5b51]"
-                    style={{ fontFamily: 'var(--font-mono)' }}
-                  >
-                    Demo
-                  </span>
-                </a>
-              ))}
-            </div>
-          </section>
-        )}
       </div>
 
       <footer className="flex flex-wrap items-center justify-between gap-3 border-t border-[#1f1d19] px-8 py-4 md:px-14">

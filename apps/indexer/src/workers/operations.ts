@@ -20,7 +20,7 @@ const MAX_PAGES = 10;
  * `next` links until it reaches an operation it has already stored (everything
  * older is by definition already persisted) or hits the `MAX_PAGES` guard.
  * This is what backs the activity list on `/p/{handle}` once the DB is live —
- * the web app reads these rows in preference to the static demo JSON.
+ * the web app reads these rows in preference to a live Horizon read.
  */
 export interface OperationsResult {
   opsUpserted: number;

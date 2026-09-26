@@ -5,8 +5,13 @@ import {
   SOROBAN_RPC_URL,
   isRegistryConfigured,
 } from './chain.ts';
-import { isValidHandle, listHandles as listCuratedHandles } from './profiles.ts';
-import { boundCount, resolveHandle, type RegistryReadOptions } from './server/registry-read.ts';
+import { isValidHandle } from './profiles.ts';
+import {
+  boundCount,
+  isRegistryConfigured as registryConfiguredNow,
+  resolveHandle,
+  type RegistryReadOptions,
+} from './server/registry-read.ts';
 
 /**
  * Public handle directory (powers `/handles`).
@@ -43,14 +48,14 @@ import { boundCount, resolveHandle, type RegistryReadOptions } from './server/re
  *      total (see `boundTotal` for why it is a bound, not a truth).
  *
  * The second step is what keeps the page honest, whichever source discovered
- * a candidate. Discovery alone both under-reports and, when it comes back
- * empty, used to be indistinguishable from "nothing is bound" — which is how
- * curated demo handles ended up rendered as on-chain bindings. Candidates
- * that do not resolve are still listed, but carry `bound: false` so the UI
- * can label them as the previews they are.
+ * a candidate. Discovery alone can be stale — a database row or an event can
+ * describe a binding that no longer resolves — so candidates that do not
+ * resolve carry `bound: false` and are never presented as bindings.
  *
  * No database is *required*: with none configured the page still works off
- * the event stream and the curated manifest, exactly as before.
+ * the event stream. No registry, on the other hand, means there is nothing
+ * to confirm against, so the directory is empty and says why
+ * (`registryConfigured: false`).
  */
 
 export type DirectoryEntry = { handle: string; wallet: string };
@@ -208,9 +213,9 @@ export interface DirectoryStore {
  * (`source: 'onchain'`), deleting it again on `released`/`revoked`, and it
  * tracks its position with a persisted ledger cursor. So unlike the event
  * stream, this answer does not decay: a handle claimed a year ago is still
- * here. Only `source: 'onchain'` rows are read — curated seed rows are the
- * demo manifest wearing a database, and must never be discovered as if they
- * were registry bindings.
+ * here. Only `source: 'onchain'` rows are read — rows from any other source
+ * (a CLI link, or a legacy `curated` seed row) are not registry bindings and
+ * must never be discovered as if they were.
  *
  * Returns null (never throws) when there is no durable source to read: no
  * `DATABASE_URL`, or a database that is configured but unreachable. Callers
@@ -271,13 +276,22 @@ export type DirectoryListing = DirectoryEntry & { bound: boolean };
  *              roughly the last 11 hours. A shortfall here is expected and
  *              grows without limit as the registry ages.
  *   `none`     neither source could be read (no indexer, and no registry
- *              configured or the RPC failed), so only the curated manifest is
- *              in play.
+ *              configured or the RPC failed), so there is nothing to list.
  */
 export type DirectorySource = 'database' | 'events' | 'none';
 
 export interface Directory {
-  /** Bound entries first, then unconfirmed previews; alphabetical within each. */
+  /**
+   * Whether an Identity Registry contract is configured for this deployment
+   * at all. When it is not, nothing can be confirmed, `entries` is empty and
+   * `boundTotal` is null — the page must say so rather than imply the
+   * registry is merely unreachable.
+   */
+  registryConfigured: boolean;
+  /**
+   * Bound entries first, then discovered-but-unconfirmed candidates;
+   * alphabetical within each. Only `bound` entries may be shown as bindings.
+   */
   entries: DirectoryListing[];
   /**
    * The registry's own `count()` — an UPPER BOUND on bound handles, not an
@@ -309,28 +323,33 @@ export interface DirectoryReadOptions extends RegistryReadOptions {
  * The list backing `/handles`.
  *
  * Discovers candidates from the durable indexer tables when one is configured
- * — the event stream otherwise — plus the curated manifest, then confirms each
- * one against the contract so a row is only ever marked bound when the chain
- * says so. Degrades instead of throwing: an unreadable registry yields
- * `boundTotal: null` and every candidate unconfirmed, so the page renders
- * previews under an honest caption rather than 500-ing.
+ * — the event stream otherwise — then confirms each one against the contract
+ * so a row is only ever marked bound when the chain says so. With no registry
+ * configured it returns an empty directory straight away. Degrades instead of
+ * throwing: an unreadable registry yields `boundTotal: null` and every
+ * candidate unconfirmed, so the page renders an honest caption rather than
+ * 500-ing.
  */
 export async function listDirectory(options: DirectoryReadOptions = {}): Promise<Directory> {
+  // No registry, nothing to confirm against: a handle the database remembers
+  // cannot be shown as bound without a `resolve`, so list nothing. Read per
+  // call (not `chain.ts`'s module-level snapshot) so tests can flip it.
+  if (!registryConfiguredNow()) {
+    return { registryConfigured: false, entries: [], boundTotal: null, source: 'none' };
+  }
+
   // Durable first. The event stream is only consulted when there is no
   // database to read, so a deployment with an indexer never pays for an RPC
   // scan whose answer it already has — and never inherits that scan's ~11h
   // horizon. An empty array from the database is an answer ("the indexer knows
   // of no bindings"); only null means "ask the chain instead".
   const indexed = await fetchIndexedDirectory(options.store);
-  const [discovered, curated] = await Promise.all([
-    indexed ?? fetchLiveDirectory(),
-    listCuratedHandles(),
-  ]);
+  const discovered = indexed ?? (await fetchLiveDirectory());
 
   const source: DirectorySource = indexed ? 'database' : discovered ? 'events' : 'none';
 
-  const candidates = [...new Set([...(discovered ?? []).map((e) => e.handle), ...curated])].sort(
-    (a, b) => a.localeCompare(b),
+  const candidates = [...new Set((discovered ?? []).map((e) => e.handle))].sort((a, b) =>
+    a.localeCompare(b),
   );
 
   // `boundCount` already answers null for an unconfigured or unreachable
@@ -346,9 +365,9 @@ export async function listDirectory(options: DirectoryReadOptions = {}): Promise
     boundCount(options),
   ]);
 
-  // Bound handles lead; previews follow. `candidates` is already sorted, and
+  // Bound handles lead; unconfirmed candidates follow. `candidates` is already sorted, and
   // a stable partition preserves that order inside each group.
   const entries = [...confirmed.filter((e) => e.bound), ...confirmed.filter((e) => !e.bound)];
 
-  return { entries, boundTotal, source };
+  return { registryConfigured: true, entries, boundTotal, source };
 }

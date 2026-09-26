@@ -97,26 +97,50 @@ model Operation {
 }
 
 model Contract {
-  id              String   @id @default(cuid())
-  address         String   @unique
-  walletId        String
-  deployerPubkey  String
-  deployedAt      DateTime
-  deployTxHash    String
-  // No default on purpose: an implicit "mainnet" here is exactly how a
-  // testnet deployment (the only kind that exists today — see
-  // docs/DEMO_DATA.md) could get silently mislabeled. Every writer (today,
-  // only apps/indexer/src/workers/deployment.ts) must pass the indexer's
-  // configured network explicitly.
-  network         String
-  contractType    String?
-  firstIndexedAt  DateTime @default(now())
+  id                String    @id @default(cuid())
+  address           String    @unique
+  walletId          String
+  deployerPubkey    String
+  deployedAt        DateTime
+  deployTxHash      String
+  // Allowed values: 'testnet' | 'mainnet' | 'futurenet' | 'local' — see NETWORKS
+  // in @signet/types and migration 20260926010000_normalise_contract_network
+  // which enforces CHECK (network IN ('testnet','mainnet','futurenet','local')).
+  // Every writer (today, apps/indexer/src/workers/deployment.ts) must pass
+  // the indexer's configured canonical network.
+  network           String
+  /// @deprecated Superseded by executableType.
+  contractType      String?
+  /// Lowercase 64-character SHA-256 hex hash of the contract executable WASM.
+  wasmHash          String?
+  /// Executable type: 'wasm' | 'stellar_asset'.
+  executableType    String?
+  /// Timestamp when the indexer last checked the on-chain executable WASM hash.
+  wasmHashCheckedAt DateTime?
+  firstIndexedAt    DateTime  @default(now())
 
-  wallet          Wallet   @relation(fields: [walletId], references: [id], onDelete: Cascade)
-  snapshots       ContractSnapshot[]
+  wallet       Wallet                @relation(fields: [walletId], references: [id], onDelete: Cascade)
+  snapshots    ContractSnapshot[]
+  wasmVersions ContractWasmVersion[]
 
   @@index([deployerPubkey])
   @@index([deployedAt])
+  @@index([wasmHash])
+}
+
+/// Version history of executable WASM hashes observed for a contract instance.
+model ContractWasmVersion {
+  id             String   @id @default(cuid())
+  contractId     String
+  wasmHash       String
+  observedAt     DateTime @default(now())
+  /// The RPC's latest ledger when the indexer noticed the hash (not the ledger of the upgrade transaction).
+  observedLedger Int
+
+  contract Contract @relation(fields: [contractId], references: [id], onDelete: Cascade)
+
+  @@unique([contractId, wasmHash])
+  @@index([contractId, observedAt])
 }
 
 model ContractSnapshot {

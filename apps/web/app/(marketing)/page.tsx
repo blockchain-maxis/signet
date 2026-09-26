@@ -4,14 +4,12 @@ import dynamic from "next/dynamic";
 import { LenisProvider } from "./lib/lenis";
 import { Hero } from "./sections/hero";
 import { Unlocks } from "./sections/unlocks";
-import { Demos } from "./sections/demos";
 import { Close } from "./sections/close";
 import { Footer } from "./components/footer";
 
 const Profile  = dynamic(() => import("./sections/profile").then((m) => m.Profile),   { ssr: false });
 const Mechanism = dynamic(() => import("./sections/mechanism").then((m) => m.Mechanism), { ssr: false });
 const Compound  = dynamic(() => import("./sections/compound").then((m) => m.Compound),  { ssr: false });
-const Featured  = dynamic(() => import("./sections/featured").then((m) => m.Featured),  { ssr: false });
 
 export default function MarketingPage() {
   return (
@@ -48,8 +46,6 @@ export default function MarketingPage() {
           <Compound />
         </div>
         <Unlocks />
-        <Demos />
-        <Featured />
         <Close />
         <Footer />
       </div>

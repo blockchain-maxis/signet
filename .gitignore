@@ -43,3 +43,5 @@ next-env.d.ts
 .claude
 # Internal maintainer notes — deliberately untracked (public repo).
 MAINTAINER.md
+# Contributor backlog draft — kept local; issues are filed on GitHub from it.
+ISSUES.md

@@ -28,7 +28,8 @@ function rel(p) {
 
 function walkMd(dir, out = []) {
   for (const ent of fs.readdirSync(dir, { withFileTypes: true })) {
-    if (ent.name === 'node_modules' || ent.name === '.git' || ent.name === 'target') continue;
+    // `.claude` is gitignored agent scratch (worktree copies of the repo), not docs.
+    if (['node_modules', '.git', 'target', '.claude'].includes(ent.name)) continue;
     const p = path.join(dir, ent.name);
     if (ent.isDirectory()) walkMd(p, out);
     else if (ent.name.endsWith('.md')) out.push(p);
@@ -65,6 +66,14 @@ function collectAnchors(text) {
 // ── (a) links + anchors ─────────────────────────────────────────────
 
 const mdFiles = walkMd(ROOT);
+
+/**
+ * The backlog (and the gitignored local MAINTAINER.md) propose env vars and
+ * scripts that don't exist yet by design, so they are held to (a) links and
+ * anchors only, not to (b) and (c).
+ */
+const PLANNING_DOCS = new Set(['ISSUES.md', 'MAINTAINER.md']);
+const isPlanningDoc = (file) => PLANNING_DOCS.has(rel(file));
 const anchorCache = new Map();
 
 function anchorsFor(file) {
@@ -156,7 +165,6 @@ const ENV_ALLOW = new Set([
  * Add to this list rather than weakening the pattern below.
  */
 const NOT_ENV_IDENTIFIERS = new Set([
-  'DEMO_PROFILES', // packages/types — the shared demo personas
   'RESERVED_HANDLES', // packages/types
   'HANDLE_MAX_LEN', // packages/types
   'BASE_FEE', // @stellar/stellar-sdk constant
@@ -171,6 +179,7 @@ const ENV_REF_RE = /`([A-Z][A-Z0-9]*_[A-Z0-9_]+)`/g;
 
 const docsVars = new Map(); // var -> [{file,line}]
 for (const file of mdFiles) {
+  if (isPlanningDoc(file)) continue;
   const lines = fs.readFileSync(file, 'utf8').split(/\r?\n/);
   lines.forEach((line, idx) => {
     ENV_REF_RE.lastIndex = 0;
@@ -378,6 +387,7 @@ const PNPM_INLINE_RE = /`pnpm\s+((?:--filter\s+\S+\s+)?[a-zA-Z][\w:-]*)`/g;
 const PNPM_TABLE_RE = /`pnpm\s+([^`]+)`/g;
 
 for (const file of mdFiles) {
+  if (isPlanningDoc(file)) continue;
   const text = fs.readFileSync(file, 'utf8');
   for (const fence of extractFences(text)) {
     const flines = fence.body.split(/\r?\n/);

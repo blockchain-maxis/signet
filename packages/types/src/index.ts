@@ -30,6 +30,10 @@ export type { WalletSource } from './wallet-source.ts';
 export { describeWalletSource } from './wallet.ts';
 export type { WalletSourceDescriptor } from './wallet.ts';
 
+// Canonical network types, normalization, and passphrase constants.
+export { NETWORKS, isNetwork, normalizeNetwork, networkPassphrase } from './network.ts';
+export type { Network } from './network.ts';
+
 export type Handle = string;
 
 /** A Stellar account or contract address (G… / C…). */
@@ -52,11 +56,23 @@ export interface ProfileStats {
   reputation: number;
 }
 
+/**
+ * Profile stats together with completeness/scope metadata.
+ *
+ * `exact` means the values exactly cover the represented scope. When
+ * `retentionWindowDays` is non-null, that scope is the most recent N days
+ * retained by the indexer rather than lifetime history.
+ */
+export interface ProfileStatsResult extends ProfileStats {
+  exact: boolean;
+  retentionWindowDays: number | null;
+}
+
 /** Response shape returned by `profile.byHandle`. */
 export interface ProfileResponse {
   handle: Handle;
   profile: SignetProfile;
-  stats: ProfileStats;
+  stats: ProfileStatsResult;
 }
 
 /** A single handle ↔ wallet binding from the on-chain registry. */
@@ -71,38 +87,3 @@ export interface RegistryCount {
 }
 
 export const SIGNET_TYPES_VERSION = '0.1.0';
-
-/**
- * Curated Phase-1 demo profiles — the single source of truth for the synthetic
- * personas shown before the on-chain Identity Registry replaces curation in
- * Phase 2.
- *
- * These are synthetic Stellar **testnet** accounts, generated for the demo and
- * owned by no one, so no invented persona is attributed to a real wallet. Both
- * the web app (the static `/p/{handle}` manifest, `apps/web/lib/profiles.ts`)
- * and the indexer seed (`apps/indexer/src/seed-data.ts`) derive from this array,
- * so the addresses live in exactly one place and can't drift.
- */
-export const DEMO_PROFILES: readonly SignetProfile[] = [
-  {
-    handle: 'aquawolf',
-    name: 'Aqua Wolf',
-    wallet: 'GASAAEJC6P5UZGRLYJ2I2KYLR7RXGF44JZXDYGCFBN7T5VIHECUUEMCD',
-    bio: 'Demo persona · Soroban DeFi builder exercising Blend-style collateral flows on testnet.',
-    joined: '2026-03-04',
-  },
-  {
-    handle: 'sorobuilder',
-    name: 'Soro Builder',
-    wallet: 'GBVBJEP2BSKHW6YBFCZR2HJKHZDLJOU7ZKTH2HSNUUQY322RWLURH3EQ',
-    bio: 'Demo persona · DEX trader running Soroswap-style swaps on testnet.',
-    joined: '2026-02-19',
-  },
-  {
-    handle: 'stellardev',
-    name: 'Stellar Dev',
-    wallet: 'GBNOH2NKPHZYOWF2LHLSZ27R54NMCH66KPBEEY6MCE4FM5V6PNZVHZKL',
-    bio: 'Demo persona · token operations and transfers on Stellar testnet.',
-    joined: '2026-01-27',
-  },
-];

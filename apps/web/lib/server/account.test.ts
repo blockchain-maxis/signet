@@ -46,18 +46,18 @@ function failingServer(): SimulatingServer {
 test('getAccount resolves a claimed handle on-chain with no database', async () => {
   configureRegistry();
   const account = await getAccount(WALLET, {
-    server: serverReturning(nativeToScVal('aquawolf', { type: 'string' })),
+    server: serverReturning(nativeToScVal('alice', { type: 'string' })),
   });
 
   assert.equal(account.address, WALLET);
-  assert.equal(account.handle, 'aquawolf');
+  assert.equal(account.handle, 'alice');
   assert.equal(account.dbConfigured, false);
 });
 
 test('getAccount reports an on-chain-only handle as not editable', async () => {
   configureRegistry();
   const account = await getAccount(WALLET, {
-    server: serverReturning(nativeToScVal('aquawolf', { type: 'string' })),
+    server: serverReturning(nativeToScVal('alice', { type: 'string' })),
   });
 
   // The handle is real, but displayName/bio live in Postgres — there is
@@ -154,7 +154,7 @@ function fakeLinkStore(seed: WalletRow[] = []): {
   return { store, rows, findUniqueCalls };
 }
 
-const PUBKEY = 'GASAAEJC6P5UZGRLYJ2I2KYLR7RXGF44JZXDYGCFBN7T5VIHECUUEMCD';
+const PUBKEY = 'GBNTPIH54YJW4SFUIF2L7PBARVQZVSRKVE72OKN5IZC2CXMAEQI3VWCA';
 
 test('linkDeployWallet requires a configured database', async () => {
   await assert.rejects(() => linkDeployWallet('profile-1', PUBKEY, 'cli'), /database/i);

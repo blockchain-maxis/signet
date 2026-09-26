@@ -1,39 +1,14 @@
 import { createHmac, randomUUID, timingSafeEqual } from 'node:crypto';
-import { Keypair, Networks, WebAuth } from '@stellar/stellar-sdk';
+import { Keypair, WebAuth } from '@stellar/stellar-sdk';
+import { normalizeNetwork, networkPassphrase } from '@signet/types';
 import { getAuthSecret } from './auth.ts';
-
-/**
- * SEP-10 (https://stellar.org/protocol/sep-10) Stellar Web Authentication.
- *
- * This runs alongside the pre-existing custom Sign-In-With-Stellar flow
- * (`auth.ts` / `/api/auth/{challenge,verify}`), which is left untouched so
- * existing clients keep working. SEP-10 is exposed on its own endpoints
- * (`/api/auth/sep10/{challenge,verify}`) and, on success, mints the same
- * session cookie `auth.ts` issues — so the rest of the app (tRPC's
- * `account.*`, `getSession()`) doesn't need to know which flow a caller used.
- *
- * The challenge/verify mechanics (timebounds, the `home_domain` /
- * `web_auth_domain` Manage Data operations, signature checks) are delegated
- * to `@stellar/stellar-sdk`'s `WebAuth` module, which implements the spec
- * directly — hand-rolling this is exactly where subtle spec violations creep
- * in (transposed domain fields, infinite timebounds, etc).
- *
- * Signer support: this only verifies the client account's master key
- * (single-signature accounts). Multisig accounts would need a Horizon lookup
- * of the account's signers/thresholds (`WebAuth.verifyChallengeTxThreshold`)
- * — out of scope for now, and uncommon for the wallets this app targets.
- */
 
 const CHALLENGE_TIMEOUT_SECONDS = 5 * 60;
 const JWT_TTL_SECONDS = 5 * 60;
 
-function isMainnet(): boolean {
-  const network = (process.env.NEXT_PUBLIC_STELLAR_NETWORK ?? 'testnet').toLowerCase();
-  return network === 'mainnet' || network === 'public';
-}
-
 export function getNetworkPassphrase(): string {
-  return isMainnet() ? Networks.PUBLIC : Networks.TESTNET;
+  const raw = process.env.NEXT_PUBLIC_STELLAR_NETWORK ?? 'testnet';
+  return networkPassphrase(normalizeNetwork(raw));
 }
 
 /** The service's home domain — also doubles as the web auth domain (single-domain deployment). */

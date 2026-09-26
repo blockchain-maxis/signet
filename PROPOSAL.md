@@ -332,6 +332,6 @@ pnpm lint && pnpm typecheck && pnpm test && pnpm build
 | Contract enforces ownership through `require_auth` | [`packages/contracts/identity-registry/src/lib.rs`](packages/contracts/identity-registry/src/lib.rs) |
 | 30 contract tests | [`packages/contracts/identity-registry/src/test.rs`](packages/contracts/identity-registry/src/test.rs) |
 | Registry is deployed on testnet, not mainnet | [`docs/REGISTRY_INTEGRATION.md`](docs/REGISTRY_INTEGRATION.md) § *Deployment* — contract id and wasm hash, verifiable from any RPC |
-| Demo data is synthetic | [`README.md`](README.md) § *Live demo*; [`apps/web/public/data/`](apps/web/public/data/) |
+| Demo data is synthetic | [`README.md`](README.md) § *Live demo*; `apps/web/public/data/` *(the demo data has since been removed — see [`CHANGELOG.md`](CHANGELOG.md))* |
 | Both data flows are code-complete | [`ARCHITECTURE.md`](ARCHITECTURE.md) § *Flow 1* / *Flow 2* |
 | Config flags that flip Phase 2 live | [`.env.example`](.env.example) |

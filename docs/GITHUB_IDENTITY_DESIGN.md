@@ -111,10 +111,10 @@ Concretely:
   same principle `getOperations`'s Stellar Expert links already follow for
   on-chain data.
 - Copy near the section states plainly that this reflects GitHub's account
-  linking, not a cryptographic proof — matching the existing demo/on-chain
-  provenance framing pattern on the profile page (`isDemo` vs. bound-on-chain
-  badges already do exactly this kind of "make the reader ask the right
-  question" labeling).
+  linking, not a cryptographic proof — matching the existing provenance
+  framing on the profile page (its "Bound on-chain · Identity Registry" badge
+  already does exactly this kind of "make the reader ask the right question"
+  labeling).
 
 ## 5. Data model
 

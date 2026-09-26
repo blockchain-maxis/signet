@@ -86,9 +86,9 @@ own: both paths end at the same `complete`, which re-checks everything.
 ```bash
 signet whoami
 # identity:   deploy
-# publicKey:  GASAAEJC6P5UZGRLYJ2I2KYLR7RXGF44JZXDYGCFBN7T5VIHECUUEMCD
+# publicKey:  GCKIZN6RQPU73ORI5Q6HM3PMRELBELH2DITSWEEU7G4K2E227BXPUX6U
 # deployment: https://signet.example
-# handle:     @aquawolf
+# handle:     @alice
 ```
 
 Three of those are local — the identity, its public key, the deployment — and
@@ -191,7 +191,7 @@ signet's call.
 pipeline can parse the result without scraping human text:
 
 ```json
-{ "handle": "aquawolf", "publicKey": "GASA…", "network": "testnet", "status": "linked" }
+{ "handle": "alice", "publicKey": "GCKI…", "network": "testnet", "status": "linked" }
 ```
 
 On failure stdout stays empty and the error goes to stderr, so stdout is always

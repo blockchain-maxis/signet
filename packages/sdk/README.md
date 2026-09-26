@@ -26,7 +26,7 @@ The SDK talks to a Signet deployment. There is no hosted public deployment yet, 
 ```bash
 git clone https://github.com/blockchain-maxis/signet && cd signet
 pnpm install
-pnpm --filter @signet/web dev     # http://localhost:3000, no database required
+pnpm --filter @signet/web dev     # http://localhost:3000
 ```
 
 Then, in another terminal (`quickstart.ts`):
@@ -37,13 +37,13 @@ import { SignetClient } from '@signet/sdk';
 const signet = new SignetClient({ baseUrl: 'http://localhost:3000' });
 
 const handles = await signet.listHandles();
-console.log(handles); // [ 'aquawolf', 'sorobuilder', 'stellardev' ]
+console.log(handles); // e.g. [ 'alice', 'bob' ] — every handle the deployment can see
 
-const profile = await signet.getProfile('aquawolf');
+const profile = await signet.getProfile('alice');
 if (!profile) throw new Error('handle not found');
 
-console.log(profile.profile.name); // 'Aqua Wolf'
-console.log(profile.profile.wallet); // 'GASAAEJC…' — the bound Stellar account
+console.log(profile.profile.name); // display name (the handle when none is set)
+console.log(profile.profile.wallet); // 'G…' — the bound Stellar account
 console.log(profile.stats); // { invocations, uniqueFunctions, reputation }
 ```
 
@@ -51,9 +51,11 @@ console.log(profile.stats); // { invocations, uniqueFunctions, reputation }
 node --experimental-strip-types quickstart.ts
 ```
 
-The demo handles above are served from static testnet fixtures with **synthetic** data.
-A deployment with `DATABASE_URL` set and the indexer running serves real indexed activity
-through the same procedures and the same response shapes.
+A deployment only knows the handles that are really bound: with the Identity Registry
+configured (`NEXT_PUBLIC_IDENTITY_REGISTRY_ID`) it resolves them live from the chain, and
+with `DATABASE_URL` set and the indexer running it serves indexed activity through the
+same procedures and the same response shapes. A local server with neither configured has
+no handles, so `listHandles()` resolves to `[]` and `getProfile()` to `null`.
 
 ## API reference
 
@@ -92,9 +94,9 @@ rejection), and when the tRPC envelope carries no `result.data`. If you need to 
 endpoint separately.
 
 ```ts
-const res = await signet.getProfile('aquawolf');
+const res = await signet.getProfile('alice');
 // {
-//   handle: 'aquawolf',
+//   handle: 'alice',
 //   profile: { handle, name, bio, wallet, joined },
 //   stats:   { invocations, uniqueFunctions, reputation },
 // }

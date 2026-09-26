@@ -19,7 +19,7 @@ function GrantMockup() {
           SCF Application #2849
         </div>
         <div className="mt-1 text-[15px] text-[#f5f4ee]">
-          Aquawolf Labs · Soroban DEX Aggregator
+          Example Labs · Soroban DEX Aggregator
         </div>
       </div>
       <div className="p-6">
@@ -198,7 +198,7 @@ export function Unlocks() {
           Where Signet is used.
         </h2>
         <p className="mt-5 max-w-[480px] text-[15px] leading-[1.65] tracking-[-0.005em] text-[#8a8779]" style={{ fontFamily: "var(--font-body)" }}>
-          Verified deployment history, applied to three real workflows.
+          Verified deployment history, applied to three real workflows. The mockups are illustrative; every figure in them is made up.
         </p>
       </motion.div>
 

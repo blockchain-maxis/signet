@@ -1,7 +1,7 @@
 # Integrating with the Signet Identity Registry
 
 The Identity Registry is a Soroban contract that binds a Stellar wallet to a Signet handle
-on-chain. Anyone can read it — resolving `aquawolf → G…` needs no Signet API, no database
+on-chain. Anyone can read it — resolving `alice → G…` needs no Signet API, no database
 and no permission, just a Soroban RPC endpoint.
 
 This document is the integration reference: deployment coordinates, every error code, the
@@ -141,7 +141,7 @@ import { scValToNative, xdr } from '@stellar/stellar-sdk';
 function decode(topics: xdr.ScVal[], value: xdr.ScVal) {
   if (topics.length < 2) return null;
   const kind = scValToNative(topics[0]!) as string;   // 'claimed' | 'released' | 'revoked' | 'transferred'
-  const handle = String(scValToNative(topics[1]!));   // 'aquawolf'
+  const handle = String(scValToNative(topics[1]!));   // 'alice'
   const data = scValToNative(value);                  // 'G…'  — or ['G…from', 'G…to'] for transferred
   return { kind, handle, data };
 }
@@ -179,7 +179,7 @@ const contract = new Contract(CONTRACT_ID);
 /** Simulate a read-only call and return its native value. */
 async function read(method: string, ...args: xdr.ScVal[]) {
   // Any existing account works as the simulation source; sequence number is ignored.
-  const source = new Account('GASAAEJC6P5UZGRLYJ2I2KYLR7RXGF44JZXDYGCFBN7T5VIHECUUEMCD', '0');
+  const source = new Account('GBNTPIH54YJW4SFUIF2L7PBARVQZVSRKVE72OKN5IZC2CXMAEQI3VWCA', '0');
   const tx = new TransactionBuilder(source, { fee: BASE_FEE, networkPassphrase: NETWORK_PASSPHRASE })
     .addOperation(contract.call(method, ...args))
     .setTimeout(30)
@@ -193,9 +193,9 @@ async function read(method: string, ...args: xdr.ScVal[]) {
 const handleArg = (h: string) => nativeToScVal(h, { type: 'string' });
 
 await read('count');                                   // 0
-await read('is_bound', handleArg('aquawolf'));         // false
-await read('resolve',  handleArg('aquawolf'));         // null  → 'G…' once bound
-await read('lookup',   new Address('G…').toScVal());   // null  → 'aquawolf' once bound
+await read('is_bound', handleArg('alice'));         // false
+await read('resolve',  handleArg('alice'));         // null  → 'G…' once bound
+await read('lookup',   new Address('G…').toScVal());   // null  → 'alice' once bound
 ```
 
 `resolve` and `lookup` return Soroban `Option`s, which `scValToNative` turns into `null`
@@ -287,7 +287,7 @@ const tx = new TransactionBuilder(account, { fee: BASE_FEE, networkPassphrase: N
   .addOperation(
     contract.call(
       'claim',
-      nativeToScVal('aquawolf', { type: 'string' }),
+      nativeToScVal('alice', { type: 'string' }),
       new Address(wallet).toScVal(),
     ),
   )

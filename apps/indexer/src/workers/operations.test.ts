@@ -36,7 +36,7 @@ function memoryStore(wallets: Array<{ id: string; pubkey: string }>) {
   return { store, rows };
 }
 
-const WALLET = { id: 'w1', pubkey: 'GASAAEJC6P5UZGRLYJ2I2KYLR7RXGF44JZXDYGCFBN7T5VIHECUUEMCD' };
+const WALLET = { id: 'w1', pubkey: 'GBNTPIH54YJW4SFUIF2L7PBARVQZVSRKVE72OKN5IZC2CXMAEQI3VWCA' };
 
 function invokeOp(id: string, overrides: Record<string, unknown> = {}) {
   return {

@@ -4,6 +4,7 @@ import { motion, useScroll, useTransform } from 'framer-motion';
 import { Seal } from '../components/seal';
 import { SignetMonogram } from '../components/signet-monogram';
 import { ConnectWallet } from '../components/connect-wallet';
+import { STELLAR_NETWORK_NAME } from '@/lib/network';
 
 export function Hero() {
   const containerRef = useRef<HTMLDivElement>(null);
@@ -42,10 +43,10 @@ export function Hero() {
             How it works
           </a>
           <a
-            href="/p/aquawolf"
+            href="/handles"
             className="transition-colors hover:text-[#f5f4ee] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#8b1a1a] focus-visible:ring-offset-2 focus-visible:ring-offset-[#0a0908]"
           >
-            Demo
+            Handles
           </a>
         </div>
         <ConnectWallet
@@ -76,7 +77,7 @@ export function Hero() {
             <span className="text-[#3d3a33]">/</span>
             Soroban
             <span className="text-[#3d3a33]">/</span>
-            <span className="text-[#5e5b51]">Testnet demo</span>
+            <span className="text-[#5e5b51]">{STELLAR_NETWORK_NAME}</span>
           </motion.div>
 
           <h1
@@ -143,7 +144,7 @@ export function Hero() {
               className="group inline-flex items-center gap-3 bg-[#f5f4ee] px-7 py-4 text-[12px] font-medium uppercase tracking-[0.18em] text-[#0a0908] transition-all duration-300 hover:bg-[#c2410c] hover:text-[#f5f4ee] disabled:opacity-60"
             />
             <a
-              href="/p/aquawolf"
+              href="/handles"
               className="group inline-flex items-center gap-2.5 px-1 py-4 text-[12px] uppercase tracking-[0.18em] text-[#b8b5a8] transition-colors hover:text-[#f5f4ee]"
               style={{ fontFamily: 'var(--font-mono)' }}
             >
@@ -162,7 +163,7 @@ export function Hero() {
             style={{ fontFamily: 'var(--font-mono)' }}
           >
             <span className="h-px w-10 bg-[#3d3a33]" />
-            <span>Curated demo profiles · synthetic testnet activity</span>
+            <span>Every handle confirmed against the Identity Registry</span>
           </motion.div>
         </div>
 

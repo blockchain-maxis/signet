@@ -136,18 +136,15 @@ a summary; nothing about a contract's interface belongs in the list.
 
 ### 2.2 Provenance rules
 
-The profile page draws a hard line between curated demo data and real on-chain
-data — `isDemo` gates every claim the page makes. Generated docs inherit that
-line and add one of their own:
+The profile page only ever renders real data — a binding from the indexer's
+database or a live registry `resolve`, and activity from the database or
+Horizon. Generated docs hold to the same rule:
 
 - **Every fact on the page is derived from the deployed WASM.** Nothing is
   written by Signet, nothing is inferred, nothing is filled in from a similar
   contract.
 - The page states which contract id and which **WASM hash** it was generated
   from, and links to the explorer. A reader can re-derive it.
-- A demo profile's contracts, if any, are labelled exactly as the rest of a demo
-  profile is. Generated docs must not lend a curated address the authority of
-  on-chain provenance.
 
 ### 2.3 Page shape
 
@@ -162,7 +159,7 @@ line and add one of their own:
    a call can fail with is documentation, and it is the half most hand-written
    contract docs omit.
 
-Rendering is static-first, matching `/p/{handle}`: pre-rendered where the
+Rendering is static-first: pre-rendered where the
 contract set is known, `dynamicParams` for anything newer, and revalidation on
 the cache key in §4.
 

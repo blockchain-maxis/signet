@@ -58,7 +58,7 @@ signet link
 #
 # Waiting for approval… 4m58s remaining
 # Approved. Proving control of the deploy key…
-# Linked GASAAEJC6P5UZGRLYJ2I2KYLR7RXGF44JZXDYGCFBN7T5VIHECUUEMCD to @aquawolf on testnet.
+# Linked GCKIZN6RQPU73ORI5Q6HM3PMRELBELH2DITSWEEU7G4K2E227BXPUX6U to @alice on testnet.
 ```
 
 There is no handle argument: the handle is whichever one you are signed in as
@@ -76,7 +76,7 @@ the result without scraping text that is free to change between releases:
 
 ```bash
 signet link --json
-# {"handle":"aquawolf","publicKey":"GASAAEJC6P5UZGRLYJ2I2KYLR7RXGF44JZXDYGCFBN7T5VIHECUUEMCD","network":"testnet","status":"linked"}
+# {"handle":"alice","publicKey":"GCKIZN6RQPU73ORI5Q6HM3PMRELBELH2DITSWEEU7G4K2E227BXPUX6U","network":"testnet","status":"linked"}
 ```
 
 `--no-browser` prints the approval URL instead of trying to open one.
@@ -87,9 +87,9 @@ signet link --json
 ```bash
 signet whoami
 # identity:   deploy
-# publicKey:  GASAAEJC6P5UZGRLYJ2I2KYLR7RXGF44JZXDYGCFBN7T5VIHECUUEMCD
+# publicKey:  GCKIZN6RQPU73ORI5Q6HM3PMRELBELH2DITSWEEU7G4K2E227BXPUX6U
 # deployment: https://signet.example
-# handle:     @aquawolf
+# handle:     @alice
 ```
 
 Answers "which account am I actually linked as?". `--json` emits
@@ -102,8 +102,8 @@ Removes the binding, proving control of the same deploy key.
 
 ```bash
 signet unlink
-# Unlink GASAAEJC6P5UZGRLYJ2I2KYLR7RXGF44JZXDYGCFBN7T5VIHECUUEMCD from its Signet profile? [y/N] y
-# Unlinked GASAAEJC6P5UZGRLYJ2I2KYLR7RXGF44JZXDYGCFBN7T5VIHECUUEMCD from @aquawolf.
+# Unlink GCKIZN6RQPU73ORI5Q6HM3PMRELBELH2DITSWEEU7G4K2E227BXPUX6U from its Signet profile? [y/N] y
+# Unlinked GCKIZN6RQPU73ORI5Q6HM3PMRELBELH2DITSWEEU7G4K2E227BXPUX6U from @alice.
 ```
 
 `--yes` skips the confirmation, for non-interactive use. Unlinking needs only

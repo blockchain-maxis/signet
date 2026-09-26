@@ -21,11 +21,11 @@ test('/handles is listed above the secondary pages', () => {
 });
 
 test('profiles are appended one entry per handle', () => {
-  const routes = profileRoutes(['aquawolf', 'stellardev'], now, base);
+  const routes = profileRoutes(['alice', 'bob'], now, base);
 
   assert.deepEqual(
     routes.map((r) => r.url),
-    [`${base}/p/aquawolf`, `${base}/p/stellardev`],
+    [`${base}/p/alice`, `${base}/p/bob`],
   );
   assert.equal(routes[0]?.lastModified, now);
 });

@@ -5,11 +5,6 @@ import type { Operation } from '@/lib/profiles';
 import { stellarExpertTxUrl } from '@/lib/network';
 import { formatDate } from '@/lib/format-date';
 
-function truncate(str: string, head: number, tail: number): string {
-  if (str.length <= head + tail + 3) return str;
-  return `${str.slice(0, head)}...${str.slice(-tail)}`;
-}
-
 function resolveFunction(op: Operation): string {
   if (op.decoded_function && op.decoded_function !== '?') return op.decoded_function;
   if (op.function && !op.function.startsWith('HostFunction')) return op.function;
@@ -20,11 +15,6 @@ interface OperationsListProps {
   handle: string;
   initialOperations: Operation[];
   total: number;
-  /**
-   * Demo profiles carry synthetic transaction hashes that resolve to nothing on
-   * Stellar Expert, so their hashes render as plain text instead of a link.
-   */
-  isDemo?: boolean;
   /**
    * True when `total` is a cap rather than the developer's whole history. The
    * end of the list then means "end of what we hold", not "end of the record",
@@ -39,7 +29,6 @@ export default function OperationsList({
   handle,
   initialOperations,
   total,
-  isDemo = false,
   truncated = false,
   cap = null,
 }: OperationsListProps) {
@@ -140,25 +129,15 @@ export default function OperationsList({
                   {formatDate(op.created_at)}
                 </span>
                 {op.transaction_hash ? (
-                  isDemo ? (
-                    <span
-                      className="whitespace-nowrap text-[10px] text-[#5e5b51]"
-                      style={{ fontFamily: 'var(--font-mono)' }}
-                      title={op.transaction_hash}
-                    >
-                      {truncate(op.transaction_hash, 6, 4)}
-                    </span>
-                  ) : (
-                    <a
-                      href={stellarExpertTxUrl(op.transaction_hash)}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="whitespace-nowrap text-[10px] uppercase tracking-[0.18em] text-[#8b1a1a] transition-colors hover:text-[#c2410c]"
-                      style={{ fontFamily: 'var(--font-mono)' }}
-                    >
-                      Verify ↗
-                    </a>
-                  )
+                  <a
+                    href={stellarExpertTxUrl(op.transaction_hash)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="whitespace-nowrap text-[10px] uppercase tracking-[0.18em] text-[#8b1a1a] transition-colors hover:text-[#c2410c]"
+                    style={{ fontFamily: 'var(--font-mono)' }}
+                  >
+                    Verify ↗
+                  </a>
                 ) : (
                   <span className="text-[10px] text-[#3d3a33]" style={{ fontFamily: 'var(--font-mono)' }}>—</span>
                 )}

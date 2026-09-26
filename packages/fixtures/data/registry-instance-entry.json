@@ -1,0 +1,27 @@
+{
+  "network": "testnet",
+  "rpcUrl": "https://soroban-testnet.stellar.org",
+  "capturedAt": "2026-09-26T21:36:47.692Z",
+  "latestLedger": 4887004,
+  "request": {
+    "endpoint": "rpc",
+    "methodOrPath": "getLedgerEntries",
+    "params": {
+      "keys": [
+        "AAAABgAAAAEkVJ0dfCUbS+muuiL8rmRUioX7jeL9k0Y+hV4EQDfLRAAAABQAAAAB"
+      ]
+    }
+  },
+  "payload": {
+    "entries": [
+      {
+        "key": "AAAABgAAAAEkVJ0dfCUbS+muuiL8rmRUioX7jeL9k0Y+hV4EQDfLRAAAABQAAAAB",
+        "xdr": "AAAABgAAAAAAAAABJFSdHXwlG0vprroi/K5kVIqF+43i/ZNGPoVeBEA3y0QAAAAUAAAAAQAAABMAAAAAk2mWx0t9ODxW7BdIV7FZJ83SlHjGkJ2jMrTeyLZzNf4AAAABAAAAAgAAABAAAAABAAAAAQAAAA8AAAAFQWRtaW4AAAAAAAASAAAAAAAAAAC9hDQdKPrF0RxahcThHQKBb4YlTFTSU3Osc2w3DdqVlAAAABAAAAABAAAAAQAAAA8AAAAFQ291bnQAAAAAAAADAAAAAg==",
+        "lastModifiedLedgerSeq": 4880469,
+        "liveUntilLedgerSeq": 4916420,
+        "extXdr": "AAAAAA=="
+      }
+    ],
+    "latestLedger": 4887004
+  }
+}

@@ -1,0 +1,27 @@
+{
+  "name": "@signet/fixtures",
+  "version": "0.0.0",
+  "private": true,
+  "license": "Apache-2.0",
+  "type": "module",
+  "main": "./src/index.ts",
+  "types": "./src/index.ts",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "build": "tsc --noEmit",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint . --config ../../eslint.config.js",
+    "test": "node --import tsx --test \"src/**/*.test.ts\"",
+    "capture": "node --import tsx scripts/capture.ts"
+  },
+  "dependencies": {
+    "@stellar/stellar-sdk": "^16.1.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.16.0",
+    "tsx": "^4.19.1",
+    "typescript": "^5.6.3"
+  }
+}

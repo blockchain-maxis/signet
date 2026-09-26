@@ -31,6 +31,11 @@ jobs:
       - name: Check docs drift
         run: node scripts/check-docs.mjs
 
+      # Fails when production code imports the recorded testnet fixtures
+      # (packages/fixtures is test-only). Pure Node stdlib.
+      - name: Check fixtures are not imported by production code
+        run: node scripts/check-fixtures-import.mjs
+
       # Fails when the contract's Error enum (packages/contracts/identity-registry/src/lib.rs)
       # and its hand-mirrored TypeScript messages (apps/web/lib/contract-errors.ts)
       # drift apart. Pure regex parsing — no Rust toolchain needed.
@@ -51,7 +56,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - uses: pnpm/action-setup@v6.0.10
+      - uses: pnpm/action-setup@v6.1.0
 
       - uses: actions/setup-node@v7
         with:
@@ -203,7 +208,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - uses: pnpm/action-setup@v6.0.10
+      - uses: pnpm/action-setup@v6.1.0
 
       - uses: actions/setup-node@v7
         with:
@@ -264,7 +269,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - uses: pnpm/action-setup@v6.0.10
+      - uses: pnpm/action-setup@v6.1.0
 
       - uses: actions/setup-node@v7
         with:
@@ -302,7 +307,7 @@ jobs:
       # line: the trace and the page snapshot say which stage broke.
       - name: Upload Playwright artifacts
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: e2e-linked-artifacts
           path: |
@@ -318,7 +323,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - uses: pnpm/action-setup@v6.0.10
+      - uses: pnpm/action-setup@v6.1.0
 
       - uses: actions/setup-node@v7
         with:

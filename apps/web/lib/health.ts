@@ -10,8 +10,9 @@
  * Two rules hold for every check:
  *
  *   • **Unconfigured is not unhealthy.** A dependency the deployment does not
- *     use reports `skipped`, because the demo `/p/*` surfaces genuinely serve
- *     without Postgres and previews genuinely run without a registry.
+ *     use reports `skipped`, because `/p/*` genuinely serves without Postgres
+ *     (from the chain and Horizon) and previews genuinely run without a
+ *     registry.
  *   • **Down degrades, it does not fail.** A failed check reports `degraded`
  *     with HTTP 200: the static surfaces still render, and an outage of one
  *     dependency should not make the whole deployment look dead to a load

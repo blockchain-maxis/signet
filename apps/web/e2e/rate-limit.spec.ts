@@ -11,8 +11,11 @@ import { test, expect, type APIRequestContext } from '@playwright/test';
  *
  * Three things make this spec fussier than it looks:
  *
- *  1. `/api/p/<handle>/operations` can reach Horizon, so 60 *sequential*
- *     requests overrun the 30s default test timeout. They are issued in
+ *  1. `/api/p/<handle>/operations` can reach the database, the chain and
+ *     Horizon, so 60 *sequential* requests overrun the 30s default test
+ *     timeout. The handle is any valid string: the route answers 200 with an
+ *     empty page for a handle nothing knows, and the limiter runs first
+ *     either way. They are issued in
  *     concurrent batches instead, and the timeout is raised for headroom.
  *  2. A bucket is keyed by IP and only refills after `WINDOW_MS` (60s), so a
  *     test that burns a fixed IP cannot repeat inside the window — and CI runs
@@ -26,6 +29,8 @@ import { test, expect, type APIRequestContext } from '@playwright/test';
 
 const BUCKET_LIMIT = 60; // LIMITS.read in lib/rate-limit-http.ts, and rate-limit.ts's MAX_PER_WINDOW
 const BATCH = 15;
+/** Any syntactically valid handle; whether it is bound does not matter here. */
+const OPERATIONS_PATH = '/api/p/rate-limit-probe/operations';
 
 /** Unique per test and per retry, so a burnt bucket is never reused. */
 function ip(testId: number, retry: number): string {
@@ -57,16 +62,16 @@ test.describe('API rate limiting', () => {
   test('the operations route enforces its bucket, per IP', async ({ request }, testInfo) => {
     const mine = { 'x-vercel-forwarded-for': ip(1, testInfo.retry) };
 
-    const statuses = await flood(request, '/api/p/aquawolf/operations', BUCKET_LIMIT, mine);
+    const statuses = await flood(request, OPERATIONS_PATH, BUCKET_LIMIT, mine);
     expect(statuses.every((s) => s === 200)).toBeTruthy();
 
     // Budget spent: the next call is refused.
-    const limited = await request.get('/api/p/aquawolf/operations', { headers: mine });
+    const limited = await request.get(OPERATIONS_PATH, { headers: mine });
     expect(limited.status()).toBe(429);
     expect(limited.headers()['retry-after']).toBeTruthy();
 
     // A different IP is a different bucket and still has its full budget.
-    const other = await request.get('/api/p/aquawolf/operations', {
+    const other = await request.get(OPERATIONS_PATH, {
       headers: { 'x-vercel-forwarded-for': ip(2, testInfo.retry) },
     });
     expect(other.status()).toBe(200);

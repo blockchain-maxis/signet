@@ -4,8 +4,8 @@ name: Testnet E2E
 # (e2e/testnet-claim.spec.ts). It funds an account via friendbot and submits a
 # real claim transaction, so it is opt-in everywhere: the spec self-skips
 # without SIGNET_TESTNET_E2E, the ordinary CI e2e job never sets it, and this
-# workflow — like demo-data-check — runs on a schedule and on demand,
-# deliberately NOT on pull_request, so chain weather can never block a merge.
+# workflow runs on a schedule and on demand, deliberately NOT on pull_request,
+# so chain weather can never block a merge.
 # A failed scheduled run notifies via GitHub's failed-workflow email.
 
 on:
@@ -29,7 +29,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - uses: pnpm/action-setup@v6.0.10
+      - uses: pnpm/action-setup@v6.1.0
 
       - uses: actions/setup-node@v7
         with:

@@ -60,7 +60,7 @@ test('isRegistryConfigured picks the contract id up from the environment', () =>
 });
 
 test('resolveHandle returns null when the registry is unconfigured', async () => {
-  assert.equal(await resolveHandle('aquawolf'), null);
+  assert.equal(await resolveHandle('alice'), null);
 });
 
 test('lookupWallet returns null when the registry is unconfigured', async () => {
@@ -73,8 +73,8 @@ test('boundCount returns null when the registry is unconfigured', async () => {
 });
 
 test('an unconfigured registry never reaches the RPC server', async () => {
-  const server = stubServer(successWith(nativeToScVal('aquawolf', { type: 'string' })));
-  assert.equal(await resolveHandle('aquawolf', { server }), null);
+  const server = stubServer(successWith(nativeToScVal('alice', { type: 'string' })));
+  assert.equal(await resolveHandle('alice', { server }), null);
   assert.equal(await lookupWallet(WALLET, { server }), null);
   assert.equal(await boundCount({ server }), null);
   assert.equal(server.calls.length, 0);
@@ -85,7 +85,7 @@ test('an unconfigured registry never reaches the RPC server', async () => {
 test('resolveHandle returns null when simulation reports an error', async () => {
   configureRegistry();
   const server = stubServer({ error: 'HostError: contract not found' });
-  assert.equal(await resolveHandle('aquawolf', { server }), null);
+  assert.equal(await resolveHandle('alice', { server }), null);
 });
 
 test('lookupWallet returns null when simulation reports an error', async () => {
@@ -103,7 +103,7 @@ test('boundCount returns null when simulation reports an error', async () => {
 test('a throwing RPC client is swallowed rather than propagated', async () => {
   configureRegistry();
   const server = throwingServer();
-  assert.equal(await resolveHandle('aquawolf', { server }), null);
+  assert.equal(await resolveHandle('alice', { server }), null);
   assert.equal(await lookupWallet(WALLET, { server }), null);
   assert.equal(await boundCount({ server }), null);
 });
@@ -111,7 +111,7 @@ test('a throwing RPC client is swallowed rather than propagated', async () => {
 test('a simulation with no return value resolves to the unbound answer', async () => {
   configureRegistry();
   const server = stubServer({ result: undefined });
-  assert.equal(await resolveHandle('aquawolf', { server }), null);
+  assert.equal(await resolveHandle('alice', { server }), null);
   assert.equal(await boundCount({ server }), null);
 });
 
@@ -127,20 +127,20 @@ test('boundCount distinguishes a genuinely empty registry from an unreadable one
 test('resolveHandle decodes the bound wallet address', async () => {
   configureRegistry();
   const server = stubServer(successWith(nativeToScVal(WALLET, { type: 'address' })));
-  assert.equal(await resolveHandle('aquawolf', { server }), WALLET);
+  assert.equal(await resolveHandle('alice', { server }), WALLET);
   assert.equal(server.calls.length, 1);
 });
 
 test('resolveHandle treats an unbound handle (void return) as null', async () => {
   configureRegistry();
   const server = stubServer(successWith(nativeToScVal(null)));
-  assert.equal(await resolveHandle('aquawolf', { server }), null);
+  assert.equal(await resolveHandle('alice', { server }), null);
 });
 
 test('lookupWallet decodes the bound handle', async () => {
   configureRegistry();
-  const server = stubServer(successWith(nativeToScVal('aquawolf', { type: 'string' })));
-  assert.equal(await lookupWallet(WALLET, { server }), 'aquawolf');
+  const server = stubServer(successWith(nativeToScVal('alice', { type: 'string' })));
+  assert.equal(await lookupWallet(WALLET, { server }), 'alice');
 });
 
 test('lookupWallet treats a wallet with no handle as null', async () => {
@@ -166,7 +166,7 @@ test('resolveHandle rejects a malformed handle without simulating', async () => 
 
 test('lookupWallet rejects a malformed address without simulating', async () => {
   configureRegistry();
-  const server = stubServer(successWith(nativeToScVal('aquawolf', { type: 'string' })));
+  const server = stubServer(successWith(nativeToScVal('alice', { type: 'string' })));
   assert.equal(await lookupWallet('not-a-wallet', { server }), null);
   assert.equal(server.calls.length, 0);
 });
@@ -176,7 +176,7 @@ test('lookupWallet rejects a malformed address without simulating', async () => 
 test('resolveHandleDetailed returns bound status and wallet for live handle', async () => {
   configureRegistry();
   const server = stubServer(successWith(nativeToScVal(WALLET, { type: 'address' })));
-  const res = await resolveHandleDetailed('aquawolf', { server });
+  const res = await resolveHandleDetailed('alice', { server });
   assert.deepEqual(res, { status: 'bound', wallet: WALLET });
 });
 
@@ -192,7 +192,7 @@ test('resolveHandleDetailed detects an archived footprint', async () => {
     result: { retval: nativeToScVal(WALLET, { type: 'address' }) },
     restorePreamble: { minResourceFee: '1000', transactionData: 'AAAArestore' },
   });
-  const res = await resolveHandleDetailed('aquawolf', { server });
+  const res = await resolveHandleDetailed('alice', { server });
   assert.equal(res.status, 'archived');
   assert.ok('restorePreamble' in res);
 });
@@ -204,7 +204,7 @@ test('a successful simulation with no restorePreamble is not treated as archived
     transactionData: 'AAAAsimulated',
     result: { retval: nativeToScVal(WALLET, { type: 'address' }) },
   });
-  assert.deepEqual(await resolveHandleDetailed('aquawolf', { server }), {
+  assert.deepEqual(await resolveHandleDetailed('alice', { server }), {
     status: 'bound',
     wallet: WALLET,
   });
@@ -213,11 +213,11 @@ test('a successful simulation with no restorePreamble is not treated as archived
 test('resolveHandleDetailed returns unbound for unbound handle', async () => {
   configureRegistry();
   const server = stubServer(successWith(nativeToScVal(null)));
-  const res = await resolveHandleDetailed('aquawolf', { server });
+  const res = await resolveHandleDetailed('alice', { server });
   assert.deepEqual(res, { status: 'unbound' });
 });
 
 test('resolveHandleDetailed returns unconfigured without contract id', async () => {
-  const res = await resolveHandleDetailed('aquawolf');
+  const res = await resolveHandleDetailed('alice');
   assert.deepEqual(res, { status: 'unconfigured' });
 });

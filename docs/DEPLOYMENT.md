@@ -136,8 +136,8 @@ Save the `C…` value. You will set both env vars (web + indexer) to that id.
 CASFJHI5PQSRWS7JV25CF7FOMRKIVBP3RXRP3E2GH2CV4BCAG7FUJRCN
 ```
 
-Use this only if you intentionally point at the shared demo registry rather than
-your own.
+Use this only if you intentionally point at the shared reference registry rather
+than your own.
 
 ---
 
@@ -323,10 +323,13 @@ Replace `BASE` with your public origin (no trailing slash).
 ```bash
 BASE=https://your-domain.example
 
-# Marketing + demo profiles (expect HTTP 200)
+# Marketing + directory (expect HTTP 200)
 curl -sS -o /dev/null -w "%{http_code}\n" "$BASE/"
-curl -sS -o /dev/null -w "%{http_code}\n" "$BASE/p/aquawolf"
+curl -sS -o /dev/null -w "%{http_code}\n" "$BASE/handles"
 curl -sS -o /dev/null -w "%{http_code}\n" "$BASE/how-it-works"
+
+# A profile: 200 for a handle bound on your registry, 404 for one that is not
+curl -sS -o /dev/null -w "%{http_code}\n" "$BASE/p/<a-bound-handle>"
 
 # Health probe — expect JSON status "ok". Each dependency is reported
 # separately under `checks`; an unconfigured one reads "skipped".
@@ -336,7 +339,8 @@ curl -sS "$BASE/api/health"
 | Check | Pass criteria |
 | --- | --- |
 | `GET /` | HTTP 200, landing HTML |
-| `GET /p/aquawolf` | HTTP 200, demo profile renders |
+| `GET /handles` | HTTP 200; lists bound handles, or says no registry is configured |
+| `GET /p/<a-bound-handle>` | HTTP 200 for a handle bound on the registry; an unbound handle is a 404, never a 5xx |
 | `GET /how-it-works` | HTTP 200 |
 | `GET /api/health` | JSON `status` is `ok`. `degraded` means a configured dependency is down — read `checks.db` (Postgres), `checks.registry` (Soroban RPC + registry contract), and `checks.pairing` (wallet↔handle binding, which needs both) to see which |
 | Claim lands on-chain | With `NEXT_PUBLIC_IDENTITY_REGISTRY_ID` set: connect a funded testnet wallet, claim an unused handle, then `resolve` returns the G… address (below) |

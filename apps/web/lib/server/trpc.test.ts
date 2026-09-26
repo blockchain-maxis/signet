@@ -5,8 +5,9 @@ import { __resetRateLimit } from '../rate-limit.ts';
 import { issueSession, SESSION_COOKIE } from '../auth.ts';
 
 // Integration test over the full API stack: input validation → rate-limit +
-// logging middleware → profile data layer. Uses the synthetic testnet fixtures
-// in public/data (cwd is apps/web when the test runs).
+// logging middleware → profile data layer. No DATABASE_URL or registry is
+// configured here, so the data layer has nothing to resolve: these tests
+// cover the procedures' contract, not any particular handle's data.
 // Uses the platform header rather than `x-forwarded-for`: a bare X-Forwarded-For
 // is client-supplied and deliberately ignored (see `clientIp`), so it would put
 // every caller here in one shared rate-limit bucket.
@@ -24,14 +25,12 @@ function authedCaller(ip: string, address: string, extra: Record<string, string>
   return appRouter.createCaller(createContext(headers));
 }
 
-test('profile.byHandle returns the profile with computed on-chain stats', async () => {
+test('profile.byHandle returns null for a handle no real source knows', async () => {
   __resetRateLimit();
-  const res = await caller('10.0.0.1').profile.byHandle({ handle: 'aquawolf' });
-  assert.ok(res, 'expected a profile');
-  assert.equal(res!.handle, 'aquawolf');
-  assert.match(res!.profile.wallet, /^G[A-Z0-9]{55}$/);
-  assert.ok(res!.stats.invocations >= 1);
-  assert.ok(res!.stats.uniqueFunctions >= 1);
+  // Uppercase input is normalised, validated, and then misses cleanly — there
+  // is no fallback data to answer with.
+  const res = await caller('10.0.0.1').profile.byHandle({ handle: 'Alice' });
+  assert.equal(res, null);
 });
 
 test('profile.byHandle rejects a malformed handle', async () => {
@@ -39,11 +38,10 @@ test('profile.byHandle rejects a malformed handle', async () => {
   await assert.rejects(() => caller('10.0.0.2').profile.byHandle({ handle: 'BAD HANDLE!' }));
 });
 
-test('profile.list includes the curated handles', async () => {
+test('profile.list is empty with no database or registry configured', async () => {
   __resetRateLimit();
   const list = await caller('10.0.0.3').profile.list();
-  assert.ok(list.includes('aquawolf'));
-  assert.ok(list.length >= 3);
+  assert.deepEqual(list, []);
 });
 
 test('health procedure reports ok', async () => {
@@ -142,13 +140,13 @@ test('registry.resolve rejects a malformed handle', async () => {
 
 test('registry.resolve returns null when the registry is unconfigured', async () => {
   __resetRateLimit();
-  const res = await caller('10.0.0.11').registry.resolve({ handle: 'aquawolf' });
+  const res = await caller('10.0.0.11').registry.resolve({ handle: 'alice' });
   assert.equal(res, null);
 });
 
 test('registry.resolve normalises the handle to lowercase', async () => {
   __resetRateLimit();
-  const res = await caller('10.0.0.12').registry.resolve({ handle: 'AQUAWOLF' });
+  const res = await caller('10.0.0.12').registry.resolve({ handle: 'ALICE' });
   assert.equal(res, null);
 });
 

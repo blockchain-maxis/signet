@@ -10,8 +10,8 @@ const steps = [
     title: "Connect",
     body: `You sign a structured payload from any Stellar wallet — Freighter, Albedo, Lobstr. The signature includes your profile, the wallet pubkey, a timestamp, a nonce, and the domain. Domain separation matters: a signature meant for Signet can't be replayed elsewhere.`,
     code: `{
-  profile_id: "aquawolf",
-  wallet:     "GAQUA…WOLF",
+  profile_id: "yourhandle",
+  wallet:     "GABCD…WXYZ",
   timestamp:  1731234567,
   nonce:      "f7e6c95d0f283b419c",
   domain:     "signet.dev"
@@ -22,8 +22,8 @@ const steps = [
     title: "Attest",
     body: `The signature is submitted to identity_registry, our Soroban contract on Stellar. The contract verifies the signature against your declared pubkey and writes the binding. Once written, it's append-only — you can't backdate or transfer past work.`,
     code: `identity_registry::attest(
-  profile_id: "aquawolf",
-  wallet:     GAQUA…WOLF,
+  profile_id: "yourhandle",
+  wallet:     GABCD…WXYZ,
   signature:  0x4a8f9c12bd0e3f87…
 )`,
   },
@@ -278,7 +278,7 @@ export function Mechanism() {
                     <line x1="-28" y1="-16" x2="28" y2="-16" stroke="#3d3a33" strokeWidth="0.5" />
                     <text x="-28" y="-8" fill="#b8b5a8"
                       style={{ fontFamily: "var(--font-mono)" }} fontSize="6">
-                      aquawolf
+                      yourhandle
                     </text>
                     <rect x="-28" y="-2" width="40" height="2" fill="#3d3a33" />
                     <rect x="-28" y="4" width="28" height="2" fill="#3d3a33" />

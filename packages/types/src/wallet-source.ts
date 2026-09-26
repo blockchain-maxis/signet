@@ -2,11 +2,12 @@
  * Wallet provenance — the single source of truth for how a `Wallet.source`
  * value can read.
  *
- * A wallet binding can be attributed three ways: `curated` (seeded demo data),
- * `onchain` (attested via the Identity Registry's `claimed` event), or `cli`
- * (linked through the standalone CLI). The UI badge on the wallets dashboard
- * (`apps/web/app/(dashboard)/app/wallets/page.tsx`) and every write site
- * (`apps/indexer/src/workers/attestation.ts`, `apps/indexer/src/workers/seed.ts`)
+ * A wallet binding can be attributed three ways: `curated` (legacy rows from
+ * the retired Phase-1 seed; nothing writes it any more, but existing databases
+ * may still hold such rows), `onchain` (attested via the Identity Registry's
+ * `claimed` event), or `cli` (linked through the standalone CLI). The UI badge
+ * on the wallets dashboard (`apps/web/app/(dashboard)/app/wallets/page.tsx`)
+ * and every write site (`apps/indexer/src/workers/attestation.ts`)
  * derive from this list rather than repeating string literals, so a fourth
  * value can't be introduced in one place and forgotten in another.
  *

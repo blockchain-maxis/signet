@@ -181,8 +181,8 @@ Three sources, in order of how much the user has to know:
 
 - **A seeded run must never be mistakable for a real one.** Every result carries
   its provenance: which ledger it started from and which entries were modified.
-  The profile page already draws this line for demo versus on-chain data; the
-  same discipline applies, for the same reason.
+  The profile page already labels where its data came from (indexed database
+  or live chain read); the same discipline applies, for the same reason.
 - **Seeding is local-only.** Accepting attacker-authored ledger state on a
   server is half of why §2.2 chose local execution; allowing it to be uploaded
   would reintroduce exactly that.

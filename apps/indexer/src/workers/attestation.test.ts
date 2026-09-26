@@ -19,27 +19,27 @@ const walletVal = (pubkey: string): xdr.ScVal => new Address(pubkey).toScVal();
 
 test('decodeEvent decodes a claimed event', () => {
   const pk = Keypair.random().publicKey();
-  assert.deepEqual(decodeEvent(topics('claimed', 'aquawolf'), walletVal(pk)), {
+  assert.deepEqual(decodeEvent(topics('claimed', 'alice'), walletVal(pk)), {
     kind: 'claimed',
-    handle: 'aquawolf',
+    handle: 'alice',
     wallet: pk,
   });
 });
 
 test('decodeEvent decodes a released event', () => {
   const pk = Keypair.random().publicKey();
-  assert.deepEqual(decodeEvent(topics('released', 'aquawolf'), walletVal(pk)), {
+  assert.deepEqual(decodeEvent(topics('released', 'alice'), walletVal(pk)), {
     kind: 'released',
-    handle: 'aquawolf',
+    handle: 'alice',
     wallet: pk,
   });
 });
 
 test('decodeEvent decodes a revoked event', () => {
   const pk = Keypair.random().publicKey();
-  assert.deepEqual(decodeEvent(topics('revoked', 'aquawolf'), walletVal(pk)), {
+  assert.deepEqual(decodeEvent(topics('revoked', 'alice'), walletVal(pk)), {
     kind: 'revoked',
-    handle: 'aquawolf',
+    handle: 'alice',
     wallet: pk,
   });
 });
@@ -52,9 +52,9 @@ test('decodeEvent decodes a transferred event', () => {
     new Address(newOwner).toScVal(),
   ]);
 
-  assert.deepEqual(decodeEvent(topics('transferred', 'aquawolf'), value), {
+  assert.deepEqual(decodeEvent(topics('transferred', 'alice'), value), {
     kind: 'transferred',
-    handle: 'aquawolf',
+    handle: 'alice',
     wallet: newOwner,
     from: oldOwner,
   });
@@ -95,11 +95,11 @@ function recordingStore(
 
 test('applyAttestation upserts profile then links wallet on claim', async () => {
   const { store, calls } = recordingStore();
-  await applyAttestation(store, { kind: 'claimed', handle: 'aquawolf', wallet: 'GWALLET' });
+  await applyAttestation(store, { kind: 'claimed', handle: 'alice', wallet: 'GWALLET' });
 
   assert.equal(calls.length, 2);
   assert.equal(calls[0][0], 'profile.upsert');
-  assert.equal(calls[0][1].where.handle, 'aquawolf');
+  assert.equal(calls[0][1].where.handle, 'alice');
   assert.equal(calls[1][0], 'wallet.upsert');
   assert.equal(calls[1][1].where.pubkey, 'GWALLET');
   assert.equal(calls[1][1].create.profileId, 'p1');
@@ -108,7 +108,7 @@ test('applyAttestation upserts profile then links wallet on claim', async () => 
 
 test('applyAttestation removes the binding on release', async () => {
   const { store, calls } = recordingStore();
-  await applyAttestation(store, { kind: 'released', handle: 'aquawolf', wallet: 'GWALLET' });
+  await applyAttestation(store, { kind: 'released', handle: 'alice', wallet: 'GWALLET' });
 
   assert.equal(calls.length, 1);
   assert.equal(calls[0][0], 'wallet.deleteMany');
@@ -119,7 +119,7 @@ test('applyAttestation moves the binding on transfer', async () => {
   const { store, calls } = recordingStore();
   await applyAttestation(store, {
     kind: 'transferred',
-    handle: 'aquawolf',
+    handle: 'alice',
     wallet: 'GNEW',
     from: 'GOLD',
   });
@@ -128,7 +128,7 @@ test('applyAttestation moves the binding on transfer', async () => {
   // indexer never saw the claim that created it.
   assert.equal(calls.length, 3);
   assert.equal(calls[0][0], 'profile.upsert');
-  assert.equal(calls[0][1].where.handle, 'aquawolf');
+  assert.equal(calls[0][1].where.handle, 'alice');
   assert.equal(calls[1][0], 'wallet.deleteMany');
   assert.equal(calls[1][1].where.pubkey, 'GOLD');
   assert.equal(calls[2][0], 'wallet.upsert');
@@ -139,10 +139,10 @@ test('applyAttestation moves the binding on transfer', async () => {
 test('claim then transfer sequence leaves the new wallet as the final owner', async () => {
   const { store, calls } = recordingStore();
 
-  await applyAttestation(store, { kind: 'claimed', handle: 'aquawolf', wallet: 'GOLD' });
+  await applyAttestation(store, { kind: 'claimed', handle: 'alice', wallet: 'GOLD' });
   await applyAttestation(store, {
     kind: 'transferred',
-    handle: 'aquawolf',
+    handle: 'alice',
     wallet: 'GNEW',
     from: 'GOLD',
   });
@@ -438,9 +438,9 @@ test('an unservable cursor window reconciles from contract state instead of read
   const cursor = recordingCursorStore({ lastLedger: 1000 });
   const { store, calls } = recordingStore([
     { handle: 'alice', wallets: [] }, // claimed during the lost window
-    { handle: 'aquawolf', wallets: [{ pubkey: 'GCURATED', source: 'curated' }] },
+    { handle: 'legacyseed', wallets: [{ pubkey: 'GCURATED', source: 'curated' }] },
   ]);
-  const { reader } = fakeReader({ alice: pk, aquawolf: null });
+  const { reader } = fakeReader({ alice: pk, legacyseed: null });
 
   const result = await runAttestationWorker(
     server,
@@ -458,7 +458,7 @@ test('an unservable cursor window reconciles from contract state instead of read
     calls.some((c: any[]) => c[0] === 'wallet.upsert' && c[1].where.pubkey === pk),
     'expected the lost claim to be applied from contract state',
   );
-  // …the curated demo wallet was left alone…
+  // …the legacy curated wallet was left alone…
   assert.ok(
     !calls.some((c: any[]) => c[0] === 'wallet.deleteMany' && c[1].where.pubkey === 'GCURATED'),
     'curated wallets must never be reconciled away',

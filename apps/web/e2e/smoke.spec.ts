@@ -26,12 +26,6 @@ test('health endpoint reports ok or degraded', async ({ request }) => {
   expect(['ok', 'degraded']).toContain(body.status);
 });
 
-test('demo profile renders with the testnet badge', async ({ page }) => {
-  await page.goto('/p/aquawolf');
-  await expect(page.getByText(/Synthetic data · Testnet demo/i)).toBeVisible();
-  await expect(page.getByText('@aquawolf')).toBeVisible();
-});
-
 test('unknown handle 404s', async ({ page }) => {
   const res = await page.goto('/p/this-handle-does-not-exist');
   expect(res?.status()).toBe(404);
@@ -42,16 +36,13 @@ test('dashboard shows the sign-in wall when unauthenticated', async ({ page }) =
   await expect(page.getByRole('button', { name: /sign in with wallet/i })).toBeVisible();
 });
 
-test('the handle directory never presents demo personas as on-chain bindings', async ({ page }) => {
-  // Regression guard: /handles used to render the curated demo manifest under
-  // the caption "N handles currently bound on the Identity Registry", so three
-  // unbound personas were asserted as registry state. Demo handles may only
-  // appear inside the explicitly-labelled preview section.
+test('the handle directory says so, and lists nothing, when no registry is configured', async ({ page }) => {
+  // The e2e server runs without a registry contract id. There is no fallback
+  // list of handles: the page must say why it is empty rather than invent any.
   await page.goto('/handles');
-
-  const previews = page.locator('section', { hasText: 'Demo profiles' });
-  await expect(previews.getByText(/Not bound on-chain/i)).toBeVisible();
-  await expect(previews.getByText('@aquawolf')).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Handles' })).toBeVisible();
+  await expect(page.getByText(/No Identity Registry is configured/i)).toBeVisible();
+  await expect(page.locator('a[href^="/p/"]')).toHaveCount(0);
 
   // The count in the caption comes from the contract, so with no registry
   // configured it must not claim any recorded binding at all (the caption
@@ -77,10 +68,8 @@ test('how-it-works page renders', async ({ page }) => {
   await expect(page.getByRole('heading', { level: 1, name: /How Signet works/i })).toBeVisible();
 });
 
-test('handles directory lists the curated handles and links to profiles', async ({ page }) => {
-  await page.goto('/handles');
-  await expect(page.getByRole('heading', { name: 'Handles' })).toBeVisible();
-  const link = page.getByRole('link', { name: '@aquawolf' });
-  await expect(link).toBeVisible();
-  await expect(link).toHaveAttribute('href', '/p/aquawolf');
+test('landing page links to the real directory, not a demo profile', async ({ page }) => {
+  await page.goto('/');
+  await expect(page.locator('a[href^="/p/"]')).toHaveCount(0);
+  await expect(page.locator('a[href="/handles"]').first()).toBeAttached();
 });

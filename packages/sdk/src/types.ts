@@ -2,8 +2,8 @@
 //
 // `@signet/types` is the shared, internal domain-type package consumed by
 // every workspace (web, indexer, sdk, contracts tooling) — most of what it
-// exports (handle-validation internals, `RESERVED_HANDLES`, the demo-data
-// fixture `DEMO_PROFILES`, the package's own `SIGNET_TYPES_VERSION` marker)
+// exports (handle-validation internals, `RESERVED_HANDLES`, the package's own
+// `SIGNET_TYPES_VERSION` marker)
 // exists for those internal consumers, not for SDK integrators. Blindly
 // re-exporting all of it (`export *`) would make every one of those internal
 // shapes part of this package's public npm contract, so a later internal
@@ -18,6 +18,7 @@ export type {
   StellarAddress,
   SignetProfile,
   ProfileStats,
+  ProfileStatsResult,
   ProfileResponse,
   RegistryEntry,
   RegistryCount,

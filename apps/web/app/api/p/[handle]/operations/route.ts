@@ -69,8 +69,8 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ han
 }
 
 /**
- * Horizon / static-demo fallback for handles with no database-backed
- * operations. Those sources return a bounded array that is already in memory,
+ * Horizon fallback for handles with no database-backed operations. That
+ * source returns a bounded array that is already in memory,
  * so the slice happens here — and the completeness `getOperationsResult`
  * reports travels with it, so a Horizon record cut off at its cap is still
  * declared partial rather than presented as a total.

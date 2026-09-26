@@ -52,26 +52,26 @@ function registryStub(bound: Record<string, string>, count: number): SimulatingS
 
 test('reduceBindings keeps only the currently-bound handles', () => {
   const events = [
-    { kind: 'claimed' as const, handle: 'aquawolf', wallet: 'GAAA' },
-    { kind: 'claimed' as const, handle: 'sorobuilder', wallet: 'GBBB' },
-    { kind: 'released' as const, handle: 'aquawolf', wallet: 'GAAA' },
+    { kind: 'claimed' as const, handle: 'alice', wallet: 'GAAA' },
+    { kind: 'claimed' as const, handle: 'bob', wallet: 'GBBB' },
+    { kind: 'released' as const, handle: 'alice', wallet: 'GAAA' },
   ];
   const bound = reduceBindings(events);
   assert.deepEqual(
     bound.map((e) => e.handle),
-    ['sorobuilder'],
+    ['bob'],
   );
 });
 
 test('decodeEvent accepts a revoked event (not just claimed/released)', () => {
   const topics = [
     nativeToScVal('revoked', { type: 'symbol' }),
-    nativeToScVal('aquawolf', { type: 'string' }),
+    nativeToScVal('alice', { type: 'string' }),
   ];
   const value = nativeToScVal(WALLET, { type: 'address' });
   assert.deepEqual(decodeEvent(topics, value), {
     kind: 'revoked',
-    handle: 'aquawolf',
+    handle: 'alice',
     wallet: WALLET,
   });
 });
@@ -82,7 +82,7 @@ test('decodeEvent ignores an unrelated topic', () => {
   // it would only pass because the payload shape happens not to match.
   const topics = [
     nativeToScVal('bumped', { type: 'symbol' }),
-    nativeToScVal('aquawolf', { type: 'string' }),
+    nativeToScVal('alice', { type: 'string' }),
   ];
   const value = nativeToScVal(WALLET, { type: 'address' });
   assert.equal(decodeEvent(topics, value), null);
@@ -90,23 +90,23 @@ test('decodeEvent ignores an unrelated topic', () => {
 
 test('reduceBindings drops a handle on revoke, exactly as on release', () => {
   const events = [
-    { kind: 'claimed' as const, handle: 'aquawolf', wallet: 'GAAA' },
-    { kind: 'claimed' as const, handle: 'sorobuilder', wallet: 'GBBB' },
+    { kind: 'claimed' as const, handle: 'alice', wallet: 'GAAA' },
+    { kind: 'claimed' as const, handle: 'bob', wallet: 'GBBB' },
     // admin_revoke emits `revoked`; the revoked handle must not linger.
-    { kind: 'revoked' as const, handle: 'aquawolf', wallet: 'GAAA' },
+    { kind: 'revoked' as const, handle: 'alice', wallet: 'GAAA' },
   ];
   const bound = reduceBindings(events);
   assert.deepEqual(
     bound.map((e) => e.handle),
-    ['sorobuilder'],
+    ['bob'],
   );
 });
 
 test('reduceBindings lets a handle be re-claimed after revoke', () => {
   const events = [
-    { kind: 'claimed' as const, handle: 'aquawolf', wallet: 'GAAA' },
-    { kind: 'revoked' as const, handle: 'aquawolf', wallet: 'GAAA' },
-    { kind: 'claimed' as const, handle: 'aquawolf', wallet: 'GBBB' },
+    { kind: 'claimed' as const, handle: 'alice', wallet: 'GAAA' },
+    { kind: 'revoked' as const, handle: 'alice', wallet: 'GAAA' },
+    { kind: 'claimed' as const, handle: 'alice', wallet: 'GBBB' },
   ];
   const bound = reduceBindings(events);
   assert.equal(bound.length, 1);
@@ -115,9 +115,9 @@ test('reduceBindings lets a handle be re-claimed after revoke', () => {
 
 test('reduceBindings lets a handle be re-claimed after release', () => {
   const events = [
-    { kind: 'claimed' as const, handle: 'aquawolf', wallet: 'GAAA' },
-    { kind: 'released' as const, handle: 'aquawolf', wallet: 'GAAA' },
-    { kind: 'claimed' as const, handle: 'aquawolf', wallet: 'GBBB' },
+    { kind: 'claimed' as const, handle: 'alice', wallet: 'GAAA' },
+    { kind: 'released' as const, handle: 'alice', wallet: 'GAAA' },
+    { kind: 'claimed' as const, handle: 'alice', wallet: 'GBBB' },
   ];
   const bound = reduceBindings(events);
   assert.equal(bound.length, 1);
@@ -126,11 +126,11 @@ test('reduceBindings lets a handle be re-claimed after release', () => {
 
 test('reduceBindings updates the handle owner on transfer', () => {
   const events = [
-    { kind: 'claimed' as const, handle: 'aquawolf', wallet: 'GOLD' },
-    { kind: 'transferred' as const, handle: 'aquawolf', wallet: 'GNEW', from: 'GOLD' },
+    { kind: 'claimed' as const, handle: 'alice', wallet: 'GOLD' },
+    { kind: 'transferred' as const, handle: 'alice', wallet: 'GNEW', from: 'GOLD' },
   ];
   const bound = reduceBindings(events);
-  assert.deepEqual(bound, [{ handle: 'aquawolf', wallet: 'GNEW' }]);
+  assert.deepEqual(bound, [{ handle: 'alice', wallet: 'GNEW' }]);
 });
 
 test('reduceBindings sorts alphabetically for stable pagination', () => {
@@ -154,40 +154,43 @@ test('isRegistryConfigured is false without a contract id set', () => {
   assert.equal(isRegistryConfigured(), false);
 });
 
-test('listDirectory never marks a curated handle as bound when the registry is unconfigured', async () => {
-  const { entries, boundTotal } = await listDirectory();
-  const handles = entries.map((e) => e.handle);
-  assert.ok(handles.includes('aquawolf'));
-  assert.ok(handles.length >= 3);
-
-  // The regression this guards: curated demo handles were previously returned
-  // indistinguishable from on-chain bindings, and the page counted them as
-  // "currently bound on the Identity Registry".
-  assert.ok(
-    entries.every((e) => e.bound === false),
-    'no handle may be marked bound without a resolve() that returned a wallet',
-  );
-  assert.equal(entries.find((e) => e.handle === 'aquawolf')?.wallet, '');
-  assert.equal(boundTotal, null, 'an unreadable registry reports null, not 0');
+test('listDirectory lists nothing when no registry is configured', async () => {
+  // No REGISTRY_CONTRACT_ID in this test env. Without a registry nothing can
+  // be confirmed, so the directory is empty and says why — there is no
+  // fallback list of handles to show instead.
+  const { registryConfigured, entries, boundTotal, source } = await listDirectory({
+    store: storeStub([{ pubkey: WALLET, profile: { handle: 'alice' } }]),
+  });
+  assert.equal(registryConfigured, false);
+  assert.deepEqual(entries, []);
+  assert.equal(boundTotal, null, 'an unconfigured registry reports null, not 0');
+  assert.equal(source, 'none');
 });
 
 test('listDirectory marks only handles the contract resolves as bound', async () => {
   process.env.REGISTRY_CONTRACT_ID = CONTRACT_ID;
   try {
-    const server = registryStub({ aquawolf: WALLET }, 1);
-    const { entries, boundTotal } = await listDirectory({ server });
+    const server = registryStub({ alice: WALLET }, 1);
+    const { registryConfigured, entries, boundTotal } = await listDirectory({
+      server,
+      store: storeStub([
+        { pubkey: WALLET, profile: { handle: 'alice' } },
+        // Indexed, but no longer resolves: a stale row, never a binding.
+        { pubkey: 'GBBB', profile: { handle: 'bob' } },
+      ]),
+    });
+    assert.equal(registryConfigured, true);
 
-    const aquawolf = entries.find((e) => e.handle === 'aquawolf');
-    assert.equal(aquawolf?.bound, true);
-    assert.equal(aquawolf?.wallet, WALLET);
+    const alice = entries.find((e) => e.handle === 'alice');
+    assert.equal(alice?.bound, true);
+    assert.equal(alice?.wallet, WALLET);
 
-    for (const entry of entries.filter((e) => e.handle !== 'aquawolf')) {
-      assert.equal(entry.bound, false, `${entry.handle} must not be marked bound`);
-      assert.equal(entry.wallet, '');
-    }
+    const bob = entries.find((e) => e.handle === 'bob');
+    assert.equal(bob?.bound, false, 'bob must not be marked bound');
+    assert.equal(bob?.wallet, '');
 
-    // Bound entries lead, so the real binding is never buried under previews.
-    assert.equal(entries[0]!.handle, 'aquawolf');
+    // Bound entries lead, so the real binding is never buried.
+    assert.equal(entries[0]!.handle, 'alice');
     assert.equal(boundTotal, 1);
   } finally {
     delete process.env.REGISTRY_CONTRACT_ID;
@@ -227,8 +230,8 @@ test('fetchIndexedDirectory reads on-chain bindings from the durable store', asy
     ),
   );
 
-  // Curated seed rows are the demo manifest wearing a database; discovering
-  // them here would present them as registry bindings all over again.
+  // Rows from any other source (a CLI link, a legacy seed row) are not
+  // registry bindings; discovering them here would present them as such.
   assert.deepEqual(where, { source: 'onchain', isPrimary: true });
   assert.deepEqual(entries, [
     { handle: 'alpha', wallet: WALLET },
@@ -296,19 +299,23 @@ test('listDirectory reports the database as its source even when it holds nothin
       store: storeStub([]),
     });
     assert.equal(source, 'database');
-    assert.ok(
-      entries.every((e) => e.bound === false),
-      'curated previews only',
-    );
+    assert.deepEqual(entries, []);
   } finally {
     delete process.env.REGISTRY_CONTRACT_ID;
   }
 });
 
 test('listDirectory falls back to the event stream when there is no durable source', async () => {
-  // No DATABASE_URL and no store injected: the page still works, on the event
-  // stream, exactly as it did before. The registry is unconfigured here, so
-  // the stream cannot be read either and the source degrades to "none".
-  const { source } = await listDirectory();
-  assert.equal(source, 'none');
+  // No DATABASE_URL and no store injected: discovery falls back to the event
+  // stream. The stream reads the build-time registry config, which is unset in
+  // this test env, so it cannot be read either and the source degrades to
+  // "none" with nothing listed.
+  process.env.REGISTRY_CONTRACT_ID = CONTRACT_ID;
+  try {
+    const { source, entries } = await listDirectory({ server: registryStub({}, 0) });
+    assert.equal(source, 'none');
+    assert.deepEqual(entries, []);
+  } finally {
+    delete process.env.REGISTRY_CONTRACT_ID;
+  }
 });

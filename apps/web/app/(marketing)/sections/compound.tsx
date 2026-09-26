@@ -124,7 +124,7 @@ export function Compound() {
             Deployments accumulate over time.
           </h2>
           <p className="mt-5 max-w-[480px] text-[15px] leading-[1.65] tracking-[-0.005em] text-[#8a8779]" style={{ fontFamily: "var(--font-body)" }}>
-            Every contract a developer deploys, automatically added to their profile. Years of work, visible at a glance.
+            Every contract a developer deploys, automatically added to their profile. Years of work, visible at a glance. (Illustrative timeline, not a real account.)
           </p>
         </div>
         <div className="flex flex-col gap-4">
@@ -171,7 +171,7 @@ export function Compound() {
             over time.
           </h2>
           <p className="mt-4 max-w-[420px] text-[15px] leading-[1.65] tracking-[-0.005em] text-[#8a8779]" style={{ fontFamily: "var(--font-body)" }}>
-            Every contract a developer deploys, automatically added to their profile. Years of work, visible at a glance.
+            Every contract a developer deploys, automatically added to their profile. Years of work, visible at a glance. (Illustrative timeline, not a real account.)
           </p>
         </div>
         <div

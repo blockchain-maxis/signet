@@ -3,33 +3,22 @@ import { SignetMonogram } from '../../(marketing)/components/signet-monogram';
 import {
   getProfile,
   getOperationsResult,
-  listAllHandles,
   getProfileStats,
   formatCount,
+  formatStatsWindow,
 } from '@/lib/profiles';
 import { STELLAR_EXPLORER, STELLAR_NETWORK_NAME } from '@/lib/network';
 import { formatDate } from '@/lib/format-date';
 import OperationsList from './operations-list';
 import { CopyAddress } from './copy-address';
 
-// Pre-render curated + on-chain-bound profiles at build time so they're served
-// straight from the edge cache.
-export async function generateStaticParams() {
-  return (await listAllHandles()).map((handle) => ({ handle }));
-}
-
-// Handles are claimed on-chain continuously, so the set known at build time is
-// always stale. Anything outside `generateStaticParams` is rendered on demand
-// and then cached — a handle claimed after the last build resolves without a
-// redeploy, and `getProfile` still returns null (→ 404) for one that was never
-// claimed. Without this, a miss would be a hard 404 until the next deploy.
-export const dynamicParams = true;
-
-// Re-render a cached profile at most once a minute, so newly indexed on-chain
-// activity shows up shortly after it lands instead of being frozen at the
-// value captured on first render. Short enough to feel live, long enough that
-// a shared profile link doesn't re-query Postgres on every view.
-export const revalidate = 60;
+// Rendered per request. The root layout reads request headers for the CSP
+// nonce, so no route can be statically pre-rendered anyway, and handles are
+// claimed on-chain continuously. Declaring it explicitly matters: a dynamic
+// segment with no build-time params would otherwise be treated as ISR, where
+// the layout's `headers()` call turns every profile render into a 500 instead
+// of a page (or a clean 404 for an unknown handle).
+export const dynamic = 'force-dynamic';
 
 function truncate(str: string, head: number, tail: number): string {
   if (str.length <= head + tail + 3) return str;
@@ -56,17 +45,14 @@ export default async function ProfilePage({ params }: { params: Promise<{ handle
   // career record must never do.
   const { operations, truncated, cap, source } = await getOperationsResult(handle);
   const stats = await getProfileStats(handle, operations);
-  // The stats can outrun the window the list came from: when the database
-  // answered with aggregates over the whole history they are exact totals even
-  // though the operations below stop at a cap. Only qualify them when they were
-  // actually derived from that capped window.
+  // The stats can outrun the capped operation list: database aggregates are
+  // exact for their represented scope even when the list below stops at a cap.
+  // When that scope is retention-bounded, the UI labels the window explicitly.
   const statsTruncated = truncated && !stats.exact;
+  const statsWindow = formatStatsWindow(stats.retentionWindowDays);
+  const historyWindowed = statsWindow !== null;
   const oldest = operations[operations.length - 1];
   const newest = operations[0];
-  // A curated demo profile and a handle actually bound on-chain render through
-  // the same route, so provenance drives every claim the page makes about the
-  // data — neither may borrow the other's framing.
-  const isDemo = profile.source === 'demo';
 
   return (
     <div
@@ -111,7 +97,7 @@ export default async function ProfilePage({ params }: { params: Promise<{ handle
             className="text-[11px] uppercase tracking-[0.26em] text-[#5e5b51]"
             style={{ fontFamily: 'var(--font-mono)' }}
           >
-            {isDemo ? 'Profile · Stellar Testnet · Demo' : `Profile · Stellar ${STELLAR_NETWORK_NAME}`}
+            {`Profile · Stellar ${STELLAR_NETWORK_NAME}`}
           </div>
 
           <h1
@@ -135,27 +121,15 @@ export default async function ProfilePage({ params }: { params: Promise<{ handle
           )}
 
           <div className="mt-7 flex items-center gap-3">
-            {isDemo ? (
-              <span className="inline-flex items-center gap-2 border border-amber-800 bg-amber-950/30 px-3 py-1.5">
-                <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
-                <span
-                  className="text-[10px] uppercase tracking-[0.22em] text-amber-400"
-                  style={{ fontFamily: 'var(--font-mono)' }}
-                >
-                  Synthetic data · Testnet demo
-                </span>
+            <span className="inline-flex items-center gap-2 border border-emerald-800 bg-emerald-950/30 px-3 py-1.5">
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+              <span
+                className="text-[10px] uppercase tracking-[0.22em] text-emerald-400"
+                style={{ fontFamily: 'var(--font-mono)' }}
+              >
+                Bound on-chain · Identity Registry
               </span>
-            ) : (
-              <span className="inline-flex items-center gap-2 border border-emerald-800 bg-emerald-950/30 px-3 py-1.5">
-                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-                <span
-                  className="text-[10px] uppercase tracking-[0.22em] text-emerald-400"
-                  style={{ fontFamily: 'var(--font-mono)' }}
-                >
-                  Bound on-chain · Identity Registry
-                </span>
-              </span>
-            )}
+            </span>
           </div>
         </div>
       </header>
@@ -171,9 +145,7 @@ export default async function ProfilePage({ params }: { params: Promise<{ handle
                 address={profile.wallet}
                 display={truncate(profile.wallet, 8, 6)}
               />
-              {/* Demo wallets are synthetic and don't exist on-chain, so an
-                  explorer link would land on an empty account page. */}
-              {isDemo ? null : (
+              {profile.wallet && (
                 <a
                   href={`https://stellar.expert/explorer/${STELLAR_EXPLORER}/account/${profile.wallet}`}
                   target="_blank"
@@ -190,7 +162,10 @@ export default async function ProfilePage({ params }: { params: Promise<{ handle
 
         {/* Stats */}
         <section className="mb-16">
-          <SectionLabel>On-chain activity</SectionLabel>
+          <SectionLabel>
+            On-chain activity
+            {statsWindow ? <span className="text-[#5e5b51]">· {statsWindow}</span> : null}
+          </SectionLabel>
           <div className="mt-6 grid grid-cols-2 gap-px border border-[#1f1d19] bg-[#1f1d19] md:grid-cols-5">
             {[
               {
@@ -208,7 +183,7 @@ export default async function ProfilePage({ params }: { params: Promise<{ handle
               {
                 // Without the full history the earliest record we hold is not
                 // the developer's first activity, so the label stops claiming it.
-                label: truncated ? 'Earliest shown' : 'First activity',
+                label: truncated || historyWindowed ? 'Earliest shown' : 'First activity',
                 value: oldest ? formatDate(oldest.created_at, { day: undefined }) : '—',
               },
               { label: 'Latest activity', value: newest ? formatDate(newest.created_at) : '—' },
@@ -229,6 +204,15 @@ export default async function ProfilePage({ params }: { params: Promise<{ handle
               </div>
             ))}
           </div>
+          {statsWindow && (
+            <p
+              className="mt-3 text-[11px] leading-[1.7] text-[#5e5b51]"
+              style={{ fontFamily: 'var(--font-mono)' }}
+            >
+              Statistics above cover the {statsWindow} retained by the indexer. Older operations
+              age out of these totals as they are pruned.
+            </p>
+          )}
         </section>
 
         {/* Operations — paginated: first 25 rendered server-side */}
@@ -254,7 +238,9 @@ export default async function ProfilePage({ params }: { params: Promise<{ handle
                   : `The indexer read only the ${cap} most recent operations for this wallet.`}{' '}
                 {statsTruncated
                   ? 'Counts above are lower bounds, and older invocations are not listed.'
-                  : 'The counts above are still exact — aggregated over the full indexed history — but older invocations are not listed.'}
+                  : statsWindow
+                    ? `The counts above are exact for the ${statsWindow} retention window, but older invocations are not listed.`
+                    : 'The counts above are still exact — aggregated over the full indexed history — but older invocations are not listed.'}
               </p>
               <a
                 href={`https://stellar.expert/explorer/${STELLAR_EXPLORER}/account/${profile.wallet}`}
@@ -272,7 +258,6 @@ export default async function ProfilePage({ params }: { params: Promise<{ handle
             handle={handle}
             initialOperations={operations.slice(0, 25)}
             total={operations.length}
-            isDemo={isDemo}
             truncated={truncated}
             cap={cap}
           />
@@ -286,34 +271,24 @@ export default async function ProfilePage({ params }: { params: Promise<{ handle
               className="max-w-[680px] text-[13px] leading-[1.7] text-[#5e5b51]"
               style={{ fontFamily: 'var(--font-mono)' }}
             >
-              {isDemo ? (
+              This handle is{' '}
+              <strong className="text-[#8a8779]">bound on-chain</strong> — the handle→wallet
+              binding above was read live from the Identity Registry contract on Stellar{' '}
+              {STELLAR_NETWORK_NAME}, not curated. Any Soroban invocations listed come from the
+              indexed ledger and are independently verifiable on Stellar Expert.
+              {truncated ? (
                 <>
-                  This is a <strong className="text-[#8a8779]">demo profile</strong> populated with
-                  synthetic data on Stellar testnet — no real account&apos;s activity is shown. In
-                  production, profiles render real mainnet Soroban invocations from the Horizon
-                  API, each independently verifiable on Stellar Expert, with the handle→wallet
-                  binding proved on-chain via the Identity Registry rather than curated.
+                  {' '}
+                  This particular record is{' '}
+                  <strong className="text-[#8a8779]">partial</strong>: it stops at the{' '}
+                  {cap} most recent operations
+                  {statsTruncated
+                    ? ', so the counts above are lower bounds rather than totals.'
+                    : statsWindow
+                      ? `. The counts above are exact for the ${statsWindow} retention window.`
+                      : '. The counts above are aggregated over the whole indexed history, so they stay exact totals.'}
                 </>
-              ) : (
-                <>
-                  This handle is{' '}
-                  <strong className="text-[#8a8779]">bound on-chain</strong> — the handle→wallet
-                  binding above was read live from the Identity Registry contract on Stellar{' '}
-                  {STELLAR_NETWORK_NAME}, not curated. Any Soroban invocations listed come from the
-                  indexed ledger and are independently verifiable on Stellar Expert.
-                  {truncated ? (
-                    <>
-                      {' '}
-                      This particular record is{' '}
-                      <strong className="text-[#8a8779]">partial</strong>: it stops at the{' '}
-                      {cap} most recent operations
-                      {statsTruncated
-                        ? ', so the counts above are lower bounds rather than totals.'
-                        : '. The counts above are aggregated over the whole indexed history, so they stay exact totals.'}
-                    </>
-                  ) : null}
-                </>
-              )}
+              ) : null}
             </p>
             <a
               href="/how-it-works"
@@ -337,7 +312,7 @@ export default async function ProfilePage({ params }: { params: Promise<{ handle
               <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-[#8b1a1a] opacity-60" />
               <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-[#8b1a1a]" />
             </span>
-            {isDemo ? 'Stellar testnet · demo' : `Stellar ${STELLAR_NETWORK_NAME.toLowerCase()}`}
+            {`Stellar ${STELLAR_NETWORK_NAME.toLowerCase()}`}
           </span>
         </div>
         <div

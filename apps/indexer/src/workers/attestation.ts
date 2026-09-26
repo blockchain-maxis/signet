@@ -10,9 +10,7 @@ import type { IndexerConfig } from '../config.js';
  *
  * Reads the Identity Registry's `claimed` / `released` event stream from
  * Soroban RPC and syncs the resulting wallet↔handle bindings into the database.
- * This is what makes a self-sovereign on-chain claim show up on the website:
- * the curated `seed-data.ts` mapping becomes a fallback, and on-chain truth
- * takes over.
+ * This is what makes a self-sovereign on-chain claim show up on the website.
  *
  * A dedicated cursor (`IndexerCursor` id = `attestation`) tracks the last
  * processed ledger so each tick only reads new events.
@@ -209,8 +207,9 @@ export async function reconcileAgainstChain(
   for (let i = 0; i < profiles.length; i++) {
     const profile = profiles[i]!;
     const wallet = resolved[i] ?? null;
-    // Curated demo wallets are not on-chain claims; only rows the indexer
-    // itself attested may be reconciled away.
+    // Wallets from any other source (a CLI link, a legacy `curated` seed row)
+    // are not on-chain claims; only rows the indexer itself attested may be
+    // reconciled away.
     const onchain = profile.wallets.filter((w) => w.source === 'onchain');
     if (wallet) {
       bound++;

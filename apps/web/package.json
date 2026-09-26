@@ -18,6 +18,7 @@
     "@creit.tech/stellar-wallets-kit": "^2.6.0",
     "@signet/db": "workspace:*",
     "@signet/sdk": "workspace:*",
+    "@signet/spec": "workspace:*",
     "@signet/types": "workspace:*",
     "@stellar/stellar-sdk": "^16.1.0",
     "@tanstack/react-query": "^5.102.8",
@@ -28,7 +29,7 @@
     "framer-motion": "^13.1.1",
     "gsap": "^3.15.0",
     "lenis": "^1.3.26",
-    "lucide-react": "^1.39.0",
+    "lucide-react": "^1.41.0",
     "next": "^15.5.19",
     "react": "^18.3.1",
     "react-dom": "^18.3.1"

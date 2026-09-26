@@ -10,9 +10,8 @@ import * as sdk from './index.ts';
  * test instead of silently becoming part of the next npm publish.
  */
 
-test('does not leak @signet/types internals (validation helpers, demo fixtures, its own version marker)', () => {
+test('does not leak @signet/types internals (validation helpers, its own version marker)', () => {
   const leaked = [
-    'DEMO_PROFILES',
     'SIGNET_TYPES_VERSION',
     'HANDLE_MAX_LEN',
     'HANDLE_PATTERN',

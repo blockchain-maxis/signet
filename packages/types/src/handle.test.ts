@@ -82,7 +82,7 @@ test('the contract enforces the same charset this module encodes', () => {
 });
 
 test('isValidHandle accepts the contract charset and rejects everything else', () => {
-  assert.ok(isValidHandle('aquawolf'));
+  assert.ok(isValidHandle('alice'));
   assert.ok(isValidHandle('dev_1-two'));
   assert.ok(isValidHandle('a'));
   assert.ok(isValidHandle('a'.repeat(HANDLE_MAX_LEN)));
@@ -106,7 +106,7 @@ test('isReservedHandle is an exact match, not a prefix match', () => {
 });
 
 test('isClaimableHandle rejects reserved names and invalid charsets alike', () => {
-  assert.ok(isClaimableHandle('aquawolf'));
+  assert.ok(isClaimableHandle('alice'));
   assert.ok(isClaimableHandle('apps'));
 
   assert.ok(!isClaimableHandle('api'));

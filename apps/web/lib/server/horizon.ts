@@ -3,9 +3,9 @@
  *
  * Provides a best-effort fetch of `invoke_host_function` operations for a
  * bound wallet address directly from Horizon, with no database dependency.
- * Used as the middle tier in the operation resolution chain:
+ * Used as the fallback tier in the operation resolution chain:
  *
- *   DB (indexer) → Horizon (this module) → static demo JSON → []
+ *   DB (indexer) → Horizon (this module) → []
  *
  * All failures are caught and return null so callers degrade gracefully.
  * Responses are cached by Next.js fetch for 5 minutes (revalidate: 300).
