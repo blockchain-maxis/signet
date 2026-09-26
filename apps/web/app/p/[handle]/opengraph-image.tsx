@@ -20,8 +20,9 @@ export default async function OgImage({ params }: { params: Promise<{ handle: st
   const stats = result ? await getProfileStats(handle, result.operations) : null;
   // A capped record renders as "412+" rather than "412": the card is the most
   // widely reshared surface, so it must not state a lower bound as a total.
-  // Aggregated stats are exact even when the operations window was capped, so
-  // the "+" is dropped in that case rather than understating a real total.
+  // Aggregated stats are exact for their represented scope even when the
+  // operation list was capped. A non-null retention window is printed on the
+  // card so those values are never mistaken for lifetime totals.
   const truncated = (result?.truncated ?? false) && !(stats?.exact ?? false);
   const statsWindow = formatStatsWindow(stats?.retentionWindowDays ?? null);
   const name = profile?.name ?? handle;
