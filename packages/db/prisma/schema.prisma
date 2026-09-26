@@ -97,26 +97,46 @@ model Operation {
 }
 
 model Contract {
-  id              String   @id @default(cuid())
-  address         String   @unique
-  walletId        String
-  deployerPubkey  String
-  deployedAt      DateTime
-  deployTxHash    String
+  id                 String   @id @default(cuid())
+  address            String   @unique
+  walletId           String
+  deployerPubkey     String
+  deployedAt         DateTime
+  deployTxHash       String
   // No default on purpose: an implicit "mainnet" here is exactly how a
   // testnet deployment (the only kind that exists today) could get silently
   // mislabeled. Every writer (today,
   // only apps/indexer/src/workers/deployment.ts) must pass the indexer's
   // configured network explicitly.
-  network         String
-  contractType    String?
-  firstIndexedAt  DateTime @default(now())
+  network            String
+  contractType       String?
+  wasmHash           String?
+  executableType     String?
+  wasmHashCheckedAt  DateTime?
+  firstIndexedAt     DateTime @default(now())
 
   wallet          Wallet   @relation(fields: [walletId], references: [id], onDelete: Cascade)
   snapshots       ContractSnapshot[]
+  wasmVersions    ContractWasmVersion[]
 
   @@index([deployerPubkey])
   @@index([deployedAt])
+  @@index([wasmHash])
+}
+
+model ContractWasmVersion {
+  id             String   @id @default(cuid())
+  contractId     String
+  wasmHash       String
+  observedAt     DateTime @default(now())
+  /// The RPC's latest ledger when the indexer noticed the hash.
+  /// It is not the ledger of the upgrade transaction.
+  observedLedger Int
+
+  contract       Contract @relation(fields: [contractId], references: [id], onDelete: Cascade)
+
+  @@unique([contractId, wasmHash])
+  @@index([contractId, observedAt])
 }
 
 model ContractSnapshot {

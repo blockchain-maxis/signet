@@ -9,6 +9,10 @@ import { runActivityWorker, type ActivityStore } from './workers/activity.js';
 import { runAttestationWorker } from './workers/attestation.js';
 import { runOperationsWorker, type OperationsStore } from './workers/operations.js';
 import { runPruningWorker, type PruningStore } from './workers/prune.js';
+import {
+  runExecutableRefreshWorker,
+  type ExecutableRefreshStore,
+} from './workers/executable-refresh.js';
 
 let shuttingDown = false;
 let shuttingDownPrisma = false;
@@ -80,6 +84,13 @@ async function tick(
   // Operations: pull recent Soroban invocations for tracked wallets
   const { opsUpserted } = await runOperationsWorker(horizon, prisma as unknown as OperationsStore);
 
+  // Executable refresh: backfill missing WASM hashes and detect on-chain contract upgrades
+  const { wasmChanged } = await runExecutableRefreshWorker(
+    soroban,
+    config,
+    prisma as unknown as ExecutableRefreshStore,
+  );
+
   // Pruning: periodically prune historical operations and snapshots beyond retention windows
   let opsPruned = 0;
   let snapshotsPruned = 0;
@@ -93,7 +104,7 @@ async function tick(
   // Persist cursor
   if (highestLedger > 0) {
     await prisma.indexerCursor.upsert({
-      where:  { id: 'main' },
+      where: { id: 'main' },
       update: { lastLedger: highestLedger },
       create: { id: 'main', lastLedger: highestLedger },
     });
@@ -108,6 +119,7 @@ async function tick(
       contractsFound,
       opsUpserted,
       snapshotsWritten,
+      wasmChanged,
       opsPruned,
       snapshotsPruned,
       durationMs: Date.now() - start,
@@ -122,9 +134,9 @@ async function main(): Promise<void> {
 
   logger.info(
     {
-      network:  config.network,
-      horizon:  config.horizonUrl,
-      rpc:      config.rpcUrl,
+      network: config.network,
+      horizon: config.horizonUrl,
+      rpc: config.rpcUrl,
       registry: config.registryContractId || '(unset)',
       interval: config.tickIntervalMs,
     },
@@ -147,7 +159,7 @@ async function main(): Promise<void> {
     shuttingDown = true;
   }
   process.on('SIGTERM', () => onSignal('SIGTERM'));
-  process.on('SIGINT',  () => onSignal('SIGINT'));
+  process.on('SIGINT', () => onSignal('SIGINT'));
 
   try {
     // Main loop
