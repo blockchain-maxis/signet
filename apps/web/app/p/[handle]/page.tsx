@@ -50,7 +50,7 @@ export default async function ProfilePage({ params }: { params: Promise<{ handle
   // When that scope is retention-bounded, the UI labels the window explicitly.
   const statsTruncated = truncated && !stats.exact;
   const statsWindow = formatStatsWindow(stats.retentionWindowDays);
-  const historyWindowed = source === 'database' && statsWindow !== null;
+  const historyWindowed = statsWindow !== null;
   const oldest = operations[operations.length - 1];
   const newest = operations[0];
 
