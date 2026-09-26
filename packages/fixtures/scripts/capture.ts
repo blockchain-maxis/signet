@@ -21,8 +21,10 @@ const SAC_CONTRACT_ID = 'CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYS
 // Known real claim transaction on testnet
 const CLAIM_TX_HASH = 'ce05dc2ae700d2ea1d535d9efda77a212978d456c1a3e3da6e5f066a7008cd3d';
 
-// Known real contract deploy / invocation transaction on testnet
-const DEPLOY_TX_HASH = 'fcf75de84304280fde268129ed1d89fa9639855e29eb6c6d41c39ba453329cdb';
+// Real create-contract (HostFunctionTypeCreateContract) transaction on testnet.
+// Soroban RPC only serves getTransaction for a retention window (about 7 days),
+// so when this hash ages out, pick a newer create-contract tx and update it.
+const DEPLOY_TX_HASH = 'dd8155932d72fe2f8edc2405fc28c022212d79485bb56515fc3175259cf3c9b2';
 
 async function rpcCall(method: string, params: unknown): Promise<any> {
   for (let attempt = 0; attempt < 10; attempt++) {
@@ -177,37 +179,11 @@ async function main() {
     payload: deployTx,
   });
 
-  // 6. Horizon transaction recording for contract deployment (with result_meta_xdr)
-  let horizonTx: any = null;
-  try {
-    const res = await horizonGet(`/transactions?limit=10&order=desc`);
-    if (res && res._embedded && res._embedded.records && res._embedded.records.length > 0) {
-      horizonTx = res._embedded.records[0];
-    }
-  } catch {}
-
-  const horizonPayload = {
-    ...(horizonTx || {
-      id: DEPLOY_TX_HASH,
-      paging_token: '1000000',
-      successful: true,
-      hash: DEPLOY_TX_HASH,
-      ledger: latestLedger,
-      created_at: capturedAt,
-      source_account: 'GBQHHOH72M522QBF7SMY57JH6FIN7YKTZUWSO4S5IFBXV3B7FI2UQLIQ',
-      source_account_sequence: '1',
-      fee_account: 'GBQHHOH72M522QBF7SMY57JH6FIN7YKTZUWSO4S5IFBXV3B7FI2UQLIQ',
-      fee_charged: '100',
-      max_fee: '1000',
-      operation_count: 1,
-      envelope_xdr: 'AAAAAg==',
-      result_xdr: 'AAAAAA==',
-      memo_type: 'none',
-      signatures: [],
-    }),
-    result_meta_xdr: deployTx.resultMetaXdr,
-  };
-
+  // 6. Horizon transaction record for the same deployment, verbatim. Current
+  // Horizon does not return `result_meta_xdr`; the meta lives in the
+  // `deploy-get-transaction` (RPC) fixture. Nothing is merged or invented here:
+  // if Horizon is unreachable the capture fails.
+  const horizonTx = await horizonGet(`/transactions/${DEPLOY_TX_HASH}`);
   await writeFixture('horizon-contract-deploy-tx', {
     network: NETWORK,
     rpcUrl: HORIZON_URL,
@@ -215,9 +191,9 @@ async function main() {
     latestLedger,
     request: {
       endpoint: 'horizon',
-      methodOrPath: `/transactions/${horizonPayload.hash}`,
+      methodOrPath: `/transactions/${DEPLOY_TX_HASH}`,
     },
-    payload: horizonPayload,
+    payload: horizonTx,
   });
 
   console.log('Capture completed successfully.');

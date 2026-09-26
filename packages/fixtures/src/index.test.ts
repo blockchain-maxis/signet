@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { xdr } from '@stellar/stellar-sdk';
+import { xdr, StrKey } from '@stellar/stellar-sdk';
 import { loadFixture, loadFixtureEnvelope, type FixtureName } from './index.js';
 
 const FIXTURES: FixtureName[] = [
@@ -73,32 +73,39 @@ test('claim-get-transaction parses envelope and result XDR', () => {
   }
 });
 
-test('deploy-get-transaction parses envelope, result, and meta XDR', () => {
+test('deploy-get-transaction is a create-contract transaction whose meta returns the new contract address', () => {
   const fixture = loadFixture('deploy-get-transaction');
   assert.equal(fixture.status, 'SUCCESS');
-  assert.ok(fixture.txHash);
-  if (fixture.envelopeXdr) {
-    const env = xdr.TransactionEnvelope.fromXDR(fixture.envelopeXdr, 'base64');
-    assert.ok(env);
-  }
-  if (fixture.resultMetaXdr) {
-    const meta = xdr.TransactionMeta.fromXDR(fixture.resultMetaXdr, 'base64');
-    assert.ok(meta);
-  }
+  assert.ok(fixture.envelopeXdr && fixture.resultMetaXdr);
+
+  const env = xdr.TransactionEnvelope.fromXDR(fixture.envelopeXdr, 'base64');
+  const op = env.v1().tx().operations()[0]!.body();
+  assert.equal(op.switch().name, 'invokeHostFunction');
+  assert.equal(
+    op.invokeHostFunctionOp().hostFunction().switch().name,
+    'hostFunctionTypeCreateContract',
+  );
+
+  const meta = xdr.TransactionMeta.fromXDR(fixture.resultMetaXdr, 'base64');
+  assert.equal(meta.switch(), 4, 'current testnet returns TransactionMeta v4');
+  const returnValue = meta.v4().sorobanMeta()?.returnValue();
+  assert.ok(returnValue, 'v4 soroban meta carries a return value');
+  assert.equal(returnValue.switch().name, 'scvAddress');
+  const address = returnValue.address();
+  assert.equal(address.switch().name, 'scAddressTypeContract');
+  assert.ok(StrKey.isValidContract(StrKey.encodeContract(Buffer.from(address.contractId()))));
 });
 
-test('horizon-contract-deploy-tx parses envelope_xdr, result_xdr, and result_meta_xdr', () => {
-  const fixture = loadFixture('horizon-contract-deploy-tx');
-  assert.ok(fixture.hash);
-  assert.ok(fixture.envelope_xdr);
-  const env = xdr.TransactionEnvelope.fromXDR(fixture.envelope_xdr, 'base64');
-  assert.ok(env);
-  if (fixture.result_xdr) {
-    const res = xdr.TransactionResult.fromXDR(fixture.result_xdr, 'base64');
-    assert.ok(res);
-  }
-  if (fixture.result_meta_xdr) {
-    const meta = xdr.TransactionMeta.fromXDR(fixture.result_meta_xdr, 'base64');
-    assert.ok(meta);
-  }
+test('horizon-contract-deploy-tx is the Horizon record of the same deployment, unmodified', () => {
+  const horizon = loadFixture('horizon-contract-deploy-tx');
+  const rpc = loadFixture('deploy-get-transaction');
+  assert.equal(horizon.hash, rpc.txHash);
+  assert.equal(
+    loadFixtureEnvelope('horizon-contract-deploy-tx').request.methodOrPath,
+    `/transactions/${horizon.hash}`,
+  );
+  assert.equal(horizon.envelope_xdr, rpc.envelopeXdr);
+  xdr.TransactionResult.fromXDR(horizon.result_xdr, 'base64');
+  // Current Horizon does not return result_meta_xdr; the meta is in the RPC fixture.
+  assert.equal(horizon.result_meta_xdr, undefined);
 });

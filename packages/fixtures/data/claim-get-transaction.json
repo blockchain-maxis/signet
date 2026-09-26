@@ -1,8 +1,8 @@
 {
   "network": "testnet",
   "rpcUrl": "https://soroban-testnet.stellar.org",
-  "capturedAt": "2026-09-26T14:16:28.891Z",
-  "latestLedger": 4881720,
+  "capturedAt": "2026-09-26T21:36:47.692Z",
+  "latestLedger": 4887004,
   "request": {
     "endpoint": "rpc",
     "methodOrPath": "getTransaction",
@@ -11,10 +11,10 @@
     }
   },
   "payload": {
-    "latestLedger": 4881720,
-    "latestLedgerCloseTime": "1790432187",
-    "oldestLedger": 4760761,
-    "oldestLedgerCloseTime": "1789827392",
+    "latestLedger": 4887004,
+    "latestLedgerCloseTime": "1790458607",
+    "oldestLedger": 4766045,
+    "oldestLedgerCloseTime": "1789853812",
     "status": "SUCCESS",
     "txHash": "ce05dc2ae700d2ea1d535d9efda77a212978d456c1a3e3da6e5f066a7008cd3d",
     "applicationOrder": 12,

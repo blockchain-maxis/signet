@@ -31,6 +31,11 @@ jobs:
       - name: Check docs drift
         run: node scripts/check-docs.mjs
 
+      # Fails when production code imports the recorded testnet fixtures
+      # (packages/fixtures is test-only). Pure Node stdlib.
+      - name: Check fixtures are not imported by production code
+        run: node scripts/check-fixtures-import.mjs
+
       # Fails when the contract's Error enum (packages/contracts/identity-registry/src/lib.rs)
       # and its hand-mirrored TypeScript messages (apps/web/lib/contract-errors.ts)
       # drift apart. Pure regex parsing — no Rust toolchain needed.

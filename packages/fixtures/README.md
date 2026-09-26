@@ -27,6 +27,14 @@ pnpm --filter @signet/fixtures capture
 - `registry-instance-entry`: Soroban `getLedgerEntries` response for the Identity Registry's instance key (`LedgerEntryData` / `ContractDataEntry`).
 - `sac-instance-entry`: Soroban `getLedgerEntries` response for the native XLM SAC contract instance entry.
 - `contract-wasm-entry`: Soroban `getLedgerEntries` response for the Identity Registry's WASM code entry (`ContractCodeEntry`).
-- `horizon-contract-deploy-tx`: Horizon transaction payload containing `result_meta_xdr` for contract deployment (`TransactionMetaV3`).
+- `horizon-contract-deploy-tx`: Horizon `/transactions/{hash}` record for the same deployment as `deploy-get-transaction`, verbatim. Current Horizon does **not** return `result_meta_xdr`; the meta is in the RPC fixture.
 - `claim-get-transaction`: Soroban `getTransaction` response for an on-chain Identity Registry `claim` invocation.
-- `deploy-get-transaction`: Soroban `getTransaction` response for a recent contract deployment.
+- `deploy-get-transaction`: Soroban `getTransaction` response for a real create-contract (`HostFunctionTypeCreateContract`) deployment; `resultMetaXdr` is `TransactionMeta` v4 and returns the new contract address.
+
+## Retention
+
+Soroban RPC only serves `getTransaction` for a retention window (about 7 days). `claim-get-transaction` and `deploy-get-transaction` are pinned to transaction hashes in `scripts/capture.ts`; when a hash ages out, pick a newer one of the same kind and update the constant before re-running `capture`.
+
+## Import guard
+
+`pnpm check:fixtures` (run in CI) fails if production code imports this package.
