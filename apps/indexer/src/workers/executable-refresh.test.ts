@@ -144,9 +144,9 @@ test('a null hash gets backfilled', async () => {
   assert.equal(updated.wasmHashCheckedAt?.toISOString(), now.toISOString());
 
   assert.equal(versions.length, 1);
-  assert.equal(versions[0].contractId, 'c1');
-  assert.equal(versions[0].wasmHash, HASH_1);
-  assert.equal(versions[0].observedLedger, 1000);
+  assert.equal(versions[0]!.contractId, 'c1');
+  assert.equal(versions[0]!.wasmHash, HASH_1);
+  assert.equal(versions[0]!.observedLedger, 1000);
 });
 
 test('an unchanged hash only bumps wasmHashCheckedAt', async () => {
@@ -210,9 +210,9 @@ test('a changed hash updates the row and adds exactly one version row', async ()
   assert.equal(updated.wasmHashCheckedAt?.toISOString(), now.toISOString());
 
   assert.equal(versions.length, 1);
-  assert.equal(versions[0].contractId, 'c1');
-  assert.equal(versions[0].wasmHash, HASH_2);
-  assert.equal(versions[0].observedLedger, 2000);
+  assert.equal(versions[0]!.contractId, 'c1');
+  assert.equal(versions[0]!.wasmHash, HASH_2);
+  assert.equal(versions[0]!.observedLedger, 2000);
 });
 
 test('a missing entry changes nothing except wasmHashCheckedAt', async () => {
@@ -306,7 +306,7 @@ test('a contract upgraded twice ends with 3 version rows and never duplicates on
   await runExecutableRefreshWorker(mockRpc, CONFIG, store, t);
   assert.equal(contracts.get('c1')!.wasmHash, HASH_1);
   assert.equal(versions.length, 1);
-  assert.equal(versions[0].wasmHash, HASH_1);
+  assert.equal(versions[0]!.wasmHash, HASH_1);
 
   // Upgrade 1: HASH_2
   currentHash = HASH_2;
@@ -315,7 +315,7 @@ test('a contract upgraded twice ends with 3 version rows and never duplicates on
   await runExecutableRefreshWorker(mockRpc, CONFIG, store, t);
   assert.equal(contracts.get('c1')!.wasmHash, HASH_2);
   assert.equal(versions.length, 2);
-  assert.equal(versions[1].wasmHash, HASH_2);
+  assert.equal(versions[1]!.wasmHash, HASH_2);
 
   // Upgrade 2: HASH_3
   currentHash = HASH_3;
@@ -324,7 +324,7 @@ test('a contract upgraded twice ends with 3 version rows and never duplicates on
   await runExecutableRefreshWorker(mockRpc, CONFIG, store, t);
   assert.equal(contracts.get('c1')!.wasmHash, HASH_3);
   assert.equal(versions.length, 3);
-  assert.equal(versions[2].wasmHash, HASH_3);
+  assert.equal(versions[2]!.wasmHash, HASH_3);
 
   // Rollback to HASH_1: updates current hash, but upsert prevents adding duplicate version row
   currentHash = HASH_1;
@@ -333,4 +333,62 @@ test('a contract upgraded twice ends with 3 version rows and never duplicates on
   await runExecutableRefreshWorker(mockRpc, CONFIG, store, t);
   assert.equal(contracts.get('c1')!.wasmHash, HASH_1);
   assert.equal(versions.length, 3); // Still 3 unique versions!
+});
+
+test('a failing write for one contract does not stop the rest of the batch', async () => {
+  const { store, contracts, versions } = createMemoryStore([
+    { id: 'c1', address: CONTRACT_A, wasmHash: null, wasmHashCheckedAt: null },
+    { id: 'c2', address: CONTRACT_B, wasmHash: null, wasmHashCheckedAt: null },
+  ]);
+  const realUpdate = store.contract.update;
+  store.contract.update = async (args) => {
+    if (args.where.id === 'c1') throw new Error('db down for c1');
+    return realUpdate(args);
+  };
+
+  const mockRpc: SorobanRpcLike = {
+    getLedgerEntries: async () => ({
+      latestLedger: 1000,
+      entries: [makeWasmEntry(CONTRACT_A, HASH_1), makeWasmEntry(CONTRACT_B, HASH_2)],
+    }),
+  };
+
+  const now = new Date('2026-09-26T12:00:00Z');
+  const result = await runExecutableRefreshWorker(mockRpc, CONFIG, store, now);
+
+  assert.equal(result.wasmChanged, 1, 'only the healthy contract counts as changed');
+  assert.equal(contracts.get('c2')!.wasmHash, HASH_2);
+  assert.equal(contracts.get('c1')!.wasmHash, null, 'c1 stays due for the next tick');
+  assert.equal(contracts.get('c1')!.wasmHashCheckedAt, null);
+  assert.ok(versions.some((v) => v.contractId === 'c2' && v.wasmHash === HASH_2));
+});
+
+test('the version row is written before the Contract row, so a failed update is retried, not lost', async () => {
+  const { store, contracts, versions } = createMemoryStore([
+    { id: 'c1', address: CONTRACT_A, wasmHash: HASH_1, wasmHashCheckedAt: null },
+  ]);
+  const realUpdate = store.contract.update;
+  let failNext = true;
+  store.contract.update = async (args) => {
+    if (failNext) {
+      failNext = false;
+      throw new Error('transient');
+    }
+    return realUpdate(args);
+  };
+
+  const mockRpc: SorobanRpcLike = {
+    getLedgerEntries: async () => ({
+      latestLedger: 2000,
+      entries: [makeWasmEntry(CONTRACT_A, HASH_2)],
+    }),
+  };
+
+  await runExecutableRefreshWorker(mockRpc, CONFIG, store, new Date('2026-09-26T12:00:00Z'));
+  assert.equal(contracts.get('c1')!.wasmHash, HASH_1, 'Contract row not yet updated');
+  assert.equal(versions.length, 1, 'version already recorded');
+
+  await runExecutableRefreshWorker(mockRpc, CONFIG, store, new Date('2026-09-26T12:01:00Z'));
+  assert.equal(contracts.get('c1')!.wasmHash, HASH_2, 'retry completes the update');
+  assert.equal(versions.length, 1, 'no duplicate version row');
 });

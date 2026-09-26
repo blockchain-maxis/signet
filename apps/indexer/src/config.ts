@@ -43,7 +43,7 @@ export function loadConfig(): IndexerConfig {
   }
 
   const horizonUrl = process.env.INDEXER_HORIZON_URL ?? 'https://horizon-testnet.stellar.org';
-  const rpcUrl = process.env.INDEXER_RPC_URL ?? 'https://soroban-testnet.stellar.org';
+  const rpcUrl     = process.env.INDEXER_RPC_URL     ?? 'https://soroban-testnet.stellar.org';
 
   // Fail fast if the network and endpoints disagree (e.g. INDEXER_NETWORK flipped
   // to mainnet but INDEXER_RPC_URL/INDEXER_HORIZON_URL left at their testnet
@@ -58,8 +58,8 @@ export function loadConfig(): IndexerConfig {
     network,
     horizonUrl,
     rpcUrl,
-    tickIntervalMs: Number(process.env.INDEXER_TICK_INTERVAL_MS ?? 30_000),
-    logLevel: process.env.INDEXER_LOG_LEVEL ?? 'info',
+    tickIntervalMs:  Number(process.env.INDEXER_TICK_INTERVAL_MS ?? 30_000),
+    logLevel:        process.env.INDEXER_LOG_LEVEL        ?? 'info',
     registryContractId:
       process.env.INDEXER_REGISTRY_CONTRACT_ID ??
       process.env.NEXT_PUBLIC_IDENTITY_REGISTRY_ID ??

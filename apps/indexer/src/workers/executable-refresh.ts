@@ -175,44 +175,58 @@ export async function runExecutableRefreshWorker(
       const newHash = entryData ? extractWasmHash(entryData) : null;
       const oldHash = contract.wasmHash;
 
-      if (newHash && newHash !== oldHash) {
-        logger.info(
-          { contract: contract.address, from: oldHash, to: newHash },
-          'deployments.wasmChanged',
-        );
+      try {
+        if (newHash && newHash !== oldHash) {
+          logger.info(
+            { contract: contract.address, from: oldHash, to: newHash },
+            'deployments.wasmChanged',
+          );
 
-        await store.contract.update({
-          where: { id: contract.id },
-          data: {
-            wasmHash: newHash,
-            wasmHashCheckedAt: now,
-          },
-        });
-
-        await store.contractWasmVersion.upsert({
-          where: {
-            contractId_wasmHash: {
+          // Version row first (idempotent upsert on the unique key, so a
+          // rollback to an earlier hash adds no row), then the Contract row.
+          // If the second write fails, the next tick still sees the old hash,
+          // re-detects the change and retries; the reverse order would lose
+          // the version permanently.
+          await store.contractWasmVersion.upsert({
+            where: {
+              contractId_wasmHash: {
+                contractId: contract.id,
+                wasmHash: newHash,
+              },
+            },
+            update: {},
+            create: {
               contractId: contract.id,
               wasmHash: newHash,
+              observedLedger: latestLedger,
             },
-          },
-          update: {},
-          create: {
-            contractId: contract.id,
-            wasmHash: newHash,
-            observedLedger: latestLedger,
-          },
-        });
+          });
 
-        wasmChanged++;
-      } else {
-        // Hash unchanged (or non-wasm executable) -> bump check timestamp
-        await store.contract.update({
-          where: { id: contract.id },
-          data: {
-            wasmHashCheckedAt: now,
-          },
-        });
+          await store.contract.update({
+            where: { id: contract.id },
+            data: {
+              wasmHash: newHash,
+              wasmHashCheckedAt: now,
+            },
+          });
+
+          wasmChanged++;
+        } else {
+          // Hash unchanged (or non-wasm executable) -> bump check timestamp
+          await store.contract.update({
+            where: { id: contract.id },
+            data: {
+              wasmHashCheckedAt: now,
+            },
+          });
+        }
+      } catch (err) {
+        // One bad row must not abort the tick (pruning and the cursor write
+        // run after this worker); it stays due and is retried next tick.
+        logger.error(
+          { contract: contract.address, error: String(err) },
+          'executableRefresh.contractFailed',
+        );
       }
     }
 
@@ -220,12 +234,19 @@ export async function runExecutableRefreshWorker(
     for (const [keyB64, contract] of keyMap.entries()) {
       if (!foundKeys.has(keyB64)) {
         missingEntries++;
-        await store.contract.update({
-          where: { id: contract.id },
-          data: {
-            wasmHashCheckedAt: now,
-          },
-        });
+        try {
+          await store.contract.update({
+            where: { id: contract.id },
+            data: {
+              wasmHashCheckedAt: now,
+            },
+          });
+        } catch (err) {
+          logger.error(
+            { contract: contract.address, error: String(err) },
+            'executableRefresh.contractFailed',
+          );
+        }
       }
     }
   }

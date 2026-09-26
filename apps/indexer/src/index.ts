@@ -104,7 +104,7 @@ async function tick(
   // Persist cursor
   if (highestLedger > 0) {
     await prisma.indexerCursor.upsert({
-      where: { id: 'main' },
+      where:  { id: 'main' },
       update: { lastLedger: highestLedger },
       create: { id: 'main', lastLedger: highestLedger },
     });
@@ -134,9 +134,9 @@ async function main(): Promise<void> {
 
   logger.info(
     {
-      network: config.network,
-      horizon: config.horizonUrl,
-      rpc: config.rpcUrl,
+      network:  config.network,
+      horizon:  config.horizonUrl,
+      rpc:      config.rpcUrl,
       registry: config.registryContractId || '(unset)',
       interval: config.tickIntervalMs,
     },
@@ -159,7 +159,7 @@ async function main(): Promise<void> {
     shuttingDown = true;
   }
   process.on('SIGTERM', () => onSignal('SIGTERM'));
-  process.on('SIGINT', () => onSignal('SIGINT'));
+  process.on('SIGINT',  () => onSignal('SIGINT'));
 
   try {
     // Main loop
