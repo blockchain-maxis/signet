@@ -93,7 +93,11 @@ test('deploy-get-transaction is a create-contract transaction whose meta returns
   assert.equal(returnValue.switch().name, 'scvAddress');
   const address = returnValue.address();
   assert.equal(address.switch().name, 'scAddressTypeContract');
-  assert.ok(StrKey.isValidContract(StrKey.encodeContract(Buffer.from(address.contractId()))));
+  assert.ok(
+    StrKey.isValidContract(
+      StrKey.encodeContract(Buffer.from(address.contractId() as unknown as Uint8Array)),
+    ),
+  );
 });
 
 test('horizon-contract-deploy-tx is the Horizon record of the same deployment, unmodified', () => {
