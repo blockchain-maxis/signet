@@ -24,6 +24,8 @@
     "check-fmt": "make check-fmt",
     "db:up": "docker compose -f infra/docker/docker-compose.yml up -d",
     "db:down": "docker compose -f infra/docker/docker-compose.yml down",
+    "stack:up": "docker compose -f infra/docker/docker-compose.yml --profile indexer up -d --build",
+    "stack:down": "docker compose -f infra/docker/docker-compose.yml --profile indexer down",
     "db:migrate": "pnpm --filter @signet/db run migrate",
     "db:deploy": "pnpm --filter @signet/db run migrate:deploy",
     "db:generate": "pnpm --filter @signet/db run generate",

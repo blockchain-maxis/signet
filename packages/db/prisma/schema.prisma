@@ -58,7 +58,7 @@ model Wallet {
   // since the backward walk is already finished and will not revisit. This is
   // the Horizon paging_token of the newest operation the worker has actually
   // examined, so the next tick resumes from there instead of from "now".
-  deploymentWatermark    String?
+  deploymentWatermark String?
 
   // Set when a wallet is (re-)linked (apps/web/lib/server/account.ts's
   // linkDeployWallet) so the indexer picks it up promptly instead of waiting
@@ -69,7 +69,7 @@ model Wallet {
   // so repeated links can never accumulate duplicate trigger state.
   indexRequestedAt DateTime?
 
-  profile    Profile  @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  profile    Profile     @relation(fields: [profileId], references: [id], onDelete: Cascade)
   contracts  Contract[]
   operations Operation[]
 
@@ -91,37 +91,37 @@ model Operation {
   balanceChanges  Json?
   indexedAt       DateTime @default(now())
 
-  wallet          Wallet   @relation(fields: [walletId], references: [id], onDelete: Cascade)
+  wallet Wallet @relation(fields: [walletId], references: [id], onDelete: Cascade)
 
   @@index([walletId, createdAt])
 }
 
 model Contract {
-  id              String   @id @default(cuid())
-  address         String   @unique
-  walletId        String
-  deployerPubkey  String
-  deployedAt      DateTime
-  deployTxHash    String
-  // No default on purpose: an implicit "mainnet" here is exactly how a
-  // testnet deployment (the only kind that exists today) could get silently
-  // mislabeled. Every writer (today,
-  // only apps/indexer/src/workers/deployment.ts) must pass the indexer's
-  // configured network explicitly.
-  network            String
+  id                String    @id @default(cuid())
+  address           String    @unique
+  walletId          String
+  deployerPubkey    String
+  deployedAt        DateTime
+  deployTxHash      String
+  // Allowed values: 'testnet' | 'mainnet' | 'futurenet' | 'local' — see NETWORKS
+  // in @signet/types and migration 20260926010000_normalise_contract_network
+  // which enforces CHECK (network IN ('testnet','mainnet','futurenet','local')).
+  // Every writer (today, apps/indexer/src/workers/deployment.ts) must pass
+  // the indexer's configured canonical network.
+  network           String
   /// @deprecated Superseded by executableType.
-  contractType       String?
+  contractType      String?
   /// Lowercase 64-character SHA-256 hex hash of the contract executable WASM.
-  wasmHash           String?
+  wasmHash          String?
   /// Executable type: 'wasm' | 'stellar_asset'.
-  executableType     String?
+  executableType    String?
   /// Timestamp when the indexer last checked the on-chain executable WASM hash.
-  wasmHashCheckedAt  DateTime?
-  firstIndexedAt     DateTime @default(now())
+  wasmHashCheckedAt DateTime?
+  firstIndexedAt    DateTime  @default(now())
 
-  wallet             Wallet   @relation(fields: [walletId], references: [id], onDelete: Cascade)
-  snapshots          ContractSnapshot[]
-  wasmVersions       ContractWasmVersion[]
+  wallet       Wallet                @relation(fields: [walletId], references: [id], onDelete: Cascade)
+  snapshots    ContractSnapshot[]
+  wasmVersions ContractWasmVersion[]
 
   @@index([deployerPubkey])
   @@index([deployedAt])
@@ -137,21 +137,21 @@ model ContractWasmVersion {
   /// The RPC's latest ledger when the indexer noticed the hash (not the ledger of the upgrade transaction).
   observedLedger Int
 
-  contract       Contract @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  contract Contract @relation(fields: [contractId], references: [id], onDelete: Cascade)
 
   @@unique([contractId, wasmHash])
   @@index([contractId, observedAt])
 }
 
 model ContractSnapshot {
-  id           String   @id @default(cuid())
+  id           String    @id @default(cuid())
   contractId   String
-  capturedAt   DateTime @default(now())
-  txCount24h   Int      @default(0)
-  txCountTotal Int      @default(0)
+  capturedAt   DateTime  @default(now())
+  txCount24h   Int       @default(0)
+  txCountTotal Int       @default(0)
   lastActivity DateTime?
 
-  contract     Contract @relation(fields: [contractId], references: [id], onDelete: Cascade)
+  contract Contract @relation(fields: [contractId], references: [id], onDelete: Cascade)
 
   @@index([contractId, capturedAt])
 }
@@ -173,39 +173,39 @@ model IndexerCursor {
 // `complete` conditions its update on `status = 'approved'` so two concurrent
 // completions of the same pairing cannot both succeed.
 model PairingState {
-  id          String    @id @default(cuid())
+  id            String    @id @default(cuid())
   /// pending | approved | rejected | completed
-  status      String    @default("pending")
+  status        String    @default("pending")
   /// The network passphrase the CLI declared at `start`, checked again at
   /// `complete` against the deployment's actual configured network.
-  network     String
+  network       String
   /// The deploy account the CLI *declared* at `start`, so the browser
   /// approval page can show which key is about to be attached. Unverified
   /// here — it is only a claim until `complete` presents a challenge signed by
   /// it, which is checked against this value. Null for a pairing minted before
   /// this column existed, which completes without that check.
-  publicKey   String?
+  publicKey     String?
   /// SHA-256 of the poll token `start` hands the CLI, for the polling
   /// fallback (#273). Kept distinct from `id`: the pairing code travels in the
   /// URL the developer opens — and may be pasted into a chat or a ticket —
   /// whereas this never leaves the terminal, so watching a pairing's progress
   /// needs something seeing the link does not give you. Hashed because it is a
   /// bearer credential at rest.
-  pollTokenHash String? @unique
+  pollTokenHash String?   @unique
   /// SHA-256 of the short code the browser shows after approving, which the
   /// developer pastes back into the terminal when loopback is unreachable.
   /// Binds "the person who approved" to "the terminal that completes" the way
   /// the loopback `state` does on the local path.
-  handoffHash String?
+  handoffHash   String?
   /// Set by `approve` — the profile the signed-in browser session belongs to.
-  profileId   String?
-  createdAt   DateTime  @default(now())
-  expiresAt   DateTime
-  approvedAt  DateTime?
-  rejectedAt  DateTime?
-  completedAt DateTime?
+  profileId     String?
+  createdAt     DateTime  @default(now())
+  expiresAt     DateTime
+  approvedAt    DateTime?
+  rejectedAt    DateTime?
+  completedAt   DateTime?
 
-  profile     Profile?  @relation(fields: [profileId], references: [id], onDelete: Cascade)
+  profile Profile? @relation(fields: [profileId], references: [id], onDelete: Cascade)
 
   @@index([status])
 }
