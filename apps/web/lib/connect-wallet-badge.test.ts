@@ -17,8 +17,8 @@ test('formatWalletBadge displays mainnet for mainnet configuration', () => {
   assert.equal(formatWalletBadge('MAINNET'), 'connected · mainnet');
 });
 
-test('formatWalletBadge displays public for public alias configuration', () => {
-  assert.equal(formatWalletBadge('public'), 'connected · public');
+test('formatWalletBadge displays mainnet for public alias configuration', () => {
+  assert.equal(formatWalletBadge('public'), 'connected · mainnet');
 });
 
 test('formatWalletBadge displays futurenet for futurenet configuration', () => {

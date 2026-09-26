@@ -227,6 +227,28 @@ function contractCreationMetaXdr(contractAddress: string): string {
   return new xdr.TransactionMeta(3, v3).toXDR('base64');
 }
 
+function contractCreationMetaV4Xdr(contractAddress: string): string {
+  const contractId = StrKey.decodeContract(contractAddress);
+  const scAddress = xdr.ScAddress.scAddressTypeContract(
+    contractId as unknown as Parameters<typeof xdr.ScAddress.scAddressTypeContract>[0],
+  );
+  const returnValue = xdr.ScVal.scvAddress(scAddress);
+  const sorobanMeta = new xdr.SorobanTransactionMetaV2({
+    ext: new xdr.SorobanTransactionMetaExt(0),
+    returnValue,
+  });
+  const v4 = new xdr.TransactionMetaV4({
+    ext: new xdr.ExtensionPoint(0),
+    txChangesBefore: [],
+    operations: [],
+    txChangesAfter: [],
+    sorobanMeta,
+    events: [],
+    diagnosticEvents: [],
+  });
+  return new xdr.TransactionMeta(4, v4).toXDR('base64');
+}
+
 const CONTRACT_ONE = 'CAAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQC526';
 
 function createContractOp(txHash: string, pagingToken: string) {
@@ -238,7 +260,7 @@ function createContractOp(txHash: string, pagingToken: string) {
   };
 }
 
-test('a create-contract op is detected and recorded during backfill', async () => {
+test('a create-contract op is detected and recorded during backfill (v3 meta)', async () => {
   const wallets = [{ ...WALLET_A }];
   const { store, contracts } = memoryStore(wallets);
   const { horizon } = horizonPages([[createContractOp('hash-a', 'tok-1')]]);
@@ -256,6 +278,46 @@ test('a create-contract op is detected and recorded during backfill', async () =
 
   assert.equal(result.contractsFound, 1);
   assert.equal(contracts.get(CONTRACT_ONE)?.walletId, WALLET_A.id);
+});
+
+test('a create-contract op is detected and recorded during backfill (v4 meta)', async () => {
+  const wallets = [{ ...WALLET_A }];
+  const { store, contracts } = memoryStore(wallets);
+  const { horizon } = horizonPages([[createContractOp('hash-v4', 'tok-1')]]);
+  horizon.transactions = (() => ({
+    transaction: () => ({
+      call: async () => ({
+        result_meta_xdr: contractCreationMetaV4Xdr(CONTRACT_ONE),
+        ledger_attr: 2,
+        created_at: '2026-01-01T00:00:00Z',
+      }),
+    }),
+  })) as unknown as Horizon.Server['transactions'];
+
+  const result = await runDeploymentWorker(horizon, CONFIG, store);
+
+  assert.equal(result.contractsFound, 1);
+  assert.equal(contracts.get(CONTRACT_ONE)?.walletId, WALLET_A.id);
+});
+
+test('an undecodable create-contract meta increments counter and creates no Contract row', async () => {
+  const wallets = [{ ...WALLET_A }];
+  const { store, contracts } = memoryStore(wallets);
+  const { horizon } = horizonPages([[createContractOp('hash-undecodable', 'tok-1')]]);
+  horizon.transactions = (() => ({
+    transaction: () => ({
+      call: async () => ({
+        result_meta_xdr: 'garbage-base64-undecodable',
+        ledger_attr: 2,
+        created_at: '2026-01-01T00:00:00Z',
+      }),
+    }),
+  })) as unknown as Horizon.Server['transactions'];
+
+  const result = await runDeploymentWorker(horizon, CONFIG, store);
+
+  assert.equal(result.contractsFound, 0);
+  assert.equal(contracts.size, 0);
 });
 
 test('a Horizon failure on one wallet does not abort the others', async () => {

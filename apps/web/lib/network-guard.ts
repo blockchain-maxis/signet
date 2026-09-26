@@ -21,10 +21,15 @@ export interface NetworkUrl {
   url: string;
 }
 
+import { normalizeNetwork } from '@signet/types';
+
 /** True when `network` names Stellar mainnet (`mainnet` / `public` / `pubnet`). */
 export function isMainnetNetwork(network: string): boolean {
-  const n = network.trim().toLowerCase();
-  return n === 'mainnet' || n === 'public' || n === 'pubnet';
+  try {
+    return normalizeNetwork(network) === 'mainnet';
+  } catch {
+    return false;
+  }
 }
 
 function hostOf(url: string): string {

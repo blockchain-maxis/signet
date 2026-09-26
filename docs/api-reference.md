@@ -39,16 +39,16 @@ A well-formed handle: 1–32 chars of `[a-z0-9_-]`. Validated by `handleInput()`
 {
   handle: string;
   profile: Profile;
-  stats: ProfileStats;
+  stats: ProfileStatsResult;
   operations: Operation[];
   truncated: boolean;
   cap: number | null;
   source: 'database' | 'horizon' | 'none';
 } | null
 ```
-Profile fields: `name`, `wallet`, `bio`, `joined`. Stats: `invocations`, `uniqueFunctions`, `reputation` (0–100).
+Profile fields: `name`, `wallet`, `bio`, `joined`. Stats: `invocations`, `uniqueFunctions`, `reputation` (0–100), `exact`, and `retentionWindowDays`.
 
-The operations window is bounded by the layer that answered (`source`). When `truncated` is true the record is partial: `cap` is the limit that cut it short, `operations` holds only the most recent ones, and every count in `stats` is a lower bound rather than a total. Clients must not present a truncated record as a complete one.
+The operations window is bounded by the layer that answered (`source`). When `truncated` is true, `cap` is the limit that cut the operation list short. `stats.exact` says whether the stats exactly cover their represented scope. When `stats.retentionWindowDays` is non-null, that scope is the most recent N days retained by the indexer rather than lifetime history, and clients must label it as such. When `stats.exact` is false, the stats may be lower bounds from a capped read.
 
 ---
 

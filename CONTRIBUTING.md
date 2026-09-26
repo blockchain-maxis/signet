@@ -39,6 +39,15 @@ pnpm db:migrate   # apply migrations
 pnpm indexer:dev  # run the indexer
 ```
 
+### Local stack
+
+To run Postgres and the indexer together in a single local Docker stack:
+
+```bash
+pnpm stack:up     # build and start Postgres + indexer containers
+pnpm stack:down   # stop the stack
+```
+
 ## The gates
 
 CI runs the same commands you can run locally. **Every one must pass before a PR

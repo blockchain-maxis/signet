@@ -1,7 +1,12 @@
 import Link from 'next/link';
 import { currentAddress } from '@/lib/server/session';
 import { getAccount, getAccountWallets } from '@/lib/server/account';
-import { getOperationsResult, getProfileStats, formatCount } from '@/lib/profiles';
+import {
+  getOperationsResult,
+  getProfileStats,
+  formatCount,
+  formatStatsWindow,
+} from '@/lib/profiles';
 import { LinkDeployWalletPrompt } from '../components/link-deploy-wallet-prompt';
 
 function truncate(a: string): string {
@@ -19,9 +24,11 @@ export default async function DashboardPage() {
     account?.handle && operations
       ? await getProfileStats(account.handle, operations.operations)
       : null;
-  // Counts drawn from a capped window are lower bounds; they render as "N+".
-  // Database aggregates cover the whole history, so those stay bare totals.
+  // Counts drawn from a capped operation read are lower bounds; database
+  // aggregates stay bare totals for their represented scope. When pruning is
+  // enabled, the labels below disclose that scope as a retention window.
   const truncated = (operations?.truncated ?? false) && !(stats?.exact ?? false);
+  const statsWindow = formatStatsWindow(stats?.retentionWindowDays ?? null);
   const wallets = account?.handle && address ? await getAccountWallets(address) : [];
   const hasDeployWallet = wallets.some((w) => !w.isPrimary);
 
@@ -78,9 +85,18 @@ export default async function DashboardPage() {
       {stats && (
         <div className="mt-6 grid max-w-[640px] grid-cols-3 gap-px border border-[#1f1d19] bg-[#1f1d19]">
           {[
-            { label: truncated ? 'Reputation (partial)' : 'Reputation', value: String(stats.reputation) },
-            { label: 'Invocations', value: formatCount(stats.invocations, truncated) },
-            { label: 'Functions', value: formatCount(stats.uniqueFunctions, truncated) },
+            {
+              label: `${truncated ? 'Reputation (partial)' : 'Reputation'}${statsWindow ? ` · ${statsWindow}` : ''}`,
+              value: String(stats.reputation),
+            },
+            {
+              label: `Invocations${statsWindow ? ` · ${statsWindow}` : ''}`,
+              value: formatCount(stats.invocations, truncated),
+            },
+            {
+              label: `Functions${statsWindow ? ` · ${statsWindow}` : ''}`,
+              value: formatCount(stats.uniqueFunctions, truncated),
+            },
           ].map(({ label, value }) => (
             <div key={label} className="flex flex-col justify-center bg-[#0a0908] px-6 py-6">
               <span className="text-[28px] font-bold leading-none text-[#f5f4ee]" style={display}>

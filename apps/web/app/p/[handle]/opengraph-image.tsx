@@ -1,5 +1,11 @@
 import { ImageResponse } from 'next/og';
-import { getProfile, getOperationsResult, getProfileStats, formatCount } from '@/lib/profiles';
+import {
+  getProfile,
+  getOperationsResult,
+  getProfileStats,
+  formatCount,
+  formatStatsWindow,
+} from '@/lib/profiles';
 
 export const runtime = 'nodejs';
 export const size = { width: 1200, height: 630 };
@@ -14,9 +20,11 @@ export default async function OgImage({ params }: { params: Promise<{ handle: st
   const stats = result ? await getProfileStats(handle, result.operations) : null;
   // A capped record renders as "412+" rather than "412": the card is the most
   // widely reshared surface, so it must not state a lower bound as a total.
-  // Aggregated stats are exact even when the operations window was capped, so
-  // the "+" is dropped in that case rather than understating a real total.
+  // Aggregated stats are exact for their represented scope even when the
+  // operation list was capped. A non-null retention window is printed on the
+  // card so those values are never mistaken for lifetime totals.
   const truncated = (result?.truncated ?? false) && !(stats?.exact ?? false);
+  const statsWindow = formatStatsWindow(stats?.retentionWindowDays ?? null);
   const name = profile?.name ?? handle;
 
   return new ImageResponse(
@@ -47,19 +55,25 @@ export default async function OgImage({ params }: { params: Promise<{ handle: st
         <div style={{ display: 'flex', gap: 64, fontSize: 26, color: '#b8b5a8' }}>
           <div style={{ display: 'flex', flexDirection: 'column' }}>
             <span style={{ fontSize: 56, color: '#f5f4ee' }}>{stats?.reputation ?? 0}</span>
-            <span style={{ color: '#5e5b51' }}>REPUTATION</span>
+            <span style={{ color: '#5e5b51' }}>
+              {statsWindow ? `REPUTATION · ${statsWindow.toUpperCase()}` : 'REPUTATION'}
+            </span>
           </div>
           <div style={{ display: 'flex', flexDirection: 'column' }}>
             <span style={{ fontSize: 56, color: '#f5f4ee' }}>
               {formatCount(stats?.invocations ?? 0, truncated)}
             </span>
-            <span style={{ color: '#5e5b51' }}>INVOCATIONS</span>
+            <span style={{ color: '#5e5b51' }}>
+              {statsWindow ? `INVOCATIONS · ${statsWindow.toUpperCase()}` : 'INVOCATIONS'}
+            </span>
           </div>
           <div style={{ display: 'flex', flexDirection: 'column' }}>
             <span style={{ fontSize: 56, color: '#f5f4ee' }}>
               {formatCount(stats?.uniqueFunctions ?? 0, truncated)}
             </span>
-            <span style={{ color: '#5e5b51' }}>FUNCTIONS</span>
+            <span style={{ color: '#5e5b51' }}>
+              {statsWindow ? `FUNCTIONS · ${statsWindow.toUpperCase()}` : 'FUNCTIONS'}
+            </span>
           </div>
         </div>
       </div>

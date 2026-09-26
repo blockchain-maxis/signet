@@ -18,6 +18,7 @@
     "@creit.tech/stellar-wallets-kit": "^2.6.0",
     "@signet/db": "workspace:*",
     "@signet/sdk": "workspace:*",
+    "@signet/spec": "workspace:*",
     "@signet/types": "workspace:*",
     "@stellar/stellar-sdk": "^16.1.0",
     "@tanstack/react-query": "^5.102.8",

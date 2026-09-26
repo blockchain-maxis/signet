@@ -1,2 +1,3 @@
 packages/contracts/identity-registry/test_snapshots/
 pnpm-lock.yaml
+packages/fixtures/data/

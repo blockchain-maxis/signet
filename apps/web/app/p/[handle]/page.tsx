@@ -5,6 +5,7 @@ import {
   getOperationsResult,
   getProfileStats,
   formatCount,
+  formatStatsWindow,
 } from '@/lib/profiles';
 import { STELLAR_EXPLORER, STELLAR_NETWORK_NAME } from '@/lib/network';
 import { formatDate } from '@/lib/format-date';
@@ -44,11 +45,12 @@ export default async function ProfilePage({ params }: { params: Promise<{ handle
   // career record must never do.
   const { operations, truncated, cap, source } = await getOperationsResult(handle);
   const stats = await getProfileStats(handle, operations);
-  // The stats can outrun the window the list came from: when the database
-  // answered with aggregates over the whole history they are exact totals even
-  // though the operations below stop at a cap. Only qualify them when they were
-  // actually derived from that capped window.
+  // The stats can outrun the capped operation list: database aggregates are
+  // exact for their represented scope even when the list below stops at a cap.
+  // When that scope is retention-bounded, the UI labels the window explicitly.
   const statsTruncated = truncated && !stats.exact;
+  const statsWindow = formatStatsWindow(stats.retentionWindowDays);
+  const historyWindowed = statsWindow !== null;
   const oldest = operations[operations.length - 1];
   const newest = operations[0];
 
@@ -160,7 +162,10 @@ export default async function ProfilePage({ params }: { params: Promise<{ handle
 
         {/* Stats */}
         <section className="mb-16">
-          <SectionLabel>On-chain activity</SectionLabel>
+          <SectionLabel>
+            On-chain activity
+            {statsWindow ? <span className="text-[#5e5b51]">· {statsWindow}</span> : null}
+          </SectionLabel>
           <div className="mt-6 grid grid-cols-2 gap-px border border-[#1f1d19] bg-[#1f1d19] md:grid-cols-5">
             {[
               {
@@ -178,7 +183,7 @@ export default async function ProfilePage({ params }: { params: Promise<{ handle
               {
                 // Without the full history the earliest record we hold is not
                 // the developer's first activity, so the label stops claiming it.
-                label: truncated ? 'Earliest shown' : 'First activity',
+                label: truncated || historyWindowed ? 'Earliest shown' : 'First activity',
                 value: oldest ? formatDate(oldest.created_at, { day: undefined }) : '—',
               },
               { label: 'Latest activity', value: newest ? formatDate(newest.created_at) : '—' },
@@ -199,6 +204,15 @@ export default async function ProfilePage({ params }: { params: Promise<{ handle
               </div>
             ))}
           </div>
+          {statsWindow && (
+            <p
+              className="mt-3 text-[11px] leading-[1.7] text-[#5e5b51]"
+              style={{ fontFamily: 'var(--font-mono)' }}
+            >
+              Statistics above cover the {statsWindow} retained by the indexer. Older operations
+              age out of these totals as they are pruned.
+            </p>
+          )}
         </section>
 
         {/* Operations — paginated: first 25 rendered server-side */}
@@ -224,7 +238,9 @@ export default async function ProfilePage({ params }: { params: Promise<{ handle
                   : `The indexer read only the ${cap} most recent operations for this wallet.`}{' '}
                 {statsTruncated
                   ? 'Counts above are lower bounds, and older invocations are not listed.'
-                  : 'The counts above are still exact — aggregated over the full indexed history — but older invocations are not listed.'}
+                  : statsWindow
+                    ? `The counts above are exact for the ${statsWindow} retention window, but older invocations are not listed.`
+                    : 'The counts above are still exact — aggregated over the full indexed history — but older invocations are not listed.'}
               </p>
               <a
                 href={`https://stellar.expert/explorer/${STELLAR_EXPLORER}/account/${profile.wallet}`}
@@ -268,7 +284,9 @@ export default async function ProfilePage({ params }: { params: Promise<{ handle
                   {cap} most recent operations
                   {statsTruncated
                     ? ', so the counts above are lower bounds rather than totals.'
-                    : '. The counts above are aggregated over the whole indexed history, so they stay exact totals.'}
+                    : statsWindow
+                      ? `. The counts above are exact for the ${statsWindow} retention window.`
+                      : '. The counts above are aggregated over the whole indexed history, so they stay exact totals.'}
                 </>
               ) : null}
             </p>

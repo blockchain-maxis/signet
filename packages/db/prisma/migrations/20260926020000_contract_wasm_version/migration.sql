@@ -18,10 +18,10 @@ CREATE TABLE "ContractWasmVersion" (
 CREATE INDEX "Contract_wasmHash_idx" ON "Contract"("wasmHash");
 
 -- CreateIndex
-CREATE INDEX "ContractWasmVersion_contractId_observedAt_idx" ON "ContractWasmVersion"("contractId", "observedAt");
+CREATE UNIQUE INDEX "ContractWasmVersion_contractId_wasmHash_key" ON "ContractWasmVersion"("contractId", "wasmHash");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "ContractWasmVersion_contractId_wasmHash_key" ON "ContractWasmVersion"("contractId", "wasmHash");
+CREATE INDEX "ContractWasmVersion_contractId_observedAt_idx" ON "ContractWasmVersion"("contractId", "observedAt");
 
 -- AddForeignKey
 ALTER TABLE "ContractWasmVersion" ADD CONSTRAINT "ContractWasmVersion_contractId_fkey" FOREIGN KEY ("contractId") REFERENCES "Contract"("id") ON DELETE CASCADE ON UPDATE CASCADE;
