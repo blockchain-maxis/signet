@@ -71,6 +71,9 @@ importers:
       '@signet/sdk':
         specifier: workspace:*
         version: link:../../packages/sdk
+      '@signet/spec':
+        specifier: workspace:*
+        version: link:../../packages/spec
       '@signet/types':
         specifier: workspace:*
         version: link:../../packages/types
@@ -152,11 +155,40 @@ importers:
         specifier: ^5.6.3
         version: 5.9.3
 
+  packages/fixtures:
+    dependencies:
+      '@stellar/stellar-sdk':
+        specifier: ^16.1.0
+        version: 16.1.0
+    devDependencies:
+      '@types/node':
+        specifier: ^20.16.0
+        version: 20.19.41
+      tsx:
+        specifier: ^4.19.1
+        version: 4.22.0
+      typescript:
+        specifier: ^5.6.3
+        version: 5.9.3
+
   packages/sdk:
     dependencies:
       '@signet/types':
         specifier: workspace:*
         version: link:../types
+    devDependencies:
+      typescript:
+        specifier: ^5.6.3
+        version: 5.9.3
+
+  packages/spec:
+    dependencies:
+      '@signet/types':
+        specifier: workspace:*
+        version: link:../types
+      '@stellar/stellar-sdk':
+        specifier: ^16.1.0
+        version: 16.1.0
     devDependencies:
       typescript:
         specifier: ^5.6.3
@@ -745,9 +777,6 @@ packages:
     resolution: {integrity: sha512-gbKGcRUYIjA3/zCCNaWDciTMFI0dCkvou3TL8Zmy5Nc7sJ47a0jtOeZoTaMxkuqRo9cRhjOdZJXegxYE5FN/xw==}
     engines: {node: ^14.21.3 || >=16}
 
-  '@noble/ed25519@3.1.0':
-    resolution: {integrity: sha512-pfcObRY3CtvwfaG9Mt5XqZdKmAQppl37tHUeuBhDUbiwJBCVY4/A4lbMvb1xKhMDx96AqAqZpMWuBX1HulhX4g==}
-
   '@noble/ed25519@3.2.0':
     resolution: {integrity: sha512-criDgRlnUA09hchYrTy/JUWPIEap5rZxQe6wDWzRx51oWWpDRcUpuNzlgPxDJaOK6AsW9c0wKcj3rKRv6t+bPQ==}
 
@@ -770,10 +799,6 @@ packages:
   '@noble/hashes@1.8.0':
     resolution: {integrity: sha512-jCs9ldd7NwzpgXDIf6P3+NrHh9/sD6CQdxHyjQI+h/6rDNo88ypBxxz45UDuZHz9r3tNz7N/VInSVoVdtXEI4A==}
     engines: {node: ^14.21.3 || >=16}
-
-  '@noble/hashes@2.2.0':
-    resolution: {integrity: sha512-IYqDGiTXab6FniAgnSdZwgWbomxpy9FtYvLKs7wCUs2a8RkITG+DFGO1DM9cr+E3/RgADRpFjrKVaJ1z6sjtEg==}
-    engines: {node: '>= 20.19.0'}
 
   '@noble/hashes@2.4.0':
     resolution: {integrity: sha512-X5XaVWZIBCT7HHZGm5I7ZQXDwLG+bGXuSrMQAW+7Zvl87h1kmc1ZB1VSRJcpUfoUrGQp4Fkoxm5kZ+Ms+aW+eA==}
@@ -2113,17 +2138,9 @@ packages:
     resolution: {integrity: sha512-mQw+2fkQbALzQ7V0MY0IqdnXNOeTtP4r0lN9z7AAawCXgqea7bDii20AYrIBrFd/Hx0M2Ocz6S111CaFkUcb0Q==}
     engines: {node: '>=0.8.x'}
 
-  eventsource-parser@3.1.0:
-    resolution: {integrity: sha512-kJezFj9YFAMLeORyi7aCLxLbD5/qWMQnoMVlVPyHIll7lgRJCc3JVln9Vgl9nwQi0YkMnhdGTMNn7CkRRAptMg==}
-    engines: {node: '>=18.0.0'}
-
   eventsource-parser@3.1.1:
     resolution: {integrity: sha512-EKN1vKAMcZ8MlYMpaNuxN6R9yakzH6uajHcHVTqWJzvu5pWw9DyhbP35HH8MVBQ+dZjAfDxk+A8NiR9KWaXiyQ==}
     engines: {node: '>=18.0.0'}
-
-  eventsource@4.1.0:
-    resolution: {integrity: sha512-2GuF51iuHX6A9xdTccMTsNb7VO0lHZihApxhvQzJB5A03DvHDd2FQepodbMaztPBmBcE/ox7o2gqaxGhYB9LhQ==}
-    engines: {node: '>=20.0.0'}
 
   eventsource@4.1.1:
     resolution: {integrity: sha512-D6bTRWh6KahHTK/m4WnjPQyEinNPf9eFLEZSEoj7d6fTibspnAVYfzHvirL7u/aoX5d9YYfIkBVAhmigUELk9w==}
@@ -2978,10 +2995,6 @@ packages:
 
   slow-redact@0.3.2:
     resolution: {integrity: sha512-MseHyi2+E/hBRqdOi5COy6wZ7j7DxXRz9NkseavNYSvvWC06D8a5cidVZX3tcG5eCW3NIyVU4zT63hw0Q486jw==}
-
-  smol-toml@1.7.1:
-    resolution: {integrity: sha512-PPlsspAZ4jbMBu5DMFhfUGDQLu/vrL4SyBROVS37x8ynnVmFIs1VPBz1Co8Xks3TvpIaZXmU85y4DrQ+UyVFoQ==}
-    engines: {node: '>= 18'}
 
   smol-toml@1.8.0:
     resolution: {integrity: sha512-kCZr2V3ch9i00x8zXRhjUNVcjG9ijES5dDudkXvUVCT5QlJNQWElSJdZqyPemffHoLNUYwOcou0Fy+ojN0uHSQ==}
@@ -3989,8 +4002,6 @@ snapshots:
     dependencies:
       '@noble/hashes': 1.8.0
 
-  '@noble/ed25519@3.1.0': {}
-
   '@noble/ed25519@3.2.0': {}
 
   '@noble/hashes@1.3.3': {}
@@ -4003,8 +4014,6 @@ snapshots:
   '@noble/hashes@1.7.1': {}
 
   '@noble/hashes@1.8.0': {}
-
-  '@noble/hashes@2.2.0': {}
 
   '@noble/hashes@2.4.0': {}
 
@@ -4945,17 +4954,17 @@ snapshots:
 
   '@stellar/stellar-sdk@16.1.0':
     dependencies:
-      '@noble/ed25519': 3.1.0
-      '@noble/hashes': 2.2.0
+      '@noble/ed25519': 3.2.0
+      '@noble/hashes': 2.4.0
       '@stellar/js-xdr': 4.0.0
       axios: 1.18.0
       base32.js: 0.1.0
       bignumber.js: 11.1.5
       buffer: 6.0.3
       commander: 14.0.3
-      eventsource: 4.1.0
+      eventsource: 4.1.1
       feaxios: 0.0.23
-      smol-toml: 1.7.1
+      smol-toml: 1.8.0
       uint8array-extras: 1.5.0
     transitivePeerDependencies:
       - debug
@@ -6212,13 +6221,7 @@ snapshots:
 
   events@3.3.0: {}
 
-  eventsource-parser@3.1.0: {}
-
   eventsource-parser@3.1.1: {}
-
-  eventsource@4.1.0:
-    dependencies:
-      eventsource-parser: 3.1.0
 
   eventsource@4.1.1:
     dependencies:
@@ -7072,8 +7075,6 @@ snapshots:
   shebang-regex@3.0.0: {}
 
   slow-redact@0.3.2: {}
-
-  smol-toml@1.7.1: {}
 
   smol-toml@1.8.0: {}
 

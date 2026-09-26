@@ -27,7 +27,6 @@ import {
   Address,
   BASE_FEE,
   Contract,
-  Networks,
   TransactionBuilder,
   nativeToScVal,
   rpc,
@@ -35,6 +34,7 @@ import {
   type Transaction,
   type xdr,
 } from '@stellar/stellar-sdk';
+import { normalizeNetwork, networkPassphrase } from '@signet/types';
 import { isValidHandle } from '../profiles.ts';
 import { isValidStellarAddress } from '../stellar-address.ts';
 
@@ -65,18 +65,16 @@ function registryConfig() {
     process.env.SOROBAN_RPC_URL ??
     process.env.NEXT_PUBLIC_SOROBAN_RPC_URL ??
     'https://soroban-testnet.stellar.org';
-  const network = (
+  const rawNetwork =
     process.env.STELLAR_NETWORK ??
     process.env.NEXT_PUBLIC_STELLAR_NETWORK ??
-    'testnet'
-  ).toLowerCase();
+    'testnet';
 
   return {
     contractId:
       process.env.REGISTRY_CONTRACT_ID ?? process.env.NEXT_PUBLIC_IDENTITY_REGISTRY_ID ?? '',
     rpcUrl,
-    networkPassphrase:
-      network === 'mainnet' || network === 'public' ? Networks.PUBLIC : Networks.TESTNET,
+    networkPassphrase: networkPassphrase(normalizeNetwork(rawNetwork)),
   };
 }
 

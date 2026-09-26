@@ -30,6 +30,10 @@ export type { WalletSource } from './wallet-source.ts';
 export { describeWalletSource } from './wallet.ts';
 export type { WalletSourceDescriptor } from './wallet.ts';
 
+// Canonical network types, normalization, and passphrase constants.
+export { NETWORKS, isNetwork, normalizeNetwork, networkPassphrase } from './network.ts';
+export type { Network } from './network.ts';
+
 export type Handle = string;
 
 /** A Stellar account or contract address (G… / C…). */

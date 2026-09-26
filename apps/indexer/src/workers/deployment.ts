@@ -117,6 +117,8 @@ interface OperationsPage {
 interface ScanState {
   highestLedger: number;
   newContracts: number;
+  walletUndecodedMetaCount: number;
+  walletUndecodedMetaVersions: Set<number | string>;
 }
 
 /**
@@ -158,13 +160,14 @@ async function handleOperation(
     const tx = await withRetry(() => horizon.transactions().transaction(txHash).call(), {
       label: RETRY_LABEL,
     });
-    const contractAddress = extractContractAddress(tx.result_meta_xdr);
+    const extraction = extractContractAddress(tx.result_meta_xdr);
     const ledgerSeq = tx.ledger_attr;
     if (typeof ledgerSeq === 'number' && ledgerSeq > state.highestLedger) {
       state.highestLedger = ledgerSeq;
     }
 
-    if (contractAddress) {
+    if (extraction.ok) {
+      const contractAddress = extraction.address;
       // `Contract.address` carries the real uniqueness constraint, and it is
       // the identifier guaranteed not to collide once a profile holds more
       // than one linked wallet: the same contract can be reached from more
@@ -200,6 +203,14 @@ async function handleOperation(
       });
       state.newContracts++;
       logger.debug({ pubkey: wallet.pubkey, contract: contractAddress }, 'deployments.found');
+    } else {
+      // Create-contract operation whose meta could not be decoded.
+      // Because the cursor and watermark move past these operations anyway,
+      // the log line emitted at the end of the wallet scan is the only trace they leave.
+      state.walletUndecodedMetaCount++;
+      if (extraction.metaVersion !== undefined) {
+        state.walletUndecodedMetaVersions.add(extraction.metaVersion);
+      }
     }
   } catch (txErr) {
     logger.warn(
@@ -405,11 +416,18 @@ export async function runDeploymentWorker(
   store: DeploymentStore,
 ): Promise<DeploymentResult> {
   const wallets = await store.wallet.findMany();
-  const state: ScanState = { highestLedger: 0, newContracts: 0 };
+  const state: ScanState = {
+    highestLedger: 0,
+    newContracts: 0,
+    walletUndecodedMetaCount: 0,
+    walletUndecodedMetaVersions: new Set(),
+  };
 
   for (const wallet of wallets) {
     logger.debug({ pubkey: wallet.pubkey }, 'deployments.scanning');
     const before = state.newContracts;
+    state.walletUndecodedMetaCount = 0;
+    state.walletUndecodedMetaVersions = new Set();
 
     try {
       if (wallet.deploymentBackfilledAt) {
@@ -419,6 +437,19 @@ export async function runDeploymentWorker(
       }
     } catch (err) {
       logger.error({ pubkey: wallet.pubkey, error: String(err) }, 'deployments.scanFailed');
+    }
+
+    if (state.walletUndecodedMetaCount > 0) {
+      // Because the cursor and watermark move past these operations anyway,
+      // the log line is the only trace they leave.
+      logger.warn(
+        {
+          wallet: wallet.pubkey,
+          count: state.walletUndecodedMetaCount,
+          metaVersions: Array.from(state.walletUndecodedMetaVersions),
+        },
+        'deployments.undecodedMeta',
+      );
     }
 
     // Cleared whether the scan succeeded or failed: a scan was *attempted*
