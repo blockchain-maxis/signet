@@ -97,7 +97,7 @@ importers:
         version: 2.1.1
       framer-motion:
         specifier: ^13.1.1
-        version: 13.1.1(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
+        version: 13.1.1(react-dom@19.3.0(react@18.3.1))(react@18.3.1)
       gsap:
         specifier: ^3.15.0
         version: 3.15.0
@@ -109,13 +109,13 @@ importers:
         version: 1.41.0(react@18.3.1)
       next:
         specifier: ^15.5.19
-        version: 15.5.19(@playwright/test@1.62.1)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
+        version: 15.5.19(@playwright/test@1.62.1)(react-dom@19.3.0(react@18.3.1))(react@18.3.1)
       react:
         specifier: ^18.3.1
         version: 18.3.1
       react-dom:
-        specifier: ^18.3.1
-        version: 18.3.1(react@18.3.1)
+        specifier: ^19.3.0
+        version: 19.3.0(react@18.3.1)
     devDependencies:
       '@playwright/test':
         specifier: ^1.49.0
@@ -127,8 +127,8 @@ importers:
         specifier: ^18.3.11
         version: 18.3.28
       '@types/react-dom':
-        specifier: ^18.3.0
-        version: 18.3.7(@types/react@18.3.28)
+        specifier: ^19.3.0
+        version: 19.3.0(@types/react@18.3.28)
       autoprefixer:
         specifier: ^10.4.20
         version: 10.5.0(postcss@8.5.14)
@@ -1489,10 +1489,10 @@ packages:
   '@types/prop-types@15.7.15':
     resolution: {integrity: sha512-F6bEyamV9jKGAFBEmlQnesRPGOQqS2+Uwi0Em15xenOxHaf2hv6L8YCVn3rPdPJOiJfPiCnLIRyvwVaqMY3MIw==}
 
-  '@types/react-dom@18.3.7':
-    resolution: {integrity: sha512-MEe3UeoENYVFXzoXEWsvcpg6ZvlrFNlOQ7EOsvhI3CfAXwzPfO8Qwuxd40nepsYKqyyVQnTdEfv68q91yLcKrQ==}
+  '@types/react-dom@19.3.0':
+    resolution: {integrity: sha512-ZI7bU42mZXXKHn/qNLEw2IrbiINU7X5+vfgdixBHkCNpYWXjKgfQ/P+uyGb5CjOLB9UcnTeg3rylQtV2hym44Q==}
     peerDependencies:
-      '@types/react': ^18.0.0
+      '@types/react': ^19.3.0
 
   '@types/react@18.3.28':
     resolution: {integrity: sha512-z9VXpC7MWrhfWipitjNdgCauoMLRdIILQsAEV+ZesIzBq/oUlxk0m3ApZuMFCXdnS4U7KrI+l3WRUEGQ8K1QKw==}
@@ -2882,10 +2882,10 @@ packages:
   randombytes@2.1.0:
     resolution: {integrity: sha512-vYl3iOX+4CKUWuxGi9Ukhie6fsqXqS9FE2Zaic4tNFD2N2QQaXOMFbuKK4QmDHC0JO6B1Zp41J0LpT0oR68amQ==}
 
-  react-dom@18.3.1:
-    resolution: {integrity: sha512-5m4nQKp+rZRb09LNH59GM4BxTh9251/ylbKIbpe7TpGxfJ+9kv6BLkLBXIjjspbgbnIBNqlI23tRnTWT0snUIw==}
+  react-dom@19.3.0:
+    resolution: {integrity: sha512-JDk8dgif51OjFoDE70+OT9ICyYr+69HlmihNwp1+Nsfbna3t5sIiCa9ZJktDmQ4/1b/rn26hIAR2uYXDMr5r0Q==}
     peerDependencies:
-      react: ^18.3.1
+      react: ^19.3.0
 
   react@18.3.1:
     resolution: {integrity: sha512-wS+hAgJShR0KhEvPJArfuPVN1+Hz1t0Y6n5jLrGQbkb4urgPE/0Rve+1kMB1v/oWgHgm4WIcV+i7F2pTVj+2iQ==}
@@ -2945,8 +2945,8 @@ packages:
     resolution: {integrity: sha512-b3rppTKm9T+PsVCBEOUR46GWI7fdOs00VKZ1+9c1EWDaDMvjQc6tUwuFyIprgGgTcWoVHSKrU8H31ZHA2e0RHA==}
     engines: {node: '>=10'}
 
-  scheduler@0.23.2:
-    resolution: {integrity: sha512-UOShsPwz7NrMUqhR6t0hWjFduvOzbtv7toDH1/hIrfRNIDBnnBWd0CwJTGvTpngVlmwGCdP9/Zl/tVrDqcuYzQ==}
+  scheduler@0.28.0:
+    resolution: {integrity: sha512-juorfCmIkIw8tT+p5BXSm6PJjQF/ycEYmKyzURCIt/RaZIhL+PulbQ9Yu2z1HdOJDdqDTlxA1+xKBmHXJsczAw==}
 
   secp256k1@5.0.1:
     resolution: {integrity: sha512-lDFs9AAIaWP9UCdtWrotXWWF9t8PWgQDcxqgAnpM9rMqxb3Oaq2J0thzPVSxBwdJgyQtkU/sYtFtbM1RSt/iYA==}
@@ -5134,7 +5134,7 @@ snapshots:
 
   '@types/prop-types@15.7.15': {}
 
-  '@types/react-dom@18.3.7(@types/react@18.3.28)':
+  '@types/react-dom@19.3.0(@types/react@18.3.28)':
     dependencies:
       '@types/react': 18.3.28
 
@@ -6299,14 +6299,14 @@ snapshots:
 
   fraction.js@5.3.4: {}
 
-  framer-motion@13.1.1(react-dom@18.3.1(react@18.3.1))(react@18.3.1):
+  framer-motion@13.1.1(react-dom@19.3.0(react@18.3.1))(react@18.3.1):
     dependencies:
       motion-dom: 13.1.1
       motion-utils: 13.0.0
       tslib: 2.8.1
     optionalDependencies:
       react: 18.3.1
-      react-dom: 18.3.1(react@18.3.1)
+      react-dom: 19.3.0(react@18.3.1)
 
   fsevents@2.3.2:
     optional: true
@@ -6672,14 +6672,14 @@ snapshots:
     transitivePeerDependencies:
       - encoding
 
-  next@15.5.19(@playwright/test@1.62.1)(react-dom@18.3.1(react@18.3.1))(react@18.3.1):
+  next@15.5.19(@playwright/test@1.62.1)(react-dom@19.3.0(react@18.3.1))(react@18.3.1):
     dependencies:
       '@next/env': 15.5.19
       '@swc/helpers': 0.5.15
       caniuse-lite: 1.0.30001792
       postcss: 8.5.14
       react: 18.3.1
-      react-dom: 18.3.1(react@18.3.1)
+      react-dom: 19.3.0(react@18.3.1)
       styled-jsx: 5.1.6(react@18.3.1)
     optionalDependencies:
       '@next/swc-darwin-arm64': 15.5.19
@@ -6943,11 +6943,10 @@ snapshots:
     dependencies:
       safe-buffer: 5.2.1
 
-  react-dom@18.3.1(react@18.3.1):
+  react-dom@19.3.0(react@18.3.1):
     dependencies:
-      loose-envify: 1.4.0
       react: 18.3.1
-      scheduler: 0.23.2
+      scheduler: 0.28.0
 
   react@18.3.1:
     dependencies:
@@ -7009,9 +7008,7 @@ snapshots:
 
   safe-stable-stringify@2.5.0: {}
 
-  scheduler@0.23.2:
-    dependencies:
-      loose-envify: 1.4.0
+  scheduler@0.28.0: {}
 
   secp256k1@5.0.1:
     dependencies:
