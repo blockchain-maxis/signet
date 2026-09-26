@@ -52,11 +52,23 @@ export interface ProfileStats {
   reputation: number;
 }
 
+/**
+ * Profile stats together with completeness/scope metadata.
+ *
+ * `exact` means the values exactly cover the represented scope. When
+ * `retentionWindowDays` is non-null, that scope is the most recent N days
+ * retained by the indexer rather than lifetime history.
+ */
+export interface ProfileStatsResult extends ProfileStats {
+  exact: boolean;
+  retentionWindowDays: number | null;
+}
+
 /** Response shape returned by `profile.byHandle`. */
 export interface ProfileResponse {
   handle: Handle;
   profile: SignetProfile;
-  stats: ProfileStats;
+  stats: ProfileStatsResult;
 }
 
 /** A single handle ↔ wallet binding from the on-chain registry. */
