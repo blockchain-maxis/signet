@@ -45,10 +45,9 @@ export default async function ProfilePage({ params }: { params: Promise<{ handle
   // career record must never do.
   const { operations, truncated, cap, source } = await getOperationsResult(handle);
   const stats = await getProfileStats(handle, operations);
-  // The stats can outrun the window the list came from: when the database
-  // answered with aggregates over the whole history they are exact totals even
-  // though the operations below stop at a cap. Only qualify them when they were
-  // actually derived from that capped window.
+  // The stats can outrun the capped operation list: database aggregates are
+  // exact for their represented scope even when the list below stops at a cap.
+  // When that scope is retention-bounded, the UI labels the window explicitly.
   const statsTruncated = truncated && !stats.exact;
   const statsWindow = formatStatsWindow(stats.retentionWindowDays);
   const historyWindowed = source === 'database' && statsWindow !== null;
