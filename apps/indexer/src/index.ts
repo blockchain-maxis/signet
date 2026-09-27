@@ -82,7 +82,11 @@ async function tick(
   const { snapshotsWritten } = await runActivityWorker(horizon, prisma as unknown as ActivityStore);
 
   // Operations: pull recent Soroban invocations for tracked wallets
-  const { opsUpserted } = await runOperationsWorker(horizon, prisma as unknown as OperationsStore);
+  const { opsUpserted } = await runOperationsWorker(
+    horizon,
+    prisma as unknown as OperationsStore,
+    config,
+  );
 
   // Executable refresh: backfill missing WASM hashes and detect on-chain contract upgrades
   const { wasmChanged } = await runExecutableRefreshWorker(
