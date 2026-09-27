@@ -1,5 +1,6 @@
 import { logger } from '../logger.js';
 import type { IndexerConfig } from '../config.js';
+import { retentionCutoff } from './retention.js';
 
 export interface PruningStore {
   operation: {
@@ -40,35 +41,31 @@ export async function runPruningWorker(
   let opsPruned = 0;
   let snapshotsPruned = 0;
 
-  if (config.operationsRetentionDays > 0) {
-    const cutoff = new Date(
-      now.getTime() - config.operationsRetentionDays * 24 * 60 * 60 * 1000,
-    );
+  const operationsCutoff = retentionCutoff(config.operationsRetentionDays, now);
+  if (operationsCutoff) {
     try {
       const result = await store.operation.deleteMany({
         where: {
-          createdAt: { lt: cutoff },
+          createdAt: { lt: operationsCutoff },
         },
       });
       opsPruned = result.count;
-      logger.debug({ opsPruned, cutoff: cutoff.toISOString() }, 'prune.operations');
+      logger.debug({ opsPruned, cutoff: operationsCutoff.toISOString() }, 'prune.operations');
     } catch (err) {
       logger.error({ error: String(err) }, 'prune.operations_failed');
     }
   }
 
-  if (config.snapshotsRetentionDays > 0) {
-    const cutoff = new Date(
-      now.getTime() - config.snapshotsRetentionDays * 24 * 60 * 60 * 1000,
-    );
+  const snapshotsCutoff = retentionCutoff(config.snapshotsRetentionDays, now);
+  if (snapshotsCutoff) {
     try {
       const result = await store.contractSnapshot.deleteMany({
         where: {
-          capturedAt: { lt: cutoff },
+          capturedAt: { lt: snapshotsCutoff },
         },
       });
       snapshotsPruned = result.count;
-      logger.debug({ snapshotsPruned, cutoff: cutoff.toISOString() }, 'prune.snapshots');
+      logger.debug({ snapshotsPruned, cutoff: snapshotsCutoff.toISOString() }, 'prune.snapshots');
     } catch (err) {
       logger.error({ error: String(err) }, 'prune.snapshots_failed');
     }
