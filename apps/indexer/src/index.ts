@@ -8,6 +8,7 @@ import { runDeploymentWorker, type DeploymentStore } from './workers/deployment.
 import { runActivityWorker, type ActivityStore } from './workers/activity.js';
 import { runAttestationWorker } from './workers/attestation.js';
 import { runOperationsWorker, type OperationsStore } from './workers/operations.js';
+import { runInvocationsWorker, type InvocationsStore } from './workers/invocations.js';
 import { runPruningWorker, type PruningStore } from './workers/prune.js';
 import {
   runExecutableRefreshWorker,
@@ -84,6 +85,17 @@ async function tick(
   // Operations: pull recent Soroban invocations for tracked wallets
   const { opsUpserted } = await runOperationsWorker(horizon, prisma as unknown as OperationsStore);
 
+  // Invocations: capture per-contract invocations, footprints, and state mutations
+  let invocationsUpserted = 0;
+  if (config.captureInvocations) {
+    const res = await runInvocationsWorker(
+      soroban,
+      config,
+      prisma as unknown as InvocationsStore,
+    );
+    invocationsUpserted = res.invocationsUpserted;
+  }
+
   // Executable refresh: backfill missing WASM hashes and detect on-chain contract upgrades
   const { wasmChanged } = await runExecutableRefreshWorker(
     soroban,
@@ -91,13 +103,15 @@ async function tick(
     prisma as unknown as ExecutableRefreshStore,
   );
 
-  // Pruning: periodically prune historical operations and snapshots beyond retention windows
+  // Pruning: periodically prune historical operations, snapshots, and invocations beyond retention windows
   let opsPruned = 0;
   let snapshotsPruned = 0;
+  let invocationsPruned = 0;
   if (Date.now() - lastPrunedAt >= config.pruneIntervalMs) {
     const pruneRes = await runPruningWorker(prisma as unknown as PruningStore, config);
     opsPruned = pruneRes.opsPruned;
     snapshotsPruned = pruneRes.snapshotsPruned;
+    invocationsPruned = pruneRes.invocationsPruned;
     lastPrunedAt = Date.now();
   }
 
@@ -118,10 +132,12 @@ async function tick(
       eventsDecoded,
       contractsFound,
       opsUpserted,
+      invocationsUpserted,
       snapshotsWritten,
       wasmChanged,
       opsPruned,
       snapshotsPruned,
+      invocationsPruned,
       durationMs: Date.now() - start,
     },
     'tick.summary',

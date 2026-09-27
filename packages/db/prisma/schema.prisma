@@ -122,6 +122,7 @@ model Contract {
   wallet       Wallet                @relation(fields: [walletId], references: [id], onDelete: Cascade)
   snapshots    ContractSnapshot[]
   wasmVersions ContractWasmVersion[]
+  invocations  ContractInvocation[]
 
   @@index([deployerPubkey])
   @@index([deployedAt])
@@ -141,6 +142,40 @@ model ContractWasmVersion {
 
   @@unique([contractId, wasmHash])
   @@index([contractId, observedAt])
+}
+
+/// Per-contract invocation index capturing raw transaction footprints, storage mutations,
+/// and metadata for contracts. Populated by the invocations worker via RPC getTransaction.
+model ContractInvocation {
+  /// Composite ID format: `${txHash}:${opIndex}`
+  id                String   @id
+  contractId        String
+  txHash            String
+  ledger            Int
+  createdAt         DateTime
+  sourceAccount     String
+  /// Invoked function name if target is this contract; null if reached only as a sub-call
+  function          String?
+  successful        Boolean
+  /// Contract executable WASM hash at capture time
+  wasmHash          String?
+  /// Declared read-only footprint as base64 LedgerKeys
+  readOnly          Json
+  /// Declared read-write footprint as base64 LedgerKeys
+  readWrite         Json
+  /// Ledger keys actually modified according to transaction result meta (null if meta unavailable)
+  changed           Json?
+  /// Extracted call edges (filled by #516)
+  callEdges         Json?
+  /// Contract IDs that emitted events in this invocation
+  eventsContractIds String[]
+  indexedAt         DateTime @default(now())
+
+  contract          Contract @relation(fields: [contractId], references: [id], onDelete: Cascade)
+
+  @@index([contractId, createdAt])
+  @@index([contractId, function])
+  @@index([contractId, sourceAccount])
 }
 
 model ContractSnapshot {
