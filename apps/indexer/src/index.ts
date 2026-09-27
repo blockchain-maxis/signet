@@ -4,6 +4,7 @@ import { logger, setLogLevel } from './logger.js';
 import { connectDb, disconnectDb, prisma } from './db.js';
 import { createHorizonServer, sleep } from './stellar.js';
 import { createSorobanRpcServer } from './soroban-rpc.js';
+import { createContractExecutableReader } from './contract-executable.js';
 import { runDeploymentWorker, type DeploymentStore } from './workers/deployment.js';
 import { runActivityWorker, type ActivityStore } from './workers/activity.js';
 import { runAttestationWorker } from './workers/attestation.js';
@@ -74,6 +75,7 @@ async function tick(
     horizon,
     config,
     prisma as unknown as DeploymentStore,
+    createContractExecutableReader(soroban),
   );
 
   // Activity: refresh snapshots for tracked contracts. Same freshness

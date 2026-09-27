@@ -18,6 +18,7 @@
     "@stellar/stellar-sdk": "^16.1.0"
   },
   "devDependencies": {
+    "@signet/fixtures": "workspace:*",
     "@types/node": "^20.16.0",
     "tsx": "^4.19.1",
     "typescript": "^5.6.3"

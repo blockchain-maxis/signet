@@ -50,6 +50,9 @@ importers:
         specifier: ^16.1.0
         version: 16.1.0
     devDependencies:
+      '@signet/fixtures':
+        specifier: workspace:*
+        version: link:../../packages/fixtures
       '@types/node':
         specifier: ^20.16.0
         version: 20.19.41

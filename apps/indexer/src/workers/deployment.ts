@@ -3,6 +3,7 @@ import { logger } from '../logger.js';
 import { extractContractAddress, sleep } from '../stellar.js';
 import { withRetry } from '../retry.js';
 import type { IndexerConfig } from '../config.js';
+import type { ContractExecutableInfo, ReadExecutable } from '../contract-executable.js';
 
 const RATE_LIMIT_DELAY_MS = 100;
 const RETRY_LABEL = 'deployments.horizon';
@@ -67,6 +68,20 @@ export interface ContractCreate {
   deployedAt: Date;
   deployTxHash: string;
   network: string;
+  /**
+   * Lowercase 64-char SHA-256 hex of the instance's WASM executable, read from
+   * chain at discovery time. `null` when the instance was already archived or
+   * Soroban RPC could not be reached.
+   */
+  wasmHash: string | null;
+  /** `'wasm'` | `'stellar_asset'`, or `null` when neither could be determined. */
+  executableType: string | null;
+  /**
+   * When the executable was identified. Left `null` on a miss deliberately:
+   * #416's refresh worker selects on `wasmHashCheckedAt IS NULL`, so an
+   * unread row is due for a backfill at once rather than after one interval.
+   */
+  wasmHashCheckedAt: Date | null;
 }
 
 /**
@@ -103,6 +118,18 @@ export interface DeploymentStore {
       where: { address: string };
       update: Record<string, never>;
       create: ContractCreate;
+    }) => Promise<{ id: string } | null>;
+  };
+  /**
+   * Only written when discovery found a WASM executable: the first entry in the
+   * contract's version history. `#416`'s refresh worker upserts the same
+   * unique pair, so a re-run adds nothing.
+   */
+  contractWasmVersion: {
+    upsert: (args: {
+      where: { contractId_wasmHash: { contractId: string; wasmHash: string } };
+      update: Record<string, never>;
+      create: { contractId: string; wasmHash: string; observedLedger: number };
     }) => Promise<unknown>;
   };
 }
@@ -124,9 +151,10 @@ interface ScanState {
 /**
  * Handle one Horizon operation: track the highest ledger seen, and — for a
  * create-contract invocation not already recorded — fetch its transaction,
- * extract the deployed address, and upsert the Contract row. Shared between
- * the quick-check path (an already-backfilled wallet) and the paginated
- * backfill path, so both apply the exact same dedup and extraction logic.
+ * extract the deployed address, read the instance's executable off chain, and
+ * upsert the Contract row. Shared between the quick-check path (an already-
+ * backfilled wallet) and the paginated backfill path, so both apply the exact
+ * same dedup and extraction logic.
  */
 async function handleOperation(
   op: Horizon.ServerApi.OperationRecord,
@@ -135,6 +163,7 @@ async function handleOperation(
   config: IndexerConfig,
   store: DeploymentStore,
   state: ScanState,
+  readExecutable: ReadExecutable | undefined,
 ): Promise<void> {
   if (op.paging_token) {
     const ledgerSeq = Math.floor(Number(op.paging_token) / 4294967296);
@@ -161,10 +190,8 @@ async function handleOperation(
       label: RETRY_LABEL,
     });
     const extraction = extractContractAddress(tx.result_meta_xdr);
-    const ledgerSeq = tx.ledger_attr;
-    if (typeof ledgerSeq === 'number' && ledgerSeq > state.highestLedger) {
-      state.highestLedger = ledgerSeq;
-    }
+    const ledgerSeq: number = typeof tx.ledger_attr === 'number' ? tx.ledger_attr : 0;
+    if (ledgerSeq > state.highestLedger) state.highestLedger = ledgerSeq;
 
     if (extraction.ok) {
       const contractAddress = extraction.address;
@@ -189,7 +216,35 @@ async function handleOperation(
         return;
       }
 
-      await store.contract.upsert({
+      // For a freshly-deployed contract the instance is still live, so this is
+      // one RPC read. The old deployments #372's backward walk recovers are
+      // usually archived, which makes a `null` here the common case rather
+      // than the exception — hence the row is created regardless: losing a
+      // discovery would be far worse than losing a hash, and #416 backfills
+      // it. Its own try/catch for the same reason: a read that *throws* must
+      // not reach the outer handler, which would skip the insert.
+      let executable: ContractExecutableInfo | null = null;
+      let executableError: string | undefined;
+      if (readExecutable) {
+        try {
+          executable = await readExecutable(contractAddress);
+        } catch (err) {
+          executableError = String(err);
+        }
+      }
+      if (!executable) {
+        const fields = {
+          pubkey: wallet.pubkey,
+          contract: contractAddress,
+          ...(executableError ? { error: executableError } : {}),
+        };
+        // A plain miss is the expected outcome for an archived instance, so it
+        // stays at debug; a read that actually failed deserves to be seen.
+        if (executableError) logger.warn(fields, 'deployments.executableUnavailable');
+        else logger.debug(fields, 'deployments.executableUnavailable');
+      }
+
+      const created = await store.contract.upsert({
         where: { address: contractAddress },
         update: {},
         create: {
@@ -199,8 +254,26 @@ async function handleOperation(
           deployedAt: new Date(tx.created_at),
           deployTxHash: txHash,
           network: config.network,
+          wasmHash: executable?.type === 'wasm' ? executable.wasmHash : null,
+          executableType: executable ? executable.type : null,
+          wasmHashCheckedAt: executable ? new Date() : null,
         },
       });
+
+      if (executable?.type === 'wasm' && created) {
+        await store.contractWasmVersion.upsert({
+          where: {
+            contractId_wasmHash: { contractId: created.id, wasmHash: executable.wasmHash },
+          },
+          update: {},
+          create: {
+            contractId: created.id,
+            wasmHash: executable.wasmHash,
+            observedLedger: ledgerSeq,
+          },
+        });
+      }
+
       state.newContracts++;
       logger.debug({ pubkey: wallet.pubkey, contract: contractAddress }, 'deployments.found');
     } else {
@@ -243,9 +316,10 @@ async function quickCheck(
   config: IndexerConfig,
   store: DeploymentStore,
   state: ScanState,
+  readExecutable: ReadExecutable | undefined,
 ): Promise<void> {
   if (!wallet.deploymentWatermark) {
-    await seedWatermark(wallet, horizon, config, store, state);
+    await seedWatermark(wallet, horizon, config, store, state, readExecutable);
     return;
   }
 
@@ -267,7 +341,7 @@ async function quickCheck(
 
   while (true) {
     for (const op of page.records) {
-      await handleOperation(op, wallet, horizon, config, store, state);
+      await handleOperation(op, wallet, horizon, config, store, state, readExecutable);
       if (op.paging_token) watermark = op.paging_token;
     }
     pagesRead++;
@@ -310,6 +384,7 @@ async function seedWatermark(
   config: IndexerConfig,
   store: DeploymentStore,
   state: ScanState,
+  readExecutable: ReadExecutable | undefined,
 ): Promise<void> {
   const ops = await withRetry(
     () =>
@@ -322,7 +397,7 @@ async function seedWatermark(
   const newest = ops.records[0]?.paging_token ?? null;
 
   for (const op of ops.records) {
-    await handleOperation(op, wallet, horizon, config, store, state);
+    await handleOperation(op, wallet, horizon, config, store, state, readExecutable);
   }
 
   if (newest) {
@@ -347,6 +422,7 @@ async function backfill(
   config: IndexerConfig,
   store: DeploymentStore,
   state: ScanState,
+  readExecutable: ReadExecutable | undefined,
 ): Promise<void> {
   let page = (await withRetry(
     () => {
@@ -367,7 +443,7 @@ async function backfill(
 
   while (true) {
     for (const op of page.records) {
-      await handleOperation(op, wallet, horizon, config, store, state);
+      await handleOperation(op, wallet, horizon, config, store, state, readExecutable);
       if (op.paging_token) cursor = op.paging_token;
     }
     pagesRead++;
@@ -414,6 +490,7 @@ export async function runDeploymentWorker(
   horizon: Horizon.Server,
   config: IndexerConfig,
   store: DeploymentStore,
+  readExecutable?: ReadExecutable,
 ): Promise<DeploymentResult> {
   const wallets = await store.wallet.findMany();
   const state: ScanState = {
@@ -431,9 +508,9 @@ export async function runDeploymentWorker(
 
     try {
       if (wallet.deploymentBackfilledAt) {
-        await quickCheck(wallet, horizon, config, store, state);
+        await quickCheck(wallet, horizon, config, store, state, readExecutable);
       } else {
-        await backfill(wallet, horizon, config, store, state);
+        await backfill(wallet, horizon, config, store, state, readExecutable);
       }
     } catch (err) {
       logger.error({ pubkey: wallet.pubkey, error: String(err) }, 'deployments.scanFailed');

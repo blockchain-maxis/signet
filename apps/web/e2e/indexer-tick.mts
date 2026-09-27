@@ -112,7 +112,9 @@ const config = { network: 'testnet' } as Parameters<typeof runDeploymentWorker>[
 
 try {
   const operations = await runOperationsWorker(horizon, prisma as never);
-  const deployments = await runDeploymentWorker(horizon, config, prisma as never);
+  // The contract address is synthetic — nothing was really deployed there, so
+  // the on-chain executable read production performs has no instance to find.
+  const deployments = await runDeploymentWorker(horizon, config, prisma as never, async () => null);
   console.log(JSON.stringify({ ok: true, operations, deployments }));
 } catch (err) {
   console.error(err instanceof Error ? err.stack : String(err));
