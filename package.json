@@ -31,6 +31,7 @@
     "db:deploy": "pnpm --filter @signet/db run migrate:deploy",
     "db:generate": "pnpm --filter @signet/db run generate",
     "indexer:dev": "pnpm --filter @signet/indexer dev",
+    "dev:seed": "pnpm --filter @signet/indexer run dev:seed",
     "docs:generate": "pnpm --filter @signet/web run docs:generate"
   },
   "devDependencies": {

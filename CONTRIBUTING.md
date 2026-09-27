@@ -48,6 +48,18 @@ pnpm stack:up     # build and start Postgres + indexer containers
 pnpm stack:down   # stop the stack
 ```
 
+### Seeding local data from testnet
+
+Synthetic demo profiles are not seeded into fresh databases. To seed a real on-chain claim into your local database:
+
+1. Deploy any contract to testnet with the `stellar` CLI.
+2. Claim a handle at `/claim` on testnet.
+3. Run:
+   ```bash
+   pnpm dev:seed --handle <your-handle>
+   ```
+This reads the real on-chain claim binding from testnet, persists the profile and wallet in your local database with `indexRequestedAt` set, and triggers the running indexer to scan it promptly.
+
 ## The gates
 
 CI runs the same commands you can run locally. **Every one must pass before a PR
