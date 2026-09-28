@@ -28,6 +28,24 @@ export interface IndexerConfig {
   executableRefreshIntervalMs: number;
 }
 
+interface IntEnvBounds {
+  min: number;
+  max?: number;
+}
+
+function intEnv(name: string, defaultValue: number, { min, max }: IntEnvBounds): number {
+  const rawValue = process.env[name];
+  if (rawValue === undefined) return defaultValue;
+
+  const value = Number(rawValue);
+  if (!Number.isInteger(value) || value < min || (max !== undefined && value > max)) {
+    const range = max === undefined ? `at least ${min}` : `between ${min} and ${max}`;
+    throw new Error(`[indexer] Invalid ${name}: "${rawValue}". Expected an integer ${range}.`);
+  }
+
+  return value;
+}
+
 export function loadConfig(): IndexerConfig {
   const databaseUrl = process.env.DATABASE_URL;
   if (!databaseUrl) throw new Error('[indexer] DATABASE_URL is required');
@@ -43,7 +61,7 @@ export function loadConfig(): IndexerConfig {
   }
 
   const horizonUrl = process.env.INDEXER_HORIZON_URL ?? 'https://horizon-testnet.stellar.org';
-  const rpcUrl     = process.env.INDEXER_RPC_URL     ?? 'https://soroban-testnet.stellar.org';
+  const rpcUrl = process.env.INDEXER_RPC_URL ?? 'https://soroban-testnet.stellar.org';
 
   // Fail fast if the network and endpoints disagree (e.g. INDEXER_NETWORK flipped
   // to mainnet but INDEXER_RPC_URL/INDEXER_HORIZON_URL left at their testnet
@@ -58,16 +76,18 @@ export function loadConfig(): IndexerConfig {
     network,
     horizonUrl,
     rpcUrl,
-    tickIntervalMs:  Number(process.env.INDEXER_TICK_INTERVAL_MS ?? 30_000),
-    logLevel:        process.env.INDEXER_LOG_LEVEL        ?? 'info',
+    tickIntervalMs: intEnv('INDEXER_TICK_INTERVAL_MS', 30_000, { min: 1_000 }),
+    logLevel: process.env.INDEXER_LOG_LEVEL ?? 'info',
     registryContractId:
       process.env.INDEXER_REGISTRY_CONTRACT_ID ??
       process.env.NEXT_PUBLIC_IDENTITY_REGISTRY_ID ??
       '',
-    eventWindowLedgers: Number(process.env.INDEXER_EVENT_WINDOW_LEDGERS ?? 8_000),
-    operationsRetentionDays: Number(process.env.INDEXER_OPERATIONS_RETENTION_DAYS ?? 90),
-    snapshotsRetentionDays: Number(process.env.INDEXER_SNAPSHOTS_RETENTION_DAYS ?? 30),
-    pruneIntervalMs: Number(process.env.INDEXER_PRUNE_INTERVAL_MS ?? 3_600_000),
-    executableRefreshIntervalMs: Number(process.env.INDEXER_EXECUTABLE_REFRESH_MS ?? 21_600_000),
+    eventWindowLedgers: intEnv('INDEXER_EVENT_WINDOW_LEDGERS', 8_000, { min: 1 }),
+    operationsRetentionDays: intEnv('INDEXER_OPERATIONS_RETENTION_DAYS', 90, { min: 0 }),
+    snapshotsRetentionDays: intEnv('INDEXER_SNAPSHOTS_RETENTION_DAYS', 30, { min: 0 }),
+    pruneIntervalMs: intEnv('INDEXER_PRUNE_INTERVAL_MS', 3_600_000, { min: 60_000 }),
+    executableRefreshIntervalMs: intEnv('INDEXER_EXECUTABLE_REFRESH_MS', 21_600_000, {
+      min: 60_000,
+    }),
   };
 }

@@ -39,7 +39,7 @@ The web app reads `INDEXER_OPERATIONS_RETENTION_DAYS` only to label this scope. 
 The pruning worker ([`apps/indexer/src/workers/prune.ts`](../apps/indexer/src/workers/prune.ts)) executes periodically inside the indexer main loop:
 
 1. **Interval Execution:** Evaluates whether `INDEXER_PRUNE_INTERVAL_MS` (default `3,600,000` ms = 1 hour) has elapsed since the last pass.
-2. **Operations Pruning:** Deletes `Operation` rows where `createdAt < now - retentionDays`.
+2. **Operations Ingestion and Pruning:** The operations worker stops paging at `createdAt < now - retentionDays` and does not store older invocations; the pruning worker deletes existing `Operation` rows older than that same cutoff.
 3. **Snapshots Pruning:** Deletes `ContractSnapshot` rows where `capturedAt < now - retentionDays`.
 4. **Structured Metrics:** Logs `opsPruned` and `snapshotsPruned` in indexer tick metrics.
 

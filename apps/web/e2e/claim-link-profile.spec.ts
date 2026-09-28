@@ -45,7 +45,7 @@ import { apiSignIn } from './support';
  * ## Why it needs a database
  *
  * The stages this exercises are the database-backed ones: linking fails closed
- * without a database (#277), and the profile falls back to chain/curated data
+ * without a database (#277), and the profile falls back to on-chain registry data
  * when there is none. Asserting against the fallback would be testing a
  * different flow while appearing to test this one. CI provides Postgres for
  * this spec specifically; locally:

@@ -2,6 +2,8 @@ import type { Horizon } from '@stellar/stellar-sdk';
 import { logger } from '../logger.js';
 import { sleep } from '../stellar.js';
 import { withRetry } from '../retry.js';
+import type { IndexerConfig } from '../config.js';
+import { retentionCutoff } from './retention.js';
 
 const RATE_LIMIT_DELAY_MS = 100;
 const RETRY_LABEL = 'operations.horizon';
@@ -88,8 +90,11 @@ interface OperationsPage {
 export async function runOperationsWorker(
   horizon: Horizon.Server,
   store: OperationsStore,
+  config: Pick<IndexerConfig, 'operationsRetentionDays'> = { operationsRetentionDays: 0 },
+  now: Date = new Date(),
 ): Promise<OperationsResult> {
   const wallets = await store.wallet.findMany();
+  const cutoff = retentionCutoff(config.operationsRetentionDays, now);
   let opsUpserted = 0;
 
   for (const wallet of wallets) {
@@ -123,6 +128,14 @@ export async function runOperationsWorker(
         let hitStop = false;
 
         for (const op of page.records) {
+          // Records are newest-first. Once one falls outside the retention
+          // window, all following records do too, so do not fetch or write
+          // any more historical operations.
+          if (cutoff && new Date(op.created_at) < cutoff) {
+            hitStop = true;
+            break;
+          }
+
           if (op.type !== 'invoke_host_function') continue;
 
           // Reaching the stored cursor means every older operation is already
