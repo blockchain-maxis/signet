@@ -1,0 +1,54 @@
+/**
+ * @file @signet/visualiser
+ *
+ * Pure, framework-free contract diagram core for Signet.
+ *
+ * Package Contract (§4.2 of docs/CONTRACT_VISUALISER_DESIGN.md):
+ * - Pure core: graph, layout (`layoutContractGraph`), SVG string renderer and
+ *   overlays live behind this entry point. No React and no DOM here — the
+ *   tsconfig `lib` deliberately omits `DOM`, so any `window`/`document`
+ *   reference fails `typecheck`.
+ * - The `./interactive` entry holds the framework-free DOM enhancer (wired up
+ *   in #500–#505); `./tokens.css` holds the design tokens (filled in by #491).
+ *
+ * Four consumers share this core: the web contract page, the local sandbox UI
+ * served by `signet dev`, SVG export, and the Go CLI through an embedded JS
+ * bundle (#544).
+ */
+
+import type { ContractSpec } from '@signet/spec';
+
+export const VISUALISER_VERSION = '0.1.0';
+
+export type { ContractSpec };
+
+/** One node in a laid-out contract diagram. */
+export interface DiagramNode {
+  id: string;
+  label: string;
+}
+
+/** One directed edge between two diagram nodes. */
+export interface DiagramEdge {
+  from: string;
+  to: string;
+  label?: string;
+}
+
+/** The laid-out diagram model renderers consume. */
+export interface DiagramModel {
+  nodes: DiagramNode[];
+  edges: DiagramEdge[];
+}
+
+/** Options for the pure layout pass. */
+export interface LayoutOptions {
+  direction?: 'lr' | 'tb';
+}
+
+/**
+ * Pure layout signature: spec in, diagram model out. The implementation
+ * lands with the graph/layout work (#500+); the type is declared here so
+ * every consumer builds against one contract.
+ */
+export type LayoutContractGraph = (spec: ContractSpec, options?: LayoutOptions) => DiagramModel;

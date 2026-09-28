@@ -80,6 +80,9 @@ importers:
       '@signet/types':
         specifier: workspace:*
         version: link:../../packages/types
+      '@signet/visualiser':
+        specifier: workspace:*
+        version: link:../../packages/visualiser
       '@stellar/stellar-sdk':
         specifier: ^16.1.0
         version: 16.1.0
@@ -198,6 +201,16 @@ importers:
         version: 5.9.3
 
   packages/types:
+    devDependencies:
+      typescript:
+        specifier: ^5.6.3
+        version: 5.9.3
+
+  packages/visualiser:
+    dependencies:
+      '@signet/spec':
+        specifier: workspace:*
+        version: link:../spec
     devDependencies:
       typescript:
         specifier: ^5.6.3
