@@ -35,7 +35,7 @@ is caught by the tick, logged as `tick.error`, and the loop continues.
 | # | Worker | Runs | Input | Writes |
 |---|--------|------|-------|--------|
 | 1 | **attestation** | Every tick, **skipped entirely** when no registry contract id is configured | Soroban RPC `getEvents` on the Identity Registry | `Profile`, `Wallet` (`source: 'onchain'`), cursor `attestation` |
-| 2 | **deployment** | Every tick | Horizon `/accounts/{pubkey}/operations` for every `Wallet` row — paginated backward from `Wallet.deploymentCursor` (50/page, up to 10 pages/tick) until fully backfilled, then paginated forward from `Wallet.deploymentWatermark` — plus a transaction fetch per contract-creation op | `Contract`, `Wallet.deploymentCursor`/`deploymentBackfilledAt`/`deploymentWatermark`, clears `Wallet.indexRequestedAt` |
+| 2 | **deployment** | Every tick | Horizon `/accounts/{pubkey}/operations` for every `Wallet` row — paginated backward from `Wallet.deploymentCursor` (50/page, up to 10 pages/tick) until fully backfilled, then paginated forward from `Wallet.deploymentWatermark` — plus a transaction fetch per contract-creation op, and one Soroban RPC `getLedgerEntries` per newly discovered contract to read its instance executable | `Contract` (incl. `wasmHash`/`executableType`/`wasmHashCheckedAt`), `ContractWasmVersion` (first hash of a WASM contract), `Wallet.deploymentCursor`/`deploymentBackfilledAt`/`deploymentWatermark`, clears `Wallet.indexRequestedAt` |
 | 3 | **activity** | Every tick | Horizon `/accounts/{contract}/transactions` for every `Contract` whose newest snapshot is older than 5 min | `ContractSnapshot` |
 | 4 | **operations** | Every tick | Horizon `/accounts/{pubkey}/operations` for every `Wallet` (50 most recent, desc) | `Operation` |
 | 5 | **executable-refresh** | Periodic (`INDEXER_EXECUTABLE_REFRESH_MS`, default 6h) | Soroban RPC `getLedgerEntries` for contracts where `wasmHashCheckedAt` is null or older than the refresh interval (batched, at most 100 keys per call) | `Contract.wasmHash`, `Contract.wasmHashCheckedAt`, `ContractWasmVersion` |
@@ -69,6 +69,8 @@ Anything else is skipped silently. See the
 contract's own method and event reference.
 
 ### Executable refresh and upgrade detection
+
+The hash is first recorded at **discovery**: the deployment worker reads the new instance's executable in the same tick it finds the contract, so a live deployment gets `wasmHash` (plus its first `ContractWasmVersion` row) or `executableType: 'stellar_asset'` without waiting for a refresh pass. Contracts whose instance is already archived — most of what #372's backward walk recovers — are stored with a `null` hash and `wasmHashCheckedAt`, which is what makes them due for the worker below on its next run.
 
 The **executable-refresh** worker ensures contracts have their current WASM hash populated and detects code upgrades over time:
 
@@ -274,6 +276,7 @@ wedged or dead. That line is the single best thing to alert on.
 | `pairing.unlinked` | info | A binding was dropped. `reason` is `released`, `revoked`, `transferred` or `no-longer-bound`. | Expected after a release; unexpected ones are worth investigating with the `wallet` field. |
 | `pairing.linkRejected` | **warn** | A registry event could not be decoded, so no pairing was applied. `reason: undecodable-event`. | Repeating → the contract emits a shape this build does not know; check the registry version. |
 | `deployments.txFetchFailed` | **warn** | One transaction couldn't be fetched; that contract is skipped this tick. | Self-heals; a permanent one means the tx is outside Horizon's retention. |
+| `deployments.executableUnavailable` | debug / **warn** with `error` | The contract was recorded but its executable wasn't read: archived instance (debug) or a failed RPC read (warn). **The `Contract` row still exists**, only `wasmHash` is null. | Expected for old deployments. A repeating `error` one means Soroban RPC is unhealthy; #416's refresh worker retries it. |
 | `deployments.scanFailed` / `operations.scanFailed` | **error** | Horizon scan failed for one wallet. Other wallets still run. | §6 — usually a missing account or a 429. |
 | `activity.queryFailed` | **warn** | No transactions readable for a contract; a snapshot with **zero counts is still written**. | Watch for zeroed snapshots on a contract you know is active. |
 | `tick.error` | **error** | An exception escaped a worker; this tick is abandoned, the loop continues. | Read the `error` field; persistent → restart. |

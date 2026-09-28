@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import type { Horizon } from '@stellar/stellar-sdk';
 import { runOperationsWorker, type OperationsStore, type OperationCreate } from './operations.ts';
+import { runPruningWorker, type PruningStore } from './prune.ts';
 
 /**
  * An in-memory `OperationsStore` that upserts keyed on the op id — the same
@@ -201,6 +202,74 @@ test('a wallet with no stored operations reads every available page', async () =
 
   assert.equal(rows.size, 2, 'with no cursor the walk is not cut short');
   assert.equal(calls.pagesFetched, 3, 'both data pages plus the terminating empty page');
+});
+
+test('retention stops an inactive wallet at its first old operation without writing it', async () => {
+  const now = new Date('2026-08-31T12:00:00Z');
+  const { horizon, calls } = horizonPaginated([
+    [invokeOp('op-old', { created_at: '2026-05-03T12:00:00Z' })],
+    [invokeOp('op-older', { created_at: '2026-05-02T12:00:00Z' })],
+  ]);
+  const { store, rows } = memoryStore([WALLET]);
+
+  const result = await runOperationsWorker(horizon, store, { operationsRetentionDays: 90 }, now);
+
+  assert.equal(result.opsUpserted, 0);
+  assert.equal(rows.size, 0);
+  assert.equal(calls.pagesFetched, 1, 'the older page is not fetched');
+});
+
+test('disabled retention continues ingesting old operations', async () => {
+  const now = new Date('2026-08-31T12:00:00Z');
+  const { horizon, calls } = horizonPaginated([
+    [invokeOp('op-old', { created_at: '2026-05-03T12:00:00Z' })],
+    [invokeOp('op-older', { created_at: '2026-05-02T12:00:00Z' })],
+  ]);
+  const { store, rows } = memoryStore([WALLET]);
+
+  const result = await runOperationsWorker(horizon, store, { operationsRetentionDays: 0 }, now);
+
+  assert.equal(result.opsUpserted, 2);
+  assert.equal(rows.size, 2);
+  assert.equal(calls.pagesFetched, 3, 'both data pages and the terminating empty page are read');
+});
+
+test('operations do not re-ingest history that a retention prune removed', async () => {
+  const now = new Date('2026-08-31T12:00:00Z');
+  const records = [invokeOp('op-old', { created_at: '2026-05-03T12:00:00Z' })];
+  const { store, rows } = memoryStore([WALLET]);
+
+  await runOperationsWorker(horizonReturning(records), store, { operationsRetentionDays: 0 }, now);
+  assert.equal(rows.size, 1, 'the initial unrestricted pass writes the old operation');
+
+  const pruningStore: PruningStore = {
+    operation: {
+      deleteMany: async ({ where }) => {
+        let count = 0;
+        for (const [id, row] of rows) {
+          if (row.createdAt < where.createdAt.lt) {
+            rows.delete(id);
+            count++;
+          }
+        }
+        return { count };
+      },
+    },
+    contractSnapshot: { deleteMany: async () => ({ count: 0 }) },
+  };
+  await runPruningWorker(
+    pruningStore,
+    { operationsRetentionDays: 90, snapshotsRetentionDays: 0 },
+    now,
+  );
+  assert.equal(rows.size, 0, 'the prune removes the old operation');
+
+  const { horizon, calls } = horizonPaginated([records]);
+  const second = await runOperationsWorker(horizon, store, { operationsRetentionDays: 90 }, now);
+
+  assert.equal(second.opsUpserted, 0);
+  assert.equal(rows.size, 0, 'the second pass does not restore the pruned operation');
+  assert.equal(calls.pagesFetched, 1);
 });
 
 test('a Horizon failure on one wallet does not abort the others', async () => {

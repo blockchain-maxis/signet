@@ -7,6 +7,7 @@ import {
   type DeploymentWallet,
   type ContractCreate,
 } from './deployment.ts';
+import type { ContractExecutableInfo, ReadExecutable } from '../contract-executable.ts';
 
 const CONFIG = { network: 'testnet' } as Parameters<typeof runDeploymentWorker>[1];
 
@@ -23,8 +24,10 @@ const WALLET_A: DeploymentWallet = {
 function memoryStore(wallets: DeploymentWallet[]): {
   store: DeploymentStore;
   contracts: Map<string, ContractCreate>;
+  wasmVersions: Array<{ contractId: string; wasmHash: string; observedLedger: number }>;
 } {
   const contracts = new Map<string, ContractCreate>();
+  const wasmVersions: Array<{ contractId: string; wasmHash: string; observedLedger: number }> = [];
   const store: DeploymentStore = {
     wallet: {
       findMany: async () => wallets,
@@ -48,10 +51,22 @@ function memoryStore(wallets: DeploymentWallet[]): {
       },
       upsert: async ({ create }) => {
         if (!contracts.has(create.address)) contracts.set(create.address, create);
+        return { id: create.address };
+      },
+    },
+    contractWasmVersion: {
+      upsert: async ({ create }) => {
+        if (
+          !wasmVersions.some(
+            (v) => v.contractId === create.contractId && v.wasmHash === create.wasmHash,
+          )
+        ) {
+          wasmVersions.push(create);
+        }
       },
     },
   };
-  return { store, contracts };
+  return { store, contracts, wasmVersions };
 }
 
 function paymentOp(txHash: string, pagingToken: string) {
@@ -300,6 +315,164 @@ test('a create-contract op is detected and recorded during backfill (v4 meta)', 
   assert.equal(contracts.get(CONTRACT_ONE)?.walletId, WALLET_A.id);
 });
 
+// ── executable recorded at discovery (#415) ──────────────────────────────
+
+/** The Identity Registry's real testnet executable hash, from the #413 fixtures. */
+const REGISTRY_WASM_HASH = '936996c74b7d383c56ec174857b15927cdd29478c6909da332b4dec8b67335fe';
+
+/** Stub `readExecutable` for one of the three outcomes the worker can get from RPC. */
+function executableReader(result: ContractExecutableInfo | null | Error): {
+  readExecutable: ReadExecutable;
+  seen: string[];
+} {
+  const seen: string[] = [];
+  return {
+    seen,
+    readExecutable: async (address: string) => {
+      seen.push(address);
+      if (result instanceof Error) throw result;
+      return result;
+    },
+  };
+}
+
+test('a WASM executable is stored with its hash and opens the version history', async () => {
+  const wallets = [{ ...WALLET_A }];
+  const { store, contracts, wasmVersions } = memoryStore(wallets);
+  const { horizon } = horizonPages([[createContractOp('hash-wasm', 'tok-1')]]);
+  horizon.transactions = (() => ({
+    transaction: () => ({
+      call: async () => ({
+        result_meta_xdr: contractCreationMetaXdr(CONTRACT_ONE),
+        ledger_attr: 4887004,
+        created_at: '2026-01-01T00:00:00Z',
+      }),
+    }),
+  })) as unknown as Horizon.Server['transactions'];
+  const { readExecutable, seen } = executableReader({
+    type: 'wasm',
+    wasmHash: REGISTRY_WASM_HASH,
+  });
+
+  const result = await runDeploymentWorker(horizon, CONFIG, store, readExecutable);
+
+  assert.deepEqual(seen, [CONTRACT_ONE], 'the address read from the meta is what gets looked up');
+  const created = contracts.get(CONTRACT_ONE)!;
+  assert.equal(created.wasmHash, REGISTRY_WASM_HASH);
+  assert.equal(created.executableType, 'wasm');
+  assert.ok(created.wasmHashCheckedAt, 'a successful read is stamped as checked');
+  assert.deepEqual(wasmVersions, [
+    { contractId: CONTRACT_ONE, wasmHash: REGISTRY_WASM_HASH, observedLedger: 4887004 },
+  ]);
+  assert.equal(result.contractsFound, 1);
+});
+
+test('a Stellar Asset Contract executable is stored typed, with no hash', async () => {
+  const wallets = [{ ...WALLET_A }];
+  const { store, contracts, wasmVersions } = memoryStore(wallets);
+  const { horizon } = horizonPages([[createContractOp('hash-sac', 'tok-1')]]);
+  horizon.transactions = (() => ({
+    transaction: () => ({
+      call: async () => ({
+        result_meta_xdr: contractCreationMetaXdr(CONTRACT_ONE),
+        ledger_attr: 2,
+        created_at: '2026-01-01T00:00:00Z',
+      }),
+    }),
+  })) as unknown as Horizon.Server['transactions'];
+
+  await runDeploymentWorker(
+    horizon,
+    CONFIG,
+    store,
+    executableReader({ type: 'stellar_asset' }).readExecutable,
+  );
+
+  const created = contracts.get(CONTRACT_ONE)!;
+  assert.equal(created.executableType, 'stellar_asset');
+  assert.equal(created.wasmHash, null, 'a SAC has no WASM to record');
+  assert.ok(created.wasmHashCheckedAt, 'the read still succeeded, so it is stamped');
+  assert.deepEqual(wasmVersions, [], 'no version row without a hash');
+});
+
+test('an RPC failure still records the contract, with a null hash for #416 to backfill', async () => {
+  const wallets = [{ ...WALLET_A }];
+  const { store, contracts, wasmVersions } = memoryStore(wallets);
+  const { horizon } = horizonPages([[createContractOp('hash-rpc-down', 'tok-1')]]);
+  horizon.transactions = (() => ({
+    transaction: () => ({
+      call: async () => ({
+        result_meta_xdr: contractCreationMetaXdr(CONTRACT_ONE),
+        ledger_attr: 2,
+        created_at: '2026-01-01T00:00:00Z',
+      }),
+    }),
+  })) as unknown as Horizon.Server['transactions'];
+
+  const result = await runDeploymentWorker(
+    horizon,
+    CONFIG,
+    store,
+    executableReader(new Error('rpc exploded (status=500)')).readExecutable,
+  );
+
+  const created = contracts.get(CONTRACT_ONE)!;
+  assert.equal(created.wasmHash, null);
+  assert.equal(created.executableType, null);
+  assert.equal(
+    created.wasmHashCheckedAt,
+    null,
+    'unchecked, so the refresh worker treats it as due immediately',
+  );
+  assert.deepEqual(wasmVersions, []);
+  assert.equal(
+    result.contractsFound,
+    1,
+    'a discovered contract is never dropped because RPC was unavailable',
+  );
+});
+
+test('an archived instance (executable read returns null) still records the contract', async () => {
+  const wallets = [{ ...WALLET_A }];
+  const { store, contracts } = memoryStore(wallets);
+  const { horizon } = horizonPages([[createContractOp('hash-archived', 'tok-1')]]);
+  horizon.transactions = (() => ({
+    transaction: () => ({
+      call: async () => ({
+        result_meta_xdr: contractCreationMetaXdr(CONTRACT_ONE),
+        ledger_attr: 2,
+        created_at: '2026-01-01T00:00:00Z',
+      }),
+    }),
+  })) as unknown as Horizon.Server['transactions'];
+
+  await runDeploymentWorker(horizon, CONFIG, store, executableReader(null).readExecutable);
+
+  const created = contracts.get(CONTRACT_ONE)!;
+  assert.equal(created.wasmHash, null);
+  assert.equal(created.executableType, null);
+  assert.equal(created.wasmHashCheckedAt, null);
+});
+
+test('a wallet scanned without a reader records the contract with a null hash', async () => {
+  const wallets = [{ ...WALLET_A }];
+  const { store, contracts } = memoryStore(wallets);
+  const { horizon } = horizonPages([[createContractOp('hash-no-reader', 'tok-1')]]);
+  horizon.transactions = (() => ({
+    transaction: () => ({
+      call: async () => ({
+        result_meta_xdr: contractCreationMetaXdr(CONTRACT_ONE),
+        ledger_attr: 2,
+        created_at: '2026-01-01T00:00:00Z',
+      }),
+    }),
+  })) as unknown as Horizon.Server['transactions'];
+
+  await runDeploymentWorker(horizon, CONFIG, store);
+
+  assert.equal(contracts.get(CONTRACT_ONE)?.wasmHash, null);
+});
+
 test('an undecodable create-contract meta increments counter and creates no Contract row', async () => {
   const wallets = [{ ...WALLET_A }];
   const { store, contracts } = memoryStore(wallets);
@@ -465,6 +638,9 @@ test('an op whose deployTxHash is already recorded is skipped without fetching t
     deployedAt: new Date(),
     deployTxHash: 'hash-a',
     network: 'testnet',
+    wasmHash: null,
+    executableType: null,
+    wasmHashCheckedAt: null,
   });
   const { horizon, fetchedTxHashes } = horizonFor(
     () => [createContractOp('hash-a', 'tok-1')],
