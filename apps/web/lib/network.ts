@@ -48,11 +48,22 @@ export const STELLAR_EXPLORER = resolved.explorer;
 export const STELLAR_NETWORK_NAME = resolved.name;
 
 /** Stellar Expert account URL for the configured network. */
-export function stellarExpertAccountUrl(address: string, explorer: string = STELLAR_EXPLORER): string {
+export function stellarExpertAccountUrl(
+  address: string,
+  explorer: string = STELLAR_EXPLORER,
+): string {
   return `https://stellar.expert/explorer/${explorer}/account/${address}`;
 }
 
 /** Stellar Expert transaction URL for the configured network. */
 export function stellarExpertTxUrl(hash: string, explorer: string = STELLAR_EXPLORER): string {
   return `https://stellar.expert/explorer/${explorer}/tx/${hash}`;
+}
+
+/** Stellar Expert contract URL for the configured network. */
+export function stellarExpertContractUrl(
+  address: string,
+  explorer: string = STELLAR_EXPLORER,
+): string {
+  return `https://stellar.expert/explorer/${explorer}/contract/${address}`;
 }

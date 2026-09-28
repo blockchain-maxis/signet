@@ -28,10 +28,65 @@ test('loadConfig throws descriptive error when INDEXER_NETWORK is invalid', () =
   assert.throws(
     () => loadConfig(),
     (err: Error) => {
-      return (
-        err.message.includes('INDEXER_NETWORK') &&
-        err.message.includes('moonnet')
-      );
+      return err.message.includes('INDEXER_NETWORK') && err.message.includes('moonnet');
     },
   );
 });
+
+const numericVariables = [
+  { name: 'INDEXER_TICK_INTERVAL_MS', defaultValue: 30_000, min: 1_000, key: 'tickIntervalMs' },
+  { name: 'INDEXER_EVENT_WINDOW_LEDGERS', defaultValue: 8_000, min: 1, key: 'eventWindowLedgers' },
+  {
+    name: 'INDEXER_OPERATIONS_RETENTION_DAYS',
+    defaultValue: 90,
+    min: 0,
+    key: 'operationsRetentionDays',
+  },
+  {
+    name: 'INDEXER_SNAPSHOTS_RETENTION_DAYS',
+    defaultValue: 30,
+    min: 0,
+    key: 'snapshotsRetentionDays',
+  },
+  {
+    name: 'INDEXER_PRUNE_INTERVAL_MS',
+    defaultValue: 3_600_000,
+    min: 60_000,
+    key: 'pruneIntervalMs',
+  },
+  {
+    name: 'INDEXER_EXECUTABLE_REFRESH_MS',
+    defaultValue: 21_600_000,
+    min: 60_000,
+    key: 'executableRefreshIntervalMs',
+  },
+] as const;
+
+test('loadConfig uses defaults when validated numeric variables are unset', () => {
+  for (const { name } of numericVariables) delete process.env[name];
+
+  const config = loadConfig();
+  for (const { defaultValue, key } of numericVariables) {
+    assert.equal(config[key], defaultValue);
+  }
+});
+
+for (const { name, min } of numericVariables) {
+  test(`loadConfig rejects non-numeric ${name}`, () => {
+    process.env[name] = 'not-a-number';
+
+    assert.throws(() => loadConfig(), new RegExp(`${name}.*not-a-number`));
+  });
+
+  test(`loadConfig rejects negative ${name}`, () => {
+    process.env[name] = '-1';
+
+    assert.throws(() => loadConfig(), new RegExp(`${name}.*-1`));
+  });
+
+  test(`loadConfig rejects ${name} below its minimum`, () => {
+    process.env[name] = String(min - 1);
+
+    assert.throws(() => loadConfig(), new RegExp(`${name}.*${min - 1}`));
+  });
+}

@@ -240,8 +240,8 @@ logs show `attestation.skip — no registry contract configured` at debug level.
 
 `runAttestationWorker` no-ops when
 `INDEXER_REGISTRY_CONTRACT_ID` and `NEXT_PUBLIC_IDENTITY_REGISTRY_ID` are both
-empty (`apps/indexer/src/workers/attestation.ts`). Curated seed data remains the
-source of truth for handles.
+empty (`apps/indexer/src/workers/attestation.ts`). Only wallets already in the
+database (on-chain, CLI-linked, or legacy rows) are indexed.
 
 **Fix**
 
@@ -257,7 +257,7 @@ pnpm db:migrate
 pnpm indexer:dev
 ```
 
-Without a registry id the Horizon workers can still run for seeded wallets;
+Without a registry id the Horizon workers can still run for existing database wallets;
 only attestation ingest is skipped. That is safe degraded mode, not a crash.
 
 **Verified:** empty registry id → debug skip, process stays up; with id set →
