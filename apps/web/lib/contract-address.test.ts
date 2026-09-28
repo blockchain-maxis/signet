@@ -7,13 +7,16 @@ import { isContractAddress, deriveContractId } from './contract-address.ts';
 // Deployed at: CASFJHI5PQSRWS7JV25CF7FOMRKIVBP3RXRP3E2GH2CV4BCAG7FUJRCN
 const REAL_REGISTRY_CONTRACT_ID = 'CASFJHI5PQSRWS7JV25CF7FOMRKIVBP3RXRP3E2GH2CV4BCAG7FUJRCN';
 
-// Real deployment vector on Stellar Testnet:
-// Deployer: GB3KJPLFUYN5VL6R3GU3EGCGVCKFDSD7BEDX42HWG5BWFKB3KQGJJRMA
-// Salt (hex): 0000000000000000000000000000000000000000000000000000000000000001
-// Passphrase: Test SDF Network ; September 2015
-const TESTNET_DEPLOYER = 'GB3KJPLFUYN5VL6R3GU3EGCGVCKFDSD7BEDX42HWG5BWFKB3KQGJJRMA';
-const TESTNET_SALT_HEX = '0000000000000000000000000000000000000000000000000000000000000001';
+// Real create-contract deployment on Stellar Testnet, confirmed against the
+// chain (not just self-consistency): the deployer, salt and passphrase below
+// reproduce the exact contract address the network assigned.
+// Tx hash: ea7a9098e63e588d81bb3aeff8c09fe2d82767228ae99a04f3039de915e753a2
+// (getTransaction resultMetaXdr's Soroban return value decodes to the same
+// address as deriveContractId below).
+const TESTNET_DEPLOYER = 'GCQZFJACBU5UII4ZDTFVVE3EPSGPOZYHMY2THOYJ57WYX6D2AQNEQINU';
+const TESTNET_SALT_HEX = '075afa7ea513abbddc97610bbef3276c89be0a040c3e914920dd7efb424a6ad6';
 const TESTNET_PASSPHRASE = Networks.TESTNET;
+const TESTNET_EXPECTED_CONTRACT_ID = 'CAMYYJCHOQZSTF2KF6WY4UMFXS75VI46NEGKWE6XHWFULYD46BE5EUXZ';
 
 test('isContractAddress accepts a real C... StrKey contract address', () => {
   assert.equal(isContractAddress(REAL_REGISTRY_CONTRACT_ID), true);
@@ -49,9 +52,9 @@ test('deriveContractId accurately derives contract address from deployer, salt, 
     networkPassphrase: TESTNET_PASSPHRASE,
   });
 
-  assert.equal(typeof derived, 'string');
-  assert.equal(derived.startsWith('C'), true);
-  assert.equal(derived.length, 56);
+  // The real assertion: this must equal the contract address the network
+  // actually assigned to that deployment, not just look like a valid one.
+  assert.equal(derived, TESTNET_EXPECTED_CONTRACT_ID);
   assert.equal(StrKey.isValidContract(derived), true);
 
   // Test with Buffer salt
