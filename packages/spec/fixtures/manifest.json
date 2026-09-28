@@ -1,0 +1,10 @@
+{
+  "identity-registry": {
+    "file": "identity-registry.wasm",
+    "sourceContract": "CASFJHI5PQSRWS7JV25CF7FOMRKIVBP3RXRP3E2GH2CV4BCAG7FUJRCN",
+    "network": "testnet",
+    "wasmHash": "936996c74b7d383c56ec174857b15927cdd29478c6909da332b4dec8b67335fe",
+    "bytes": 6240,
+    "fetchedAt": "2026-09-27T11:42:01.669Z"
+  }
+}

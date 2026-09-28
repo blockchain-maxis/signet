@@ -178,42 +178,77 @@ export function extractFootprint(tx: xdr.Transaction): { readOnly: string[]; rea
 export function extractChangedKeys(metaXdr: string | xdr.TransactionMeta): string[] | null {
   try {
     const meta = typeof metaXdr === 'string' ? xdr.TransactionMeta.fromXDR(metaXdr, 'base64') : metaXdr;
-    const arm = (meta as any).arm ? (meta as any).arm() : (meta as any).switch?.()?.name;
     const changedKeys = new Set<string>();
 
     const processChanges = (changes: xdr.LedgerEntryChange[]) => {
       for (const ch of changes) {
-        const chArm = (ch as any).arm ? (ch as any).arm() : (ch as any).switch?.()?.name;
-        if (chArm === 'created' || (ch as any).created) {
-          changedKeys.add(ledgerEntryToLedgerKey(ch.created()).toXDR('base64'));
-        } else if (chArm === 'updated' || (ch as any).updated) {
-          changedKeys.add(ledgerEntryToLedgerKey(ch.updated()).toXDR('base64'));
-        } else if (chArm === 'deleted' || (ch as any).deleted) {
-          changedKeys.add(((ch as any).deleted() as xdr.LedgerKey).toXDR('base64'));
-        } else if (chArm === 'restored' || (ch as any).restored) {
-          changedKeys.add(ledgerEntryToLedgerKey(ch.restored()).toXDR('base64'));
+        // A single unsupported LedgerKey arm (e.g. configSetting, which
+        // ledgerEntryToLedgerKey doesn't cover) must not discard every other
+        // key already collected for this transaction — `changed: null` means
+        // "meta wasn't available", not "one entry type wasn't recognized".
+        try {
+          // The real LedgerEntryChangeType arm names are the full XDR enum
+          // members (`ledgerEntryCreated`, `ledgerEntryUpdated`,
+          // `ledgerEntryRemoved`, `ledgerEntryState`, `ledgerEntryRestored`),
+          // not their bare suffixes. A presence-check like `(ch as any).created`
+          // is useless as a fallback: the accessor method exists on every
+          // instance regardless of which arm is active (it throws "not set"
+          // when called on the wrong one), so it is always truthy and would
+          // silently misclassify every change as a create.
+          switch (ch.switch().name) {
+            case 'ledgerEntryCreated':
+              changedKeys.add(ledgerEntryToLedgerKey(ch.created()).toXDR('base64'));
+              break;
+            case 'ledgerEntryUpdated':
+              changedKeys.add(ledgerEntryToLedgerKey(ch.updated()).toXDR('base64'));
+              break;
+            case 'ledgerEntryRemoved':
+              // removed() already returns a LedgerKey, not a LedgerEntry.
+              changedKeys.add(ch.removed().toXDR('base64'));
+              break;
+            case 'ledgerEntryRestored':
+              changedKeys.add(ledgerEntryToLedgerKey(ch.restored()).toXDR('base64'));
+              break;
+            case 'ledgerEntryState':
+              // The entry was read, not changed — nothing to record.
+              break;
+          }
+        } catch (err) {
+          logger.debug({ error: String(err) }, 'invocations.unsupportedLedgerEntryArm');
         }
       }
     };
 
-    if (arm === 'v3' || (meta as any).v3) {
-      const v3 = meta.v3();
-      processChanges(v3.txChangesBefore());
-      for (const op of v3.operations()) {
-        processChanges(op.changes());
+    // `meta.switch()` is the raw discriminant (an int for TransactionMeta), so
+    // `.name` on it is undefined; `.arm()` resolves the actual arm identifier
+    // and is what must be switched on. Checking `arm === 'v3'` first with an
+    // `|| (meta as any).v3` fallback is a trap: `.v3` is a bound accessor
+    // method that exists on every TransactionMeta instance regardless of
+    // which arm is active, so it is always truthy and the v3 branch would
+    // wrongly run — and throw — for every v4 meta (the current, common case),
+    // since the else-if for v4 is then never reached.
+    switch (meta.switch()) {
+      case 3: {
+        const v3 = meta.v3();
+        processChanges(v3.txChangesBefore());
+        for (const op of v3.operations()) {
+          processChanges(op.changes());
+        }
+        processChanges(v3.txChangesAfter());
+        return Array.from(changedKeys);
       }
-      processChanges(v3.txChangesAfter());
-      return Array.from(changedKeys);
-    } else if (arm === 'v4' || (meta as any).v4) {
-      const v4 = meta.v4();
-      processChanges(v4.txChangesBefore());
-      for (const op of v4.operations()) {
-        processChanges(op.changes());
+      case 4: {
+        const v4 = meta.v4();
+        processChanges(v4.txChangesBefore());
+        for (const op of v4.operations()) {
+          processChanges(op.changes());
+        }
+        processChanges(v4.txChangesAfter());
+        return Array.from(changedKeys);
       }
-      processChanges(v4.txChangesAfter());
-      return Array.from(changedKeys);
+      default:
+        return [];
     }
-    return [];
   } catch (err) {
     logger.debug({ error: String(err) }, 'invocations.extractChangedKeysFailed');
     return null;
@@ -226,7 +261,6 @@ export function extractChangedKeys(metaXdr: string | xdr.TransactionMeta): strin
 export function extractEventsContractIds(metaXdr: string | xdr.TransactionMeta): string[] {
   try {
     const meta = typeof metaXdr === 'string' ? xdr.TransactionMeta.fromXDR(metaXdr, 'base64') : metaXdr;
-    const arm = (meta as any).arm ? (meta as any).arm() : (meta as any).switch?.()?.name;
     const contractIds = new Set<string>();
 
     const addEvent = (event: xdr.ContractEvent) => {
@@ -236,24 +270,32 @@ export function extractEventsContractIds(metaXdr: string | xdr.TransactionMeta):
       }
     };
 
-    if (arm === 'v3' || (meta as any).v3) {
-      const v3 = meta.v3();
-      const sorobanMeta = v3.sorobanMeta();
-      if (sorobanMeta) {
-        for (const ev of sorobanMeta.events()) {
-          addEvent(ev);
+    // See extractChangedKeys: switch on the resolved discriminant, not a
+    // string-literal check with an always-truthy accessor-presence fallback,
+    // or the v3 branch wrongly wins for every v4 meta and throws.
+    switch (meta.switch()) {
+      case 3: {
+        const v3 = meta.v3();
+        const sorobanMeta = v3.sorobanMeta();
+        if (sorobanMeta) {
+          for (const ev of sorobanMeta.events()) {
+            addEvent(ev);
+          }
+          for (const dev of sorobanMeta.diagnosticEvents()) {
+            addEvent(dev.event());
+          }
         }
-        for (const dev of sorobanMeta.diagnosticEvents()) {
+        break;
+      }
+      case 4: {
+        const v4 = meta.v4();
+        for (const ev of v4.events()) {
+          addEvent(ev.event());
+        }
+        for (const dev of v4.diagnosticEvents()) {
           addEvent(dev.event());
         }
-      }
-    } else if (arm === 'v4' || (meta as any).v4) {
-      const v4 = meta.v4();
-      for (const ev of v4.events()) {
-        addEvent(ev.event());
-      }
-      for (const dev of v4.diagnosticEvents()) {
-        addEvent(dev.event());
+        break;
       }
     }
     return Array.from(contractIds);

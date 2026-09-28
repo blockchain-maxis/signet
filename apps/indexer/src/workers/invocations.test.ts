@@ -78,6 +78,51 @@ test('extracts sourceAccount, footprint, functionName, changedKeys, and eventsCo
   assert.ok(eventsContractIds.includes('CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC'));
 });
 
+test('extractChangedKeys keeps every recognized key even when one change has an unsupported LedgerKey arm', () => {
+  // A configSetting entry change has no LedgerKey mapping in ledgerEntryToLedgerKey.
+  // One such change anywhere in the transaction must not wipe out the contractData
+  // keys already found — `changed: null` is reserved for "meta wasn't available".
+  const contractId = Buffer.alloc(32, 1);
+  const contractDataEntry = new xdr.LedgerEntry({
+    lastModifiedLedgerSeq: 1,
+    data: xdr.LedgerEntryData.contractData(
+      new xdr.ContractDataEntry({
+        contract: xdr.ScAddress.scAddressTypeContract(contractId as unknown as Parameters<typeof xdr.ScAddress.scAddressTypeContract>[0]),
+        key: xdr.ScVal.scvLedgerKeyContractInstance(),
+        durability: xdr.ContractDataDurability.persistent(),
+        val: xdr.ScVal.scvVoid(),
+        ext: new xdr.ExtensionPoint(0),
+      }),
+    ),
+    ext: new xdr.LedgerEntryExt(0),
+  });
+  const configSettingEntry = new xdr.LedgerEntry({
+    lastModifiedLedgerSeq: 1,
+    data: xdr.LedgerEntryData.configSetting(
+      xdr.ConfigSettingEntry.configSettingContractMaxSizeBytes(1000),
+    ),
+    ext: new xdr.LedgerEntryExt(0),
+  });
+
+  const meta = new xdr.TransactionMeta(
+    3,
+    new xdr.TransactionMetaV3({
+      ext: new xdr.ExtensionPoint(0),
+      txChangesBefore: [
+        xdr.LedgerEntryChange.ledgerEntryCreated(contractDataEntry),
+        xdr.LedgerEntryChange.ledgerEntryCreated(configSettingEntry),
+      ],
+      operations: [],
+      txChangesAfter: [],
+      sorobanMeta: null,
+    }),
+  );
+
+  const changed = extractChangedKeys(meta);
+  assert.ok(changed !== null, 'one unsupported arm must not turn the whole result into null');
+  assert.equal(changed.length, 1, 'the contractData key is still captured');
+});
+
 test('runInvocationsWorker upserts invocations idempotently', async () => {
   const contract: InvocationsContract = {
     id: 'contract-1',

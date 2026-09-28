@@ -83,7 +83,11 @@ async function tick(
   const { snapshotsWritten } = await runActivityWorker(horizon, prisma as unknown as ActivityStore);
 
   // Operations: pull recent Soroban invocations for tracked wallets
-  const { opsUpserted } = await runOperationsWorker(horizon, prisma as unknown as OperationsStore);
+  const { opsUpserted } = await runOperationsWorker(
+    horizon,
+    prisma as unknown as OperationsStore,
+    config,
+  );
 
   // Invocations: capture per-contract invocations, footprints, and state mutations
   let invocationsUpserted = 0;
