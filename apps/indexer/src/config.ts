@@ -86,6 +86,8 @@ export function loadConfig(): IndexerConfig {
     operationsRetentionDays: intEnv('INDEXER_OPERATIONS_RETENTION_DAYS', 90, { min: 0 }),
     snapshotsRetentionDays: intEnv('INDEXER_SNAPSHOTS_RETENTION_DAYS', 30, { min: 0 }),
     pruneIntervalMs: intEnv('INDEXER_PRUNE_INTERVAL_MS', 3_600_000, { min: 60_000 }),
-    executableRefreshIntervalMs: Number(process.env.INDEXER_EXECUTABLE_REFRESH_MS ?? 21_600_000),
+    executableRefreshIntervalMs: intEnv('INDEXER_EXECUTABLE_REFRESH_MS', 21_600_000, {
+      min: 60_000,
+    }),
   };
 }

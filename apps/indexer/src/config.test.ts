@@ -54,6 +54,12 @@ const numericVariables = [
     min: 60_000,
     key: 'pruneIntervalMs',
   },
+  {
+    name: 'INDEXER_EXECUTABLE_REFRESH_MS',
+    defaultValue: 21_600_000,
+    min: 60_000,
+    key: 'executableRefreshIntervalMs',
+  },
 ] as const;
 
 test('loadConfig uses defaults when validated numeric variables are unset', () => {
