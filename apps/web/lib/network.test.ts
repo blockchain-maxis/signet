@@ -1,6 +1,11 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { resolveNetwork, stellarExpertAccountUrl, stellarExpertTxUrl } from './network.ts';
+import {
+  resolveNetwork,
+  stellarExpertAccountUrl,
+  stellarExpertTxUrl,
+  stellarExpertContractUrl,
+} from './network.ts';
 
 test('resolveNetwork maps mainnet to the public explorer segment and Mainnet label', () => {
   const r = resolveNetwork('mainnet');
@@ -30,9 +35,14 @@ test('resolveNetwork defaults to testnet when unset', () => {
 test('stellar expert URLs use the /public/ segment on mainnet', () => {
   assert.match(stellarExpertAccountUrl('GABC', 'public'), /\/explorer\/public\/account\/GABC$/);
   assert.match(stellarExpertTxUrl('deadbeef', 'public'), /\/explorer\/public\/tx\/deadbeef$/);
+  assert.match(stellarExpertContractUrl('CDEMO', 'public'), /\/explorer\/public\/contract\/CDEMO$/);
 });
 
 test('stellar expert URLs use the /testnet/ segment on testnet', () => {
   assert.match(stellarExpertAccountUrl('GABC', 'testnet'), /\/explorer\/testnet\/account\/GABC$/);
   assert.match(stellarExpertTxUrl('deadbeef', 'testnet'), /\/explorer\/testnet\/tx\/deadbeef$/);
+  assert.match(
+    stellarExpertContractUrl('CDEMO', 'testnet'),
+    /\/explorer\/testnet\/contract\/CDEMO$/,
+  );
 });

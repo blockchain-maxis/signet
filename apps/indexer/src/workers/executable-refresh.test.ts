@@ -20,6 +20,8 @@ const CONFIG: IndexerConfig = {
   eventWindowLedgers: 8_000,
   operationsRetentionDays: 90,
   snapshotsRetentionDays: 30,
+  captureInvocations: true,
+  invocationsMaxPerContract: 1000,
   pruneIntervalMs: 3_600_000,
   executableRefreshIntervalMs: 21_600_000, // 6h
 };

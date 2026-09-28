@@ -21,8 +21,9 @@ Signet adopts an **active window retention policy** with configurable thresholds
 |---|---|---|---|---|
 | `Operation` | **90 days** | `INDEXER_OPERATIONS_RETENTION_DAYS` | Every 1 hour | Invocations older than 90 days are deleted. |
 | `ContractSnapshot` | **30 days** | `INDEXER_SNAPSHOTS_RETENTION_DAYS` | Every 1 hour | Periodic contract activity snapshots older than 30 days are pruned. |
+| `ContractInvocation` | **1000 rows / contract** | `INDEXER_INVOCATIONS_MAX_PER_CONTRACT` | Every 1 hour | Caps invocation index rows per contract to the most recent N records. |
 
-> **Indefinite Retention Option:** Setting `INDEXER_OPERATIONS_RETENTION_DAYS=0` or `INDEXER_SNAPSHOTS_RETENTION_DAYS=0` disables pruning and retains records indefinitely. Operators choosing indefinite retention should allocate Postgres storage to accommodate unbounded linear growth.
+> **Indefinite Retention Option:** Setting `INDEXER_OPERATIONS_RETENTION_DAYS=0`, `INDEXER_SNAPSHOTS_RETENTION_DAYS=0`, or `INDEXER_INVOCATIONS_MAX_PER_CONTRACT=0` disables pruning and retains records indefinitely. Operators choosing indefinite retention should allocate Postgres storage to accommodate unbounded linear growth.
 
 ### Profile statistics and retention
 
@@ -39,9 +40,10 @@ The web app reads `INDEXER_OPERATIONS_RETENTION_DAYS` only to label this scope. 
 The pruning worker ([`apps/indexer/src/workers/prune.ts`](../apps/indexer/src/workers/prune.ts)) executes periodically inside the indexer main loop:
 
 1. **Interval Execution:** Evaluates whether `INDEXER_PRUNE_INTERVAL_MS` (default `3,600,000` ms = 1 hour) has elapsed since the last pass.
-2. **Operations Pruning:** Deletes `Operation` rows where `createdAt < now - retentionDays`.
+2. **Operations Ingestion and Pruning:** The operations worker stops paging at `createdAt < now - retentionDays` and does not store older invocations; the pruning worker deletes existing `Operation` rows older than that same cutoff.
 3. **Snapshots Pruning:** Deletes `ContractSnapshot` rows where `capturedAt < now - retentionDays`.
-4. **Structured Metrics:** Logs `opsPruned` and `snapshotsPruned` in indexer tick metrics.
+4. **Contract Invocations Pruning:** Keeps at most `INDEXER_INVOCATIONS_MAX_PER_CONTRACT` newest rows per contract, deleting older excess rows.
+5. **Structured Metrics:** Logs `opsPruned`, `snapshotsPruned`, and `invocationsPruned` in indexer tick metrics.
 
 ---
 
@@ -51,6 +53,7 @@ The pruning worker ([`apps/indexer/src/workers/prune.ts`](../apps/indexer/src/wo
 |---|---|---|
 | `INDEXER_OPERATIONS_RETENTION_DAYS` | `90` | Maximum age in days for indexed `Operation` rows. `0` disables pruning. |
 | `INDEXER_SNAPSHOTS_RETENTION_DAYS` | `30` | Maximum age in days for `ContractSnapshot` rows. `0` disables pruning. |
+| `INDEXER_INVOCATIONS_MAX_PER_CONTRACT` | `1000` | Maximum number of invocations retained per contract. `0` disables pruning. |
 | `INDEXER_PRUNE_INTERVAL_MS` | `3600000` | Pruning check interval in milliseconds (default: 1 hour). |
 
 ---
