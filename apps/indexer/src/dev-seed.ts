@@ -86,10 +86,14 @@ export async function runDevSeed(
     throw new Error(errorMsg);
   }
 
+  // Tagged rather than left to default to 'attestation-worker': this binding
+  // was applied by a developer running dev:seed by hand, not observed on the
+  // registry's event stream, and the pairing audit log must say so.
   await applyAttestation(deps.store, {
     kind: 'claimed',
     handle: options.handle,
     wallet,
+    source: 'dev-seed',
   });
 
   await deps.store.wallet.update({

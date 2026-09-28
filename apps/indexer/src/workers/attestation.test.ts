@@ -606,6 +606,29 @@ test('a completed link is recorded with its handle and public wallet', async () 
   assert.equal(event.lvl, 'info', 'the audit trail must survive a production log level');
 });
 
+test('a caller that names an explicit source overrides the attestation-worker default', async () => {
+  const { store } = recordingStore();
+  const capture = captureLogLines();
+  try {
+    await applyAttestation(store, {
+      kind: 'claimed',
+      handle: 'aquawolf',
+      wallet: 'GWALLET',
+      source: 'dev-seed',
+    });
+  } finally {
+    capture.restore();
+  }
+
+  const event = capture.lines.find((l) => l.msg === 'pairing.linkCompleted');
+  assert.ok(event, 'expected a pairing.linkCompleted line');
+  assert.equal(
+    event.source,
+    'dev-seed',
+    'a binding applied by dev:seed must not be misattributed to the event-stream worker',
+  );
+});
+
 test('an unlink records why the binding went away', async () => {
   const { store } = recordingStore();
   const capture = captureLogLines();

@@ -27,8 +27,15 @@ const CURSOR_ID = 'attestation';
  * builder in `@signet/types` decides what may appear in the line, so key
  * material cannot reach a log even by accident.
  */
-function logPairing(outcome: PairingOutcome, input: Parameters<typeof pairingEvent>[1]): void {
-  const { name, fields } = pairingEvent(outcome, { source: 'attestation-worker', ...input });
+function logPairing(outcome: PairingOutcome, input: Parameters<typeof pairingEvent>[1] = {}): void {
+  // A spread would let an explicit `source: undefined` in `input` clobber the
+  // default below (object spread copies own properties set to `undefined`
+  // too), which is exactly what every caller that doesn't care about `source`
+  // now passes. Fall back explicitly instead.
+  const { name, fields } = pairingEvent(outcome, {
+    ...input,
+    source: input.source ?? 'attestation-worker',
+  });
   if (outcome === 'rejected') logger.warn(fields, name);
   else logger.info(fields, name);
 }
@@ -38,6 +45,13 @@ export type AttestationEvent = {
   handle: string;
   wallet: string;
   from?: string;
+  /**
+   * Who observed this binding, for the pairing audit log. Defaults to
+   * `'attestation-worker'` (the event-stream path); a caller applying a
+   * binding some other way — dev-seed is the one today — must say so here
+   * rather than let the line misattribute it.
+   */
+  source?: string;
 };
 
 /**
@@ -129,7 +143,7 @@ export async function applyAttestation(
       update: { profileId: profile.id, source: 'onchain', isPrimary: true },
       create: { pubkey: ev.wallet, profileId: profile.id, source: 'onchain', isPrimary: true },
     });
-    logPairing('completed', { handle: ev.handle, wallet: ev.wallet });
+    logPairing('completed', { handle: ev.handle, wallet: ev.wallet, source: ev.source });
     return;
   }
 
@@ -142,20 +156,30 @@ export async function applyAttestation(
     // The handle moved to a new wallet: the old binding ends, the new one begins.
     if (ev.from) {
       await store.wallet.deleteMany({ where: { pubkey: ev.from } });
-      logPairing('unlinked', { handle: ev.handle, wallet: ev.from, reason: 'transferred' });
+      logPairing('unlinked', {
+        handle: ev.handle,
+        wallet: ev.from,
+        reason: 'transferred',
+        source: ev.source,
+      });
     }
     await store.wallet.upsert({
       where: { pubkey: ev.wallet },
       update: { profileId: profile.id, source: 'onchain', isPrimary: true },
       create: { pubkey: ev.wallet, profileId: profile.id, source: 'onchain', isPrimary: true },
     });
-    logPairing('completed', { handle: ev.handle, wallet: ev.wallet });
+    logPairing('completed', { handle: ev.handle, wallet: ev.wallet, source: ev.source });
     return;
   }
 
   // released / revoked → drop the binding (the wallet row carries the link).
   await store.wallet.deleteMany({ where: { pubkey: ev.wallet } });
-  logPairing('unlinked', { handle: ev.handle, wallet: ev.wallet, reason: ev.kind });
+  logPairing('unlinked', {
+    handle: ev.handle,
+    wallet: ev.wallet,
+    reason: ev.kind,
+    source: ev.source,
+  });
 }
 
 /** What a reconcile pass did, for the tick log and for tests. */
