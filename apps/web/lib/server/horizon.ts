@@ -21,8 +21,11 @@ import { assertNetworkUrls } from '../network-guard.ts';
  * public testnet endpoint — matching how SOROBAN_RPC_URL is resolved in
  * directory.ts. Set HORIZON_URL (or NEXT_PUBLIC_HORIZON_URL) in production
  * to point at mainnet: https://horizon.stellar.org
+ *
+ * Exported for the contract-attribution fallback, which fetches a
+ * transaction's result meta from the same endpoint this module pages.
  */
-const HORIZON_URL =
+export const HORIZON_URL =
   process.env.HORIZON_URL ??
   process.env.NEXT_PUBLIC_HORIZON_URL ??
   'https://horizon-testnet.stellar.org';
