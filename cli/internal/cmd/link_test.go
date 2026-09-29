@@ -14,7 +14,7 @@ func TestLinkTakesNoArguments(t *testing.T) {
 	// The handle comes from whoever is signed in when they approve in the
 	// browser. Accepting one here would invite typing a handle you do not own.
 	cmd := newLinkCmd()
-	cmd.SetArgs([]string{"aquawolf"})
+	cmd.SetArgs([]string{"alice"})
 	cmd.SetOut(&bytes.Buffer{})
 	cmd.SetErr(&bytes.Buffer{})
 
