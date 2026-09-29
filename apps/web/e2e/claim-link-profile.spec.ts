@@ -22,7 +22,8 @@ import { apiSignIn } from './support';
  * | Claim | Seeded: the handle→wallet binding written as a claim lands it |
  * | Link | **Real** — `pair/start`, the `/link` page in a browser, `pair/complete` |
  * | Indexer | **Real** — the operations and deployment workers, Horizon stubbed |
- * | Profile | **Real** — the deployed Next.js page, rendered in a browser |
+ * | Profile | **Real** — the deployed Next.js page, rendered in a browser, |
+ * |         | including the "Deployed contracts" section (#455) |
  *
  * Only two things are not real, and both are deliberate:
  *
@@ -188,10 +189,12 @@ test.describe('claim → link → indexer → profile', () => {
     expect(opCount, `operations worker wrote nothing; indexer said: ${output}`).toBeGreaterThan(0);
 
     // ── profile ──────────────────────────────────────────────────────────
-    // …and the operations worker put the activity where the profile reads it.
-    // This is the assertion that would catch a break in any seam above: the
-    // page renders operations, so an empty list here means the chain broke
-    // somewhere between the link and the read, whatever else passed.
+    // …the operations worker put the activity where the profile reads it,
+    // and the deployment worker's Contract row is listed with a link to its
+    // page (#455). This is the assertion that would catch a break in any seam
+    // above: the page renders operations and contracts, so an empty list here
+    // means the chain broke somewhere between the link and the read, whatever
+    // else passed.
     await page.goto(`/p/${handle}`);
     const profileText = await page.locator('body').innerText();
     // `invoke_contract`, not the raw function name: `resolveFunction` in
@@ -200,6 +203,20 @@ test.describe('claim → link → indexer → profile', () => {
     // renders as `invoke_contract`. Asserting the raw name would be asserting
     // against something the page never shows.
     expect(profileText, 'the profile should render the deployment').toContain('invoke_contract');
+
+    // The recorded contract is listed in "Deployed contracts" and the link
+    // resolves to its page (200): the row hrefs `/p/{handle}/contract/{address}`,
+    // which the attribution gate lets through because the indexer recorded
+    // this handle's wallet as the deployer.
+    const contractLink = page.locator(`a[href="/p/${handle}/contract/${contractAddress}"]`);
+    await expect(contractLink, 'the profile should list the recorded contract').toBeVisible();
+    const [contractResponse] = await Promise.all([
+      page.waitForResponse(
+        (r) => r.url().includes(`/p/${handle}/contract/${contractAddress}`) && r.request().method() === 'GET',
+      ),
+      contractLink.click(),
+    ]);
+    expect(contractResponse.status(), 'the contract page should resolve to 200').toBe(200);
 
     await prisma.$disconnect();
   });
