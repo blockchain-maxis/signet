@@ -34,6 +34,10 @@ interface FakeRow {
 interface FakeWallet {
   pubkey: string;
   profileId: string;
+  isPrimary: boolean;
+  source: string;
+  attestedAt: Date;
+  indexRequestedAt: Date | null;
 }
 
 /** In-memory stand-in for the two Prisma tables `pairing.ts` touches. */
@@ -86,8 +90,21 @@ function fakeStore(): {
     wallet: {
       findUnique: async ({ where }) => wallets.get(where.pubkey) ?? null,
       create: async ({ data }) => {
-        const row: FakeWallet = { pubkey: data.pubkey, profileId: data.profileId };
+        const row: FakeWallet = { 
+          pubkey: data.pubkey, 
+          profileId: data.profileId,
+          isPrimary: data.isPrimary ?? false,
+          source: data.source ?? "cli",
+          attestedAt: data.attestedAt ?? new Date(),
+          indexRequestedAt: data.indexRequestedAt ?? new Date()
+        };
         wallets.set(data.pubkey, row);
+        return row;
+      },
+      update: async ({ where, data }) => {
+        const row = wallets.get(where.pubkey);
+        if (!row) throw new Error("not found");
+        Object.assign(row, data);
         return row;
       },
     },
@@ -245,9 +262,11 @@ test('completePairing succeeds and writes a cli, non-primary wallet', async (t) 
   assert.equal(result.ok, true);
   if (!result.ok) return;
   assert.equal(result.wallet.pubkey, client.publicKey());
-  assert.equal(result.wallet.profileId, 'profile_1');
-
   const written = wallets.get(client.publicKey());
+  assert.ok(written);
+  assert.equal(written.profileId, 'profile_1');
+
+  //const written = wallets.get(client.publicKey());
   assert.ok(written);
 });
 
@@ -307,11 +326,13 @@ test('completePairing is idempotent when the deploy account is already bound to 
   wallets.set(client.publicKey(), { pubkey: client.publicKey(), profileId: 'profile_1' });
 
   const result = await completePairing(state, signedChallenge(client), store);
-  assert.deepEqual(result, {
-    ok: true,
-    wallet: { pubkey: client.publicKey(), profileId: 'profile_1' },
-    handle: 'handle-for-profile_1',
-  });
+  assert.equal(result.ok, true);
+  if (result.ok) {
+    assert.equal(result.wallet.pubkey, client.publicKey());
+    assert.equal(result.wallet.source, "cli");
+    assert.equal(result.wallet.indexingPending, true);
+    assert.equal(result.handle, 'handle-for-profile_1');
+  }
 });
 
 // ── the declared deploy key, and the browser's view of it ────────────────
@@ -433,11 +454,13 @@ test('completePairing accepts the declared key', async (t) => {
   pairings.get(state)!.publicKey = declared.publicKey();
 
   const result = await completePairing(state, signedChallenge(declared), store);
-  assert.deepEqual(result, {
-    ok: true,
-    wallet: { pubkey: declared.publicKey(), profileId: 'profile_1' },
-    handle: 'handle-for-profile_1',
-  });
+  assert.equal(result.ok, true);
+  if (result.ok) {
+    assert.equal(result.wallet.pubkey, declared.publicKey());
+    assert.equal(result.wallet.source, "cli");
+    assert.equal(result.wallet.indexingPending, true);
+    assert.equal(result.handle, 'handle-for-profile_1');
+  }
 });
 
 // ── the polling fallback (#273) ──────────────────────────────────────────

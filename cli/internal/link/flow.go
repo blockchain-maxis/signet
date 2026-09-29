@@ -32,7 +32,7 @@ type Deps struct {
 	// Poll reads pairing progress with the poll token.
 	Poll func(ctx context.Context, pollToken string) (pair.Status, error)
 	// Complete submits the signed challenge and reports what was linked.
-	Complete func(ctx context.Context, state, signedXDR, handoffCode string) (string, error)
+	Complete func(ctx context.Context, state, signedXDR, handoffCode string) (string, bool, error)
 	// Challenge fetches an unsigned SEP-10 challenge for an account.
 	Challenge func(ctx context.Context, account string) (string, error)
 	// Sign signs a challenge with the resolved local identity.
@@ -78,10 +78,11 @@ type Callbacks interface {
 
 // Result is what a completed link reports.
 type Result struct {
-	Handle    string `json:"handle"`
-	PublicKey string `json:"publicKey"`
-	Network   string `json:"network"`
-	Status    string `json:"status"`
+	Handle          string `json:"handle"`
+	PublicKey       string `json:"publicKey"`
+	Network         string `json:"network"`
+	Status          string `json:"status"`
+	IndexingPending bool   `json:"indexingPending"`
 }
 
 // Run drives the whole flow: mint a pairing, show the developer the approval
@@ -152,16 +153,17 @@ func Run(ctx context.Context, baseURL, network, source, publicKey string, deps D
 	if err != nil {
 		return Result{}, err
 	}
-	handle, err := deps.Complete(ctx, started.State, signed, "")
+	handle, indexingPending, err := deps.Complete(ctx, started.State, signed, "")
 	if err != nil {
 		return Result{}, classifyComplete(err)
 	}
 
 	return Result{
-		Handle:    handle,
-		PublicKey: publicKey,
-		Network:   network,
-		Status:    "linked",
+		Handle:          handle,
+		PublicKey:       publicKey,
+		Network:         network,
+		Status:          "linked",
+		IndexingPending: indexingPending,
 	}, nil
 }
 

@@ -62,7 +62,7 @@ func baseDeps(status pair.Status) Deps {
 		Poll:      func(context.Context, string) (pair.Status, error) { return status, nil },
 		Challenge: func(context.Context, string) (string, error) { return "UNSIGNED", nil },
 		Sign:      func(string) (string, error) { return "SIGNED", nil },
-		Complete:  func(context.Context, string, string, string) (string, error) { return "alice", nil },
+		Complete:  func(context.Context, string, string, string) (string, bool, error) { return "alice", false, nil },
 		// Keep the suite fast: the real defaults are five minutes and two
 		// seconds, and nothing here is testing wall-clock behaviour.
 		TTL:          30 * time.Millisecond,
@@ -73,7 +73,7 @@ func baseDeps(status pair.Status) Deps {
 func TestRun_LinksViaPollingWhenThereIsNoLoopback(t *testing.T) {
 	deps := baseDeps(pair.StatusApproved)
 	var signed string
-	deps.Complete = func(_ context.Context, state, xdr, handoff string) (string, error) {
+	deps.Complete = func(_ context.Context, state, xdr, handoff string) (string, bool, error) {
 		signed = xdr
 		if state != "p_1" {
 			t.Errorf("completed the wrong pairing: %q", state)
@@ -81,7 +81,7 @@ func TestRun_LinksViaPollingWhenThereIsNoLoopback(t *testing.T) {
 		if handoff != "" {
 			t.Errorf("sent a handoff code on the automatic path: %q", handoff)
 		}
-		return "alice", nil
+		return "alice", false, nil
 	}
 
 	result, err := Run(context.Background(), "https://signet.example", "testnet", "src", "GABC", deps)
@@ -183,7 +183,7 @@ func TestRun_CallbackWithTheWrongStateDoesNotFinishTheLink(t *testing.T) {
 
 	deps := baseDeps(pair.StatusExpired)
 	deps.Listen = func(string) (Callbacks, error) { return cb, nil }
-	deps.Complete = func(context.Context, string, string, string) (string, error) {
+	deps.Complete = func(context.Context, string, string, string) (string, bool, error) {
 		t.Fatal("completed on a callback with a mismatched state")
 		return "", nil
 	}
@@ -200,7 +200,7 @@ func TestRun_RejectedApprovalExitsWithoutSigning(t *testing.T) {
 		t.Fatal("signed after the approval was refused")
 		return "", nil
 	}
-	deps.Complete = func(context.Context, string, string, string) (string, error) {
+	deps.Complete = func(context.Context, string, string, string) (string, bool, error) {
 		t.Fatal("completed after the approval was refused")
 		return "", nil
 	}
@@ -229,8 +229,8 @@ func TestRun_TimeoutTellsYouHowToRetry(t *testing.T) {
 
 func TestRun_AlreadyLinkedIsItsOwnFailureMode(t *testing.T) {
 	deps := baseDeps(pair.StatusApproved)
-	deps.Complete = func(context.Context, string, string, string) (string, error) {
-		return "", errors.New("network error: This deploy account is already bound to a different profile")
+	deps.Complete = func(context.Context, string, string, string) (string, bool, error) {
+		return "", false, errors.New("network error: This deploy account is already bound to a different profile")
 	}
 
 	_, err := Run(context.Background(), "https://signet.example", "testnet", "src", "GABC", deps)
@@ -265,9 +265,9 @@ func TestRun_FallsBackToPollingWhenTheLoopbackCannotBind(t *testing.T) {
 func TestRun_SigningFailureStopsBeforeComplete(t *testing.T) {
 	deps := baseDeps(pair.StatusApproved)
 	deps.Sign = func(string) (string, error) {
-		return "", errors.New("signing failed: identity not found")
+		return "", false, errors.New("signing failed: identity not found")
 	}
-	deps.Complete = func(context.Context, string, string, string) (string, error) {
+	deps.Complete = func(context.Context, string, string, string) (string, bool, error) {
 		t.Fatal("completed without a signature")
 		return "", nil
 	}

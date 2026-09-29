@@ -150,13 +150,16 @@ test.describe('claim → link → indexer → profile', () => {
       data: { state, transaction: signed.toEnvelope().toXDR('base64') },
     });
     expect(completed.ok(), 'pair/complete should attach the wallet').toBeTruthy();
-    expect((await completed.json()).handle).toBe(handle);
+    const completedJson = await completed.json() as any;
+    expect(completedJson.handle).toBe(handle);
+    expect(completedJson.indexingPending).toBe(true);
 
     const linked = await prisma.wallet.findUnique({
       where: { pubkey: deployer.publicKey() },
     });
     expect(linked?.profileId, 'the deploy wallet is bound to the claimed profile').toBe(profile.id);
     expect(linked?.source, 'and recorded as a CLI link, not a curated one').toBe('cli');
+    expect(linked?.indexRequestedAt, 'indexer was asked to scan this wallet').not.toBeNull();
 
     // ── indexer ──────────────────────────────────────────────────────────
     // The real workers, one tick, against the real database.
