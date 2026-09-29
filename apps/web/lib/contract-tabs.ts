@@ -27,3 +27,10 @@ export function contractTabHref(handle: string, address: string, tab: ContractTa
   const base = `/p/${handle}/contract/${address}`;
   return tab.segment === null ? base : `${base}/${tab.segment}`;
 }
+
+/**
+ * Gate for the `signet dev` CLI command (#563). Flip to `true` when the
+ * command is released. While `false`, the Run locally tab shows a
+ * "not released yet" notice above the command instead of hiding the tab.
+ */
+export const SIGNET_DEV_RELEASED = false;
