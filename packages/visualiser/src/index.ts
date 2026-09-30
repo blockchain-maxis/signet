@@ -66,3 +66,6 @@ export {
   MIN_EDGES,
   diagramDecision,
 } from './decide.ts';
+
+/** Pure SVG renderer (§4.2): DiagramModel -> SVG string. */
+export { renderDiagramSvg, type RenderOptions } from './render.ts';
