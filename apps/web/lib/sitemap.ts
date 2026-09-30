@@ -29,7 +29,7 @@ export function contractRoutes(
   base = appUrl(),
 ): MetadataRoute.Sitemap {
   return entries.map((entry) => ({
-    url: `${base}/p/${entry.handle}/${entry.address}`,
+    url: `${base}/p/${entry.handle}/contract/${entry.address}`,
     lastModified: entry.deployedAt,
     priority: 0.5,
   }));

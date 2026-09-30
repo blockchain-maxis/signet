@@ -45,6 +45,3 @@ next-env.d.ts
 MAINTAINER.md
 # Contributor backlog draft — kept local; issues are filed on GitHub from it.
 ISSUES.md
-
-# Antigravity Agent Customizations
-.agents/

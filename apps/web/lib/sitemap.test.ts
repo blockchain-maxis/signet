@@ -42,7 +42,7 @@ test('contracts are appended with handle and address', () => {
 
   assert.deepEqual(
     routes.map((r) => r.url),
-    [`${base}/p/alice/C123`, `${base}/p/bob/C456`],
+    [`${base}/p/alice/contract/C123`, `${base}/p/bob/contract/C456`],
   );
   assert.equal(routes[0]?.lastModified, deployedAt);
   assert.equal(routes[0]?.priority, 0.5);
