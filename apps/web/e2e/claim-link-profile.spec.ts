@@ -62,7 +62,7 @@ const HAS_DB = Boolean(process.env.DATABASE_URL);
 // specs down with it.
 const here = __dirname;
 
-test.describe('claim → link → indexer → profile', () => {
+test.describe('claim → link → indexer → profile @db', () => {
   test.skip(
     !HAS_DB,
     'needs DATABASE_URL: this flow is the database-backed path, and the fallback path is a different flow',

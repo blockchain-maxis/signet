@@ -26,11 +26,7 @@ function parseCssDeclarations(block: string): Record<string, string> {
   const regex = /--([a-z0-9-]+)\s*:\s*([^;]+);/g;
   let match;
   while ((match = regex.exec(block)) !== null) {
-    const key = match[1];
-    const val = match[2];
-    if (key && val) {
-      result[`--${key}`] = val.trim();
-    }
+    result[`--${match[1]}`] = match[2]!.trim();
   }
   return result;
 }
@@ -82,13 +78,13 @@ test('CSS file declares identical token values for dark mode (:root and [data-vi
 
   // Extract :root block
   const rootMatch = fileContent.match(/:root\s*\{([^}]+)\}/);
-  assert.ok(rootMatch && rootMatch[1], ':root block must exist in tokens.css');
-  const rootDecls = parseCssDeclarations(rootMatch[1]);
+  assert.ok(rootMatch, ':root block must exist in tokens.css');
+  const rootDecls = parseCssDeclarations(rootMatch[1]!);
 
   // Extract [data-viz-theme="dark"] or [data-viz-theme='dark'] block
   const darkMatch = fileContent.match(/\[data-viz-theme=['"]dark['"]\]\s*\{([^}]+)\}/);
-  assert.ok(darkMatch && darkMatch[1], '[data-viz-theme="dark"] block must exist in tokens.css');
-  const darkDecls = parseCssDeclarations(darkMatch[1]);
+  assert.ok(darkMatch, '[data-viz-theme="dark"] block must exist in tokens.css');
+  const darkDecls = parseCssDeclarations(darkMatch[1]!);
 
   for (const name of VIZ_TOKEN_NAMES) {
     const varName = VIZ_CSS_VARIABLES[name];
@@ -104,13 +100,13 @@ test('CSS file declares identical token values for light mode (@media and [data-
 
   // Extract @media (prefers-color-scheme: light) block
   const mediaMatch = fileContent.match(/@media\s*\(prefers-color-scheme:\s*light\)\s*\{\s*:root\s*\{([^}]+)\}/);
-  assert.ok(mediaMatch && mediaMatch[1], '@media (prefers-color-scheme: light) block must exist in tokens.css');
-  const mediaDecls = parseCssDeclarations(mediaMatch[1]);
+  assert.ok(mediaMatch, '@media (prefers-color-scheme: light) block must exist in tokens.css');
+  const mediaDecls = parseCssDeclarations(mediaMatch[1]!);
 
   // Extract [data-viz-theme="light"] or [data-viz-theme='light'] block
   const lightMatch = fileContent.match(/\[data-viz-theme=['"]light['"]\]\s*\{([^}]+)\}/);
-  assert.ok(lightMatch && lightMatch[1], '[data-viz-theme="light"] block must exist in tokens.css');
-  const lightDecls = parseCssDeclarations(lightMatch[1]);
+  assert.ok(lightMatch, '[data-viz-theme="light"] block must exist in tokens.css');
+  const lightDecls = parseCssDeclarations(lightMatch[1]!);
 
   for (const name of VIZ_TOKEN_NAMES) {
     const varName = VIZ_CSS_VARIABLES[name];
@@ -165,3 +161,39 @@ test('no hardcoded hex colors exist in render*.ts files', () => {
   }
 });
 
+/**
+ * Calculates WCAG relative luminance of an sRGB hex color.
+ */
+function relativeLuminance(hex: string): number {
+  const cleaned = hex.replace('#', '');
+  const r = parseInt(cleaned.slice(0, 2), 16) / 255;
+  const g = parseInt(cleaned.slice(2, 4), 16) / 255;
+  const b = parseInt(cleaned.slice(4, 6), 16) / 255;
+
+  const toLinear = (c: number) => (c <= 0.04045 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4));
+  return 0.2126 * toLinear(r) + 0.7152 * toLinear(g) + 0.0722 * toLinear(b);
+}
+
+function contrastRatio(hex1: string, hex2: string): number {
+  const l1 = relativeLuminance(hex1);
+  const l2 = relativeLuminance(hex2);
+  const brighter = Math.max(l1, l2);
+  const darker = Math.min(l1, l2);
+  return (brighter + 0.05) / (darker + 0.05);
+}
+
+test('WCAG AA contrast: nodeText against ground is >= 4.5:1 on both dark and light grounds', () => {
+  const darkRatio = contrastRatio(VIZ_DARK_TOKENS.nodeText, VIZ_DARK_TOKENS.ground);
+  assert.ok(darkRatio >= 4.5, `Dark nodeText contrast ratio was ${darkRatio.toFixed(2)}, expected >= 4.5`);
+
+  const lightRatio = contrastRatio(VIZ_LIGHT_TOKENS.nodeText, VIZ_LIGHT_TOKENS.ground);
+  assert.ok(lightRatio >= 4.5, `Light nodeText contrast ratio was ${lightRatio.toFixed(2)}, expected >= 4.5`);
+});
+
+test('WCAG AA contrast: edge against ground is >= 3.0:1 on both dark and light grounds', () => {
+  const darkEdgeRatio = contrastRatio(VIZ_DARK_TOKENS.edge, VIZ_DARK_TOKENS.ground);
+  assert.ok(darkEdgeRatio >= 3.0, `Dark edge contrast ratio was ${darkEdgeRatio.toFixed(2)}, expected >= 3.0`);
+
+  const lightEdgeRatio = contrastRatio(VIZ_LIGHT_TOKENS.edge, VIZ_LIGHT_TOKENS.ground);
+  assert.ok(lightEdgeRatio >= 3.0, `Light edge contrast ratio was ${lightEdgeRatio.toFixed(2)}, expected >= 3.0`);
+});

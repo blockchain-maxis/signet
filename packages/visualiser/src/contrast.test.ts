@@ -3,7 +3,6 @@ import assert from 'node:assert/strict';
 import {
   VIZ_DARK_TOKENS,
   VIZ_LIGHT_TOKENS,
-  VIZ_TOKENS,
   type VizTheme,
   type VizThemeTokens,
   type VizTokenName,
