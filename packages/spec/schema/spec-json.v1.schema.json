@@ -1,0 +1,266 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://signet.dev/schemas/spec-json.v1.json",
+  "title": "SpecJson v1",
+  "description": "Versioned, deterministic JSON form of a Soroban contract spec (B-11). entriesXdr is the source of truth; the flattened views are carried alongside. H's OpenAPI document $refs this file; signet-simulator validates spec.extract output against it.",
+  "type": "object",
+  "required": [
+    "schemaVersion",
+    "wasmHash",
+    "sdkVersion",
+    "entriesXdr",
+    "functions",
+    "types",
+    "errors",
+    "events",
+    "warnings"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "const": 1,
+      "description": "Schema version. Additive fields keep v1; renames and removals need v2."
+    },
+    "wasmHash": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$",
+      "description": "Hex-encoded SHA-256 hash of the contract executable WASM."
+    },
+    "sdkVersion": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Version of @stellar/stellar-sdk that decoded this spec."
+    },
+    "entriesXdr": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 },
+      "description": "Every spec entry's canonical XDR bytes as base64, in decode order."
+    },
+    "functions": {
+      "type": "array",
+      "items": { "$ref": "#/definitions/specFunction" }
+    },
+    "types": {
+      "type": "array",
+      "items": { "$ref": "#/definitions/specType" }
+    },
+    "errors": {
+      "type": "array",
+      "items": { "$ref": "#/definitions/specErrorCase" }
+    },
+    "events": {
+      "type": "array",
+      "items": { "$ref": "#/definitions/specEvent" }
+    },
+    "build": { "$ref": "#/definitions/contractBuild" },
+    "env": { "$ref": "#/definitions/contractEnvMeta" },
+    "warnings": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Non-fatal extraction notes (e.g. future XDR arms surfaced as unknown)."
+    }
+  },
+  "definitions": {
+    "typeRef": {
+      "oneOf": [
+        {
+          "type": "string",
+          "enum": [
+            "val",
+            "void",
+            "bool",
+            "i32",
+            "u32",
+            "i64",
+            "u64",
+            "i128",
+            "u128",
+            "i256",
+            "u256",
+            "bytes",
+            "string",
+            "symbol",
+            "address",
+            "timepoint",
+            "duration",
+            "error"
+          ]
+        },
+        {
+          "type": "object",
+          "required": ["type", "n"],
+          "properties": {
+            "type": { "const": "bytes_n" },
+            "n": { "type": "integer", "minimum": 1 }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["type", "value"],
+          "properties": {
+            "type": { "const": "option" },
+            "value": { "$ref": "#/definitions/typeRef" }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["type", "ok", "error"],
+          "properties": {
+            "type": { "const": "result" },
+            "ok": { "$ref": "#/definitions/typeRef" },
+            "error": { "$ref": "#/definitions/typeRef" }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["type", "element"],
+          "properties": {
+            "type": { "const": "vec" },
+            "element": { "$ref": "#/definitions/typeRef" }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["type", "key", "value"],
+          "properties": {
+            "type": { "const": "map" },
+            "key": { "$ref": "#/definitions/typeRef" },
+            "value": { "$ref": "#/definitions/typeRef" }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["type", "elements"],
+          "properties": {
+            "type": { "const": "tuple" },
+            "elements": { "type": "array", "items": { "$ref": "#/definitions/typeRef" } }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["type", "name"],
+          "properties": {
+            "type": { "const": "named" },
+            "name": { "type": "string", "minLength": 1 }
+          }
+        },
+        {
+          "type": "object",
+          "required": ["type", "xdrArm"],
+          "properties": {
+            "type": { "const": "unknown" },
+            "xdrArm": { "type": "string", "minLength": 1 }
+          }
+        }
+      ]
+    },
+    "specField": {
+      "type": "object",
+      "required": ["name", "type"],
+      "properties": {
+        "name": { "type": "string" },
+        "doc": { "type": "string" },
+        "type": { "$ref": "#/definitions/typeRef" }
+      }
+    },
+    "specFunction": {
+      "type": "object",
+      "required": ["name", "inputs", "outputs"],
+      "properties": {
+        "name": { "type": "string" },
+        "doc": { "type": "string" },
+        "inputs": { "type": "array", "items": { "$ref": "#/definitions/specField" } },
+        "outputs": { "type": "array", "items": { "$ref": "#/definitions/typeRef" } }
+      }
+    },
+    "specStruct": {
+      "type": "object",
+      "required": ["kind", "name", "fields"],
+      "properties": {
+        "kind": { "const": "struct" },
+        "name": { "type": "string" },
+        "doc": { "type": "string" },
+        "fields": { "type": "array", "items": { "$ref": "#/definitions/specField" } }
+      }
+    },
+    "specUnionCase": {
+      "type": "object",
+      "required": ["name", "fields"],
+      "properties": {
+        "name": { "type": "string" },
+        "doc": { "type": "string" },
+        "fields": { "type": "array", "items": { "$ref": "#/definitions/specField" } }
+      }
+    },
+    "specUnion": {
+      "type": "object",
+      "required": ["kind", "name", "cases"],
+      "properties": {
+        "kind": { "const": "union" },
+        "name": { "type": "string" },
+        "doc": { "type": "string" },
+        "cases": { "type": "array", "items": { "$ref": "#/definitions/specUnionCase" } }
+      }
+    },
+    "specEnumVariant": {
+      "type": "object",
+      "required": ["name", "value"],
+      "properties": {
+        "name": { "type": "string" },
+        "doc": { "type": "string" },
+        "value": { "type": "integer" }
+      }
+    },
+    "specEnum": {
+      "type": "object",
+      "required": ["kind", "name", "variants"],
+      "properties": {
+        "kind": { "const": "enum" },
+        "name": { "type": "string" },
+        "doc": { "type": "string" },
+        "variants": { "type": "array", "items": { "$ref": "#/definitions/specEnumVariant" } }
+      }
+    },
+    "specType": {
+      "oneOf": [
+        { "$ref": "#/definitions/specStruct" },
+        { "$ref": "#/definitions/specUnion" },
+        { "$ref": "#/definitions/specEnum" }
+      ]
+    },
+    "specErrorCase": {
+      "type": "object",
+      "required": ["name", "value"],
+      "properties": {
+        "enumName": { "type": "string" },
+        "name": { "type": "string" },
+        "value": { "type": "integer", "minimum": 0 },
+        "doc": { "type": "string" }
+      }
+    },
+    "specEvent": {
+      "type": "object",
+      "required": ["name", "topics", "data"],
+      "properties": {
+        "name": { "type": "string" },
+        "doc": { "type": "string" },
+        "topics": { "type": "array", "items": { "$ref": "#/definitions/specField" } },
+        "data": { "type": "array", "items": { "$ref": "#/definitions/specField" } }
+      }
+    },
+    "contractBuild": {
+      "type": "object",
+      "properties": {
+        "rustVersion": { "type": "string" },
+        "sdkVersion": { "type": "string" }
+      }
+    },
+    "contractEnvMeta": {
+      "type": "object",
+      "required": ["protocolVersion", "preRelease"],
+      "properties": {
+        "protocolVersion": { "type": "integer", "minimum": 0 },
+        "preRelease": { "type": "integer", "minimum": 0 }
+      }
+    }
+  }
+}
