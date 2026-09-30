@@ -108,7 +108,20 @@ An empty ledger is the wrong default because almost every interesting question i
 
 ### 4.1 Host lanes and supported protocols
 
-Host lanes are keyed on the network ledger protocol. As seen in `soroban-env-host` 28.0.2 (`check_ledger_protocol_supported`), the host enforces that the contract's `contractenvmetav0` must be ≤ the lane's protocol.
+Host lanes are keyed on the network ledger protocol, not on the contract's `contractenvmetav0`. In `soroban-env-host` 28.0.2, `Host::check_ledger_protocol_supported` (`src/host.rs`) compares the ledger's protocol against the host's own interface version and rejects both directions (the "too old" arm is compiled out under `test` and the `next` feature):
+
+```rust
+let proto = self.get_ledger_protocol_version()?;
+#[cfg(not(any(test, feature = "next")))]
+if proto < meta::INTERFACE_VERSION.protocol {
+    return Err(/* "ledger protocol version too old for host" */);
+}
+if proto > meta::INTERFACE_VERSION.protocol {
+    return Err(/* "ledger protocol version too new for host" */);
+}
+```
+
+A host build therefore serves exactly one network protocol, which is why the sandbox carries one host per lane. The contract's env meta must be ≤ the lane's protocol.
 
 The policy for the sandbox is:
 
@@ -215,7 +228,7 @@ not to publish.
 
 ## 9. Sequencing
 
-_(Superseded by this epic's order; the bridge specification is done. See the user guide at [`docs/SANDBOX.md`](SANDBOX.md) (#642).)_
+_(Superseded by this epic's order; the bridge specification is done. The user guide is tracked in #642.)_
 
 ---
 
