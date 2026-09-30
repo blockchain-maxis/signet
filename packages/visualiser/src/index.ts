@@ -55,3 +55,6 @@ export type LayoutContractGraph = (spec: ContractSpec, options?: LayoutOptions) 
 
 // Deterministic text metrics (E-05): the layout's only measure of a label.
 export { MIN_TEXT_PX, textCells, textWidth, truncateLabel } from './metrics.ts';
+
+/** Pure SVG renderer (§4.2): DiagramModel -> SVG string. */
+export { renderDiagramSvg, type RenderOptions } from './render.ts';
