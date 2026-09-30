@@ -7,6 +7,8 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/blockchain-maxis/signet/cli/internal/config"
+	"github.com/blockchain-maxis/signet/cli/internal/exitcode"
 	"github.com/blockchain-maxis/signet/cli/internal/keys"
 	"github.com/spf13/cobra"
 )
@@ -15,19 +17,32 @@ import (
 // key itself, only the identity name and the public key `stellar` resolves.
 // Later commands that need to sign (`link`, `spec`) share this same
 // resolution instead of re-implementing it.
+//
+// The identity comes from the resolved configuration on the command context
+// (#595), exactly like `whoami` — the persistent root `--source` flag,
+// `STELLAR_SIGN_WITH_KEY`, and the remembered config-file source, in root.go's
+// precedence order. This command previously declared its own local `--source`,
+// which shadowed all of that: `signet identity` was the one command that
+// forgot what `docs/CLI.md` promises is remembered.
 func newIdentityCmd() *cobra.Command {
-	var source string
-
 	c := &cobra.Command{
 		Use:   "identity",
 		Short: "Resolve the Stellar identity signet will sign with",
 		Long: `Prints the identity and public key signet will sign with, resolved via
 the stellar CLI (stellar keys ls / stellar keys public-key). signet never
-reads a secret key itself.`,
+reads a secret key itself.
+
+The identity is chosen like every other command: --source, then
+STELLAR_SIGN_WITH_KEY, then the source remembered in the config file.`,
 		RunE: func(cmd *cobra.Command, _ []string) error {
+			resolved, ok := config.FromContext(cmd.Context())
+			if !ok {
+				return fmt.Errorf("%w: configuration was not resolved", exitcode.ErrConfiguration)
+			}
+
 			name, err := keys.Resolve(
 				keys.DefaultBinary,
-				source,
+				resolved.Source,
 				promptForIdentity(cmd.InOrStdin(), cmd.OutOrStdout()),
 			)
 			if err != nil {
@@ -41,7 +56,6 @@ reads a secret key itself.`,
 			return err
 		},
 	}
-	c.Flags().StringVar(&source, "source", "", "Stellar identity to use (skips the ls/prompt step)")
 	return c
 }
 
