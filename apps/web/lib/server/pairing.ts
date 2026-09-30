@@ -5,6 +5,14 @@ import { verifyChallenge, Sep10Error } from '../sep10.ts';
 import { getConfiguredNetwork } from '../cli-link.ts';
 import { isMainnetNetwork } from '../network-guard.ts';
 import { logger } from '../logger.ts';
+import { logPairing } from './pairing-audit.ts';
+import {
+  linkDeployWallet,
+  WalletAlreadyLinkedError,
+  type LinkWalletStore,
+  type LinkedWallet,
+} from './account.ts';
+import type { WalletSource } from '@signet/types';
 
 /**
  * CLI device pairing — the trust boundary that turns a browser-approved
@@ -117,11 +125,6 @@ interface PairingRow {
   expiresAt: Date;
 }
 
-interface WalletRow {
-  pubkey: string;
-  profileId: string;
-}
-
 /**
  * Minimal slice of the Prisma client this module touches, as an interface —
  * same pattern as the indexer's `AttestationStore` / `SeedStore` — so tests
@@ -149,12 +152,7 @@ export interface PairingStore {
   profile: {
     findUnique(args: { where: { id: string } }): Promise<{ handle: string } | null>;
   };
-  wallet: {
-    findUnique(args: { where: { pubkey: string } }): Promise<WalletRow | null>;
-    create(args: {
-      data: { pubkey: string; profileId: string; source: string; isPrimary: boolean };
-    }): Promise<WalletRow>;
-  };
+  wallet: LinkWalletStore['wallet'];
   $transaction<T>(fn: (tx: PairingStore) => Promise<T>): Promise<T>;
 }
 
@@ -209,6 +207,9 @@ export async function startPairing(
       expiresAt,
     },
   });
+  // The declared key is unverified here; the audit line records it as the key
+  // this pairing is *about*, and `completed` records the one actually proved.
+  logPairing('started', { source: 'cli-pairing', wallet: publicKey }, { state: row.id });
   return { state: row.id, pollToken, expiresAt: expiresAt.toISOString() };
 }
 
@@ -384,7 +385,7 @@ export async function rejectPairing(state: string, store?: PairingStore): Promis
     data: { status: 'rejected', rejectedAt: now },
   });
   if (result.count === 1) {
-    logger.info({ state }, 'pairing.rejected');
+    logPairing('rejected', { source: 'cli-pairing', reason: 'refused' }, { state });
     return 'ok';
   }
 
@@ -414,7 +415,7 @@ export type CompleteFailure =
   | 'wallet-bound-elsewhere';
 
 export type CompleteResult =
-  | { ok: true; wallet: WalletRow; handle: string | null }
+  | { ok: true; wallet: LinkedWallet; handle: string | null }
   | { ok: false; reason: CompleteFailure };
 
 /** Thrown inside the transaction to short-circuit to a specific `CompleteFailure`. */
@@ -450,15 +451,19 @@ export async function completePairing(
 
   const pairing = await db.pairingState.findUnique({ where: { id: state } });
   if (!pairing) return fail(state, 'not-found');
-  if (pairing.status === 'completed') return fail(state, 'already-completed');
-  if (pairing.status !== 'approved' || !pairing.profileId) return fail(state, 'not-approved');
-  if (pairing.expiresAt <= new Date()) return fail(state, 'expired');
+  // Until the signature is verified, the only key known is the declared one.
+  const declared = pairing.publicKey;
+  if (pairing.status === 'completed') return fail(state, 'already-completed', declared);
+  if (pairing.status !== 'approved' || !pairing.profileId) {
+    return fail(state, 'not-approved', declared);
+  }
+  if (pairing.expiresAt <= new Date()) return fail(state, 'expired', declared);
   // Names on both sides (#616): `start` stores the canonical network name and
   // already refused a mismatched or unknown one, so this recheck only fires
   // when the deployment's configured network changed between start and
   // complete — or a row predating the name-based wire slipped through.
   if (resolvePairingNetwork(pairing.network) !== normalizeNetwork(getConfiguredNetwork())) {
-    return fail(state, 'network-mismatch');
+    return fail(state, 'network-mismatch', declared);
   }
 
   let clientAccountId: string;
@@ -469,7 +474,7 @@ export async function completePairing(
       { state, error: err instanceof Sep10Error ? err.message : String(err) },
       'pairing.badChallenge',
     );
-    return { ok: false, reason: 'bad-challenge' };
+    return fail(state, 'bad-challenge', declared);
   }
 
   // The manual path (#273): when the loopback callback cannot be reached, the
@@ -480,7 +485,7 @@ export async function completePairing(
   // that the person at the terminal is not the person who approved.
   if (handoffCode !== undefined) {
     if (!pairing.handoffHash || !hashEquals(pairing.handoffHash, sha256(handoffCode))) {
-      return fail(state, 'bad-handoff');
+      return fail(state, 'bad-handoff', clientAccountId);
     }
   }
 
@@ -494,7 +499,7 @@ export async function completePairing(
       { state, declared: pairing.publicKey, signed: clientAccountId },
       'pairing.keyMismatch',
     );
-    return fail(state, 'key-mismatch');
+    return fail(state, 'key-mismatch', clientAccountId);
   }
 
   // One spend per distinct signed challenge — a byte-identical resubmission
@@ -504,7 +509,7 @@ export async function completePairing(
   // shared with every other operation that accepts a challenge, so the same
   // envelope cannot be redeemed once here and once somewhere else.
   if (!(await spendChallenge(challengeXdr))) {
-    return fail(state, 'replayed');
+    return fail(state, 'replayed', clientAccountId);
   }
 
   const profileId = pairing.profileId;
@@ -519,28 +524,42 @@ export async function completePairing(
       });
       if (flipped.count !== 1) throw new PairingConflict('already-completed');
 
-      const existing = await tx.wallet.findUnique({ where: { pubkey: clientAccountId } });
-      if (existing) {
-        if (existing.profileId !== profileId) throw new PairingConflict('wallet-bound-elsewhere');
-        return existing; // already bound to this profile — idempotent re-pairing
+      try {
+        return await linkDeployWallet(
+          profileId,
+          clientAccountId,
+          'cli',
+          tx as unknown as LinkWalletStore,
+        );
+      } catch (err) {
+        if (err instanceof WalletAlreadyLinkedError) {
+          throw new PairingConflict('wallet-bound-elsewhere');
+        }
+        throw err;
       }
-      return tx.wallet.create({
-        data: { pubkey: clientAccountId, profileId, source: 'cli', isPrimary: false },
-      });
     });
     // The handle is read back so the CLI can print what it linked to rather
     // than making the developer go and look — #258 asks for the handle and the
     // public key, and only the server knows the first.
     const profile = await db.profile.findUnique({ where: { id: profileId } });
-    logger.info({ state, profileId, pubkey: clientAccountId }, 'pairing.completed');
+    logPairing(
+      'completed',
+      { source: 'cli-pairing', handle: profile?.handle, wallet: clientAccountId },
+      { state, profileId },
+    );
     return { ok: true, wallet, handle: profile?.handle ?? null };
   } catch (err) {
-    if (err instanceof PairingConflict) return fail(state, err.reason);
+    if (err instanceof PairingConflict) return fail(state, err.reason, clientAccountId);
     throw err;
   }
 }
 
-function fail(state: string, reason: CompleteFailure): CompleteResult {
-  logger.warn({ state, reason }, 'pairing.completeRejected');
+/**
+ * Refuse a completion and record it in the audit trail. `wallet` is the key
+ * the attempt was about: the declared one before the signature is verified,
+ * the signing one after.
+ */
+function fail(state: string, reason: CompleteFailure, wallet?: string | null): CompleteResult {
+  logPairing('rejected', { source: 'cli-pairing', wallet, reason }, { state });
   return { ok: false, reason };
 }

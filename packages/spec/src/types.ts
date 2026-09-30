@@ -13,6 +13,11 @@ import type { contract, xdr } from '@stellar/stellar-sdk';
 /**
  * Soroban atomic scalar / primitive type representations.
  * Corresponds to `xdr.ScSpecType` primitive values.
+ *
+ * Signet extensions — literals outside Orbital's primitive set, added so every
+ * `xdr.ScSpecTypeDef` arm the pinned SDK defines has a primitive `TypeRef`:
+ * `'val'`, `'timepoint'`, `'duration'` and `'muxedAddress'`. Consumers mapping
+ * `TypeRef` onto an Orbital ABI must supply those four themselves (#439).
  */
 export type PrimitiveType =
   | 'val'
@@ -30,6 +35,7 @@ export type PrimitiveType =
   | 'string'
   | 'symbol'
   | 'address'
+  | 'muxedAddress'
   | 'timepoint'
   | 'duration'
   | 'error';

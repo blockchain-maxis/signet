@@ -66,3 +66,18 @@ export {
   MIN_EDGES,
   diagramDecision,
 } from './decide.ts';
+
+// Theme tokens and CSS variables (§2.3 of docs/CONTRACT_VISUALISER_DESIGN.md)
+export {
+  VIZ_CSS_VARIABLES,
+  VIZ_DARK_TOKENS,
+  VIZ_LIGHT_TOKENS,
+  VIZ_TOKEN_NAMES,
+  VIZ_TOKENS,
+  formatTokenDeclarations,
+  generateInlineTokensStyle,
+  generateTokensCss,
+  type VizTheme,
+  type VizThemeTokens,
+  type VizTokenName,
+} from './tokens.ts';

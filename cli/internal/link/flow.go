@@ -12,6 +12,7 @@ import (
 	"github.com/blockchain-maxis/signet/cli/internal/exitcode"
 	"github.com/blockchain-maxis/signet/cli/internal/loopback"
 	"github.com/blockchain-maxis/signet/cli/internal/pair"
+	"github.com/blockchain-maxis/signet/cli/internal/redact"
 )
 
 // TTL is how long a pairing is good for, mirroring PAIRING_TTL_MS in
@@ -32,7 +33,7 @@ type Deps struct {
 	// Poll reads pairing progress with the poll token.
 	Poll func(ctx context.Context, pollToken string) (pair.Status, error)
 	// Complete submits the signed challenge and reports what was linked.
-	Complete func(ctx context.Context, state, signedXDR, handoffCode string) (string, error)
+	Complete func(ctx context.Context, state, signedXDR, handoffCode string) (string, bool, error)
 	// Challenge fetches an unsigned SEP-10 challenge for an account.
 	Challenge func(ctx context.Context, account string) (string, error)
 	// Sign signs a challenge with the resolved local identity.
@@ -78,10 +79,11 @@ type Callbacks interface {
 
 // Result is what a completed link reports.
 type Result struct {
-	Handle    string `json:"handle"`
-	PublicKey string `json:"publicKey"`
-	Network   string `json:"network"`
-	Status    string `json:"status"`
+	Handle          string `json:"handle"`
+	PublicKey       string `json:"publicKey"`
+	Network         string `json:"network"`
+	Status          string `json:"status"`
+	IndexingPending bool   `json:"indexingPending"`
 }
 
 // Run drives the whole flow: mint a pairing, show the developer the approval
@@ -118,7 +120,8 @@ func Run(ctx context.Context, baseURL, network, source, publicKey string, deps D
 		defer func() { _ = server.Close() }()
 	}
 
-	report(fmt.Sprintf("Approve this link in your browser:\n\n    %s\n", approvalURL))
+	safeApprovalURL := redact.Secrets(approvalURL)
+	report(fmt.Sprintf("Approve this link in your browser:\n\n    %s\n", safeApprovalURL))
 	if deps.OpenBrowser != nil {
 		if err := deps.OpenBrowser(approvalURL); err != nil {
 			report("Could not open a browser automatically — open the link above yourself.")
@@ -138,7 +141,7 @@ func Run(ctx context.Context, baseURL, network, source, publicKey string, deps D
 	case pair.OutcomeExpired, pair.OutcomeTimeout:
 		return Result{}, fmt.Errorf(
 			"%w: no approval within %s. Run `signet link` again — the approval link was:\n\n    %s",
-			exitcode.ErrTimeout, deps.ttl(), approvalURL,
+			exitcode.ErrTimeout, deps.ttl(), safeApprovalURL,
 		)
 	}
 
@@ -152,16 +155,17 @@ func Run(ctx context.Context, baseURL, network, source, publicKey string, deps D
 	if err != nil {
 		return Result{}, err
 	}
-	handle, err := deps.Complete(ctx, started.State, signed, "")
+	handle, indexingPending, err := deps.Complete(ctx, started.State, signed, "")
 	if err != nil {
 		return Result{}, classifyComplete(err)
 	}
 
 	return Result{
-		Handle:    handle,
-		PublicKey: publicKey,
-		Network:   network,
-		Status:    "linked",
+		Handle:          redact.Secrets(handle),
+		PublicKey:       redact.Secrets(publicKey),
+		Network:         redact.Secrets(network),
+		Status:          "linked",
+		IndexingPending: indexingPending,
 	}, nil
 }
 
@@ -242,7 +246,7 @@ func wait(
 // wallet that is already someone else's exits differently from a network
 // blip. `already linked` is one of the failure modes #258 asks for by name.
 func classifyComplete(err error) error {
-	text := err.Error()
+	text := redact.Secrets(err.Error())
 	switch {
 	case strings.Contains(text, "already bound to a different profile"):
 		return fmt.Errorf("%w: %s", exitcode.ErrAlreadyLinked, text)
@@ -260,11 +264,11 @@ func FetchChallenge(client *http.Client, baseURL string) func(context.Context, s
 		target := strings.TrimRight(baseURL, "/") + "/api/auth/sep10?account=" + url.QueryEscape(account)
 		req, err := http.NewRequestWithContext(ctx, http.MethodGet, target, nil)
 		if err != nil {
-			return "", fmt.Errorf("%w: building challenge request: %w", exitcode.ErrNetwork, err)
+			return "", fmt.Errorf("%w: building challenge request: %s", exitcode.ErrNetwork, redact.Secrets(err.Error()))
 		}
 		resp, err := client.Do(req)
 		if err != nil {
-			return "", fmt.Errorf("%w: fetching challenge: %w", exitcode.ErrNetwork, err)
+			return "", fmt.Errorf("%w: fetching challenge: %s", exitcode.ErrNetwork, redact.Secrets(err.Error()))
 		}
 		defer func() { _ = resp.Body.Close() }()
 
@@ -275,7 +279,7 @@ func FetchChallenge(client *http.Client, baseURL string) func(context.Context, s
 		_ = json.NewDecoder(resp.Body).Decode(&body)
 		if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 			if body.Error != "" {
-				return "", fmt.Errorf("%w: %s", exitcode.ErrNetwork, body.Error)
+				return "", fmt.Errorf("%w: %s", exitcode.ErrNetwork, redact.Secrets(body.Error))
 			}
 			return "", fmt.Errorf("%w: challenge request returned %s", exitcode.ErrNetwork, resp.Status)
 		}

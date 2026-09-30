@@ -1,9 +1,8 @@
 // Command fakestellar is a stand-in for the real `stellar` CLI, used only by
-// keys_test.go. It understands the invocations ResolvePublicKey and
-// CheckStellarCLI make — `stellar keys address <name>` and
-// `stellar --version` — and its behavior is chosen by the requested name (or
-// the FAKESTELLAR_VERSION env var, for --version), so tests don't need to
-// build multiple binaries.
+// keys_test.go and command regression tests. It understands the identity,
+// version, and tx-sign invocations those tests make, with behavior selected by
+// the requested name or FAKESTELLAR_* environment variables so tests do not
+// need to build multiple binaries.
 package main
 
 import (
@@ -14,6 +13,19 @@ import (
 
 func main() {
 	args := os.Args[1:]
+
+	if len(args) == 4 && args[0] == "tx" && args[1] == "sign" && args[2] == "--sign-with-key" {
+		if detail := os.Getenv("FAKESTELLAR_SIGN_STDERR"); detail != "" {
+			fmt.Fprintln(os.Stderr, detail)
+			os.Exit(1)
+		}
+		if signed := os.Getenv("FAKESTELLAR_SIGN_STDOUT"); signed != "" {
+			fmt.Println(signed)
+			return
+		}
+		fmt.Fprintln(os.Stderr, "fakestellar: signing is not configured")
+		os.Exit(2)
+	}
 
 	if len(args) == 2 && args[0] == "keys" && args[1] == "ls" {
 		// Newline-separated identity names, as `stellar keys ls` prints them.
@@ -38,6 +50,10 @@ func main() {
 	if len(args) != 3 || args[0] != "keys" || args[1] != "address" {
 		fmt.Fprintln(os.Stderr, "fakestellar: unsupported invocation")
 		os.Exit(2)
+	}
+	if output := os.Getenv("FAKESTELLAR_ADDRESS_OUTPUT"); output != "" {
+		fmt.Println(output)
+		return
 	}
 
 	switch args[2] {
