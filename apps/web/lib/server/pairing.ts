@@ -5,6 +5,13 @@ import { verifyChallenge, Sep10Error } from '../sep10.ts';
 import { getConfiguredNetwork } from '../cli-link.ts';
 import { isMainnetNetwork } from '../network-guard.ts';
 import { logger } from '../logger.ts';
+import {
+  linkDeployWallet,
+  WalletAlreadyLinkedError,
+  type LinkWalletStore,
+  type LinkedWallet,
+} from './account.ts';
+import type { WalletSource } from '@signet/types';
 
 /**
  * CLI device pairing — the trust boundary that turns a browser-approved
@@ -117,11 +124,6 @@ interface PairingRow {
   expiresAt: Date;
 }
 
-interface WalletRow {
-  pubkey: string;
-  profileId: string;
-}
-
 /**
  * Minimal slice of the Prisma client this module touches, as an interface —
  * same pattern as the indexer's `AttestationStore` / `SeedStore` — so tests
@@ -149,12 +151,7 @@ export interface PairingStore {
   profile: {
     findUnique(args: { where: { id: string } }): Promise<{ handle: string } | null>;
   };
-  wallet: {
-    findUnique(args: { where: { pubkey: string } }): Promise<WalletRow | null>;
-    create(args: {
-      data: { pubkey: string; profileId: string; source: string; isPrimary: boolean };
-    }): Promise<WalletRow>;
-  };
+  wallet: LinkWalletStore['wallet'];
   $transaction<T>(fn: (tx: PairingStore) => Promise<T>): Promise<T>;
 }
 
@@ -414,7 +411,7 @@ export type CompleteFailure =
   | 'wallet-bound-elsewhere';
 
 export type CompleteResult =
-  | { ok: true; wallet: WalletRow; handle: string | null }
+  | { ok: true; wallet: LinkedWallet; handle: string | null }
   | { ok: false; reason: CompleteFailure };
 
 /** Thrown inside the transaction to short-circuit to a specific `CompleteFailure`. */
@@ -519,14 +516,19 @@ export async function completePairing(
       });
       if (flipped.count !== 1) throw new PairingConflict('already-completed');
 
-      const existing = await tx.wallet.findUnique({ where: { pubkey: clientAccountId } });
-      if (existing) {
-        if (existing.profileId !== profileId) throw new PairingConflict('wallet-bound-elsewhere');
-        return existing; // already bound to this profile — idempotent re-pairing
+      try {
+        return await linkDeployWallet(
+          profileId,
+          clientAccountId,
+          'cli',
+          tx as unknown as LinkWalletStore,
+        );
+      } catch (err) {
+        if (err instanceof WalletAlreadyLinkedError) {
+          throw new PairingConflict('wallet-bound-elsewhere');
+        }
+        throw err;
       }
-      return tx.wallet.create({
-        data: { pubkey: clientAccountId, profileId, source: 'cli', isPrimary: false },
-      });
     });
     // The handle is read back so the CLI can print what it linked to rather
     // than making the developer go and look — #258 asks for the handle and the

@@ -36,7 +36,9 @@ test('dashboard shows the sign-in wall when unauthenticated', async ({ page }) =
   await expect(page.getByRole('button', { name: /sign in with wallet/i })).toBeVisible();
 });
 
-test('the handle directory says so, and lists nothing, when no registry is configured', async ({ page }) => {
+test('the handle directory says so, and lists nothing, when no registry is configured', async ({
+  page,
+}) => {
   // The e2e server runs without a registry contract id. There is no fallback
   // list of handles: the page must say why it is empty rather than invent any.
   await page.goto('/handles');
@@ -72,4 +74,16 @@ test('landing page links to the real directory, not a demo profile', async ({ pa
   await page.goto('/');
   await expect(page.locator('a[href^="/p/"]')).toHaveCount(0);
   await expect(page.locator('a[href="/handles"]').first()).toBeAttached();
+});
+
+test('sitemap.xml returns only static routes when there is no DB', async ({ request }) => {
+  const res = await request.get('/sitemap.xml');
+  expect(res.ok()).toBeTruthy();
+  const text = await res.text();
+  // Expect static routes (ignoring domain)
+  expect(text).toContain('/handles</loc>');
+  expect(text).toContain('/how-it-works</loc>');
+  expect(text).toContain('/docs</loc>');
+  // No profile or contract routes without DB and registry config
+  expect(text).not.toContain('/p/');
 });
