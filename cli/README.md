@@ -102,11 +102,18 @@ Removes the binding, proving control of the same deploy key.
 
 ```bash
 signet unlink
-# Unlink GCKIZN6RQPU73ORI5Q6HM3PMRELBELH2DITSWEEU7G4K2E227BXPUX6U from its Signet profile? [y/N] y
+# Unlink GCKIZN6RQPU73ORI5Q6HM3PMRELBELH2DITSWEEU7G4K2E227BXPUX6U from @alice? [y/N] y
 # Unlinked GCKIZN6RQPU73ORI5Q6HM3PMRELBELH2DITSWEEU7G4K2E227BXPUX6U from @alice.
 ```
 
-`--yes` skips the confirmation, for non-interactive use. Unlinking needs only
+Before asking, it looks the key up (the same query as `signet whoami`), so the
+prompt names the handle the key feeds. A key that isn't linked is told so, and
+the command exits `0` without fetching or signing a challenge.
+
+`--yes` skips the confirmation, and is **required** when stdin is not a
+terminal: without it, a non-interactive run exits `2` ("unlink needs --yes when
+not run interactively") before any network call, instead of reading end of
+input as "no" and exiting `0` as if it had worked. Unlinking needs only
 key control — no browser step — because it withdraws an attestation rather than
 making one.
 
@@ -156,7 +163,7 @@ releases.
 |------|---------|
 | `0` | Success |
 | `1` | Generic/unexpected error |
-| `2` | Invalid input (e.g. a malformed handle or public key) |
+| `2` | Invalid input (e.g. a malformed handle or public key, or `unlink` run non-interactively without `--yes`) |
 | `3` | Configuration error — the config file, a flag/env var, or the local `stellar` CLI (missing, or older than the required minimum version) is unusable |
 | `4` | No identity — `stellar` couldn't resolve the requested identity |
 | `5` | Signing failed |
