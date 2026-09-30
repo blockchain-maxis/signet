@@ -1,4 +1,5 @@
-import { verifyChallenge, Sep10Error } from '../sep10.ts';
+import { Sep10Error } from '../sep10.ts';
+import { verifyCliLinkChallenge } from '../cli-link.ts';
 import { logger } from '../logger.ts';
 import { spendChallenge } from './challenge-spend.ts';
 
@@ -62,7 +63,7 @@ async function getStore(): Promise<UnlinkStore | null> {
 }
 
 /**
- * Verify a signed SEP-10 challenge and remove the wallet it proves control of.
+ * Verify a signed CLI-link challenge and remove the wallet it proves control of.
  *
  * Ordering mirrors `completePairing`: verify first (free, and a failed attempt
  * must not spend anything), then consume the challenge, then write. Consuming
@@ -78,7 +79,8 @@ export async function unlinkByChallenge(
 
   let pubkey: string;
   try {
-    pubkey = verifyChallenge(challengeXdr);
+    // CLI-link domain only: a web sign-in challenge must not unlink a wallet (#597).
+    pubkey = verifyCliLinkChallenge(challengeXdr);
   } catch (err) {
     logger.warn(
       { error: err instanceof Sep10Error ? err.message : String(err) },

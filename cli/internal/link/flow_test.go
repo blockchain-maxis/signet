@@ -3,6 +3,8 @@ package link
 import (
 	"context"
 	"errors"
+	"net/http"
+	"net/http/httptest"
 	"net/url"
 	"strings"
 	"testing"
@@ -274,5 +276,50 @@ func TestRun_SigningFailureStopsBeforeComplete(t *testing.T) {
 
 	if _, err := Run(context.Background(), "https://signet.example", "testnet", "src", "GABC", deps); err == nil {
 		t.Fatal("expected a signing error")
+	}
+}
+
+func TestFetchChallenge_RequestsTheCLILinkChallengeForTheResolvedNetwork(t *testing.T) {
+	// #597: the challenge must come from /api/cli-link (its own home domain),
+	// not the web sign-in endpoint, and must name the network the command
+	// resolved.
+	var gotPath, gotAccount, gotNetwork, gotMethod string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotMethod = r.Method
+		gotPath = r.URL.Path
+		gotAccount = r.URL.Query().Get("account")
+		gotNetwork = r.URL.Query().Get("network")
+		_, _ = w.Write([]byte(`{"transaction":"AAAAchallenge","network_passphrase":"Test SDF Network ; September 2015"}`))
+	}))
+	defer server.Close()
+
+	got, err := FetchChallenge(server.Client(), server.URL+"/", "mainnet")(context.Background(), "GABC")
+	if err != nil {
+		t.Fatalf("FetchChallenge: %v", err)
+	}
+	if got != "AAAAchallenge" {
+		t.Errorf("challenge = %q, want the transaction from the response", got)
+	}
+	if gotMethod != http.MethodGet || gotPath != "/api/cli-link" {
+		t.Errorf("request = %s %s, want GET /api/cli-link", gotMethod, gotPath)
+	}
+	if gotAccount != "GABC" {
+		t.Errorf("account = %q, want GABC", gotAccount)
+	}
+	if gotNetwork != "mainnet" {
+		t.Errorf("network = %q, want mainnet", gotNetwork)
+	}
+}
+
+func TestFetchChallenge_SurfacesAServerRefusal(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusBadRequest)
+		_, _ = w.Write([]byte(`{"error":"Network mismatch: the CLI requested \"mainnet\" but this deployment is configured for \"testnet\"."}`))
+	}))
+	defer server.Close()
+
+	_, err := FetchChallenge(server.Client(), server.URL, "mainnet")(context.Background(), "GABC")
+	if !errors.Is(err, exitcode.ErrNetwork) || !strings.Contains(err.Error(), "Network mismatch") {
+		t.Fatalf("err = %v, want a network error carrying the server's message", err)
 	}
 }

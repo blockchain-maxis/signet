@@ -27,6 +27,15 @@ export const runtime = 'nodejs';
  * attach it to someone else's handle) — a separate mechanism this endpoint
  * intentionally leaves for a follow-up rather than shipping a half-built
  * authorization check.
+ *
+ * `GET` is the challenge source for `signet link` and `signet unlink`, and
+ * `/api/cli/pair/complete` and `/api/cli/unlink` verify what it issues (#597).
+ *
+ * DEPRECATED: `POST` is verify-only: it links nothing, and nothing in `cli/` or
+ * `apps/web` calls it now that pairing completion and unlink verify the
+ * challenge themselves. It is kept, not removed, so a released CLI or script
+ * that still posts here does not break; new callers should not use it. Removal
+ * is a breaking change for any such caller and belongs in its own PR.
  */
 const CORS_HEADERS = { 'Access-Control-Allow-Origin': '*' };
 

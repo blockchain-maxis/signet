@@ -24,6 +24,7 @@ import (
 func newUnlinkCmd() *cobra.Command {
 	var jsonOutput bool
 	var assumeYes bool
+	var network string
 
 	cmd := &cobra.Command{
 		Use:   "unlink",
@@ -73,7 +74,7 @@ stellar CLI.`,
 			}
 
 			unsigned, err := link.FetchChallenge(
-				&http.Client{Timeout: 15 * time.Second}, resolved.BaseURL,
+				&http.Client{Timeout: 15 * time.Second}, resolved.BaseURL, network,
 			)(cmd.Context(), publicKey)
 			if err != nil {
 				return err
@@ -105,6 +106,7 @@ stellar CLI.`,
 		},
 	}
 
+	cmd.Flags().StringVar(&network, "network", "testnet", "Stellar network the deploy wallet is on")
 	cmd.Flags().BoolVar(&assumeYes, "yes", false, "skip the confirmation prompt")
 	cmd.Flags().BoolVar(&jsonOutput, "json", false, "write a single JSON result to stdout instead of a human-readable summary")
 

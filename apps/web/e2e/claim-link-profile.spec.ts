@@ -137,8 +137,11 @@ test.describe('claim → link → indexer → profile', () => {
     expect(polled.ok()).toBeTruthy();
     expect((await polled.json()).status).toBe('approved');
 
-    // The CLI's second proof: a SEP-10 challenge signed by the deploy key.
-    const challenge = await page.request.get(`/api/auth/sep10?account=${deployer.publicKey()}`);
+    // The CLI's second proof: a CLI-link challenge (its own home domain, not the
+    // web sign-in one) signed by the deploy key.
+    const challenge = await page.request.get(
+      `/api/cli-link?account=${deployer.publicKey()}&network=testnet`,
+    );
     expect(challenge.ok()).toBeTruthy();
     const { transaction, network_passphrase } = (await challenge.json()) as {
       transaction: string;

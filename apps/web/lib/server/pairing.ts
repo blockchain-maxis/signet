@@ -1,8 +1,8 @@
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
 import { NETWORKS, networkPassphrase, normalizeNetwork, type Network } from '@signet/types';
 import { spendChallenge } from './challenge-spend.ts';
-import { verifyChallenge, Sep10Error } from '../sep10.ts';
-import { getConfiguredNetwork } from '../cli-link.ts';
+import { Sep10Error } from '../sep10.ts';
+import { getConfiguredNetwork, verifyCliLinkChallenge } from '../cli-link.ts';
 import { isMainnetNetwork } from '../network-guard.ts';
 import { logger } from '../logger.ts';
 import {
@@ -460,7 +460,9 @@ export async function completePairing(
 
   let clientAccountId: string;
   try {
-    clientAccountId = verifyChallenge(challengeXdr);
+    // The CLI-link domain, not the web sign-in one: a signed sign-in challenge
+    // must not be able to complete a pairing (#597).
+    clientAccountId = verifyCliLinkChallenge(challengeXdr);
   } catch (err) {
     logger.warn(
       { state, error: err instanceof Sep10Error ? err.message : String(err) },
