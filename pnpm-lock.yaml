@@ -196,6 +196,9 @@ importers:
         specifier: ^16.1.0
         version: 16.1.0
     devDependencies:
+      '@signet/fixtures':
+        specifier: workspace:*
+        version: link:../fixtures
       typescript:
         specifier: ^5.6.3
         version: 5.9.3
