@@ -1,16 +1,13 @@
 package cmd
 
 import (
-	"encoding/json"
 	"fmt"
+	"io"
 
 	"github.com/spf13/cobra"
 
-	"github.com/blockchain-maxis/signet/cli/internal/config"
-	"github.com/blockchain-maxis/signet/cli/internal/exitcode"
 	"github.com/blockchain-maxis/signet/cli/internal/keys"
 	"github.com/blockchain-maxis/signet/cli/internal/link"
-	"github.com/blockchain-maxis/signet/cli/internal/pair"
 	"github.com/blockchain-maxis/signet/cli/internal/redact"
 )
 
@@ -26,6 +23,8 @@ type whoamiResult struct {
 	Linked     bool   `json:"linked"`
 }
 
+func init() { register(groupIdentity, newWhoamiCmd) }
+
 // newWhoamiCmd answers "which account am I actually linked as?" — the most
 // common support question for a linking CLI, and a genuinely hard one to
 // answer yourself when the keystore has several identities and the config file
@@ -35,8 +34,6 @@ type whoamiResult struct {
 // deployment); only the handle requires asking the deployment, because only it
 // knows what the binding currently resolves to.
 func newWhoamiCmd() *cobra.Command {
-	var jsonOutput bool
-
 	cmd := &cobra.Command{
 		Use:   "whoami",
 		Short: "Show the identity, deploy key, and handle signet is configured as",
@@ -48,20 +45,22 @@ Never prints a secret key: the public key is resolved through the stellar CLI,
 which keeps key material out of signet entirely.`,
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			resolved, ok := config.FromContext(cmd.Context())
-			if !ok {
-				return fmt.Errorf("%w: configuration was not resolved", exitcode.ErrConfiguration)
+			deps, err := depsFor(cmd)
+			if err != nil {
+				return err
 			}
+			resolved := deps.Config
+			printer := printerFor(cmd)
 
 			source, err := keys.Resolve(
-				keys.DefaultBinary,
+				deps.KeysBinary,
 				resolved.Source,
-				promptForIdentity(cmd.InOrStdin(), cmd.OutOrStdout()),
+				promptForIdentity(cmd.InOrStdin(), printer.Interactive()),
 			)
 			if err != nil {
 				return err
 			}
-			publicKey, err := keys.ResolvePublicKey(keys.DefaultBinary, source)
+			publicKey, err := keys.ResolvePublicKey(deps.KeysBinary, source)
 			if err != nil {
 				return err
 			}
@@ -69,7 +68,7 @@ which keeps key material out of signet entirely.`,
 				return err
 			}
 
-			identity, err := pair.New(resolved.BaseURL).WhoAmI(cmd.Context(), publicKey)
+			identity, err := deps.NewClient(resolved.BaseURL).WhoAmI(cmd.Context(), publicKey)
 			if err != nil {
 				return err
 			}
@@ -82,33 +81,28 @@ which keeps key material out of signet entirely.`,
 				Linked:     identity.Linked,
 			}
 
-			if jsonOutput {
-				return json.NewEncoder(cmd.OutOrStdout()).Encode(result)
-			}
-
-			out := cmd.OutOrStdout()
-			if _, err := fmt.Fprintf(out, "identity:   %s\n", result.Identity); err != nil {
+			return printer.Result(result, func(out io.Writer) error {
+				if _, err := fmt.Fprintf(out, "identity:   %s\n", result.Identity); err != nil {
+					return err
+				}
+				if _, err := fmt.Fprintf(out, "publicKey:  %s\n", result.PublicKey); err != nil {
+					return err
+				}
+				if _, err := fmt.Fprintf(out, "deployment: %s\n", result.Deployment); err != nil {
+					return err
+				}
+				if result.Linked {
+					_, err := fmt.Fprintf(out, "handle:     @%s\n", result.Handle)
+					return err
+				}
+				// Say what to do about it rather than only that it is missing —
+				// "not linked" on its own is the state someone runs this command
+				// to get out of.
+				_, err := fmt.Fprint(out, "handle:     not linked — run `signet link` to attach this wallet\n")
 				return err
-			}
-			if _, err := fmt.Fprintf(out, "publicKey:  %s\n", result.PublicKey); err != nil {
-				return err
-			}
-			if _, err := fmt.Fprintf(out, "deployment: %s\n", result.Deployment); err != nil {
-				return err
-			}
-			if result.Linked {
-				_, err = fmt.Fprintf(out, "handle:     @%s\n", result.Handle)
-				return err
-			}
-			// Say what to do about it rather than only that it is missing —
-			// "not linked" on its own is the state someone runs this command
-			// to get out of.
-			_, err = fmt.Fprint(out, "handle:     not linked — run `signet link` to attach this wallet\n")
-			return err
+			})
 		},
 	}
-
-	cmd.Flags().BoolVar(&jsonOutput, "json", false, "write a single JSON result to stdout instead of a human-readable summary")
 
 	return cmd
 }

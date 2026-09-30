@@ -16,6 +16,14 @@ import (
 )
 
 func newRootCmd(version, commit string) *cobra.Command {
+	return newRootCmdWithDeps(version, commit, defaultDeps())
+}
+
+// newRootCmdWithDeps builds the command tree around the given Deps, so a test
+// can inject a fake `stellar` binary and a fake API client factory. Config is
+// resolved per run and overwrites whatever is passed in.
+func newRootCmdWithDeps(version, commit string, base Deps) *cobra.Command {
+	base.Version, base.Commit = version, commit
 	root := &cobra.Command{
 		Use:   "signet",
 		Short: "Link wallets and manage identity on the Signet registry",
@@ -29,6 +37,10 @@ instance) over its HTTP API.`,
 		SilenceErrors: true,
 	}
 
+	// --json is defined once, here, for every command. It promises exactly one
+	// JSON object on stdout, or nothing; see internal/output.
+	root.PersistentFlags().Bool("json", false,
+		"write a single JSON result to stdout instead of human-readable output (diagnostics go to stderr)")
 	root.PersistentFlags().String("url", "",
 		fmt.Sprintf("Signet deployment URL (overrides %s, the config file, and the default)", config.EnvBaseURL))
 	root.PersistentFlags().String("source", "",
@@ -75,7 +87,9 @@ instance) over its HTTP API.`,
 				return err
 			}
 		}
-		cmd.SetContext(config.WithResolved(cmd.Context(), resolved))
+		deps := base
+		deps.Config = resolved
+		cmd.SetContext(withDeps(config.WithResolved(cmd.Context(), resolved), deps))
 
 		// Deliberately only --source: --sign-with-key and STELLAR_SIGN_WITH_KEY
 		// are not written to the config file, because either may carry a secret
@@ -101,10 +115,9 @@ instance) over its HTTP API.`,
 	root.Version = fmt.Sprintf("%s (commit %s)", version, commit)
 	root.SetVersionTemplate("signet version {{.Version}}\n")
 
-	root.AddCommand(newLinkCmd())
-	root.AddCommand(newUnlinkCmd())
-	root.AddCommand(newWhoamiCmd())
-	root.AddCommand(newIdentityCmd())
+	// Commands register themselves into a group from their own file (see
+	// commands.go), so adding one never touches this function.
+	addRegisteredCommands(root)
 
 	return root
 }

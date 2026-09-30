@@ -123,6 +123,18 @@ On any failure stdout stays empty (in both modes) and the error goes to stderr
 with a non-zero exit code — stdout is always safe to parse as either the one
 JSON object or nothing at all.
 
+### Global `--json`
+
+`--json` is a persistent flag on the root, so it works on every command and
+means the same thing everywhere: **stdout carries exactly one JSON object, or
+nothing**. Human-readable output goes to stdout only without `--json`;
+diagnostics (progress lines, prompts, warnings) go to stderr under `--json`.
+On any failure stdout stays empty and the error goes to stderr with a non-zero
+exit code. `signet version --json` prints `{version, commit}`; `signet identity
+--json` prints `{identity, publicKey}`.
+
+Without `--json`, `signet link` still prints its progress on stdout, as before.
+
 ### Non-interactive use (CI)
 
 An interactive identity prompt has nothing to answer it in CI. Set the identity
@@ -154,6 +166,51 @@ stellar keys add ci-deploy --secret-key "$SIGNET_DEPLOY_KEY"
 
 Unlike `--source`, neither `--sign-with-key` nor `STELLAR_SIGN_WITH_KEY` is
 written to the config file.
+
+## Adding a command
+
+Commands are grouped in `signet --help` (*Identity & linking*, *Deployments*,
+*Contracts*, *Other*) and register themselves, so a new command is a one-file
+change:
+
+1. Create `internal/cmd/<name>.go` with a constructor that takes no arguments:
+
+   ```go
+   func init() { register(groupContracts, newDevCmd) }
+
+   func newDevCmd() *cobra.Command {
+       return &cobra.Command{
+           Use:  "dev",
+           Args: cobra.NoArgs,
+           RunE: func(cmd *cobra.Command, _ []string) error {
+               deps, err := depsFor(cmd)   // Config, NewClient, KeysBinary
+               if err != nil {
+                   return err
+               }
+               printer := printerFor(cmd)  // honours the global --json
+               // ... do the work, report with printer.Progress(...) ...
+               return printer.Result(result, func(w io.Writer) error {
+                   _, err := fmt.Fprintln(w, "human text")
+                   return err
+               })
+           },
+       }
+   }
+   ```
+
+2. Pick the group with `register`: `groupIdentity`, `groupDeployments`,
+   `groupContracts` or `groupOther` (`commands.go`). A group with no commands is
+   left out of `--help`; *Contracts* appears with the first command registered
+   into it.
+3. Output goes through `internal/output`, never `fmt.Print*` on stdout: call
+   `Printer.Result` once with the value and a human renderer, and
+   `Printer.Progress` for anything printed on the way. Do not declare your own
+   `--json`; the root's applies.
+4. Reach `stellar`, the API client and the resolved configuration only through
+   `Deps` (`depsFor(cmd)`), so a test can substitute fakes.
+5. Add the command to `failing` (or `cannotFail`) in
+   `internal/cmd/structure_test.go`; that test then checks it belongs to a
+   group and writes nothing to stdout when it fails under `--json`.
 
 ## Exit codes
 
@@ -276,5 +333,6 @@ GOOS=linux  GOARCH=amd64 go build -o bin/signet-linux-amd64  ./cmd/signet
 | `internal/link` | `signet link` — validates a handle/public key and reports a structured result; the actual on-chain claim / API call is not yet implemented |
 | `internal/keys` | Resolves a named local identity to its public key, and checks the local `stellar` CLI is present and new enough, by shelling out to it; signing itself is not yet implemented |
 | `internal/spec` | Typed request/response models for a Signet deployment's HTTP API (scaffolded, not yet implemented) |
+| `internal/output` | The shared output layer: `Printer{JSON, Out, Err}` with `Result` (one JSON object or the human rendering), `Progress` and `Interactive` (stdout for a person, stderr under `--json`) |
 | `internal/exitcode` | The exit-code taxonomy (see "Exit codes" above) — its own leaf package so both `internal/cmd` and packages like `internal/keys` can depend on it without a cycle |
 | `internal/browser` | Opens a URL in the default browser for an approval flow, falling back to printing it — not yet wired into any command |

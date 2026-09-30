@@ -201,8 +201,11 @@ Unlike `--source`, neither `--sign-with-key` nor `STELLAR_SIGN_WITH_KEY` is
 written to the config file: persisting something that might be a secret is not
 signet's call.
 
-`--json` writes one JSON object to stdout and sends progress to stderr, so a
-pipeline can parse the result without scraping human text:
+`--json` is a global flag that works on every command (`link`, `unlink`,
+`whoami`, `identity`, `version`, and whatever is added next). It writes one JSON
+object to stdout and sends progress, prompts and diagnostics to stderr, so a
+pipeline can parse the result without scraping human text. Without `--json`,
+`signet link` keeps printing its progress lines on stdout, as it always has:
 
 ```json
 { "handle": "alice", "publicKey": "GCKI…", "network": "testnet", "status": "linked" }

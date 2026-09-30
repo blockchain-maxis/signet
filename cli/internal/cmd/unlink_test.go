@@ -27,11 +27,15 @@ func TestUnlinkTakesNoArguments(t *testing.T) {
 
 func TestUnlinkFlags(t *testing.T) {
 	cmd := newUnlinkCmd()
-	for _, name := range []string{"yes", "json"} {
+	for _, name := range []string{"yes"} {
 		if cmd.Flags().Lookup(name) == nil {
 			t.Fatalf("--%s is missing", name)
 		}
 	}
+}
+
+func TestUnlinkHasJSONOutput(t *testing.T) {
+	assertInheritsJSON(t, "unlink")
 }
 
 func TestConfirmUnlink_OnlyAnExplicitYesCounts(t *testing.T) {
