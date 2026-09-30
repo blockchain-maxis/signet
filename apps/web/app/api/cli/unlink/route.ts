@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
 import { unlinkByChallenge, type UnlinkFailure } from '@/lib/server/cli-unlink';
 import { LIMITS, enforceRateLimit } from '@/lib/rate-limit-http';
-import { logger } from '@/lib/logger';
 
 export const runtime = 'nodejs';
 
@@ -47,14 +46,12 @@ export async function POST(req: Request) {
 
   const result = await unlinkByChallenge(transaction);
   if (!result.ok) {
-    logger.warn({ reason: result.reason }, 'cli.unlinkFailed');
     return NextResponse.json(
       { error: OUTCOME_MESSAGE[result.reason] },
       { status: OUTCOME_STATUS[result.reason], headers: { 'cache-control': 'no-store' } },
     );
   }
 
-  logger.info({ pubkey: result.pubkey }, 'cli.unlinked');
   return NextResponse.json(
     { ok: true, wallet: result.pubkey, handle: result.handle },
     { headers: { 'cache-control': 'no-store' } },

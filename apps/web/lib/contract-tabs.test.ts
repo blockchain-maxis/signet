@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { CONTRACT_TABS, contractTabHref } from './contract-tabs.ts';
+import { CONTRACT_TABS, contractTabHref, SIGNET_DEV_RELEASED } from './contract-tabs.ts';
 
 test('tabs are in the order the design fixes', () => {
   assert.deepEqual(
@@ -24,4 +24,8 @@ test('hrefs put the index at the base route and every other tab under its segmen
   const [overview, functions] = CONTRACT_TABS;
   assert.equal(contractTabHref('alice', 'CABC', overview!), '/p/alice/contract/CABC');
   assert.equal(contractTabHref('alice', 'CABC', functions!), '/p/alice/contract/CABC/functions');
+});
+
+test('SIGNET_DEV_RELEASED is false by default (gates signet dev command)', () => {
+  assert.equal(SIGNET_DEV_RELEASED, false);
 });

@@ -1,6 +1,7 @@
 import { verifyChallenge, Sep10Error } from '../sep10.ts';
 import { logger } from '../logger.ts';
 import { spendChallenge } from './challenge-spend.ts';
+import { logPairing } from './pairing-audit.ts';
 
 /**
  * `signet unlink` — detach a deploy wallet from whichever profile holds it,
@@ -84,7 +85,7 @@ export async function unlinkByChallenge(
       { error: err instanceof Sep10Error ? err.message : String(err) },
       'cliUnlink.badChallenge',
     );
-    return { ok: false, reason: 'bad-challenge' };
+    return fail(null, 'bad-challenge');
   }
 
   if (!(await spendChallenge(challengeXdr))) {
@@ -104,12 +105,19 @@ export async function unlinkByChallenge(
 
   const profile = await db.profile.findUnique({ where: { id: wallet.profileId } });
   await db.wallet.delete({ where: { pubkey } });
-  logger.info({ pubkey, profileId: wallet.profileId }, 'cliUnlink.removed');
+  // `withdrawn`: the key holder took their attestation back, as opposed to the
+  // indexer's `released` / `revoked`, which the registry reports.
+  logPairing(
+    'unlinked',
+    { source: 'cli-unlink', handle: profile?.handle, wallet: pubkey, reason: 'withdrawn' },
+    { profileId: wallet.profileId },
+  );
 
   return { ok: true, pubkey, handle: profile?.handle ?? null };
 }
 
-function fail(pubkey: string, reason: UnlinkFailure): UnlinkResult {
-  logger.warn({ pubkey, reason }, 'cliUnlink.rejected');
+/** `pubkey` is null when the signature could not be verified far enough to name one. */
+function fail(pubkey: string | null, reason: UnlinkFailure): UnlinkResult {
+  logPairing('rejected', { source: 'cli-unlink', wallet: pubkey, reason });
   return { ok: false, reason };
 }

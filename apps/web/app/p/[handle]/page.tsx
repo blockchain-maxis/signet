@@ -9,6 +9,7 @@ import {
   formatCount,
   formatStatsWindow,
 } from '@/lib/profiles';
+import { getProfileContracts } from '@/lib/profile-contracts';
 import { STELLAR_EXPLORER, STELLAR_NETWORK_NAME } from '@/lib/network';
 import { formatDate } from '@/lib/format-date';
 import OperationsList from './operations-list';
@@ -47,6 +48,14 @@ export default async function ProfilePage({ params }: { params: Promise<{ handle
   // career record must never do.
   const { operations, truncated, cap, source } = await getOperationsResult(handle);
   const stats = await getProfileStats(handle, operations);
+  // Contracts the handle's wallets deployed, newest first — a summary list
+  // linking to each contract page, with no interface detail (#455).
+  const {
+    contracts,
+    truncated: contractsTruncated,
+    cap: contractsCap,
+    multiWallet,
+  } = await getProfileContracts(handle);
   // The stats can outrun the capped operation list: database aggregates are
   // exact for their represented scope even when the list below stops at a cap.
   // When that scope is retention-bounded, the UI labels the window explicitly.
@@ -142,8 +151,103 @@ export default async function ProfilePage({ params }: { params: Promise<{ handle
           </div>
         </section>
 
+        {/* Deployed contracts — summary list only, no interface detail (#455) */}
+        <section className="mb-16">
+          <SectionLabel>
+            Deployed contracts
+            <span className="ml-1 text-[#5e5b51]">
+              {contracts.length === 0
+                ? '· none found'
+                : contractsTruncated
+                  ? `· ${contracts.length} shown · partial record`
+                  : `· ${contracts.length} indexed`}
+            </span>
+          </SectionLabel>
+
+          {contracts.length === 0 ? (
+            <div className="mt-6 border border-[#1f1d19] bg-[#0e0d0b] px-5 py-6">
+              <p
+                className="text-[13px] leading-[1.7] text-[#b8b5a8]"
+                style={{ fontFamily: 'var(--font-mono)' }}
+              >
+                No contracts are recorded for this profile&apos;s wallets yet.
+              </p>
+              <p
+                className="mt-2 text-[12px] leading-[1.6] text-[#5e5b51]"
+                style={{ fontFamily: 'var(--font-mono)' }}
+              >
+                The wallet that claimed this handle is rarely the key used with{' '}
+                <code className="text-[#8a8779]">stellar contract deploy</code>. Link your deploy
+                wallet from the CLI to attribute its contracts:
+              </p>
+              <code
+                className="mt-4 block max-w-fit bg-[#0a0908] px-4 py-2.5 text-[12px] text-[#f5f4ee] border border-[#1f1d19]"
+                style={{ fontFamily: 'var(--font-mono)' }}
+              >
+                npx @signet/cli link
+              </code>
+            </div>
+          ) : (
+            <div className="mt-6 border border-[#1f1d19]">
+              <div
+                className="grid grid-cols-[1fr_auto] gap-4 border-b border-[#1f1d19] px-5 py-3 text-[9px] uppercase tracking-[0.22em] text-[#5e5b51]"
+                style={{ fontFamily: 'var(--font-mono)' }}
+              >
+                <span>Contract</span>
+                <span>Deployed</span>
+              </div>
+              {contracts.map((c, i) => (
+                <a
+                  key={c.address}
+                  href={`/p/${handle}/contract/${c.address}`}
+                  className={`group grid grid-cols-[1fr_auto] items-start gap-4 px-5 py-4 transition-colors hover:bg-[#0e0d0b] ${
+                    i < contracts.length - 1 ? 'border-b border-[#1f1d19]' : ''
+                  }`}
+                >
+                  <div className="min-w-0">
+                    <span
+                      className="block font-medium text-[13px] text-[#b8b5a8] transition-colors group-hover:text-[#f5f4ee]"
+                      style={{ fontFamily: 'var(--font-mono)' }}
+                    >
+                      {truncate(c.address, 8, 6)}
+                    </span>
+                    {multiWallet && (
+                      <span
+                        className="block text-[11px] text-[#5e5b51] mt-1"
+                        style={{ fontFamily: 'var(--font-mono)' }}
+                      >
+                        by {truncate(c.deployerPubkey, 8, 6)}
+                      </span>
+                    )}
+                  </div>
+                  <span
+                    className="text-[11px] text-[#5e5b51] whitespace-nowrap"
+                    style={{ fontFamily: 'var(--font-mono)' }}
+                  >
+                    {formatDate(c.deployedAt)}
+                  </span>
+                </a>
+              ))}
+            </div>
+          )}
+
+          {contractsTruncated && (
+            <div className="mt-6 border border-amber-900/60 bg-amber-950/20 px-5 py-4">
+              <p
+                className="text-[12px] leading-[1.7] text-amber-300"
+                style={{ fontFamily: 'var(--font-mono)' }}
+              >
+                Partial record — this profile may have deployed more contracts than shown.{' '}
+                Without an indexer, deployments are read straight from Horizon, which we page
+                through only as far as the {contractsCap} most recent operations.
+              </p>
+            </div>
+          )}
+        </section>
+
         {/* Stats */}
         <section className="mb-16">
+
           <SectionLabel>
             On-chain activity
             {statsWindow ? <span className="text-[#5e5b51]">· {statsWindow}</span> : null}
