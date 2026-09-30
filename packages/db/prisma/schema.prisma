@@ -112,6 +112,10 @@ model Contract {
   /// @deprecated Superseded by executableType.
   contractType      String?
   /// Lowercase 64-character SHA-256 hex hash of the contract executable WASM.
+  /// Joins to `ContractSpec.wasmHash` by plain string equality (both sides are
+  /// lowercase hex) — deliberately no FK: a spec row exists independently of
+  /// any contract row (see the ContractSpec model), so the relation is a
+  /// convention both writers must honour, not a database constraint.
   wasmHash          String?
   /// Executable type: 'wasm' | 'stellar_asset'.
   executableType    String?
@@ -127,6 +131,36 @@ model Contract {
   @@index([deployerPubkey])
   @@index([deployedAt])
   @@index([wasmHash])
+}
+
+/// Decoded `contractspecv0` spec keyed by WASM hash (§4.2 of
+/// docs/CONTRACT_DOCS_DESIGN.md): many contracts to one spec — two contracts
+/// deploying identical WASM share one row, and a rollback to a previous hash
+/// hits the row that is already there.
+///
+/// No FK to Contract: a hash exists independently of any row — the spec can be
+/// extracted before (or without) an indexed contract, and `Contract.wasmHash`
+/// joins to `wasmHash` by plain string equality instead (see the comment on
+/// that column).
+///
+/// `sdkVersion` is what makes an SDK upgrade re-extractable: a spec decoded by
+/// an older SDK — possibly skipping an entry arm that SDK did not know yet —
+/// is found by this column, reported stale, re-extracted and overwritten
+/// rather than served (see `isStale` in apps/web/lib/server/spec-store.ts).
+model ContractSpec {
+  /// Lowercase 64-character SHA-256 hex of the contract executable WASM.
+  wasmHash      String   @id
+  /// Version of the `specJson` serialisation shape (`SpecJson.schemaVersion`,
+  /// #434). Below the running schemaVersion means the stored JSON must be
+  /// re-serialised from the XDR, not served.
+  schemaVersion Int
+  /// `@stellar/stellar-sdk` version that decoded the entries, e.g. "16.1.0".
+  /// Older than the running SDK means the row is re-extracted (§4.2).
+  sdkVersion    String
+  /// The serialised spec (`SpecJson`, #434): entries, flattened views and
+  /// provenance, in one deterministic JSON document.
+  specJson      Json
+  extractedAt   DateTime @default(now())
 }
 
 /// Version history of executable WASM hashes observed for a contract instance.

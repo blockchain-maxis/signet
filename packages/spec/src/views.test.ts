@@ -2,7 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { xdr } from '@stellar/stellar-sdk';
 import { buildFunctions, buildSpecViews } from './views.ts';
-import { typeDefToRef } from './type-ref.ts';
+import { toTypeRef } from './type-ref.ts';
 import { fixtureEntries } from './test-helpers.ts';
 
 test('registry fixture: 8 documented functions and 7 errors with their values', () => {
@@ -111,7 +111,7 @@ test('a constructor is kept in functions and flagged', () => {
 });
 
 test('an arm this converter does not know becomes an unknown TypeRef', () => {
-  assert.deepEqual(typeDefToRef(xdr.ScSpecTypeDef.scSpecTypeMuxedAddress()), {
+  assert.deepEqual(toTypeRef(xdr.ScSpecTypeDef.scSpecTypeMuxedAddress()), {
     type: 'unknown',
     xdrArm: 'scSpecTypeMuxedAddress',
   });

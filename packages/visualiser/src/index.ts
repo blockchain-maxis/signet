@@ -55,3 +55,18 @@ export type LayoutContractGraph = (spec: ContractSpec, options?: LayoutOptions) 
 
 // Deterministic text metrics (E-05): the layout's only measure of a label.
 export { MIN_TEXT_PX, textCells, textWidth, truncateLabel } from './metrics.ts';
+
+// Theme tokens and CSS variables (§2.3 of docs/CONTRACT_VISUALISER_DESIGN.md)
+export {
+  VIZ_CSS_VARIABLES,
+  VIZ_DARK_TOKENS,
+  VIZ_LIGHT_TOKENS,
+  VIZ_TOKEN_NAMES,
+  VIZ_TOKENS,
+  formatTokenDeclarations,
+  generateInlineTokensStyle,
+  generateTokensCss,
+  type VizTheme,
+  type VizThemeTokens,
+  type VizTokenName,
+} from './tokens.ts';

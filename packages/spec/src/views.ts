@@ -7,7 +7,8 @@
  */
 
 import type { xdr } from '@stellar/stellar-sdk';
-import { typeDefToRef, xdrText } from './type-ref.ts';
+import { toTypeRef } from './type-ref.ts';
+import { xdrText } from './xdr-text.ts';
 import type { SpecErrorCase, SpecField, SpecFunction, SpecType } from './types.ts';
 
 /** Name the Soroban SDK gives a contract's constructor function. */
@@ -28,10 +29,10 @@ export function buildFunctions(entries: readonly xdr.ScSpecEntry[]): SpecFunctio
         (input): SpecField => ({
           name: xdrText(input.name()),
           doc: xdrText(input.doc()),
-          type: typeDefToRef(input.type()),
+          type: toTypeRef(input.type()),
         }),
       ),
-      outputs: fn.outputs().map(typeDefToRef),
+      outputs: fn.outputs().map(toTypeRef),
     });
   }
   return out;
@@ -52,7 +53,7 @@ export function buildTypes(entries: readonly xdr.ScSpecEntry[]): SpecType[] {
             (f): SpecField => ({
               name: xdrText(f.name()),
               doc: xdrText(f.doc()),
-              type: typeDefToRef(f.type()),
+              type: toTypeRef(f.type()),
             }),
           ),
         });
@@ -73,7 +74,7 @@ export function buildTypes(entries: readonly xdr.ScSpecEntry[]): SpecType[] {
                 // Tuple payloads are positional, so fields are named by index.
                 fields: t
                   .type()
-                  .map((type, i): SpecField => ({ name: String(i), type: typeDefToRef(type) })),
+                  .map((type, i): SpecField => ({ name: String(i), type: toTypeRef(type) })),
               };
             }
             const v = c.voidCase();
