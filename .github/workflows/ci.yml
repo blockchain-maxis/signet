@@ -84,13 +84,24 @@ jobs:
       - name: Build
         run: pnpm build
 
+  # Tests run on every OS the CLI ships for, because several packages behave
+  # differently per OS in ways a cross-compile cannot catch: internal/browser
+  # (open / xdg-open / rundll32), internal/config (os.UserConfigDir is
+  # XDG_CONFIG_HOME, ~/Library/Application Support or %AppData%),
+  # internal/loopback (binding 127.0.0.1, the Private Network Access
+  # preflight), and the fakestellar test helper (needs .exe on Windows).
   cli:
-    name: signet CLI (Go)
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
+    name: signet CLI (Go, ${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
     defaults:
       run:
         working-directory: cli
+        shell: bash
     steps:
       - uses: actions/checkout@v7
 
@@ -104,11 +115,29 @@ jobs:
       - name: Vet
         run: go vet ./...
 
-      # -race needs cgo (a C toolchain), which ubuntu-latest ships with —
-      # unlike the CGO_ENABLED=0 production build (see cmd/signet's
-      # cross-compile requirement), the test binary is never distributed.
+      # -race needs cgo (a C toolchain). ubuntu-latest and macos-latest always
+      # have one; unlike the CGO_ENABLED=0 production build (see cmd/signet's
+      # cross-compile requirement), the test binary is never distributed, so
+      # cgo in the test build is fine. On Windows, Go only enables cgo when it
+      # finds gcc on PATH, which the runner image does not promise, so there
+      # the suite runs without -race rather than failing to build. The Windows
+      # leg exists to catch per-OS behaviour; the Linux and macOS legs already
+      # race-check the same code.
       - name: Test
-        run: go test -race ./...
+        run: |
+          if [ "$(go env CGO_ENABLED)" = "1" ]; then
+            go test -race ./...
+          else
+            echo "cgo unavailable on $RUNNER_OS; running without -race"
+            go test ./...
+          fi
+
+      # Lint and the cross-compile smoke build run on Ubuntu only. The CLI has
+      # no OS-specific source files or build tags, so every OS compiles the
+      # same code and a lint pass on one of them sees all of it; the smoke
+      # build sets GOOS/GOARCH itself and needs no per-OS runner. Running
+      # either on all three legs would triple the cost and cover nothing new.
+      # If an OS-specific file is ever added, lint needs to run on that OS too.
 
       # Three things have to agree here, and the original v6 + `version: latest`
       # got two of them wrong:
@@ -122,7 +151,8 @@ jobs:
       #     go1.24 and fails with "can't load config: the Go language version
       #     (go1.24) ... is lower than the targeted Go version (1.25.0)".
       #   * `latest` would let both of those drift again without a commit here.
-      - uses: golangci/golangci-lint-action@v9
+      - if: runner.os == 'Linux'
+        uses: golangci/golangci-lint-action@v9
         with:
           version: v2.13.2
           working-directory: cli
@@ -135,6 +165,7 @@ jobs:
       # GOOS/GOARCH — no per-platform runner or toolchain. The four targets
       # are the same set release-cli.yml publishes.
       - name: Cross-compile smoke build
+        if: runner.os == 'Linux'
         run: |
           set -euo pipefail
           targets=(
