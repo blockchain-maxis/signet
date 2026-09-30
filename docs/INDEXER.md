@@ -295,8 +295,24 @@ investigable after the fact. Every stage emits one line at `info` — not
 {"lvl":"info","msg":"pairing.linkCompleted","outcome":"completed","source":"attestation-worker","handle":"alice","wallet":"GCKI…PUX6U"}
 ```
 
-`source` distinguishes the event stream (`attestation-worker`) from a
-rebuild-from-contract pass (`reconcile`). The fields are built by
+`source` says which tier observed it. The indexer reports the event stream
+(`attestation-worker`) and a rebuild-from-contract pass (`reconcile`). The web
+tier writes the CLI bindings itself (`signet link` / `signet unlink`) and
+emits the same four names:
+
+| `source` | Event | When | Fields |
+|----------|-------|------|--------|
+| `cli-pairing` | `pairing.linkStarted` | The CLI opened a pairing. | `state`, `wallet` (the key the CLI *declared*, not yet proved) |
+| `cli-pairing` | `pairing.linkCompleted` | A signed challenge bound the deploy wallet to the approving profile. | `state`, `profileId`, `handle`, `wallet` |
+| `cli-pairing` | `pairing.linkRejected` | A completion was refused (`reason` is the `CompleteFailure`: `not-approved`, `expired`, `bad-challenge`, `key-mismatch`, `bad-handoff`, `replayed`, `wallet-bound-elsewhere`, …), or the developer refused in the browser (`reason: refused`). | `state`, `reason`, and `wallet` when known — the declared key before the signature is verified, the signing key after |
+| `cli-unlink` | `pairing.unlinked` | The key holder detached their wallet. `reason: withdrawn`. | `profileId`, `handle`, `wallet` |
+| `cli-unlink` | `pairing.linkRejected` | An unlink was refused; `reason` is the `UnlinkFailure` (`bad-challenge`, `replayed`, `not-linked`, `primary-wallet`). | `reason`, and `wallet` once the signature is verified |
+
+So a disputed terminal link is one query: every line with the `wallet`, or
+the `state`, in question. The signed challenge, the poll token and the handoff
+code never appear in these lines.
+
+The fields are built by
 `pairingEvent` in `@signet/types`, which **refuses** to emit a line containing
 key material — a field named like a secret, or any value shaped like a Stellar
 secret seed, throws rather than being logged. The trail records what is already
