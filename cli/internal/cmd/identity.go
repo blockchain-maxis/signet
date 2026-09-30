@@ -7,11 +7,11 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/blockchain-maxis/signet/cli/internal/config"
-	"github.com/blockchain-maxis/signet/cli/internal/exitcode"
 	"github.com/blockchain-maxis/signet/cli/internal/keys"
 	"github.com/spf13/cobra"
 )
+
+func init() { register(groupIdentity, newIdentityCmd) }
 
 // newIdentityCmd exercises keys.Resolve end-to-end: it never reads a secret
 // key itself, only the identity name and the public key `stellar` resolves.
@@ -35,25 +35,31 @@ reads a secret key itself.
 The identity is chosen like every other command: --source, then
 STELLAR_SIGN_WITH_KEY, then the source remembered in the config file.`,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			resolved, ok := config.FromContext(cmd.Context())
-			if !ok {
-				return fmt.Errorf("%w: configuration was not resolved", exitcode.ErrConfiguration)
+			deps, err := depsFor(cmd)
+			if err != nil {
+				return err
 			}
+			printer := printerFor(cmd)
 
 			name, err := keys.Resolve(
-				keys.DefaultBinary,
-				resolved.Source,
-				promptForIdentity(cmd.InOrStdin(), cmd.OutOrStdout()),
+				deps.KeysBinary,
+				deps.Config.Source,
+				promptForIdentity(cmd.InOrStdin(), printer.Interactive()),
 			)
 			if err != nil {
 				return err
 			}
-			pk, err := keys.ResolvePublicKey(keys.DefaultBinary, name)
+			pk, err := keys.ResolvePublicKey(deps.KeysBinary, name)
 			if err != nil {
 				return err
 			}
-			_, err = fmt.Fprintf(cmd.OutOrStdout(), "identity: %s\npublicKey: %s\n", name, pk)
-			return err
+			return printer.Result(
+				map[string]string{"identity": name, "publicKey": pk},
+				func(w io.Writer) error {
+					_, err := fmt.Fprintf(w, "identity: %s\npublicKey: %s\n", name, pk)
+					return err
+				},
+			)
 		},
 	}
 	return c

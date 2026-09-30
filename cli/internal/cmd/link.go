@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -11,13 +10,12 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/blockchain-maxis/signet/cli/internal/browser"
-	"github.com/blockchain-maxis/signet/cli/internal/config"
-	"github.com/blockchain-maxis/signet/cli/internal/exitcode"
 	"github.com/blockchain-maxis/signet/cli/internal/keys"
 	"github.com/blockchain-maxis/signet/cli/internal/link"
 	"github.com/blockchain-maxis/signet/cli/internal/loopback"
-	"github.com/blockchain-maxis/signet/cli/internal/pair"
 )
+
+func init() { register(groupIdentity, newLinkCmd) }
 
 // newLinkCmd wires the pairing flow to the real world: the `stellar` CLI for
 // identity and signing, a loopback listener for the callback, a browser, and
@@ -29,7 +27,6 @@ import (
 // invite typing one you do not own, and the server would refuse it anyway.
 func newLinkCmd() *cobra.Command {
 	var network string
-	var jsonOutput bool
 	var noBrowser bool
 
 	cmd := &cobra.Command{
@@ -43,20 +40,22 @@ the deploy key. Both are required, and signet never reads your secret key —
 signing goes through the stellar CLI.`,
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			resolved, ok := config.FromContext(cmd.Context())
-			if !ok {
-				return fmt.Errorf("%w: configuration was not resolved", exitcode.ErrConfiguration)
+			deps, err := depsFor(cmd)
+			if err != nil {
+				return err
 			}
+			resolved := deps.Config
+			printer := printerFor(cmd)
 
 			source, err := keys.Resolve(
-				keys.DefaultBinary,
+				deps.KeysBinary,
 				resolved.Source,
-				promptForIdentity(cmd.InOrStdin(), cmd.OutOrStdout()),
+				promptForIdentity(cmd.InOrStdin(), printer.Interactive()),
 			)
 			if err != nil {
 				return err
 			}
-			publicKey, err := keys.ResolvePublicKey(keys.DefaultBinary, source)
+			publicKey, err := keys.ResolvePublicKey(deps.KeysBinary, source)
 			if err != nil {
 				return err
 			}
@@ -64,14 +63,7 @@ signing goes through the stellar CLI.`,
 				return err
 			}
 
-			client := pair.New(resolved.BaseURL)
-			// --json promises exactly one JSON object on stdout, so progress
-			// has to go to stderr in that mode or it would corrupt the output
-			// a CI pipeline is parsing.
-			progress := cmd.OutOrStdout()
-			if jsonOutput {
-				progress = cmd.ErrOrStderr()
-			}
+			client := deps.NewClient(resolved.BaseURL)
 
 			result, err := link.Run(cmd.Context(), resolved.BaseURL, network, source, publicKey, link.Deps{
 				Start:     client.Start,
@@ -79,7 +71,7 @@ signing goes through the stellar CLI.`,
 				Complete:  client.Complete,
 				Challenge: link.FetchChallenge(&http.Client{Timeout: 15 * time.Second}, resolved.BaseURL),
 				Sign: func(unsigned string) (string, error) {
-					return keys.SignChallenge(keys.DefaultBinary, source, unsigned)
+					return keys.SignChallenge(deps.KeysBinary, source, unsigned)
 				},
 				// flow.Run has already printed the URL — always, because a
 				// developer on a remote box needs to copy it to the machine
@@ -100,34 +92,29 @@ signing goes through the stellar CLI.`,
 					s.AllowOrigin = originOf(resolved.BaseURL)
 					return s, nil
 				},
-				Report: func(line string) { _, _ = fmt.Fprintln(progress, line) },
+				// Progress goes through the Printer: stdout for a person,
+				// stderr under --json so the result stays parseable.
+				Report: printer.Progress,
 			})
 			if err != nil {
 				return err
 			}
 
-			if jsonOutput {
-				return json.NewEncoder(cmd.OutOrStdout()).Encode(result)
-			}
-
-			handle := result.Handle
-			if handle == "" {
-				handle = "your handle"
-			} else {
-				handle = "@" + handle
-			}
-			_, err = fmt.Fprintf(
-				cmd.OutOrStdout(),
-				"Linked %s to %s on %s.\n",
-				result.PublicKey, handle, result.Network,
-			)
-			return err
+			return printer.Result(result, func(w io.Writer) error {
+				handle := result.Handle
+				if handle == "" {
+					handle = "your handle"
+				} else {
+					handle = "@" + handle
+				}
+				_, err := fmt.Fprintf(w, "Linked %s to %s on %s.\n", result.PublicKey, handle, result.Network)
+				return err
+			})
 		},
 	}
 
 	cmd.Flags().StringVar(&network, "network", "testnet", "Stellar network the deploy wallet is on")
 	cmd.Flags().BoolVar(&noBrowser, "no-browser", false, "print the approval URL instead of opening a browser")
-	cmd.Flags().BoolVar(&jsonOutput, "json", false, "write a single JSON result to stdout instead of a human-readable summary")
 
 	return cmd
 }

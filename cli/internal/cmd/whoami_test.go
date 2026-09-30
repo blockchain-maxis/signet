@@ -18,9 +18,7 @@ func TestWhoamiTakesNoArguments(t *testing.T) {
 }
 
 func TestWhoamiHasJSONOutput(t *testing.T) {
-	if newWhoamiCmd().Flags().Lookup("json") == nil {
-		t.Fatal("--json is missing")
-	}
+	assertInheritsJSON(t, "whoami")
 }
 
 func TestWhoamiHelpNeverSuggestsASecret(t *testing.T) {

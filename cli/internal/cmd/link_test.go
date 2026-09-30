@@ -29,11 +29,13 @@ func TestLinkTakesNoArguments(t *testing.T) {
 
 func TestLinkFlags(t *testing.T) {
 	cmd := newLinkCmd()
-	for _, name := range []string{"json", "network", "no-browser"} {
+	for _, name := range []string{"network", "no-browser"} {
 		if cmd.Flags().Lookup(name) == nil {
 			t.Fatalf("--%s is missing", name)
 		}
 	}
+	// --json is the root's persistent flag now (#603), not a local one.
+	assertInheritsJSON(t, "link")
 	// --public-key is deliberately gone: the key is resolved from the local
 	// stellar identity, never asserted on the command line, so that what gets
 	// signed and what gets linked cannot disagree.
