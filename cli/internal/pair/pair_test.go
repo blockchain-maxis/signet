@@ -102,7 +102,7 @@ func TestComplete_OmitsHandoffCodeOnTheLoopbackPath(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	if _, err := New(srv.URL).Complete(context.Background(), "p_1", "xdr", ""); err != nil {
+	if _, _, err := New(srv.URL).Complete(context.Background(), "p_1", "xdr", ""); err != nil {
 		t.Fatalf("Complete: %v", err)
 	}
 	if _, present := got["handoffCode"]; present {
@@ -117,7 +117,7 @@ func TestDo_SurfacesTheServersOwnMessage(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	_, err := New(srv.URL).Complete(context.Background(), "p_1", "xdr", "")
+	_, _, err := New(srv.URL).Complete(context.Background(), "p_1", "xdr", "")
 	if err == nil {
 		t.Fatal("expected an error")
 	}

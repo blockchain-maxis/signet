@@ -185,7 +185,7 @@ func TestRun_CallbackWithTheWrongStateDoesNotFinishTheLink(t *testing.T) {
 	deps.Listen = func(string) (Callbacks, error) { return cb, nil }
 	deps.Complete = func(context.Context, string, string, string) (string, bool, error) {
 		t.Fatal("completed on a callback with a mismatched state")
-		return "", nil
+		return "", false, nil
 	}
 
 	_, err := Run(context.Background(), "https://signet.example", "testnet", "src", "GABC", deps)
@@ -202,7 +202,7 @@ func TestRun_RejectedApprovalExitsWithoutSigning(t *testing.T) {
 	}
 	deps.Complete = func(context.Context, string, string, string) (string, bool, error) {
 		t.Fatal("completed after the approval was refused")
-		return "", nil
+		return "", false, nil
 	}
 
 	_, err := Run(context.Background(), "https://signet.example", "testnet", "src", "GABC", deps)
@@ -265,11 +265,11 @@ func TestRun_FallsBackToPollingWhenTheLoopbackCannotBind(t *testing.T) {
 func TestRun_SigningFailureStopsBeforeComplete(t *testing.T) {
 	deps := baseDeps(pair.StatusApproved)
 	deps.Sign = func(string) (string, error) {
-		return "", false, errors.New("signing failed: identity not found")
+		return "", errors.New("signing failed: identity not found")
 	}
 	deps.Complete = func(context.Context, string, string, string) (string, bool, error) {
 		t.Fatal("completed without a signature")
-		return "", nil
+		return "", false, nil
 	}
 
 	if _, err := Run(context.Background(), "https://signet.example", "testnet", "src", "GABC", deps); err == nil {
