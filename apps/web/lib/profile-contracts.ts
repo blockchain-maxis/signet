@@ -22,8 +22,9 @@
  *    The walk stops at `HORIZON_MAX_RECORDS`, with `truncated` carried
  *    through so the section can say partial like the operations list does.
  */
-import { isValidHandle, networkPassphrase, type Network } from '@signet/types';
+import { isValidHandle, networkPassphrase, normalizeNetwork, type Network } from '@signet/types';
 import { STELLAR_NETWORK } from './chain.ts';
+import { getConfiguredNetwork } from './cli-link.ts';
 import { deriveContractId } from './contract-address.ts';
 import { decodeContractAddressFromMeta } from './contract-attribution.ts';
 import { getProfile } from './profiles.ts';
@@ -360,4 +361,43 @@ export async function getProfileContractsWithDeps(
  */
 export async function getProfileContracts(handle: string): Promise<ProfileContractsResult> {
   return getProfileContractsWithDeps(handle);
+}
+
+/**
+ * Best-effort list of attributed contracts for the configured network.
+ * Returns [] without a DB or if the query fails, like `safeDbHandles`.
+ */
+export async function listAttributedContracts(): Promise<
+  { handle: string; address: string; deployedAt: Date }[]
+> {
+  if (!process.env.DATABASE_URL) return [];
+  try {
+    const { prisma } = await import('@signet/db');
+    const network = normalizeNetwork(getConfiguredNetwork());
+
+    const contracts = await prisma.contract.findMany({
+      where: { network },
+      select: {
+        address: true,
+        deployedAt: true,
+        wallet: {
+          select: {
+            profile: {
+              select: {
+                handle: true,
+              },
+            },
+          },
+        },
+      },
+    });
+
+    return contracts.map((c) => ({
+      handle: c.wallet.profile.handle,
+      address: c.address,
+      deployedAt: c.deployedAt,
+    }));
+  } catch {
+    return [];
+  }
 }
