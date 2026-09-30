@@ -289,8 +289,10 @@ jobs:
       - name: Build web app
         run: pnpm --filter @signet/web build
 
+      # `@db` specs need Postgres and live in `e2e-linked`. Each spec runs in
+      # exactly one lane: this one takes everything else.
       - name: Run e2e smoke tests
-        run: pnpm --filter @signet/web test:e2e
+        run: pnpm --filter @signet/web exec playwright test --grep-invert @db
 
   e2e-linked:
     name: e2e linked flow (Postgres)
@@ -300,7 +302,8 @@ jobs:
     # registry, no RPC — and its specs assert the fallback behaviour that
     # depends on staying that way. This one is the opposite: the claim → link →
     # indexer → profile flow only exists when a database does (#277), so it
-    # needs its own environment rather than changing the shared one.
+    # needs its own environment rather than changing the shared one. Specs opt
+    # in with `@db` in their describe title (#463).
     services:
       postgres:
         image: postgres:16-alpine
@@ -353,8 +356,11 @@ jobs:
       - name: Build web app
         run: pnpm --filter @signet/web build
 
-      - name: Run the linked-flow e2e
-        run: pnpm --filter @signet/web exec playwright test e2e/claim-link-profile.spec.ts
+      # Every database-backed spec (tagged `@db` in its `describe` title): the
+      # linked flow and the contract page. The contract-page fixture is loaded
+      # by Playwright's globalSetup because DATABASE_URL is set.
+      - name: Run the database-backed e2e
+        run: pnpm --filter @signet/web exec playwright test --grep @db
 
       # This spec crosses four systems, so a failure is worth more than a log
       # line: the trace and the page snapshot say which stage broke.

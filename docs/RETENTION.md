@@ -7,6 +7,7 @@ Signet indexes on-chain operations (`Operation`) and periodically captures contr
 ## 1. Context & Motivation
 
 As tracked wallets increase and developer activity grows, unconstrained accumulation of historical operations and snapshots presents challenges:
+
 - **Storage Growth:** Active developers execute thousands of `invoke_host_function` operations. Retaining millions of older invocations indefinitely increases Postgres disk footprint and backup sizes without serving active product features.
 - **Query Performance:** Profile views query recent activity (the newest 25–100 operations on `/p/{handle}`). Querying and scanning large unpartitioned tables adds latency over time.
 - **Cost Bounds:** Free-tier and managed databases (e.g. Neon, Supabase, AWS RDS) impose storage thresholds. Pruning older data preserves predictable operating costs.
@@ -17,11 +18,12 @@ As tracked wallets increase and developer activity grows, unconstrained accumula
 
 Signet adopts an **active window retention policy** with configurable thresholds:
 
-| Table | Default Retention | Config Variable | Pruning Cadence | Description |
-|---|---|---|---|---|
-| `Operation` | **90 days** | `INDEXER_OPERATIONS_RETENTION_DAYS` | Every 1 hour | Invocations older than 90 days are deleted. |
-| `ContractSnapshot` | **30 days** | `INDEXER_SNAPSHOTS_RETENTION_DAYS` | Every 1 hour | Periodic contract activity snapshots older than 30 days are pruned. |
-| `ContractInvocation` | **1000 rows / contract** | `INDEXER_INVOCATIONS_MAX_PER_CONTRACT` | Every 1 hour | Caps invocation index rows per contract to the most recent N records. |
+| Table                | Default Retention        | Config Variable                        | Pruning Cadence | Description                                                           |
+| -------------------- | ------------------------ | -------------------------------------- | --------------- | --------------------------------------------------------------------- |
+| `Operation`          | **90 days**              | `INDEXER_OPERATIONS_RETENTION_DAYS`    | Every 1 hour    | Invocations older than 90 days are deleted.                           |
+| `ContractSnapshot`   | **30 days**              | `INDEXER_SNAPSHOTS_RETENTION_DAYS`     | Every 1 hour    | Periodic contract activity snapshots older than 30 days are pruned.   |
+| `ContractInvocation` | **1000 rows / contract** | `INDEXER_INVOCATIONS_MAX_PER_CONTRACT` | Every 1 hour    | Caps invocation index rows per contract to the most recent N records. |
+| `PairingState`       | **24 hours**             | _(Fixed, not configurable)_            | Every 1 hour    | Ephemeral CLI pairing state rows older than 24 hours are pruned.      |
 
 > **Indefinite Retention Option:** Setting `INDEXER_OPERATIONS_RETENTION_DAYS=0`, `INDEXER_SNAPSHOTS_RETENTION_DAYS=0`, or `INDEXER_INVOCATIONS_MAX_PER_CONTRACT=0` disables pruning and retains records indefinitely. Operators choosing indefinite retention should allocate Postgres storage to accommodate unbounded linear growth.
 
@@ -43,18 +45,19 @@ The pruning worker ([`apps/indexer/src/workers/prune.ts`](../apps/indexer/src/wo
 2. **Operations Ingestion and Pruning:** The operations worker stops paging at `createdAt < now - retentionDays` and does not store older invocations; the pruning worker deletes existing `Operation` rows older than that same cutoff.
 3. **Snapshots Pruning:** Deletes `ContractSnapshot` rows where `capturedAt < now - retentionDays`.
 4. **Contract Invocations Pruning:** Keeps at most `INDEXER_INVOCATIONS_MAX_PER_CONTRACT` newest rows per contract, deleting older excess rows.
-5. **Structured Metrics:** Logs `opsPruned`, `snapshotsPruned`, and `invocationsPruned` in indexer tick metrics.
+5. **Pairing State Pruning:** Deletes ephemeral `PairingState` rows where `expiresAt` is more than 24 hours in the past.
+6. **Structured Metrics:** Logs `opsPruned`, `snapshotsPruned`, `invocationsPruned`, and `pairingsPruned` in indexer tick metrics.
 
 ---
 
 ## 4. Configuration Reference
 
-| Environment Variable | Default | Description |
-|---|---|---|
-| `INDEXER_OPERATIONS_RETENTION_DAYS` | `90` | Maximum age in days for indexed `Operation` rows. `0` disables pruning. |
-| `INDEXER_SNAPSHOTS_RETENTION_DAYS` | `30` | Maximum age in days for `ContractSnapshot` rows. `0` disables pruning. |
-| `INDEXER_INVOCATIONS_MAX_PER_CONTRACT` | `1000` | Maximum number of invocations retained per contract. `0` disables pruning. |
-| `INDEXER_PRUNE_INTERVAL_MS` | `3600000` | Pruning check interval in milliseconds (default: 1 hour). |
+| Environment Variable                   | Default   | Description                                                                |
+| -------------------------------------- | --------- | -------------------------------------------------------------------------- |
+| `INDEXER_OPERATIONS_RETENTION_DAYS`    | `90`      | Maximum age in days for indexed `Operation` rows. `0` disables pruning.    |
+| `INDEXER_SNAPSHOTS_RETENTION_DAYS`     | `30`      | Maximum age in days for `ContractSnapshot` rows. `0` disables pruning.     |
+| `INDEXER_INVOCATIONS_MAX_PER_CONTRACT` | `1000`    | Maximum number of invocations retained per contract. `0` disables pruning. |
+| `INDEXER_PRUNE_INTERVAL_MS`            | `3600000` | Pruning check interval in milliseconds (default: 1 hour).                  |
 
 ---
 

@@ -281,7 +281,7 @@ test('identity-registry.wasm acceptance: shows NO note and renders doc comments'
   // 4. Doc comments for functions are present
   assert.ok(html.includes('claim('), 'renders claim function');
   assert.ok(
-    html.includes('Bind `handle` to `wallet`') || html.includes('Bind &#x60;handle&#x60;'),
+    /Bind <code[^>]*>handle<\/code> to <code[^>]*>wallet<\/code>/.test(html),
     'claim doc comment must be rendered',
   );
   assert.ok(html.includes('Reverse lookup: the handle a wallet owns, if any.'));
