@@ -1,14 +1,15 @@
 import Link from 'next/link';
-import { SignetMonogram } from '../..([XRcketing)/components/signet-monogram';
+import { SignetMonogram } from '../../(marketing)/components/signet-monogram';
 
 export const metadata = {
   title: 'Docs · Signet',
   description: 'How Signet binds Stellar wallets to developer identities, and how to read the data.',
 };
 
-function H({ children }: { children: React.ReactNode }) {
+function H({ id, children }: { id?: string; children: React.ReactNode }) {
   return (
     <h2
+      id={id}
       className="mt-14 text-[11px] uppercase tracking-[0.26em] text-[#8b1a1a]"
       style={{ fontFamily: 'var(--font-mono)' }}
     >
@@ -26,10 +27,6 @@ function Sub({ children }: { children: React.ReactNode }) {
       {children}
     </h3>
   );
-}
-
-function Code({ children }: { children: React.ReactNode }) {
-  return <code className="text-[#f5f4ee]">{children}</code>;
 }
 
 export default function DocsPage() {
@@ -67,7 +64,7 @@ export default function DocsPage() {
           Bindings live in the <strong>Identity Registry</strong> Soroban contract
           (<code>packages/contracts/identity-registry</code>). To claim a handle,
           the wallet owner authorizes the <code>claim(handle, wallet)</code> call —
-          Soroban requires a valid signature from that wallet&quot;s key, so a
+          Soroban requires a valid signature from that wallet&apos;s key, so a
           binding can only be created by the key holder. No trusted oracle, no
           off-chain admin minting identities.
         </p>
@@ -82,7 +79,7 @@ export default function DocsPage() {
           on the new registry with one signature. Your handle is held for your
           wallet during a grace period, so the move is not a race, and your
           profile and history — both derived from the wallet, not the registry
-          entry — come back unchanged. The procedure is public in {' '}
+          entry — come back unchanged. The procedure is public in{' '}
           <code>docs/CONTRACT_MIGRATION.md</code>.
         </p>
 
@@ -95,7 +92,7 @@ export default function DocsPage() {
           independent verification.
         </p>
 
-        <H>Reading a contract diagram</H>
+        <H id="reading-a-contract-diagram">Reading a contract diagram</H>
         <p className="mt-4 text-[14px] leading-[1.7] text-[#b8b5a8]">
           The <strong>Diagram</strong> tab on a contract page draws the shape of a
           Soroban contract from its compiled spec and from on-chain activity:
@@ -204,7 +201,7 @@ export default function DocsPage() {
 
         <H>Linking your deploy wallet</H>
         <p className="mt-4 text-[14px] leading-[1.7] text-[#b8b5a8]">
-          Claiming a handle binds it to the wallet that signs the {' '}
+          Claiming a handle binds it to the wallet that signs the{' '}
           <code>claim</code> — usually a browser wallet, which is rarely the
           keystore identity you run <code>stellar contract deploy</code> from. To
           make a profile a real career record you link that deploy wallet from a
@@ -235,11 +232,11 @@ export default function DocsPage() {
           className="mt-4 overflow-x-auto border border-[#1f1d19] bg-[#0e0d0b] px-5 py-4 text-[12px] leading-[1.7] text-[#b8b5a8]"
           style={{ fontFamily: 'var(--font-mono)' }}
         >
-{ import { SignetClient } from '@signet/sdk';
+{`import { SignetClient } from '@signet/sdk';
 
 const signet = new SignetClient({ baseUrl: 'https://your-deployment.example' });
 const profile = await signet.getProfile('yourhandle');
-// → { Handle, profile, stats: { invocations, uniqueFunctions } }`}
+// → { handle, profile, stats: { invocations, uniqueFunctions } }`}
         </pre>
 
         <H>Phases</H>
@@ -268,7 +265,7 @@ const profile = await signet.getProfile('yourhandle');
             style={{ fontFamily: 'var(--font-mono)' }}
           >
             How Signet works ↗
-</Link>
+          </Link>
         </div>
       </main>
     </div>

@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import { SectionLabel } from '../../_components/section-label';
+import { SectionLabel } from '../../../_components/section-label';
 
 /** Placeholder segment for the Diagram tab (#445); its epic fills it in. */
 export default function DiagramPage() {
