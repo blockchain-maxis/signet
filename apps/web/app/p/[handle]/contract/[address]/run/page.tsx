@@ -115,11 +115,27 @@ function RunPageClient({ address, network }: { address: string; network: string 
         </h3>
         <ul className="list-disc pl-6 space-y-2">
           <li>
-            <strong>Signet CLI</strong> — install per <a href="/docs/CLI.md" className="text-[#8b1a1a] hover:text-[#c2410c] underline">docs/CLI.md</a>
+            <strong>Signet CLI</strong> — install per{' '}
+            <a
+              href="https://github.com/blockchain-maxis/signet/blob/main/docs/CLI.md"
+              target="_blank"
+              rel="noreferrer"
+              className="text-[#8b1a1a] hover:text-[#c2410c] underline"
+            >
+              docs/CLI.md
+            </a>{' '}
             (landed in #352).
           </li>
           <li>
-            <strong>Rust toolchain</strong> for execution — see <a href="/docs/CONTRACT_SANDBOX_DESIGN.md" className="text-[#8b1a1a] hover:text-[#c2410c] underline">docs/CONTRACT_SANDBOX_DESIGN.md</a>
+            <strong>Rust toolchain</strong> for execution — see{' '}
+            <a
+              href="https://github.com/blockchain-maxis/signet/blob/main/docs/CONTRACT_SANDBOX_DESIGN.md"
+              target="_blank"
+              rel="noreferrer"
+              className="text-[#8b1a1a] hover:text-[#c2410c] underline"
+            >
+              docs/CONTRACT_SANDBOX_DESIGN.md
+            </a>{' '}
             (#642).
           </li>
         </ul>
