@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from 'next/server';
-import { RESERVED_HANDLES, isValidHandle } from '@signet/types';
 import { CSP_REPORT_PATH, buildCsp, buildReportingEndpoints, generateNonce } from './lib/csp';
+import { resolveRewriteTarget } from './lib/routing';
 
 /**
  * Subdomain routing with a path-based fallback.
@@ -11,7 +11,9 @@ import { CSP_REPORT_PATH, buildCsp, buildReportingEndpoints, generateNonce } fro
  *   marketing   →  /
  *   dashboard   →  /app, /app/wallets, /app/profile, /app/settings
  *   docs        →  /docs
- *   profile     →  /profile/{handle}, /profile/{handle}/contract/{address}
+ *   profile     →  /p/{handle}, /p/{handle}/contract/{address}[/{tab}]
+ *                  (reachable as {handle}.signet.dev/…, /@{handle}/…, and
+ *                  the legacy /profile/{handle} paths)
  *   trpc api    →  /api/trpc/*
  *   handles     →  /handles (the public directory)
  *
@@ -20,136 +22,13 @@ import { CSP_REPORT_PATH, buildCsp, buildReportingEndpoints, generateNonce } fro
  *   2. Otherwise (Vercel previews, bare localhost), fall back to path-based
  *      routing so every surface is still reachable.
  *
- * Handles are validated (charset/length) before being routed to the profile
- * surface; anything malformed falls through to the marketing root. Existence
- * is enforced by the profile page itself (`notFound()`).
+ * The decision table itself lives in `lib/routing.ts` (#446) — pure over
+ * `(host, pathname)` and pinned case-by-case in `lib/routing.test.ts` — so
+ * this file only wires it to the request and applies the per-request CSP
+ * nonce at a single exit point. Handles are validated (charset/length)
+ * before being routed to the profile surface; existence is enforced by the
+ * pages themselves (`notFound()`).
  */
-
-const ROOT_DOMAIN = process.env.NEXT_PUBLIC_ROOT_DOMAIN ?? 'signet.dev';
-
-// Infrastructure subdomains that are not developer handles. These are a
-// routing concern only — the contract has no opinion on them, so a wallet can
-// still claim e.g. `www` on-chain even though it will never route here.
-const INFRA_SUBDOMAINS = [
-  'www',
-  'status',
-  'support',
-  'mail',
-  'blog',
-  'static',
-  'assets',
-  'cdn',
-] as const;
-
-// Subdomains / first path segments that are NOT developer handles: everything
-// the registry refuses to hand out, plus the infrastructure names above.
-const RESERVED = new Set<string>([...RESERVED_HANDLES, ...INFRA_SUBDOMAINS]);
-
-/**
- * Extract the subdomain from a host header, or `null` when there isn't a
- * usable one (apex domain, bare `localhost`, or a `*.vercel.app` preview where
- * wildcard subdomains aren't available).
- */
-function getSubdomain(host: string): string | null {
-  const hostname = host.split(':')[0]?.toLowerCase() ?? '';
-
-  if (hostname.endsWith('.vercel.app')) return null; // previews → path-based
-  if (hostname === 'localhost') return null;
-
-  if (hostname.endsWith(`.${ROOT_DOMAIN}`)) {
-    const sub = hostname.slice(0, -(ROOT_DOMAIN.length + 1));
-    return sub.length > 0 ? sub : null;
-  }
-  if (hostname === ROOT_DOMAIN) return null;
-
-  // `*.localhost` works in modern browsers for local subdomain testing.
-  if (hostname.endsWith('.localhost')) {
-    const sub = hostname.slice(0, -'.localhost'.length);
-    return sub.length > 0 ? sub : null;
-  }
-
-  return null;
-}
-
-/**
- * Resolve the routing decision for a request: the internal path to rewrite to,
- * or `null` to pass the request through unchanged. Kept separate from the
- * response so the per-request CSP nonce is applied at a single exit point.
- */
-function resolveRewriteTarget(req: NextRequest): string | null {
-  const host = req.headers.get('host') ?? '';
-  const { pathname } = req.nextUrl;
-  const subdomain = getSubdomain(host);
-
-  // ---- 1. Subdomain-based routing -----------------------------------------
-  if (subdomain) {
-    if (subdomain === 'app') {
-      return `/app${pathname === '/' ? '' : pathname}`;
-    }
-    if (subdomain === 'docs') {
-      return `/docs${pathname === '/' ? '' : pathname}`;
-    }
-    if (subdomain === 'api') {
-      // tRPC handler lives at /api/trpc/* — pass requests straight through.
-      return null;
-    }
-    if (subdomain === 'www' || RESERVED.has(subdomain)) {
-      // Reserved but non-functional → marketing root.
-      return null;
-    }
-    // Anything else is treated as a developer handle: {handle}.signet.dev
-    if (isValidHandle(subdomain) && pathname === '/') {
-      return `/p/${subdomain}`;
-    }
-    return null;
-  }
-
-  // ---- 2. Path-based fallback ---------------------------------------------
-  const segments = pathname.split('/').filter(Boolean);
-  const first = segments[0];
-
-  // Already-correct internal paths: let them through unchanged.
-  if (
-    pathname === '/' ||
-    first === 'app' ||
-    first === 'docs' ||
-    first === 'profile' ||
-    first === 'p' || // public profiles live at /p/{handle}
-    first === 'how-it-works' || // static informational page
-    first === 'handles' || // public handle directory
-    // The CLI's approval page. Without this, `link` is a valid handle shape,
-    // so /link?code=… is rewritten to /p/link and 404s — which makes the URL
-    // `signet link` prints unreachable on any deployment running this
-    // middleware, while working locally where nothing rewrites it.
-    //
-    // It is NOT in RESERVED_HANDLES: that list mirrors the identity-registry
-    // contract, which is immutable, so "link" can still be claimed on-chain.
-    // A profile with that handle stays reachable at /p/link and /@link; only
-    // the bare /link belongs to the approval page.
-    first === 'link' ||
-    first === 'api' ||
-    first === '_next'
-  ) {
-    return null;
-  }
-
-  // `/@{handle}` → canonical profile
-  if (first && first.startsWith('@')) {
-    const handle = first.slice(1).toLowerCase();
-    if (isValidHandle(handle)) {
-      return `/p/${handle}`;
-    }
-    return null;
-  }
-
-  // `/{handle}` where the segment isn't a reserved app route → canonical profile
-  if (first && !RESERVED.has(first) && segments.length === 1 && isValidHandle(first)) {
-    return `/p/${first}`;
-  }
-
-  // Otherwise → marketing root.
-  return null;
-}
 
 export function middleware(req: NextRequest): NextResponse {
   // Per-request nonce → CSP. Forwarding the policy on the *request* headers is
@@ -166,7 +45,7 @@ export function middleware(req: NextRequest): NextResponse {
   requestHeaders.set('x-nonce', nonce);
   requestHeaders.set('content-security-policy', csp);
 
-  const target = resolveRewriteTarget(req);
+  const target = resolveRewriteTarget(req.headers.get('host') ?? '', req.nextUrl.pathname);
   let response: NextResponse;
   if (target) {
     const url = req.nextUrl.clone();

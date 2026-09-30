@@ -9,6 +9,7 @@
   "exports": {
     ".": "./src/index.ts",
     "./interactive": "./src/interactive.ts",
+    "./tokens": "./src/tokens.ts",
     "./tokens.css": "./src/tokens.css"
   },
   "scripts": {

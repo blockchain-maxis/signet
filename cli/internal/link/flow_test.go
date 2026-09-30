@@ -3,6 +3,9 @@ package link
 import (
 	"context"
 	"errors"
+	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"net/url"
 	"strings"
 	"testing"
@@ -11,6 +14,7 @@ import (
 	"github.com/blockchain-maxis/signet/cli/internal/exitcode"
 	"github.com/blockchain-maxis/signet/cli/internal/loopback"
 	"github.com/blockchain-maxis/signet/cli/internal/pair"
+	"github.com/blockchain-maxis/signet/cli/internal/redact"
 )
 
 // fakeCallbacks stands in for the loopback server without binding a port.
@@ -62,7 +66,7 @@ func baseDeps(status pair.Status) Deps {
 		Poll:      func(context.Context, string) (pair.Status, error) { return status, nil },
 		Challenge: func(context.Context, string) (string, error) { return "UNSIGNED", nil },
 		Sign:      func(string) (string, error) { return "SIGNED", nil },
-		Complete:  func(context.Context, string, string, string) (string, error) { return "alice", nil },
+		Complete:  func(context.Context, string, string, string) (string, bool, error) { return "alice", false, nil },
 		// Keep the suite fast: the real defaults are five minutes and two
 		// seconds, and nothing here is testing wall-clock behaviour.
 		TTL:          30 * time.Millisecond,
@@ -73,7 +77,7 @@ func baseDeps(status pair.Status) Deps {
 func TestRun_LinksViaPollingWhenThereIsNoLoopback(t *testing.T) {
 	deps := baseDeps(pair.StatusApproved)
 	var signed string
-	deps.Complete = func(_ context.Context, state, xdr, handoff string) (string, error) {
+	deps.Complete = func(_ context.Context, state, xdr, handoff string) (string, bool, error) {
 		signed = xdr
 		if state != "p_1" {
 			t.Errorf("completed the wrong pairing: %q", state)
@@ -81,7 +85,7 @@ func TestRun_LinksViaPollingWhenThereIsNoLoopback(t *testing.T) {
 		if handoff != "" {
 			t.Errorf("sent a handoff code on the automatic path: %q", handoff)
 		}
-		return "alice", nil
+		return "alice", false, nil
 	}
 
 	result, err := Run(context.Background(), "https://signet.example", "testnet", "src", "GABC", deps)
@@ -183,9 +187,9 @@ func TestRun_CallbackWithTheWrongStateDoesNotFinishTheLink(t *testing.T) {
 
 	deps := baseDeps(pair.StatusExpired)
 	deps.Listen = func(string) (Callbacks, error) { return cb, nil }
-	deps.Complete = func(context.Context, string, string, string) (string, error) {
+	deps.Complete = func(context.Context, string, string, string) (string, bool, error) {
 		t.Fatal("completed on a callback with a mismatched state")
-		return "", nil
+		return "", false, nil
 	}
 
 	_, err := Run(context.Background(), "https://signet.example", "testnet", "src", "GABC", deps)
@@ -200,9 +204,9 @@ func TestRun_RejectedApprovalExitsWithoutSigning(t *testing.T) {
 		t.Fatal("signed after the approval was refused")
 		return "", nil
 	}
-	deps.Complete = func(context.Context, string, string, string) (string, error) {
+	deps.Complete = func(context.Context, string, string, string) (string, bool, error) {
 		t.Fatal("completed after the approval was refused")
-		return "", nil
+		return "", false, nil
 	}
 
 	_, err := Run(context.Background(), "https://signet.example", "testnet", "src", "GABC", deps)
@@ -229,8 +233,8 @@ func TestRun_TimeoutTellsYouHowToRetry(t *testing.T) {
 
 func TestRun_AlreadyLinkedIsItsOwnFailureMode(t *testing.T) {
 	deps := baseDeps(pair.StatusApproved)
-	deps.Complete = func(context.Context, string, string, string) (string, error) {
-		return "", errors.New("network error: This deploy account is already bound to a different profile")
+	deps.Complete = func(context.Context, string, string, string) (string, bool, error) {
+		return "", false, errors.New("network error: This deploy account is already bound to a different profile")
 	}
 
 	_, err := Run(context.Background(), "https://signet.example", "testnet", "src", "GABC", deps)
@@ -267,12 +271,71 @@ func TestRun_SigningFailureStopsBeforeComplete(t *testing.T) {
 	deps.Sign = func(string) (string, error) {
 		return "", errors.New("signing failed: identity not found")
 	}
-	deps.Complete = func(context.Context, string, string, string) (string, error) {
+	deps.Complete = func(context.Context, string, string, string) (string, bool, error) {
 		t.Fatal("completed without a signature")
-		return "", nil
+		return "", false, nil
 	}
 
 	if _, err := Run(context.Background(), "https://signet.example", "testnet", "src", "GABC", deps); err == nil {
 		t.Fatal("expected a signing error")
+	}
+}
+
+func TestRun_RedactsSecretsFromApprovalOutputTimeoutAndResult(t *testing.T) {
+	seed := "SASAAEJC6P5UZGRLYJ2I2KYLR7RXGF44JZXDYGCFBN7T5VIHECUUEMCD"
+
+	t.Run("approval output and timeout", func(t *testing.T) {
+		deps := baseDeps(pair.StatusExpired)
+		var reports []string
+		deps.Report = func(line string) { reports = append(reports, line) }
+		var opened string
+		deps.OpenBrowser = func(target string) error {
+			opened = target
+			return nil
+		}
+
+		_, err := Run(context.Background(), "https://signet.example/"+seed, "testnet", "src", "GABC", deps)
+		if !errors.Is(err, exitcode.ErrTimeout) {
+			t.Fatalf("err = %v, want ErrTimeout", err)
+		}
+		visible := strings.Join(reports, "\n") + "\n" + err.Error()
+		if strings.Contains(visible, seed) || !strings.Contains(visible, redact.Placeholder) {
+			t.Fatalf("visible output was not redacted: %q", visible)
+		}
+		if !strings.Contains(opened, seed) {
+			t.Fatalf("operational browser URL was changed instead of only its display: %q", opened)
+		}
+	})
+
+	t.Run("result fields", func(t *testing.T) {
+		deps := baseDeps(pair.StatusApproved)
+		deps.Complete = func(context.Context, string, string, string) (string, bool, error) {
+			return seed, false, nil
+		}
+		result, err := Run(context.Background(), "https://signet.example", seed, "src", "GABC", deps)
+		if err != nil {
+			t.Fatalf("Run: %v", err)
+		}
+		if result.Handle != redact.Placeholder || result.Network != redact.Placeholder {
+			t.Fatalf("result fields were not redacted: %+v", result)
+		}
+	})
+}
+
+func TestFetchChallenge_RedactsTheServersError(t *testing.T) {
+	seed := "SASAAEJC6P5UZGRLYJ2I2KYLR7RXGF44JZXDYGCFBN7T5VIHECUUEMCD"
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("content-type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		_, _ = fmt.Fprintf(w, `{"error":"challenge refused %s"}`, seed)
+	}))
+	defer srv.Close()
+
+	_, err := FetchChallenge(srv.Client(), srv.URL)(context.Background(), "GABC")
+	if !errors.Is(err, exitcode.ErrNetwork) {
+		t.Fatalf("err = %v, want ErrNetwork", err)
+	}
+	if strings.Contains(err.Error(), seed) || !strings.Contains(err.Error(), "challenge refused "+redact.Placeholder) {
+		t.Fatalf("server error was not safely preserved: %v", err)
 	}
 }

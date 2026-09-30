@@ -60,6 +60,17 @@ Synthetic demo profiles are not seeded into fresh databases. To seed a real on-c
    ```
 This reads the real on-chain claim binding from testnet, persists the profile and wallet in your local database with `indexRequestedAt` set, and triggers the running indexer to scan it promptly.
 
+### End-to-end specs that need a database
+
+The default `e2e` run is hermetic (no database). Specs that need Postgres put `@db` in their `describe` title: CI runs them in `e2e-linked` (`playwright test --grep @db`) and skips them in `e2e` (`--grep-invert @db`), so each spec runs in one lane. `e2e/fixtures/contracts.ts` (test-only data, loaded by Playwright's `globalSetup` when `DATABASE_URL` is set) provides the contract-page fixture. Locally:
+
+```bash
+pnpm db:up && pnpm db:migrate
+DATABASE_URL=postgresql://… pnpm --filter @signet/web exec playwright test --grep @db
+```
+
+Without `DATABASE_URL` these specs are skipped, not failed.
+
 ## The gates
 
 CI runs the same commands you can run locally. **Every one must pass before a PR
