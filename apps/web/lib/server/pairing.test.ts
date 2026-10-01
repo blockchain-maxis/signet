@@ -1,8 +1,10 @@
-import { test } from 'node:test';
+import { test, type TestContext } from 'node:test';
 import assert from 'node:assert/strict';
 import { Keypair, TransactionBuilder, WebAuth } from '@stellar/stellar-sdk';
 import { buildChallenge, getNetworkPassphrase } from '../sep10.ts';
 import { __resetNonceStore } from '../nonce-store.ts';
+import { logger } from '../logger.ts';
+import { PAIRING_EVENTS } from '@signet/types';
 import {
   startPairing,
   pollPairing,
@@ -751,4 +753,129 @@ test('start with no network, or an unknown one, is a 400', () => {
     ok: false,
     error: 'unknown-network',
   });
+});
+
+// ── audit trail (#620) ───────────────────────────────────────────────────
+
+interface LoggedLine {
+  level: 'info' | 'warn';
+  msg: string;
+  fields: Record<string, unknown>;
+}
+
+/** Spy on the logger for the rest of the test; returns every line it was handed. */
+function captureLogs(t: TestContext): LoggedLine[] {
+  const lines: LoggedLine[] = [];
+  for (const level of ['info', 'warn'] as const) {
+    t.mock.method(logger, level, (fields: Record<string, unknown>, msg: string) => {
+      lines.push({ level, msg, fields });
+    });
+  }
+  return lines;
+}
+
+const AUDIT_NAMES: readonly string[] = Object.values(PAIRING_EVENTS);
+const auditLines = (lines: LoggedLine[]) => lines.filter((l) => AUDIT_NAMES.includes(l.msg));
+
+test('startPairing emits pairing.linkStarted with the declared key', async (t) => {
+  const { store } = fakeStore();
+  const client = Keypair.random();
+  const logs = captureLogs(t);
+
+  const { state } = (await startPairing('testnet', client.publicKey(), store))!;
+  assert.deepEqual(auditLines(logs), [
+    {
+      level: 'info',
+      msg: 'pairing.linkStarted',
+      fields: { state, outcome: 'started', source: 'cli-pairing', wallet: client.publicKey() },
+    },
+  ]);
+});
+
+test('a completion emits pairing.linkCompleted, and no line carries the challenge', async (t) => {
+  __resetNonceStore();
+  t.after(() => __resetNonceStore());
+  const { store, wallets } = fakeStore();
+  const state = await approvedPairing(store, wallets);
+  const client = Keypair.random();
+  const challenge = signedChallenge(client);
+  const logs = captureLogs(t);
+
+  assert.equal((await completePairing(state, challenge, store)).ok, true);
+  assert.deepEqual(auditLines(logs), [
+    {
+      level: 'info',
+      msg: 'pairing.linkCompleted',
+      fields: {
+        state,
+        profileId: 'profile_1',
+        outcome: 'completed',
+        source: 'cli-pairing',
+        handle: 'handle-for-profile_1',
+        wallet: client.publicKey(),
+      },
+    },
+  ]);
+  assert.equal(JSON.stringify(logs).includes(challenge), false);
+});
+
+test('a refused completion emits pairing.linkRejected with the CompleteFailure', async (t) => {
+  __resetNonceStore();
+  t.after(() => __resetNonceStore());
+  const { store, wallets, pairings } = fakeStore();
+  const declared = Keypair.random();
+  const other = Keypair.random();
+  const state = await approvedPairing(store, wallets);
+  pairings.get(state)!.publicKey = declared.publicKey();
+  const challenge = signedChallenge(other);
+  const logs = captureLogs(t);
+
+  await completePairing(state, challenge, store);
+  assert.deepEqual(auditLines(logs), [
+    {
+      level: 'warn',
+      msg: 'pairing.linkRejected',
+      fields: {
+        state,
+        outcome: 'rejected',
+        source: 'cli-pairing',
+        wallet: other.publicKey(),
+        reason: 'key-mismatch',
+      },
+    },
+  ]);
+  assert.equal(JSON.stringify(logs).includes(challenge), false);
+});
+
+test('a bad signature emits pairing.linkRejected without the challenge', async (t) => {
+  const { store, wallets } = fakeStore();
+  const state = await approvedPairing(store, wallets);
+  const client = Keypair.random();
+  const unsigned = buildChallenge(client.publicKey());
+  const logs = captureLogs(t);
+
+  await completePairing(state, unsigned, store);
+  assert.deepEqual(auditLines(logs), [
+    {
+      level: 'warn',
+      msg: 'pairing.linkRejected',
+      fields: { state, outcome: 'rejected', source: 'cli-pairing', reason: 'bad-challenge' },
+    },
+  ]);
+  assert.equal(JSON.stringify(logs).includes(unsigned), false);
+});
+
+test('a refusal in the browser emits pairing.linkRejected', async (t) => {
+  const { store } = fakeStore();
+  const { state } = (await startPairing('testnet', null, store))!;
+  const logs = captureLogs(t);
+
+  assert.equal(await rejectPairing(state, store), 'ok');
+  assert.deepEqual(auditLines(logs), [
+    {
+      level: 'warn',
+      msg: 'pairing.linkRejected',
+      fields: { state, outcome: 'rejected', source: 'cli-pairing', reason: 'refused' },
+    },
+  ]);
 });

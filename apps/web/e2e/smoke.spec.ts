@@ -87,3 +87,18 @@ test('sitemap.xml returns only static routes when there is no DB', async ({ requ
   // No profile or contract routes without DB and registry config
   expect(text).not.toContain('/p/');
 });
+
+test('the legacy contract route redirects to the contract view, or the profile if malformed', async ({
+  request,
+}) => {
+  const address = 'CASFJHI5PQSRWS7JV25CF7FOMRKIVBP3RXRP3E2GH2CV4BCAG7FUJRCN';
+  const res = await request.get(`/profile/Alice/contract/${address}`, { maxRedirects: 0 });
+  expect(res.status()).toBe(308);
+  expect(res.headers()['location']).toBe(`/p/alice/contract/${address}`);
+
+  const malformed = await request.get('/profile/Alice/contract/not-an-address', {
+    maxRedirects: 0,
+  });
+  expect(malformed.status()).toBe(308);
+  expect(malformed.headers()['location']).toBe('/p/alice');
+});
