@@ -1,3 +1,54 @@
-/* @signet/visualiser design tokens. Filled in by #491. */
+/* @signet/visualiser design tokens. */
 :root {
+  --viz-ground: #0a0908;
+  --viz-node: #181614;
+  --viz-node-text: #f5f4ee;
+  --viz-edge: #736e62;
+  --viz-muted: #9e9a8f;
+  --viz-accent: #e05252;
+  --viz-write: #fb923c;
+  --viz-read: #38bdf8;
+  --viz-observed: #c084fc;
+  --viz-focus: #60a5fa;
+}
+
+@media (prefers-color-scheme: light) {
+  :root {
+    --viz-ground: #ffffff;
+    --viz-node: #f5f4ee;
+    --viz-node-text: #0a0908;
+    --viz-edge: #736e62;
+    --viz-muted: #5e5b51;
+    --viz-accent: #8b1a1a;
+    --viz-write: #c2410c;
+    --viz-read: #0369a1;
+    --viz-observed: #6d28d9;
+    --viz-focus: #1d4ed8;
+  }
+}
+
+[data-viz-theme='light'] {
+  --viz-ground: #ffffff;
+  --viz-node: #f5f4ee;
+  --viz-node-text: #0a0908;
+  --viz-edge: #736e62;
+  --viz-muted: #5e5b51;
+  --viz-accent: #8b1a1a;
+  --viz-write: #c2410c;
+  --viz-read: #0369a1;
+  --viz-observed: #6d28d9;
+  --viz-focus: #1d4ed8;
+}
+
+[data-viz-theme='dark'] {
+  --viz-ground: #0a0908;
+  --viz-node: #181614;
+  --viz-node-text: #f5f4ee;
+  --viz-edge: #736e62;
+  --viz-muted: #9e9a8f;
+  --viz-accent: #e05252;
+  --viz-write: #fb923c;
+  --viz-read: #38bdf8;
+  --viz-observed: #c084fc;
+  --viz-focus: #60a5fa;
 }

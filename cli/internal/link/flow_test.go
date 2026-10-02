@@ -3,6 +3,9 @@ package link
 import (
 	"context"
 	"errors"
+	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"net/url"
 	"strings"
 	"testing"
@@ -11,6 +14,7 @@ import (
 	"github.com/blockchain-maxis/signet/cli/internal/exitcode"
 	"github.com/blockchain-maxis/signet/cli/internal/loopback"
 	"github.com/blockchain-maxis/signet/cli/internal/pair"
+	"github.com/blockchain-maxis/signet/cli/internal/redact"
 )
 
 // fakeCallbacks stands in for the loopback server without binding a port.
@@ -274,5 +278,64 @@ func TestRun_SigningFailureStopsBeforeComplete(t *testing.T) {
 
 	if _, err := Run(context.Background(), "https://signet.example", "testnet", "src", "GABC", deps); err == nil {
 		t.Fatal("expected a signing error")
+	}
+}
+
+func TestRun_RedactsSecretsFromApprovalOutputTimeoutAndResult(t *testing.T) {
+	seed := "SASAAEJC6P5UZGRLYJ2I2KYLR7RXGF44JZXDYGCFBN7T5VIHECUUEMCD"
+
+	t.Run("approval output and timeout", func(t *testing.T) {
+		deps := baseDeps(pair.StatusExpired)
+		var reports []string
+		deps.Report = func(line string) { reports = append(reports, line) }
+		var opened string
+		deps.OpenBrowser = func(target string) error {
+			opened = target
+			return nil
+		}
+
+		_, err := Run(context.Background(), "https://signet.example/"+seed, "testnet", "src", "GABC", deps)
+		if !errors.Is(err, exitcode.ErrTimeout) {
+			t.Fatalf("err = %v, want ErrTimeout", err)
+		}
+		visible := strings.Join(reports, "\n") + "\n" + err.Error()
+		if strings.Contains(visible, seed) || !strings.Contains(visible, redact.Placeholder) {
+			t.Fatalf("visible output was not redacted: %q", visible)
+		}
+		if !strings.Contains(opened, seed) {
+			t.Fatalf("operational browser URL was changed instead of only its display: %q", opened)
+		}
+	})
+
+	t.Run("result fields", func(t *testing.T) {
+		deps := baseDeps(pair.StatusApproved)
+		deps.Complete = func(context.Context, string, string, string) (string, bool, error) {
+			return seed, false, nil
+		}
+		result, err := Run(context.Background(), "https://signet.example", seed, "src", "GABC", deps)
+		if err != nil {
+			t.Fatalf("Run: %v", err)
+		}
+		if result.Handle != redact.Placeholder || result.Network != redact.Placeholder {
+			t.Fatalf("result fields were not redacted: %+v", result)
+		}
+	})
+}
+
+func TestFetchChallenge_RedactsTheServersError(t *testing.T) {
+	seed := "SASAAEJC6P5UZGRLYJ2I2KYLR7RXGF44JZXDYGCFBN7T5VIHECUUEMCD"
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("content-type", "application/json")
+		w.WriteHeader(http.StatusBadRequest)
+		_, _ = fmt.Fprintf(w, `{"error":"challenge refused %s"}`, seed)
+	}))
+	defer srv.Close()
+
+	_, err := FetchChallenge(srv.Client(), srv.URL)(context.Background(), "GABC")
+	if !errors.Is(err, exitcode.ErrNetwork) {
+		t.Fatalf("err = %v, want ErrNetwork", err)
+	}
+	if strings.Contains(err.Error(), seed) || !strings.Contains(err.Error(), "challenge refused "+redact.Placeholder) {
+		t.Fatalf("server error was not safely preserved: %v", err)
 	}
 }

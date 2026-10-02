@@ -2,6 +2,7 @@ import React from 'react';
 import {
   hasAnyDocComments,
   formatFunctionSignature,
+  docRefsFromSpec,
   type ContractSpecLike,
   type SpecFunctionLike,
 } from '@/lib/contract-docs';
@@ -12,6 +13,8 @@ export interface FunctionListProps {
   spec?: ContractSpecLike | null;
   functions?: readonly SpecFunctionLike[];
   className?: string;
+  /** Href of the Types tab, used to resolve intra-doc links like [`Foo`]. */
+  typesHref?: string;
 }
 
 /**
@@ -20,11 +23,12 @@ export interface FunctionListProps {
  * Rules:
  * - When zero functions, types, and errors carry a doc comment, show the note once at the top.
  * - When at least one function, type, or error carries a doc comment, show NO note.
- * - Each function renders its signature and plain text doc comment (via DocComment).
+ * - Each function renders its signature and Markdown doc comment (via DocComment).
  * - Undocumented functions render no empty paragraph element (<p></p>).
  */
-export function FunctionList({ spec, functions: explicitFunctions, className }: FunctionListProps) {
+export function FunctionList({ spec, functions: explicitFunctions, className, typesHref }: FunctionListProps) {
   const functions = explicitFunctions ?? spec?.functions ?? [];
+  const refs = typesHref ? docRefsFromSpec(spec, typesHref) : undefined;
   const showNoDocNote = !hasAnyDocComments(spec);
 
   return (
@@ -51,7 +55,7 @@ export function FunctionList({ spec, functions: explicitFunctions, className }: 
 
             {fn.doc && (
               <div className="mt-3">
-                <DocComment doc={fn.doc} />
+                <DocComment doc={fn.doc} refs={refs} />
               </div>
             )}
           </section>
