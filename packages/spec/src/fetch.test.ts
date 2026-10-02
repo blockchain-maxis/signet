@@ -163,8 +163,16 @@ test('an aborted signal rejects with RpcUnavailable before the default deadline'
   const stub = registryStub();
   stub.hang = true;
 
+  // A ref'd timer, not `AbortSignal.timeout(50)`: that one is unref'd, so on
+  // Node 22 (CI) nothing keeps the loop alive while the stub hangs and the
+  // runner cancels the test as "event loop has already resolved".
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(new Error('test deadline')), 50);
+
   await assert.rejects(
-    fetchWasmHash(REGISTRY, stubOptions(stub, { signal: AbortSignal.timeout(50) })),
+    fetchWasmHash(REGISTRY, stubOptions(stub, { signal: controller.signal })).finally(() =>
+      clearTimeout(timer),
+    ),
     (err: unknown) => {
       assert.ok(err instanceof RpcUnavailable);
       assert.equal(err.rpcUrl, RPC_URL);
