@@ -89,9 +89,11 @@ carrying the same XDR is rejected as `replayed`.
 
 ## Logging
 
-Every refusal is logged at `warn` as `pairing.completeRejected` with the pairing
+Every refusal is logged at `warn` as `pairing.linkRejected` with the pairing
 `state` and the reason code; a successful attachment is logged at `info` as
-`pairing.completed` with `state`, `profileId`, and `pubkey`. A profile being
+`pairing.linkCompleted` with `state`, `profileId`, `handle`, and `wallet`. Both
+use the shared pairing audit vocabulary, with `source: cli-pairing` (see
+[the pairing audit trail](./INDEXER.md#the-pairing-audit-trail)). A profile being
 repeatedly targeted by contested attachments is therefore visible in the logs
 without the error responses ever having disclosed anything to the caller.
 

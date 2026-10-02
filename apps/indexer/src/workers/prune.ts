@@ -18,9 +18,7 @@ export interface PruningStore {
     }) => Promise<{ count: number }>;
   };
   contract?: {
-    findMany: (args?: {
-      select: { id: true };
-    }) => Promise<Array<{ id: string }>>;
+    findMany: (args?: { select: { id: true } }) => Promise<Array<{ id: string }>>;
   };
   contractInvocation?: {
     findMany: (args: {
@@ -35,12 +33,20 @@ export interface PruningStore {
       };
     }) => Promise<{ count: number }>;
   };
+  pairingState?: {
+    deleteMany: (args: {
+      where: {
+        expiresAt: { lt: Date };
+      };
+    }) => Promise<{ count: number }>;
+  };
 }
 
 export interface PruningResult {
   opsPruned: number;
   snapshotsPruned: number;
   invocationsPruned: number;
+  pairingsPruned: number;
 }
 
 /**
@@ -64,6 +70,7 @@ export async function runPruningWorker(
   let opsPruned = 0;
   let snapshotsPruned = 0;
   let invocationsPruned = 0;
+  let pairingsPruned = 0;
 
   const operationsCutoff = retentionCutoff(config.operationsRetentionDays, now);
   if (operationsCutoff) {
@@ -123,9 +130,27 @@ export async function runPruningWorker(
     }
   }
 
-  if (opsPruned > 0 || snapshotsPruned > 0 || invocationsPruned > 0) {
-    logger.info({ opsPruned, snapshotsPruned, invocationsPruned }, 'prune.summary');
+  if (store.pairingState) {
+    // Hardcoded 24h retention for expired pairing states
+    const pairingsCutoff = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+    try {
+      const result = await store.pairingState.deleteMany({
+        where: {
+          expiresAt: { lt: pairingsCutoff },
+        },
+      });
+      pairingsPruned = result.count;
+      if (pairingsPruned > 0) {
+        logger.debug({ pairingsPruned, cutoff: pairingsCutoff.toISOString() }, 'prune.pairings');
+      }
+    } catch (err) {
+      logger.error({ error: String(err) }, 'prune.pairings_failed');
+    }
   }
 
-  return { opsPruned, snapshotsPruned, invocationsPruned };
+  if (opsPruned > 0 || snapshotsPruned > 0 || invocationsPruned > 0 || pairingsPruned > 0) {
+    logger.info({ opsPruned, snapshotsPruned, invocationsPruned, pairingsPruned }, 'prune.summary');
+  }
+
+  return { opsPruned, snapshotsPruned, invocationsPruned, pairingsPruned };
 }

@@ -12,6 +12,7 @@ import (
 	"github.com/blockchain-maxis/signet/cli/internal/exitcode"
 	"github.com/blockchain-maxis/signet/cli/internal/loopback"
 	"github.com/blockchain-maxis/signet/cli/internal/pair"
+	"github.com/blockchain-maxis/signet/cli/internal/redact"
 )
 
 // TTL is how long a pairing is good for, mirroring PAIRING_TTL_MS in
@@ -33,10 +34,12 @@ type Deps struct {
 	Poll func(ctx context.Context, pollToken string) (pair.Status, error)
 	// Complete submits the signed challenge and reports what was linked.
 	Complete func(ctx context.Context, state, signedXDR, handoffCode string) (string, bool, error)
-	// Challenge fetches an unsigned SEP-10 challenge for an account.
-	Challenge func(ctx context.Context, account string) (string, error)
-	// Sign signs a challenge with the resolved local identity.
-	Sign func(unsignedXDR string) (string, error)
+	// Challenge fetches an unsigned SEP-10 challenge for an account, and the
+	// network passphrase the deployment says it was built for.
+	Challenge func(ctx context.Context, account string) (unsignedXDR, networkPassphrase string, err error)
+	// Sign signs a challenge with the resolved local identity, for the given
+	// network passphrase.
+	Sign func(unsignedXDR, networkPassphrase string) (string, error)
 	// OpenBrowser is best-effort; an error only means the developer opens the
 	// URL themselves, never that the link fails.
 	OpenBrowser func(target string) error
@@ -114,12 +117,19 @@ func Run(ctx context.Context, baseURL, network, source, publicKey string, deps D
 		return Result{}, err
 	}
 
-	approvalURL, server := prepare(baseURL, started.State, callbackState, deps, report)
+	approvalURL, server := prepare(baseURL, started, callbackState, deps, report)
 	if server != nil {
 		defer func() { _ = server.Close() }()
 	}
 
-	report(fmt.Sprintf("Approve this link in your browser:\n\n    %s\n", approvalURL))
+	safeApprovalURL := redact.Secrets(approvalURL)
+	report(fmt.Sprintf("Approve this link in your browser:\n\n    %s\n", safeApprovalURL))
+	if started.UserCode != "" {
+		// The same code the approval page shows (#596). Printed so the
+		// developer has something concrete to compare — a page showing a
+		// different code is somebody else's link, not theirs.
+		report(fmt.Sprintf("The approval page will show this code: %s\n", started.UserCode))
+	}
 	if deps.OpenBrowser != nil {
 		if err := deps.OpenBrowser(approvalURL); err != nil {
 			report("Could not open a browser automatically — open the link above yourself.")
@@ -139,17 +149,17 @@ func Run(ctx context.Context, baseURL, network, source, publicKey string, deps D
 	case pair.OutcomeExpired, pair.OutcomeTimeout:
 		return Result{}, fmt.Errorf(
 			"%w: no approval within %s. Run `signet link` again — the approval link was:\n\n    %s",
-			exitcode.ErrTimeout, deps.ttl(), approvalURL,
+			exitcode.ErrTimeout, deps.ttl(), safeApprovalURL,
 		)
 	}
 
 	report("Approved. Proving control of the deploy key…")
 
-	unsigned, err := deps.Challenge(ctx, publicKey)
+	unsigned, passphrase, err := deps.Challenge(ctx, publicKey)
 	if err != nil {
 		return Result{}, err
 	}
-	signed, err := deps.Sign(unsigned)
+	signed, err := deps.Sign(unsigned, passphrase)
 	if err != nil {
 		return Result{}, err
 	}
@@ -159,9 +169,9 @@ func Run(ctx context.Context, baseURL, network, source, publicKey string, deps D
 	}
 
 	return Result{
-		Handle:          handle,
-		PublicKey:       publicKey,
-		Network:         network,
+		Handle:          redact.Secrets(handle),
+		PublicKey:       redact.Secrets(publicKey),
+		Network:         redact.Secrets(network),
 		Status:          "linked",
 		IndexingPending: indexingPending,
 	}, nil
@@ -170,8 +180,14 @@ func Run(ctx context.Context, baseURL, network, source, publicKey string, deps D
 // prepare builds the approval URL, attaching the loopback callback when one
 // could be bound. A loopback that cannot start is not an error: the polling
 // path covers it, and the URL simply carries no callback.
-func prepare(baseURL, state, callbackState string, deps Deps, report func(string)) (string, Callbacks) {
-	query := url.Values{"code": {state}}
+func prepare(baseURL string, started pair.Started, callbackState string, deps Deps, report func(string)) (string, Callbacks) {
+	query := url.Values{"code": {started.State}}
+	if started.UserCode != "" {
+		// /link verifies this against the hash stored at `start` before it
+		// renders an Approve button (#596). Omitted when an older server
+		// returned none, so the URL stays valid against it.
+		query.Set("user_code", started.UserCode)
+	}
 
 	var server Callbacks
 	if deps.Listen != nil {
@@ -244,7 +260,7 @@ func wait(
 // wallet that is already someone else's exits differently from a network
 // blip. `already linked` is one of the failure modes #258 asks for by name.
 func classifyComplete(err error) error {
-	text := err.Error()
+	text := redact.Secrets(err.Error())
 	switch {
 	case strings.Contains(text, "already bound to a different profile"):
 		return fmt.Errorf("%w: %s", exitcode.ErrAlreadyLinked, text)
@@ -256,45 +272,47 @@ func classifyComplete(err error) error {
 }
 
 // FetchChallenge asks a deployment for an unsigned CLI-link challenge for
-// account on the named network. It is the `Challenge` dep in production.
+// account on the named network, with the network_passphrase the deployment sent
+// alongside it — signing needs it, since the passphrase is part of the signed
+// hash. It is the `Challenge` dep in production.
 //
 // The challenge comes from `GET /api/cli-link`, not `/api/auth/sep10`: it has
 // its own home domain, so a signed web sign-in challenge is never accepted
 // where a CLI-link one is expected, and the reverse (#597). `network` is the
 // name the command resolved (`testnet`, `mainnet`); the server refuses one that
 // does not match the deployment.
-//
-// The response also carries `network_passphrase`. Signing does not take one
-// yet (`stellar tx sign` reads it from the envelope), so it is not consumed
-// here; wiring it through is #602.
-func FetchChallenge(client *http.Client, baseURL, network string) func(context.Context, string) (string, error) {
-	return func(ctx context.Context, account string) (string, error) {
+func FetchChallenge(client *http.Client, baseURL, network string) func(context.Context, string) (string, string, error) {
+	return func(ctx context.Context, account string) (string, string, error) {
 		query := url.Values{"account": {account}, "network": {network}}
 		target := strings.TrimRight(baseURL, "/") + "/api/cli-link?" + query.Encode()
 		req, err := http.NewRequestWithContext(ctx, http.MethodGet, target, nil)
 		if err != nil {
-			return "", fmt.Errorf("%w: building challenge request: %w", exitcode.ErrNetwork, err)
+			return "", "", fmt.Errorf("%w: building challenge request: %s", exitcode.ErrNetwork, redact.Secrets(err.Error()))
 		}
 		resp, err := client.Do(req)
 		if err != nil {
-			return "", fmt.Errorf("%w: fetching challenge: %w", exitcode.ErrNetwork, err)
+			return "", "", fmt.Errorf("%w: fetching challenge: %s", exitcode.ErrNetwork, redact.Secrets(err.Error()))
 		}
 		defer func() { _ = resp.Body.Close() }()
 
 		var body struct {
-			Transaction string `json:"transaction"`
-			Error       string `json:"error"`
+			Transaction       string `json:"transaction"`
+			NetworkPassphrase string `json:"network_passphrase"`
+			Error             string `json:"error"`
 		}
 		_ = json.NewDecoder(resp.Body).Decode(&body)
 		if resp.StatusCode < 200 || resp.StatusCode >= 300 {
 			if body.Error != "" {
-				return "", fmt.Errorf("%w: %s", exitcode.ErrNetwork, body.Error)
+				return "", "", fmt.Errorf("%w: %s", exitcode.ErrNetwork, redact.Secrets(body.Error))
 			}
-			return "", fmt.Errorf("%w: challenge request returned %s", exitcode.ErrNetwork, resp.Status)
+			return "", "", fmt.Errorf("%w: challenge request returned %s", exitcode.ErrNetwork, resp.Status)
 		}
 		if body.Transaction == "" {
-			return "", fmt.Errorf("%w: challenge response carried no transaction", exitcode.ErrNetwork)
+			return "", "", fmt.Errorf("%w: challenge response carried no transaction", exitcode.ErrNetwork)
 		}
-		return body.Transaction, nil
+		if body.NetworkPassphrase == "" {
+			return "", "", fmt.Errorf("%w: challenge response carried no network_passphrase", exitcode.ErrNetwork)
+		}
+		return body.Transaction, body.NetworkPassphrase, nil
 	}
 }

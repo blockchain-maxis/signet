@@ -21,6 +21,7 @@ import (
 	"time"
 
 	"github.com/blockchain-maxis/signet/cli/internal/exitcode"
+	"github.com/blockchain-maxis/signet/cli/internal/redact"
 )
 
 // Status is a pairing's state as reported by GET /api/cli/pair/status.
@@ -55,6 +56,10 @@ func New(baseURL string) *Client {
 type Started struct {
 	State     string `json:"state"`
 	PollToken string `json:"pollToken"`
+	// UserCode is the short code the terminal prints and the approval page
+	// displays (#596), so the developer can see they are approving their own
+	// link. It travels in the approval URL; the server stores only its hash.
+	UserCode  string `json:"userCode"`
 	ExpiresAt string `json:"expiresAt"`
 }
 
@@ -155,7 +160,7 @@ func (c *Client) do(ctx context.Context, method, path string, body any, out any)
 	if body != nil {
 		encoded, err := json.Marshal(body)
 		if err != nil {
-			return fmt.Errorf("%w: encoding request: %w", exitcode.ErrNetwork, err)
+			return fmt.Errorf("%w: encoding request: %s", exitcode.ErrNetwork, redact.Secrets(err.Error()))
 		}
 		reader = strings.NewReader(string(encoded))
 	}
@@ -168,7 +173,7 @@ func (c *Client) do(ctx context.Context, method, path string, body any, out any)
 		req, err = http.NewRequestWithContext(ctx, method, c.BaseURL+path, nil)
 	}
 	if err != nil {
-		return fmt.Errorf("%w: building request: %w", exitcode.ErrNetwork, err)
+		return fmt.Errorf("%w: building request: %s", exitcode.ErrNetwork, redact.Secrets(err.Error()))
 	}
 	if body != nil {
 		req.Header.Set("content-type", "application/json")
@@ -176,7 +181,7 @@ func (c *Client) do(ctx context.Context, method, path string, body any, out any)
 
 	resp, err := c.HTTP.Do(req)
 	if err != nil {
-		return fmt.Errorf("%w: %s: %w", exitcode.ErrNetwork, c.BaseURL, err)
+		return fmt.Errorf("%w: %s", exitcode.ErrNetwork, redact.Secrets(c.BaseURL+": "+err.Error()))
 	}
 	defer func() { _ = resp.Body.Close() }()
 
@@ -195,16 +200,16 @@ func (c *Client) do(ctx context.Context, method, path string, body any, out any)
 			kind = exitcode.ErrConfiguration
 		}
 		if problem.Error != "" {
-			return fmt.Errorf("%w: %s", kind, problem.Error)
+			return fmt.Errorf("%w: %s", kind, redact.Secrets(problem.Error))
 		}
-		return fmt.Errorf("%w: %s returned %s", kind, path, resp.Status)
+		return fmt.Errorf("%w: %s returned %s", kind, redact.Secrets(path), resp.Status)
 	}
 
 	if out == nil {
 		return nil
 	}
 	if err := json.NewDecoder(resp.Body).Decode(out); err != nil {
-		return fmt.Errorf("%w: decoding response: %w", exitcode.ErrNetwork, err)
+		return fmt.Errorf("%w: decoding response: %s", exitcode.ErrNetwork, redact.Secrets(err.Error()))
 	}
 	return nil
 }

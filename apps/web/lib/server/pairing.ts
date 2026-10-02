@@ -5,6 +5,7 @@ import { Sep10Error } from '../sep10.ts';
 import { getConfiguredNetwork, verifyCliLinkChallenge } from '../cli-link.ts';
 import { isMainnetNetwork } from '../network-guard.ts';
 import { logger } from '../logger.ts';
+import { logPairing } from './pairing-audit.ts';
 import {
   linkDeployWallet,
   WalletAlreadyLinkedError,
@@ -44,13 +45,21 @@ import type { WalletSource } from '@signet/types';
 const PAIRING_TTL_MS = 5 * 60 * 1000;
 
 /**
- * Alphabet for the handoff code: Crockford base32 minus the characters that
- * get misread off a screen and retyped wrong (I, L, O, U). The code is read
- * by a human and typed by a human, which is the only reason it is short
- * enough to be worth restricting.
+ * Alphabet for the handoff and user codes: Crockford base32 minus the
+ * characters that get misread off a screen and retyped wrong (I, L, O, U).
+ * The codes are read by a human — and the handoff code typed by one — which
+ * is the only reason they are short enough to be worth restricting.
  */
 const HANDOFF_ALPHABET = '0123456789ABCDEFGHJKMNPQRSTVWXYZ';
 const HANDOFF_LENGTH = 8;
+
+/** Short, human-comparable code from `HANDOFF_ALPHABET`. */
+function randomShortCode(): string {
+  const bytes = randomBytes(HANDOFF_LENGTH);
+  let code = '';
+  for (const b of bytes) code += HANDOFF_ALPHABET[b % HANDOFF_ALPHABET.length];
+  return code;
+}
 
 const sha256 = (value: string): string => createHash('sha256').update(value).digest('hex');
 
@@ -119,6 +128,7 @@ interface PairingRow {
   status: string;
   network: string;
   publicKey: string | null;
+  userCodeHash: string | null;
   handoffHash: string | null;
   profileId: string | null;
   expiresAt: Date;
@@ -135,8 +145,9 @@ export interface PairingStore {
     create(args: {
       data: {
         network: string;
-        publicKey?: string | null;
+        publicKey: string;
         pollTokenHash?: string | null;
+        userCodeHash?: string | null;
         expiresAt: Date;
       };
     }): Promise<{ id: string }>;
@@ -164,6 +175,18 @@ async function getStore(): Promise<PairingStore | null> {
 
 // ── start ────────────────────────────────────────────────────────────────
 
+/**
+ * Validate the deploy key a `start` request declared, BEFORE any row exists.
+ * The key is REQUIRED (#596): a pairing with no declared key used to render
+ * an enabled Approve button next to "Not declared by the CLI", which let
+ * anyone mint a keyless pairing, get a signed-in user to open the link, and
+ * then complete it with their own key. Shape check only — control of the key
+ * is proved at `complete`, where the challenge has to be signed by it.
+ */
+export function checkStartPublicKey(value: string | undefined): value is string {
+  return value !== undefined && /^G[A-Z2-7]{55}$/.test(value);
+}
+
 export interface StartedPairing {
   state: string;
   /**
@@ -173,6 +196,14 @@ export interface StartedPairing {
    * into a chat should not also hand over the ability to watch the pairing.
    */
   pollToken: string;
+  /**
+   * Short code the CLI prints and `/link` displays, so the developer has
+   * something concrete to compare between terminal and browser — the same
+   * shape device-authorization flows use. Returned exactly once; only its
+   * hash is stored, so a database read cannot recover what the terminal
+   * shows.
+   */
+  userCode: string;
   expiresAt: string;
 }
 
@@ -181,16 +212,17 @@ export interface StartedPairing {
  * route resolves and validates it via `checkStartNetwork` before any row is
  * created).
  *
- * `publicKey` is the deploy account the CLI says it is about to link. It is
- * recorded unverified — the CLI has proved nothing at this point — purely so
- * `/link` can show the developer which key they are approving. What makes
- * showing it meaningful is `completePairing`, which refuses to attach any key
- * other than this one, so the page cannot display one account while a
+ * `publicKey` is the deploy account the CLI says it is about to link,
+ * required since #596 (the route 400s without it, via `checkStartPublicKey`).
+ * It is recorded unverified — the CLI has proved nothing at this point —
+ * purely so `/link` can show the developer which key they are approving. What
+ * makes showing it meaningful is `completePairing`, which refuses to attach
+ * any key other than this one, so the page cannot display one account while a
  * different one gets bound.
  */
 export async function startPairing(
   network: string,
-  publicKey?: string | null,
+  publicKey: string,
   store?: PairingStore,
 ): Promise<StartedPairing | null> {
   const db = store ?? (await getStore());
@@ -198,15 +230,20 @@ export async function startPairing(
 
   const expiresAt = new Date(Date.now() + PAIRING_TTL_MS);
   const pollToken = randomBytes(32).toString('base64url');
+  const userCode = randomShortCode();
   const row = await db.pairingState.create({
     data: {
       network,
-      publicKey: publicKey ?? null,
+      publicKey,
       pollTokenHash: sha256(pollToken),
+      userCodeHash: sha256(userCode),
       expiresAt,
     },
   });
-  return { state: row.id, pollToken, expiresAt: expiresAt.toISOString() };
+  // The declared key is unverified here; the audit line records it as the key
+  // this pairing is *about*, and `completed` records the one actually proved.
+  logPairing('started', { source: 'cli-pairing', wallet: publicKey }, { state: row.id });
+  return { state: row.id, pollToken, userCode, expiresAt: expiresAt.toISOString() };
 }
 
 // ── poll (the fallback for terminals the browser cannot reach) ────────────
@@ -250,8 +287,11 @@ export async function pollPairing(pollToken: string, store?: PairingStore): Prom
 // ── describe (the browser approval page) ─────────────────────────────────
 
 export type PairingView =
-  | { ok: true; state: string; publicKey: string | null; expiresAt: string }
-  | { ok: false; reason: 'unavailable' | 'not-found' | 'expired' | 'already-used' };
+  | { ok: true; state: string; publicKey: string; expiresAt: string }
+  | {
+      ok: false;
+      reason: 'unavailable' | 'not-found' | 'expired' | 'already-used' | 'no-key' | 'code-mismatch';
+    };
 
 /**
  * Read a pairing for `/link` to render.
@@ -261,8 +301,23 @@ export type PairingView =
  * approve is refused outright rather than rendered in a dead state. It never
  * discloses `profileId`, so a leaked code cannot be turned into a lookup of
  * who has been pairing.
+ *
+ * Two refusals guard the approval itself (#596):
+ *
+ * - `no-key` — a row with no declared deploy key is never rendered with an
+ *   Approve button. `start` requires the key now, so this only fires for a
+ *   legacy row minted before the requirement, and the fix is a newer CLI.
+ * - `code-mismatch` — `userCode` is the code from the URL the CLI built
+ *   (`&user_code=…`). It must hash to what `start` stored, proving the page
+ *   the developer is looking at came from the URL their own terminal printed
+ *   rather than a link someone else sent them. The code itself is never
+ *   returned: the page already has it, and this only verifies it.
  */
-export async function describePairing(state: string, store?: PairingStore): Promise<PairingView> {
+export async function describePairing(
+  state: string,
+  userCode: string | undefined,
+  store?: PairingStore,
+): Promise<PairingView> {
   const db = store ?? (await getStore());
   if (!db) return { ok: false, reason: 'unavailable' };
 
@@ -270,6 +325,10 @@ export async function describePairing(state: string, store?: PairingStore): Prom
   if (!row) return { ok: false, reason: 'not-found' };
   if (row.status !== 'pending') return { ok: false, reason: 'already-used' };
   if (row.expiresAt <= new Date()) return { ok: false, reason: 'expired' };
+  if (!row.publicKey) return { ok: false, reason: 'no-key' };
+  if (!row.userCodeHash || !userCode || !hashEquals(row.userCodeHash, sha256(userCode))) {
+    return { ok: false, reason: 'code-mismatch' };
+  }
 
   return {
     ok: true,
@@ -291,6 +350,7 @@ export type ApproveOutcome =
   | 'expired'
   | 'already-used'
   | 'no-profile'
+  | 'no-key'
   | 'unavailable';
 
 /**
@@ -314,10 +374,21 @@ export async function approvePairing(
     return { outcome: 'no-profile' };
   }
 
+  // A pairing with no declared deploy key must not be approvable (#596):
+  // `/link` refuses to render it, but this endpoint is reachable directly,
+  // and an approval here would be consent to a key nobody was ever shown.
+  // The key never changes after `create`, so a plain read cannot race the
+  // conditional update below.
+  const row = await db.pairingState.findUnique({ where: { id: state } });
+  if (row && !row.publicKey) {
+    logPairing('rejected', { source: 'cli-pairing', reason: 'no-key' }, { state });
+    return { outcome: 'no-key' };
+  }
+
   // Minted here rather than at `start` so it cannot exist before somebody has
   // actually approved: a code the browser has not yet shown is a code that
   // proves nothing.
-  const handoffCode = randomHandoffCode();
+  const handoffCode = randomShortCode();
 
   const now = new Date();
   const result = await db.pairingState.updateMany({
@@ -347,14 +418,6 @@ export async function approvePairing(
   return { outcome };
 }
 
-/** Short, human-transcribable code the browser shows after approving. */
-function randomHandoffCode(): string {
-  const bytes = randomBytes(HANDOFF_LENGTH);
-  let code = '';
-  for (const b of bytes) code += HANDOFF_ALPHABET[b % HANDOFF_ALPHABET.length];
-  return code;
-}
-
 // ── reject ───────────────────────────────────────────────────────────────
 
 export type RejectOutcome = 'ok' | 'not-found' | 'expired' | 'already-used' | 'unavailable';
@@ -381,7 +444,7 @@ export async function rejectPairing(state: string, store?: PairingStore): Promis
     data: { status: 'rejected', rejectedAt: now },
   });
   if (result.count === 1) {
-    logger.info({ state }, 'pairing.rejected');
+    logPairing('rejected', { source: 'cli-pairing', reason: 'refused' }, { state });
     return 'ok';
   }
 
@@ -447,15 +510,19 @@ export async function completePairing(
 
   const pairing = await db.pairingState.findUnique({ where: { id: state } });
   if (!pairing) return fail(state, 'not-found');
-  if (pairing.status === 'completed') return fail(state, 'already-completed');
-  if (pairing.status !== 'approved' || !pairing.profileId) return fail(state, 'not-approved');
-  if (pairing.expiresAt <= new Date()) return fail(state, 'expired');
+  // Until the signature is verified, the only key known is the declared one.
+  const declared = pairing.publicKey;
+  if (pairing.status === 'completed') return fail(state, 'already-completed', declared);
+  if (pairing.status !== 'approved' || !pairing.profileId) {
+    return fail(state, 'not-approved', declared);
+  }
+  if (pairing.expiresAt <= new Date()) return fail(state, 'expired', declared);
   // Names on both sides (#616): `start` stores the canonical network name and
   // already refused a mismatched or unknown one, so this recheck only fires
   // when the deployment's configured network changed between start and
   // complete — or a row predating the name-based wire slipped through.
   if (resolvePairingNetwork(pairing.network) !== normalizeNetwork(getConfiguredNetwork())) {
-    return fail(state, 'network-mismatch');
+    return fail(state, 'network-mismatch', declared);
   }
 
   let clientAccountId: string;
@@ -468,7 +535,7 @@ export async function completePairing(
       { state, error: err instanceof Sep10Error ? err.message : String(err) },
       'pairing.badChallenge',
     );
-    return { ok: false, reason: 'bad-challenge' };
+    return fail(state, 'bad-challenge', declared);
   }
 
   // The manual path (#273): when the loopback callback cannot be reached, the
@@ -479,21 +546,23 @@ export async function completePairing(
   // that the person at the terminal is not the person who approved.
   if (handoffCode !== undefined) {
     if (!pairing.handoffHash || !hashEquals(pairing.handoffHash, sha256(handoffCode))) {
-      return fail(state, 'bad-handoff');
+      return fail(state, 'bad-handoff', clientAccountId);
     }
   }
 
   // The browser was shown `pairing.publicKey` and approved *that* key. Binding
   // anything else now would make the approval page a lie — the developer would
-  // have consented to one account while another was attached. Pairings minted
-  // before the column existed carry null and skip the check; they were never
-  // rendered with a key to disagree with.
-  if (pairing.publicKey && pairing.publicKey !== clientAccountId) {
+  // have consented to one account while another was attached. A null key is a
+  // mismatch too (#596): the "pairings minted before the column existed" case
+  // this used to skip for expired within its 5-minute TTL long ago, and a
+  // keyless pairing that reached `approved` anyway must not become the one
+  // path that binds an unshown key.
+  if (!pairing.publicKey || pairing.publicKey !== clientAccountId) {
     logger.warn(
       { state, declared: pairing.publicKey, signed: clientAccountId },
       'pairing.keyMismatch',
     );
-    return fail(state, 'key-mismatch');
+    return fail(state, 'key-mismatch', clientAccountId);
   }
 
   // One spend per distinct signed challenge — a byte-identical resubmission
@@ -503,7 +572,7 @@ export async function completePairing(
   // shared with every other operation that accepts a challenge, so the same
   // envelope cannot be redeemed once here and once somewhere else.
   if (!(await spendChallenge(challengeXdr))) {
-    return fail(state, 'replayed');
+    return fail(state, 'replayed', clientAccountId);
   }
 
   const profileId = pairing.profileId;
@@ -536,15 +605,24 @@ export async function completePairing(
     // than making the developer go and look — #258 asks for the handle and the
     // public key, and only the server knows the first.
     const profile = await db.profile.findUnique({ where: { id: profileId } });
-    logger.info({ state, profileId, pubkey: clientAccountId }, 'pairing.completed');
+    logPairing(
+      'completed',
+      { source: 'cli-pairing', handle: profile?.handle, wallet: clientAccountId },
+      { state, profileId },
+    );
     return { ok: true, wallet, handle: profile?.handle ?? null };
   } catch (err) {
-    if (err instanceof PairingConflict) return fail(state, err.reason);
+    if (err instanceof PairingConflict) return fail(state, err.reason, clientAccountId);
     throw err;
   }
 }
 
-function fail(state: string, reason: CompleteFailure): CompleteResult {
-  logger.warn({ state, reason }, 'pairing.completeRejected');
+/**
+ * Refuse a completion and record it in the audit trail. `wallet` is the key
+ * the attempt was about: the declared one before the signature is verified,
+ * the signing one after.
+ */
+function fail(state: string, reason: CompleteFailure, wallet?: string | null): CompleteResult {
+  logPairing('rejected', { source: 'cli-pairing', wallet, reason }, { state });
   return { ok: false, reason };
 }

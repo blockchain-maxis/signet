@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { checkStartNetwork, startPairing } from '@/lib/server/pairing';
+import { checkStartNetwork, checkStartPublicKey, startPairing } from '@/lib/server/pairing';
 import { LIMITS, enforceRateLimit } from '@/lib/rate-limit-http';
 
 export const runtime = 'nodejs';
@@ -26,11 +26,20 @@ export async function POST(req: Request) {
     publicKey?: string;
   };
 
-  // Shape check only — this is an unauthenticated claim, and it is checked for
-  // real at `complete`, where the challenge has to be signed by it. Rejecting
-  // a malformed value here just keeps junk out of the approval page.
-  if (publicKey !== undefined && !/^G[A-Z2-7]{55}$/.test(publicKey)) {
-    return NextResponse.json({ error: 'publicKey must be a Stellar G… address' }, { status: 400 });
+  // The deploy key is REQUIRED (#596). A keyless pairing used to reach the
+  // approval page with an enabled Approve button next to "Not declared by the
+  // CLI" — and since this endpoint is unauthenticated, anyone could mint one,
+  // get a signed-in user to open the link, and then complete it with their
+  // own key. Shape check only beyond that — the claim is checked for real at
+  // `complete`, where the challenge has to be signed by it.
+  if (!checkStartPublicKey(publicKey)) {
+    return NextResponse.json(
+      {
+        error:
+          'publicKey is required and must be a Stellar G… address. Update the signet CLI if yours does not send one.',
+      },
+      { status: 400 },
+    );
   }
 
   // The wire uses network names (#616). Unknown or missing → 400; a network
@@ -53,7 +62,7 @@ export async function POST(req: Request) {
     );
   }
 
-  const pairing = await startPairing(checked.network, publicKey ?? null);
+  const pairing = await startPairing(checked.network, publicKey);
   if (!pairing) {
     return NextResponse.json(
       {

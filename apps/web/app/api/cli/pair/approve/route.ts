@@ -21,6 +21,7 @@ const OUTCOME_STATUS: Record<string, number> = {
   expired: 410,
   'already-used': 409,
   'no-profile': 409,
+  'no-key': 409,
   unavailable: 503,
 };
 
@@ -45,6 +46,8 @@ export async function POST(req: Request) {
       expired: 'This pairing has expired — restart it from the CLI',
       'already-used': 'This pairing has already been approved',
       'no-profile': 'Claim a handle before pairing a CLI',
+      'no-key':
+        'This pairing never declared a deploy key, so approving it would be consent to an unknown wallet. Start the link again from an up-to-date CLI.',
       unavailable:
         'CLI linking requires a database, and this deployment has none configured. This is a deployment configuration problem, not something you did. The operator needs to provision DATABASE_URL.',
     };
