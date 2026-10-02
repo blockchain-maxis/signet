@@ -32,7 +32,7 @@ import type {
 const ADDRESS = 'CASFJHI5PQSRWS7JV25CF7FOMRKIVBP3RXRP3E2GH2CV4BCAG7FUJRCN';
 
 function fn(over: Partial<SpecFunction> & { name: string }): SpecFunction {
-  return { doc: undefined, inputs: [], outputs: [], ...over };
+  return { doc: '', isConstructor: false, inputs: [], outputs: [], ...over };
 }
 
 /** The deployed registry's `claim`, per design §2.3 and #430's acceptance. */
@@ -59,9 +59,9 @@ const POOL: SpecStruct = {
 const STATUS: SpecType = { kind: 'enum', name: 'Status', variants: [{ name: 'Live', value: 0 }] };
 
 const REGISTRY_ERRORS: readonly SpecErrorCase[] = [
-  { name: 'HandleTaken', value: 2, doc: 'The handle is already bound.' },
-  { name: 'NotOwner', value: 4 },
-  { name: 'InvalidHandle', value: 5 },
+  { enumName: 'Error', name: 'HandleTaken', value: 2, doc: 'The handle is already bound.' },
+  { enumName: 'Error', name: 'NotOwner', value: 4, doc: '' },
+  { enumName: 'Error', name: 'InvalidHandle', value: 5, doc: '' },
 ];
 
 test('the permalink hangs under the Functions tab the tab bar links to', () => {
