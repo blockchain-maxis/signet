@@ -61,6 +61,24 @@ func TestSignChallenge_SurfacesStellarsStderr(t *testing.T) {
 	}
 }
 
+func TestSignChallenge_RedactsASecretFromStellarsStderr(t *testing.T) {
+	secret := "S" + strings.Repeat("A", 55)
+	withStdinRunner(t, func(string, string, ...string) ([]byte, []byte, error) {
+		return nil, []byte("hardware wallet declined\nseed: " + secret + "\n"), errors.New("exit status 1")
+	})
+
+	_, err := SignChallenge(buildFakeStellar(t), "alice", "AAAAunsignedAAAA")
+	if err == nil {
+		t.Fatal("expected an error")
+	}
+	if strings.Contains(err.Error(), secret) {
+		t.Fatal("stellar's stderr leaked a secret-shaped value")
+	}
+	if !strings.Contains(err.Error(), "hardware wallet declined") {
+		t.Fatalf("err lost stellar's actionable stderr: %v", err)
+	}
+}
+
 func TestSignChallenge_RejectsOutputThatIsNotAnEnvelope(t *testing.T) {
 	withStdinRunner(t, func(string, string, ...string) ([]byte, []byte, error) {
 		return []byte("Signing with alice... done!"), nil, nil

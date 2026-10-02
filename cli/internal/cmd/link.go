@@ -17,6 +17,7 @@ import (
 	"github.com/blockchain-maxis/signet/cli/internal/link"
 	"github.com/blockchain-maxis/signet/cli/internal/loopback"
 	"github.com/blockchain-maxis/signet/cli/internal/pair"
+	"github.com/blockchain-maxis/signet/cli/internal/redact"
 )
 
 // newLinkCmd wires the pairing flow to the real world: the `stellar` CLI for
@@ -105,6 +106,9 @@ signing goes through the stellar CLI.`,
 			if err != nil {
 				return err
 			}
+			result.Handle = redact.Secrets(result.Handle)
+			result.PublicKey = redact.Secrets(result.PublicKey)
+			result.Network = redact.Secrets(result.Network)
 
 			if jsonOutput {
 				return json.NewEncoder(cmd.OutOrStdout()).Encode(result)

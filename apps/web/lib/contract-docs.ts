@@ -12,6 +12,7 @@
  */
 
 import React from 'react';
+import { parseDocMarkdown, type DocInline } from './doc-markdown.ts';
 
 /**
  * The single honest note displayed at the top of the Functions tab
@@ -152,36 +153,112 @@ export function hasAnyDocComments(spec?: ContractSpecLike | null): boolean {
   return false;
 }
 
+/** Where intra-doc links like [`Foo`] may point (#474). */
+export interface DocRefs {
+  /** Base href of the Types tab, e.g. `/p/dev/contract/C…/types`. */
+  typesHref: string;
+  types?: ReadonlySet<string>;
+  errors?: ReadonlySet<string>;
+}
+
+/** Builds the intra-doc link targets from a spec: type names and error case names. */
+export function docRefsFromSpec(spec: ContractSpecLike | null | undefined, typesHref: string): DocRefs {
+  return {
+    typesHref,
+    types: new Set((spec?.types ?? []).map((t) => t.name)),
+    errors: new Set((spec?.errors ?? []).map((e) => e.name)),
+  };
+}
+
+export interface RenderDocCommentOptions {
+  className?: string;
+  pClassName?: string;
+  refs?: DocRefs;
+}
+
+const LINK_REL = 'nofollow ugc noopener';
+const CODE_CLASS = 'rounded-[3px] bg-[#1a1813] px-1 py-px text-[12px] text-[#c9c6b8]';
+const LINK_CLASS = 'text-[#c9c6b8] underline underline-offset-2 hover:text-[#f5f4ee] focus-visible:outline focus-visible:outline-1 focus-visible:outline-[#c9c6b8]';
+
+function renderInline(nodes: DocInline[], refs: DocRefs | undefined, keyPrefix: string): React.ReactNode[] {
+  return nodes.map((n, i) => {
+    const key = `${keyPrefix}-${i}`;
+    switch (n.type) {
+      case 'text':
+        return n.value;
+      case 'br':
+        return React.createElement('br', { key });
+      case 'code':
+        return React.createElement('code', { key, className: CODE_CLASS }, n.value);
+      case 'em':
+        return React.createElement('em', { key }, ...renderInline(n.children, refs, key));
+      case 'strong':
+        return React.createElement('strong', { key, className: 'font-medium text-[#c9c6b8]' }, ...renderInline(n.children, refs, key));
+      case 'link':
+        return React.createElement(
+          'a',
+          { key, href: n.href, rel: LINK_REL, className: LINK_CLASS },
+          ...renderInline(n.children, refs, key),
+        );
+      case 'ref': {
+        const code = React.createElement('code', { key: 'c', className: CODE_CLASS }, n.name);
+        let href: string | null = null;
+        if (refs?.types?.has(n.name)) href = `${refs.typesHref}#type-${n.name}`;
+        else if (refs?.errors?.has(n.name)) href = `${refs.typesHref}#error-${n.name}`;
+        return href
+          ? React.createElement('a', { key, href, className: LINK_CLASS }, code)
+          : React.createElement(React.Fragment, { key }, code);
+      }
+    }
+  });
+}
+
 /**
- * Pure React element factory for plain-text doc comments.
- * Returns null if doc is empty or whitespace-only (never renders an empty <p>).
- * Renders paragraphs split on blank lines, single newlines preserved with <br/>,
- * and no HTML interpretation (React escapes all strings).
+ * Pure React element factory for doc comments (#469, #474).
+ *
+ * Doc comments are untrusted Markdown, parsed to a typed tree by `doc-markdown.ts`
+ * (safe subset, raw HTML never interpreted) and rendered as React elements, so
+ * every string is escaped. Returns null if doc is empty or whitespace-only
+ * (never an empty <p>). Headings are demoted to h4-h6 so they cannot break the
+ * page's h1-h3 hierarchy.
  */
 export function renderDocComment(
   doc?: string | null,
-  options?: { className?: string; pClassName?: string },
+  options?: RenderDocCommentOptions,
 ): React.ReactElement | null {
-  const paragraphs = parseDocCommentParagraphs(doc);
-  if (paragraphs.length === 0) return null;
+  const blocks = parseDocMarkdown(doc);
+  if (blocks.length === 0) return null;
 
   const pClassName = options?.pClassName ?? 'text-[13px] leading-[1.7] text-[#8a8779]';
+  const mono = { fontFamily: 'var(--font-mono)' };
+  const refs = options?.refs;
 
-  const children = paragraphs.map((lines, pIdx) => {
-    const lineElements = lines.flatMap((line, lIdx) =>
-      lIdx < lines.length - 1
-        ? [line, React.createElement('br', { key: `br-${lIdx}` })]
-        : [line],
-    );
-    return React.createElement(
-      'p',
-      {
-        key: `p-${pIdx}`,
-        className: pClassName,
-        style: { fontFamily: 'var(--font-mono)' },
-      },
-      ...lineElements,
-    );
+  const children = blocks.map((b, idx) => {
+    const key = `b-${idx}`;
+    switch (b.type) {
+      case 'paragraph':
+        return React.createElement('p', { key, className: pClassName, style: mono }, ...renderInline(b.children, refs, key));
+      case 'heading':
+        return React.createElement(
+          `h${Math.min(6, b.level + 3)}`,
+          { key, className: 'text-[13px] font-medium text-[#c9c6b8]', style: mono },
+          ...renderInline(b.children, refs, key),
+        );
+      case 'code':
+        return React.createElement(
+          'pre',
+          { key, className: 'overflow-x-auto rounded-[4px] bg-[#1a1813] p-3 text-[12px] leading-[1.6] text-[#c9c6b8]', style: mono, tabIndex: 0 },
+          React.createElement('code', null, b.value),
+        );
+      case 'list':
+        return React.createElement(
+          b.ordered ? 'ol' : 'ul',
+          { key, className: `${pClassName} ml-5 ${b.ordered ? 'list-decimal' : 'list-disc'}`, style: mono },
+          ...b.items.map((item, i) =>
+            React.createElement('li', { key: `${key}-${i}` }, ...renderInline(item, refs, `${key}-${i}`)),
+          ),
+        );
+    }
   });
 
   if (children.length === 1) {

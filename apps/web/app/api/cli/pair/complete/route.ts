@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
 import { completePairing, type CompleteFailure } from '@/lib/server/pairing';
 import { LIMITS, enforceRateLimit } from '@/lib/rate-limit-http';
-import { logger } from '@/lib/logger';
 
 export const runtime = 'nodejs';
 
@@ -67,14 +66,12 @@ export async function POST(req: Request) {
 
   const result = await completePairing(state, transaction, undefined, handoffCode);
   if (!result.ok) {
-    logger.warn({ state, reason: result.reason }, 'cli.pairCompleteFailed');
     return NextResponse.json(
       { error: FAILURE_MESSAGE[result.reason] },
       { status: FAILURE_STATUS[result.reason], headers: { 'cache-control': 'no-store' } },
     );
   }
 
-  logger.info({ state, pubkey: result.wallet.pubkey }, 'cli.pairCompleted');
   return NextResponse.json(
     {
       ok: true,

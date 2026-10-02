@@ -7,7 +7,8 @@
  */
 
 import type { xdr } from '@stellar/stellar-sdk';
-import { typeDefToRef, xdrText } from './type-ref.ts';
+import { toTypeRef } from './type-ref.ts';
+import { xdrText } from './xdr-text.ts';
 import type { SpecEvent, SpecEventDataFormat, SpecEventParamLocation } from './types.ts';
 
 const DATA_FORMATS: Readonly<Record<string, SpecEventDataFormat>> = {
@@ -42,7 +43,7 @@ export function buildEvents(entries: readonly xdr.ScSpecEntry[]): SpecEvent[] {
         if (location === undefined) {
           throw new TypeError(`Unrecognised event param location: ${locationArm}`);
         }
-        return { name: xdrText(p.name()), type: typeDefToRef(p.type()), location };
+        return { name: xdrText(p.name()), type: toTypeRef(p.type()), location };
       }),
       dataFormat,
     });
