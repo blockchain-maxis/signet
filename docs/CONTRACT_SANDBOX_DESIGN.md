@@ -170,7 +170,7 @@ on that object, and was verified to exist:
 - **`spec.nativeToScVal` / `scValToNative`** — marshalling in both directions.
 - **`errors`** — the `contracterror` enum, so a failure renders as
   `HandleTaken`, not `Error(Contract, #3)`.
-- **`build`** — `contractmetav0` provenance, and the protocol target §4.2 keys
+- **`build`** — `contractmetav0` provenance, and the protocol target §4.1 keys
   the host version on.
 
 This is why auto-docs should ship first: it builds and proves the reader against
