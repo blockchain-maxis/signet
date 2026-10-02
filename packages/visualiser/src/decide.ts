@@ -7,50 +7,20 @@
  * one explicit decision function so the thresholds live in one place and can
  * be recalibrated.
  *
- * The `ContractGraph`, `GraphNode`, and `GraphEdge` types are provisional
- * mirrors of #482's abstract contract graph. When #482 lands, this module
- * will import from its `src/graph.ts` instead.
+ * The decision takes any {@link DecidableGraph}; the `ContractGraph` built by
+ * `buildContractGraph` (#482, `src/graph.ts`) satisfies it.
  */
 
 import type { DiagramModel } from './index.ts';
 
 /**
- * A node in the abstract contract graph from the decoded spec.
- * Mirrors the future #482 `GraphNode` shape.
+ * The slice of the abstract contract graph the decision reads: only how many
+ * nodes and edges there are. Structural, so the real `ContractGraph` from
+ * `./graph.ts` satisfies it without this module depending on its shape.
  */
-export interface GraphNode {
-  /** Stable id: `fn:<name>` or `type:<name>`. */
-  id: string;
-  /** Human-readable label. */
-  label: string;
-  /** `function` or `type`. */
-  kind: 'function' | 'type';
-}
-
-/**
- * A directed edge in the abstract contract graph.
- * Mirrors the future #482 `GraphEdge` shape.
- */
-export interface GraphEdge {
-  /** Source node id. */
-  from: string;
-  /** Target node id. */
-  to: string;
-  /** `arg` | `return` | `field`. */
-  kind: 'arg' | 'return' | 'field';
-  /** The path through containers, e.g. `Option<Vec<Pool>>`. */
-  path: string;
-}
-
-/**
- * The abstract contract graph produced from a decoded spec.
- * Mirrors the future #482 `ContractGraph` shape.
- */
-export interface ContractGraph {
-  /** All nodes in the graph. */
-  nodes: GraphNode[];
-  /** All directed edges. */
-  edges: GraphEdge[];
+export interface DecidableGraph {
+  readonly nodes: readonly unknown[];
+  readonly edges: readonly unknown[];
 }
 
 /**
@@ -89,7 +59,7 @@ export const MIN_EDGES = 0;
  * by the current logic.
  */
 export function diagramDecision(
-  graph: ContractGraph,
+  graph: DecidableGraph,
   _model: DiagramModel,
 ): DiagramDecision {
   // Too simple: no spec-derived edges. The registry has 8 functions, 0 types,

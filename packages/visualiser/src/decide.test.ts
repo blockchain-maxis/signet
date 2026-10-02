@@ -4,7 +4,7 @@ import {
   MAX_NODES,
   MIN_EDGES,
   diagramDecision,
-  type ContractGraph,
+  type DecidableGraph,
 } from './decide.ts';
 import type { DiagramModel } from './index.ts';
 
@@ -16,7 +16,7 @@ function makeModel(): DiagramModel {
  * The identity registry: 8 functions, 0 types, 0 spec-derived edges.
  * Per design §3, it should be too-simple because the docs already say everything.
  */
-function registryGraph(): ContractGraph {
+function registryGraph(): DecidableGraph {
   return {
     nodes: [
       { id: 'fn:claim', label: 'claim', kind: 'function' },
@@ -37,7 +37,7 @@ function registryGraph(): ContractGraph {
  * The `types_zoo` fixture covers many type arms; we model a representative
  * graph that has more than MIN_EDGES but fewer than MAX_NODES nodes.
  */
-function midSizeGraph(): ContractGraph {
+function midSizeGraph(): DecidableGraph {
   return {
     nodes: [
       { id: 'fn:swap', label: 'swap', kind: 'function' },
@@ -61,9 +61,9 @@ function midSizeGraph(): ContractGraph {
 /**
  * A synthetic graph with 120 nodes (exceeds MAX_NODES = 60).
  */
-function largeGraph(): ContractGraph {
-  const nodes: ContractGraph['nodes'] = [];
-  const edges: ContractGraph['edges'] = [];
+function largeGraph(): DecidableGraph {
+  const nodes: DecidableGraph['nodes'] = [];
+  const edges: DecidableGraph['edges'] = [];
 
   // 20 functions
   for (let i = 0; i < 20; i++) {
@@ -91,7 +91,7 @@ function largeGraph(): ContractGraph {
  * Even though it has zero spec-derived edges, the overlay provides
  * read/write marks, so it should draw.
  */
-function registryWithOverlay(): ContractGraph {
+function registryWithOverlay(): DecidableGraph {
   return {
     nodes: [
       { id: 'fn:claim', label: 'claim', kind: 'function' },
