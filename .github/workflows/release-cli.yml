@@ -1,14 +1,18 @@
 name: Release CLI
 
-# Cross-compiles the signet CLI for its target platforms, publishes
-# checksummed binaries to a GitHub Release, and publishes the npm wrapper
-# (@signet/cli) plus one platform-specific optionalDependency package per
-# target — the pattern esbuild, swc, and turbo use, since `npx` executes
-# JavaScript and cannot run a Go binary directly.
+# Cross-compiles the signet CLI for its target platforms and builds the Rust
+# simulator for native target runners, publishes checksummed release archives
+# containing both binaries and `checksums.txt` to a GitHub Release, and publishes
+# the npm wrapper (@signet/cli) plus one platform-specific optionalDependency
+# package per target — the pattern esbuild, swc, and turbo use, since `npx`
+# executes JavaScript and cannot run a Go binary directly.
 #
-# Go cross-compiles cleanly from one runner (just GOOS/GOARCH env vars, no
-# cgo — see cli/go.mod's no-cgo requirement), so this is a single job rather
-# than a build matrix with artifacts to shuffle between jobs.
+# Because a Rust binary embedding `wasmi` and host lanes doesn't cross-compile
+# to macOS from Linux without an Apple SDK, the simulator uses a native build
+# matrix. The existing Go release job (`release`) has `needs: simulator`, downloads
+# all simulator artifacts, and assembles both binaries into the final release
+# archives and staged npm packages in the same workflow run. This keeps the
+# invariant "same release = same protocol version" true by construction.
 #
 # OPT-IN, like deploy.yml: the actual publish steps are gated on
 # `vars.CLI_RELEASE_ENABLED == 'true'`, so they no-op for forks and until:
@@ -36,8 +40,68 @@ concurrency:
   cancel-in-progress: false
 
 jobs:
+  simulator:
+    name: build simulator (${{ matrix.name }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: cli-linux-x64
+            os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            bin: signet-simulator
+          - name: cli-linux-arm64
+            os: ubuntu-24.04-arm
+            target: aarch64-unknown-linux-gnu
+            bin: signet-simulator
+          - name: cli-darwin-arm64
+            os: macos-14
+            target: aarch64-apple-darwin
+            bin: signet-simulator
+          - name: cli-windows-x64
+            os: windows-latest
+            target: x86_64-pc-windows-msvc
+            bin: signet-simulator.exe
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ github.event.inputs.tag || github.ref }}
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - name: Cache cargo
+        uses: actions/cache@v6
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            target
+          key: cargo-simulator-${{ matrix.target }}-${{ hashFiles('Cargo.lock') }}
+
+      - name: Build simulator
+        run: cargo build --release --locked -p signet-simulator --target ${{ matrix.target }}
+
+      - name: Strip binary (Unix)
+        if: runner.os != 'Windows'
+        run: strip target/${{ matrix.target }}/release/signet-simulator
+
+      - name: Verify simulator version
+        run: target/${{ matrix.target }}/release/${{ matrix.bin }} --version
+
+      - name: Upload simulator artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: simulator-${{ matrix.name }}
+          path: target/${{ matrix.target }}/release/${{ matrix.bin }}
+          if-no-files-found: error
+
   release:
     name: build, checksum, and publish
+    needs: simulator
     runs-on: ubuntu-latest
     timeout-minutes: 20
     environment: production
@@ -57,6 +121,11 @@ jobs:
           node-version: 22
           registry-url: 'https://registry.npmjs.org'
 
+      - name: Download simulator artifacts
+        uses: actions/download-artifact@v8
+        with:
+          path: simulator-artifacts
+
       - name: Resolve version
         id: version
         run: |
@@ -65,7 +134,7 @@ jobs:
           echo "version=${TAG#cli-v}" >> "$GITHUB_OUTPUT"
 
       # goos/goarch/npm_pkg/binary-name, one line per release target.
-      - name: Build every target, stage each npm platform package, checksum
+      - name: Build CLI, stage npm packages, assemble archives and checksums
         working-directory: cli
         env:
           VERSION: ${{ steps.version.outputs.version }}
@@ -74,13 +143,13 @@ jobs:
           set -euo pipefail
           mkdir -p dist
           targets=(
-            "linux   amd64 cli-linux-x64    signet"
-            "linux   arm64 cli-linux-arm64  signet"
-            "darwin  arm64 cli-darwin-arm64 signet"
-            "windows amd64 cli-windows-x64  signet.exe"
+            "linux   amd64 cli-linux-x64    signet    signet-simulator"
+            "linux   arm64 cli-linux-arm64  signet    signet-simulator"
+            "darwin  arm64 cli-darwin-arm64 signet    signet-simulator"
+            "windows amd64 cli-windows-x64  signet.exe signet-simulator.exe"
           )
           for target in "${targets[@]}"; do
-            read -r goos goarch npm_pkg binname <<< "$target"
+            read -r goos goarch npm_pkg binname simname <<< "$target"
             out="dist/${npm_pkg}-${binname}"
             echo "::group::build ${goos}/${goarch}"
             CGO_ENABLED=0 GOOS="$goos" GOARCH="$goarch" go build \
@@ -88,9 +157,36 @@ jobs:
               -ldflags "-s -w -X main.version=${VERSION} -X main.commit=${COMMIT}" \
               -o "$out" \
               ./cmd/signet
-            sha256sum "$out" >> dist/checksums.txt
+
+            # Locate downloaded simulator binary
+            sim_src="../simulator-artifacts/simulator-${npm_pkg}/${simname}"
+            if [ ! -f "$sim_src" ]; then
+              echo "::error::Simulator binary not found at $sim_src"
+              exit 1
+            fi
+            sim_dest="dist/${npm_pkg}-${simname}"
+            cp "$sim_src" "$sim_dest"
+
+            # Stage npm package with both binaries
             node ../scripts/release/stage-platform-package.mjs \
-              "npm/${npm_pkg}" "$out" "${VERSION}"
+              "npm/${npm_pkg}" "$out" "$sim_dest" "${VERSION}"
+
+            # Create archive (.tar.gz or .zip for windows)
+            archive_dir="dist/archive-${npm_pkg}"
+            mkdir -p "$archive_dir"
+            cp "$out" "$archive_dir/${binname}"
+            cp "$sim_dest" "$archive_dir/${simname}"
+
+            if [ "$goos" = "windows" ]; then
+              archive_name="signet-${VERSION}-${npm_pkg}.zip"
+              (cd "$archive_dir" && zip -q "../$archive_name" "${binname}" "${simname}")
+            else
+              archive_name="signet-${VERSION}-${npm_pkg}.tar.gz"
+              (cd "$archive_dir" && tar -czf "../$archive_name" "${binname}" "${simname}")
+            fi
+
+            sha256sum "dist/$archive_name" >> dist/checksums.txt
+            rm -rf "$archive_dir"
             echo "::endgroup::"
           done
           cat dist/checksums.txt
@@ -105,7 +201,9 @@ jobs:
           tag_name: ${{ steps.version.outputs.tag }}
           name: signet CLI ${{ steps.version.outputs.version }}
           files: |
-            cli/dist/*
+            cli/dist/*.tar.gz
+            cli/dist/*.zip
+            cli/dist/checksums.txt
           generate_release_notes: true
 
       - name: Publish npm packages

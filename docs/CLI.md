@@ -21,18 +21,19 @@ while reading the rest:
 npx @signet/cli link
 ```
 
-`npx` fetches a small wrapper that downloads the right prebuilt binary for your
-platform. To keep it around:
+`npx` fetches a small wrapper that downloads the right prebuilt binary archive for your
+platform, containing both `signet` and `signet-simulator` side by side. To keep it around:
 
 ```bash
 npm install -g @signet/cli
 signet --version
 ```
 
-Building from source needs Go (see `cli/go.mod` for the version):
+Building from source needs Go (see `cli/go.mod` for the version) and Rust:
 
 ```bash
 cd cli && go build ./cmd/signet
+cargo build --release --locked -p signet-simulator
 ```
 
 ## Prerequisite: the `stellar` CLI

@@ -31,6 +31,7 @@ PATCH (0.0.X) -> Backwards-compatible bug fixes, security patches, internal refa
 All releases are tracked via Git tags pushed to `main`:
 
 - **Platform Releases**: `vX.Y.Z` (e.g. `v0.1.0`) — Tracks coordinated platform deployments.
+- **CLI Releases**: `cli-vX.Y.Z` (e.g. `cli-v0.1.0`) — Tracks `signet` CLI and `signet-simulator` binary releases.
 - **SDK Package Releases**: `sdk-vX.Y.Z` (e.g. `sdk-v0.1.0`) — Tracks npm releases of `@signet/sdk`.
 - **Contract Releases**: `contract-vX.Y.Z` (e.g. `contract-v0.1.0`) — Tracks verified contract build hashes and on-chain deployment references.
 
@@ -85,6 +86,8 @@ git push origin sdk-vX.Y.Z
 ```
 
 Create a GitHub Release describing the changes and referencing the tag.
+
+Pushing a `cli-vX.Y.Z` tag runs `.github/workflows/release-cli.yml`. It builds native `signet-simulator` binaries on a runner matrix, cross-compiles the Go `signet` CLI, bundles both binaries side by side into per-platform archives (`.tar.gz`, or `.zip` for Windows) plus `checksums.txt`, stages the npm platform packages, and publishes to GitHub Releases and npm (gated on `vars.CLI_RELEASE_ENABLED`).
 
 ### Phase 4: Package & Contract Deployment
 
