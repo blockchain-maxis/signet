@@ -44,6 +44,14 @@ export interface DiagramModel {
 /** Options for the pure layout pass. */
 export interface LayoutOptions {
   direction?: 'lr' | 'tb';
+  /**
+   * Nesting levels of user-defined types drawn inline before the diagram hands
+   * a type off to its docs section as a stub (#490). Defaults to
+   * `DEFAULT_TYPE_DEPTH`; `Infinity` expands the whole reachable graph.
+   */
+  typeDepth?: number;
+  /** User-defined type names to open to their next level past `typeDepth`. */
+  expandTypes?: string[];
 }
 
 /**
@@ -55,6 +63,20 @@ export type LayoutContractGraph = (spec: ContractSpec, options?: LayoutOptions) 
 
 // Deterministic text metrics (E-05): the layout's only measure of a label.
 export { MIN_TEXT_PX, textCells, textWidth, truncateLabel } from './metrics.ts';
+
+// Type-graph depth policy (E-10): which types a diagram draws inline.
+export {
+  DEFAULT_TYPE_DEPTH,
+  buildTypeGraph,
+  functionNodeId,
+  typeAnchor,
+  typeNodeId,
+  type TypeGraph,
+  type TypeGraphEdge,
+  type TypeGraphEdgeRole,
+  type TypeGraphNode,
+  type TypeGraphOptions,
+} from './type-graph.ts';
 
 // Theme tokens and CSS variables (§2.3 of docs/CONTRACT_VISUALISER_DESIGN.md)
 export {
