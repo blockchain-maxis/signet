@@ -1,6 +1,11 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { CONTRACT_TABS, contractTabHref, contractTabSegmentHref } from './contract-tabs.ts';
+import {
+  CONTRACT_TABS,
+  contractTabHref,
+  contractTabSegmentHref,
+  SIGNET_DEV_RELEASED,
+} from './contract-tabs.ts';
 
 test('tabs are in the order the design fixes', () => {
   assert.deepEqual(
@@ -44,4 +49,8 @@ test('an unknown segment throws rather than building a URL nothing links to', ()
   assert.throws(() => contractTabSegmentHref('alice', 'CABC', 'nope'), RangeError);
   // The index route has no segment, so it is not addressable this way.
   assert.throws(() => contractTabSegmentHref('alice', 'CABC', ''), RangeError);
+});
+
+test('SIGNET_DEV_RELEASED is false by default (gates signet dev command)', () => {
+  assert.equal(SIGNET_DEV_RELEASED, false);
 });
