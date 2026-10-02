@@ -148,8 +148,10 @@ export interface SpecField {
 export interface SpecFunction {
   /** Exported function name. */
   readonly name: string;
-  /** Optional documentation comment. */
-  readonly doc?: string;
+  /** Documentation comment; `''` when the function has none. */
+  readonly doc: string;
+  /** True for the contract constructor (`__constructor`). */
+  readonly isConstructor: boolean;
   /** Ordered function arguments. */
   readonly inputs: readonly SpecField[];
   /** Function return type definitions. */
@@ -234,14 +236,14 @@ export type SpecType = SpecStruct | SpecUnion | SpecEnum;
  * Corresponds to `xdr.ScSpecUdtErrorEnumCaseV0` from `scSpecEntryUdtErrorEnumV0`.
  */
 export interface SpecErrorCase {
-  /** Name of the error enum if part of a named error set. */
-  readonly enumName?: string;
+  /** Name of the error enum that declares this case. */
+  readonly enumName: string;
   /** Symbolic name of the error condition. */
   readonly name: string;
   /** Numeric error code (u32 value). */
   readonly value: number;
-  /** Optional doc comment describing the failure. */
-  readonly doc?: string;
+  /** Doc comment describing the failure; `''` when absent. */
+  readonly doc: string;
 }
 
 /**

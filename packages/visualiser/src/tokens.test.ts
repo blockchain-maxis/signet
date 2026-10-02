@@ -26,7 +26,7 @@ function parseCssDeclarations(block: string): Record<string, string> {
   const regex = /--([a-z0-9-]+)\s*:\s*([^;]+);/g;
   let match;
   while ((match = regex.exec(block)) !== null) {
-    result[`--${match[1]}`] = match[2].trim();
+    result[`--${match[1]}`] = match[2]!.trim();
   }
   return result;
 }
@@ -79,12 +79,12 @@ test('CSS file declares identical token values for dark mode (:root and [data-vi
   // Extract :root block
   const rootMatch = fileContent.match(/:root\s*\{([^}]+)\}/);
   assert.ok(rootMatch, ':root block must exist in tokens.css');
-  const rootDecls = parseCssDeclarations(rootMatch[1]);
+  const rootDecls = parseCssDeclarations(rootMatch[1]!);
 
   // Extract [data-viz-theme="dark"] or [data-viz-theme='dark'] block
   const darkMatch = fileContent.match(/\[data-viz-theme=['"]dark['"]\]\s*\{([^}]+)\}/);
   assert.ok(darkMatch, '[data-viz-theme="dark"] block must exist in tokens.css');
-  const darkDecls = parseCssDeclarations(darkMatch[1]);
+  const darkDecls = parseCssDeclarations(darkMatch[1]!);
 
   for (const name of VIZ_TOKEN_NAMES) {
     const varName = VIZ_CSS_VARIABLES[name];
@@ -101,12 +101,12 @@ test('CSS file declares identical token values for light mode (@media and [data-
   // Extract @media (prefers-color-scheme: light) block
   const mediaMatch = fileContent.match(/@media\s*\(prefers-color-scheme:\s*light\)\s*\{\s*:root\s*\{([^}]+)\}/);
   assert.ok(mediaMatch, '@media (prefers-color-scheme: light) block must exist in tokens.css');
-  const mediaDecls = parseCssDeclarations(mediaMatch[1]);
+  const mediaDecls = parseCssDeclarations(mediaMatch[1]!);
 
   // Extract [data-viz-theme="light"] or [data-viz-theme='light'] block
   const lightMatch = fileContent.match(/\[data-viz-theme=['"]light['"]\]\s*\{([^}]+)\}/);
   assert.ok(lightMatch, '[data-viz-theme="light"] block must exist in tokens.css');
-  const lightDecls = parseCssDeclarations(lightMatch[1]);
+  const lightDecls = parseCssDeclarations(lightMatch[1]!);
 
   for (const name of VIZ_TOKEN_NAMES) {
     const varName = VIZ_CSS_VARIABLES[name];
