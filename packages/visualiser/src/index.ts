@@ -53,6 +53,21 @@ export interface LayoutOptions {
  */
 export type LayoutContractGraph = (spec: ContractSpec, options?: LayoutOptions) => DiagramModel;
 
+// Abstract contract graph (E-02): the layout's input.
+export {
+  buildContractGraph,
+  functionNodeId,
+  typeNodeId,
+  type ContractGraph,
+  type EdgeRole,
+  type FunctionNode,
+  type GraphEdge,
+  type GraphEdgeKind,
+  type GraphNode,
+  type MissingNode,
+  type TypeNode,
+} from './graph.ts';
+
 // Deterministic text metrics (E-05): the layout's only measure of a label.
 export { MIN_TEXT_PX, textCells, textWidth, truncateLabel } from './metrics.ts';
 
