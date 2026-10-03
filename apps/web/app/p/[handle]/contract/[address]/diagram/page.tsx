@@ -17,7 +17,7 @@ export default function DiagramPage() {
           href="/docs#reading-a-contract-diagram"
           className="underline decoration-[#5e5b51] underline-offset-2 transition-colors hover:text-[#f5f4ee]"
         >
-          Reading a contract diagram →
+          How the diagram will be read →
         </Link>
       </p>
     </section>

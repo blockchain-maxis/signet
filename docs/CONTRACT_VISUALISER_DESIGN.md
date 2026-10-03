@@ -1,8 +1,12 @@
 # Design: visualise a contract for non-developers
 
-**Status:** Phase 1 built. See the [`@signet/visualiser` package](../packages/visualiser/)
-for the implementation.
-This document exists to settle the shape before code, and — like the sandbox note — because
+**Status:** phase 1 in progress, not shipped. The
+[`@signet/visualiser`](../packages/visualiser/) package has the text metrics,
+theme tokens, SVG renderer, edge routing and worth-drawing decision; the graph
+builder, layout, interactive enhancer and the web Diagram tab are not built
+yet, and phases 2 and 3 have not started. Plain-language reading guide: the
+"Reading a contract diagram" section of the site's `/docs` page. This document
+exists to settle the shape before code, and — like the sandbox note — because
 investigating it changes what should be built. It is the third consumer of the
 shared spec reader that `CONTRACT_DOCS_DESIGN.md` §5 specifies and auto-docs
 builds first; it should not start before that reader exists.
