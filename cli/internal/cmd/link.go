@@ -17,6 +17,7 @@ import (
 	"github.com/blockchain-maxis/signet/cli/internal/link"
 	"github.com/blockchain-maxis/signet/cli/internal/loopback"
 	"github.com/blockchain-maxis/signet/cli/internal/pair"
+	"github.com/blockchain-maxis/signet/cli/internal/redact"
 )
 
 // newLinkCmd wires the pairing flow to the real world: the `stellar` CLI for
@@ -77,9 +78,9 @@ signing goes through the stellar CLI.`,
 				Start:     client.Start,
 				Poll:      client.Poll,
 				Complete:  client.Complete,
-				Challenge: link.FetchChallenge(&http.Client{Timeout: 15 * time.Second}, resolved.BaseURL),
-				Sign: func(unsigned string) (string, error) {
-					return keys.SignChallenge(keys.DefaultBinary, source, unsigned)
+				Challenge: link.FetchChallenge(&http.Client{Timeout: 15 * time.Second}, resolved.BaseURL, network),
+				Sign: func(unsigned, passphrase string) (string, error) {
+					return keys.SignChallenge(keys.DefaultBinary, source, unsigned, passphrase)
 				},
 				// flow.Run has already printed the URL — always, because a
 				// developer on a remote box needs to copy it to the machine
@@ -105,6 +106,9 @@ signing goes through the stellar CLI.`,
 			if err != nil {
 				return err
 			}
+			result.Handle = redact.Secrets(result.Handle)
+			result.PublicKey = redact.Secrets(result.PublicKey)
+			result.Network = redact.Secrets(result.Network)
 
 			if jsonOutput {
 				return json.NewEncoder(cmd.OutOrStdout()).Encode(result)

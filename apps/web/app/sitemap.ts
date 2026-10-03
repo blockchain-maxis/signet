@@ -1,7 +1,9 @@
 import type { MetadataRoute } from 'next';
 import { listAllHandles } from '@/lib/profiles';
-import { profileRoutes, staticRoutes } from '@/lib/sitemap';
+import { contractRoutes, profileRoutes, staticRoutes } from '@/lib/sitemap';
+import { listAttributedContracts } from '@/lib/profile-contracts';
 import { appUrl } from '@/lib/public-env';
+import { logger } from '@/lib/logger';
 
 /**
  * Rendered per request. Two reasons, both of which bite in production:
@@ -13,11 +15,25 @@ import { appUrl } from '@/lib/public-env';
  */
 export const dynamic = 'force-dynamic';
 
+const MAX_SITEMAP_URLS = 45000;
+
 export default async function sitemap(): Promise<MetadataRoute.Sitemap> {
   // Resolved per call, not at module load: the startup guard in
   // `instrumentation.ts` is what makes this a real origin in production, and a
   // module-scope snapshot would be taken before it ever ran.
   const BASE = appUrl();
   const now = new Date();
-  return [...staticRoutes(now, BASE), ...profileRoutes(await listAllHandles(), now, BASE)];
+
+  const statics = staticRoutes(now, BASE);
+  const profiles = profileRoutes(await listAllHandles(), now, BASE);
+  const contracts = contractRoutes(await listAttributedContracts(), BASE);
+
+  const combined = [...statics, ...profiles, ...contracts];
+
+  if (combined.length > MAX_SITEMAP_URLS) {
+    logger.warn({ count: combined.length, limit: MAX_SITEMAP_URLS }, 'Sitemap URL limit exceeded');
+    return combined.slice(0, MAX_SITEMAP_URLS);
+  }
+
+  return combined;
 }

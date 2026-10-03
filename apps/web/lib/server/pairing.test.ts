@@ -1,8 +1,12 @@
-import { test } from 'node:test';
+import { test, type TestContext } from 'node:test';
 import assert from 'node:assert/strict';
+import { createHash } from 'node:crypto';
 import { Keypair, TransactionBuilder, WebAuth } from '@stellar/stellar-sdk';
 import { buildChallenge, getNetworkPassphrase } from '../sep10.ts';
+import { buildCliLinkChallenge } from '../cli-link.ts';
 import { __resetNonceStore } from '../nonce-store.ts';
+import { logger } from '../logger.ts';
+import { PAIRING_EVENTS } from '@signet/types';
 import {
   startPairing,
   pollPairing,
@@ -11,6 +15,7 @@ import {
   completePairing,
   describePairing,
   checkStartNetwork,
+  checkStartPublicKey,
   resolvePairingNetwork,
   type PairingStore,
 } from './pairing.ts';
@@ -27,6 +32,7 @@ interface FakeRow {
   network: string;
   publicKey: string | null;
   pollTokenHash: string | null;
+  userCodeHash: string | null;
   handoffHash: string | null;
   profileId: string | null;
   expiresAt: Date;
@@ -34,6 +40,26 @@ interface FakeRow {
 interface FakeWallet {
   pubkey: string;
   profileId: string;
+  isPrimary: boolean;
+  source: string;
+  attestedAt: Date;
+  indexRequestedAt: Date | null;
+}
+
+/**
+ * A wallet row for tests that only exercise the approve/complete
+ * transitions and don't care about the `linkDeployWallet` fields — matches
+ * real Prisma semantics, where a row is never partially formed.
+ */
+function fakeWallet(pubkey: string, profileId: string): FakeWallet {
+  return {
+    pubkey,
+    profileId,
+    isPrimary: false,
+    source: 'cli',
+    attestedAt: new Date(),
+    indexRequestedAt: null,
+  };
 }
 
 /** In-memory stand-in for the two Prisma tables `pairing.ts` touches. */
@@ -56,6 +82,7 @@ function fakeStore(): {
           network: data.network,
           publicKey: data.publicKey ?? null,
           pollTokenHash: data.pollTokenHash ?? null,
+          userCodeHash: data.userCodeHash ?? null,
           handoffHash: null,
           profileId: null,
           expiresAt: data.expiresAt,
@@ -86,8 +113,22 @@ function fakeStore(): {
     wallet: {
       findUnique: async ({ where }) => wallets.get(where.pubkey) ?? null,
       create: async ({ data }) => {
-        const row: FakeWallet = { pubkey: data.pubkey, profileId: data.profileId };
+        const row: FakeWallet = {
+          pubkey: data.pubkey,
+          profileId: data.profileId,
+          isPrimary: data.isPrimary ?? false,
+          source: data.source ?? 'cli',
+          attestedAt: data.attestedAt ?? new Date(),
+          indexRequestedAt: data.indexRequestedAt ?? new Date(),
+        };
         wallets.set(data.pubkey, row);
+        return row;
+      },
+      update: async ({ where, data }) => {
+        const existing = wallets.get(where.pubkey);
+        if (!existing) throw new Error('not found');
+        const row: FakeWallet = { ...existing, ...data };
+        wallets.set(where.pubkey, row);
         return row;
       },
     },
@@ -97,9 +138,9 @@ function fakeStore(): {
   return { store, pairings, wallets };
 }
 
-/** Build and sign a fresh SEP-10 challenge for `client`. */
+/** Build and sign a fresh CLI-link challenge for `client`, as `signet link` would. */
 function signedChallenge(client: Keypair): string {
-  const challenge = buildChallenge(client.publicKey());
+  const challenge = buildCliLinkChallenge(client.publicKey(), 'testnet');
   const tx = TransactionBuilder.fromXDR(challenge, getNetworkPassphrase());
   tx.sign(client);
   return tx.toEnvelope().toXDR('base64');
@@ -109,12 +150,12 @@ function signedChallenge(client: Keypair): string {
 
 test('startPairing returns null when no database is configured', async () => {
   assert.equal(process.env.DATABASE_URL, undefined);
-  assert.equal(await startPairing('testnet'), null);
+  assert.equal(await startPairing('testnet', 'GDECLARED'), null);
 });
 
 test('startPairing mints a pending pairing with the given network', async () => {
   const { store, pairings } = fakeStore();
-  const pairing = await startPairing('testnet', null, store);
+  const pairing = await startPairing('testnet', 'GDECLARED', store);
   assert.ok(pairing);
   const row = pairings.get(pairing!.state);
   assert.equal(row?.status, 'pending');
@@ -125,14 +166,14 @@ test('startPairing mints a pending pairing with the given network', async () => 
 
 test('approvePairing fails with no-profile when the address has no bound wallet', async () => {
   const { store } = fakeStore();
-  const { state } = (await startPairing('testnet', null, store))!;
+  const { state } = (await startPairing('testnet', 'GDECLARED', store))!;
   assert.equal((await approvePairing(state, 'GADDRESSNOTBOUND', store)).outcome, 'no-profile');
 });
 
 test("approvePairing succeeds and records the address's profile", async () => {
   const { store, wallets, pairings } = fakeStore();
-  wallets.set('GOWNER', { pubkey: 'GOWNER', profileId: 'profile_1' });
-  const { state } = (await startPairing('testnet', null, store))!;
+  wallets.set('GOWNER', fakeWallet('GOWNER', 'profile_1'));
+  const { state } = (await startPairing('testnet', 'GDECLARED', store))!;
 
   assert.equal((await approvePairing(state, 'GOWNER', store)).outcome, 'ok');
   assert.equal(pairings.get(state)?.status, 'approved');
@@ -141,14 +182,14 @@ test("approvePairing succeeds and records the address's profile", async () => {
 
 test('approvePairing reports not-found for an unknown state', async () => {
   const { store, wallets } = fakeStore();
-  wallets.set('GOWNER', { pubkey: 'GOWNER', profileId: 'profile_1' });
+  wallets.set('GOWNER', fakeWallet('GOWNER', 'profile_1'));
   assert.equal((await approvePairing('does-not-exist', 'GOWNER', store)).outcome, 'not-found');
 });
 
 test('approvePairing reports expired for a pairing past its TTL', async () => {
   const { store, wallets, pairings } = fakeStore();
-  wallets.set('GOWNER', { pubkey: 'GOWNER', profileId: 'profile_1' });
-  const { state } = (await startPairing('testnet', null, store))!;
+  wallets.set('GOWNER', fakeWallet('GOWNER', 'profile_1'));
+  const { state } = (await startPairing('testnet', 'GDECLARED', store))!;
   pairings.get(state)!.expiresAt = new Date(Date.now() - 1000);
 
   assert.equal((await approvePairing(state, 'GOWNER', store)).outcome, 'expired');
@@ -156,8 +197,8 @@ test('approvePairing reports expired for a pairing past its TTL', async () => {
 
 test('approvePairing reports already-used for a pairing that is not pending', async () => {
   const { store, wallets } = fakeStore();
-  wallets.set('GOWNER', { pubkey: 'GOWNER', profileId: 'profile_1' });
-  const { state } = (await startPairing('testnet', null, store))!;
+  wallets.set('GOWNER', fakeWallet('GOWNER', 'profile_1'));
+  const { state } = (await startPairing('testnet', 'GDECLARED', store))!;
   await approvePairing(state, 'GOWNER', store);
 
   assert.equal((await approvePairing(state, 'GOWNER', store)).outcome, 'already-used');
@@ -169,9 +210,13 @@ async function approvedPairing(
   store: PairingStore,
   wallets: Map<string, FakeWallet>,
   network = getNetworkPassphrase(),
+  // The key the CLI declared. Tests that expect `complete` to SUCCEED must
+  // pass the completing client's own key here — since #596 a null or
+  // non-matching declared key is a `key-mismatch`, never a skipped check.
+  publicKey = 'GDECLARED',
 ) {
-  wallets.set('GOWNER', { pubkey: 'GOWNER', profileId: 'profile_1' });
-  const { state } = (await startPairing(network, null, store))!;
+  wallets.set('GOWNER', fakeWallet('GOWNER', 'profile_1'));
+  const { state } = (await startPairing(network, publicKey, store))!;
   await approvePairing(state, 'GOWNER', store);
   return state;
 }
@@ -185,8 +230,8 @@ test('completePairing reports not-found for an unknown state', async () => {
 
 test('completePairing reports not-approved when the pairing is still pending', async () => {
   const { store } = fakeStore();
-  const { state } = (await startPairing(getNetworkPassphrase(), null, store))!;
   const client = Keypair.random();
+  const { state } = (await startPairing(getNetworkPassphrase(), client.publicKey(), store))!;
 
   const result = await completePairing(state, signedChallenge(client), store);
   assert.deepEqual(result, { ok: false, reason: 'not-approved' });
@@ -215,10 +260,30 @@ test('completePairing reports bad-challenge for an unsigned challenge', async ()
   const { store, wallets } = fakeStore();
   const state = await approvedPairing(store, wallets);
   const client = Keypair.random();
-  const unsigned = buildChallenge(client.publicKey()); // server-signed only
+  const unsigned = buildCliLinkChallenge(client.publicKey(), 'testnet'); // server-signed only
 
   const result = await completePairing(state, unsigned, store);
   assert.deepEqual(result, { ok: false, reason: 'bad-challenge' });
+});
+
+test('completePairing rejects a signed web sign-in challenge (wrong domain)', async (t) => {
+  __resetNonceStore();
+  t.after(() => __resetNonceStore());
+  const { store, wallets } = fakeStore();
+  const state = await approvedPairing(store, wallets);
+  const client = Keypair.random();
+  const walletsBefore = wallets.size;
+  // Built with the sign-in home domain and correctly signed by the client:
+  // it is a valid sign-in proof, and must be worthless here.
+  const signIn = TransactionBuilder.fromXDR(
+    buildChallenge(client.publicKey()),
+    getNetworkPassphrase(),
+  );
+  signIn.sign(client);
+
+  const result = await completePairing(state, signIn.toEnvelope().toXDR('base64'), store);
+  assert.deepEqual(result, { ok: false, reason: 'bad-challenge' });
+  assert.equal(wallets.size, walletsBefore, 'nothing may be attached');
 });
 
 test('completePairing reports bad-challenge for a challenge signed by the wrong key', async () => {
@@ -226,7 +291,7 @@ test('completePairing reports bad-challenge for a challenge signed by the wrong 
   const state = await approvedPairing(store, wallets);
   const client = Keypair.random();
   const impostor = Keypair.random();
-  const challenge = buildChallenge(client.publicKey());
+  const challenge = buildCliLinkChallenge(client.publicKey(), 'testnet');
   const tx = TransactionBuilder.fromXDR(challenge, getNetworkPassphrase());
   tx.sign(impostor);
 
@@ -238,25 +303,24 @@ test('completePairing succeeds and writes a cli, non-primary wallet', async (t) 
   __resetNonceStore();
   t.after(() => __resetNonceStore());
   const { store, wallets } = fakeStore();
-  const state = await approvedPairing(store, wallets);
   const client = Keypair.random();
+  const state = await approvedPairing(store, wallets, getNetworkPassphrase(), client.publicKey());
 
   const result = await completePairing(state, signedChallenge(client), store);
   assert.equal(result.ok, true);
   if (!result.ok) return;
   assert.equal(result.wallet.pubkey, client.publicKey());
-  assert.equal(result.wallet.profileId, 'profile_1');
-
   const written = wallets.get(client.publicKey());
   assert.ok(written);
+  assert.equal(written.profileId, 'profile_1');
 });
 
 test('completePairing reports already-completed on a second completion attempt', async (t) => {
   __resetNonceStore();
   t.after(() => __resetNonceStore());
   const { store, wallets } = fakeStore();
-  const state = await approvedPairing(store, wallets);
   const client = Keypair.random();
+  const state = await approvedPairing(store, wallets, getNetworkPassphrase(), client.publicKey());
 
   const first = await completePairing(state, signedChallenge(client), store);
   assert.equal(first.ok, true);
@@ -271,8 +335,8 @@ test('completePairing rejects a replayed signed challenge (byte-identical resubm
   __resetNonceStore();
   t.after(() => __resetNonceStore());
   const { store, wallets } = fakeStore();
-  const state = await approvedPairing(store, wallets);
   const client = Keypair.random();
+  const state = await approvedPairing(store, wallets, getNetworkPassphrase(), client.publicKey());
   const challenge = signedChallenge(client);
 
   const first = await completePairing(state, challenge, store);
@@ -281,7 +345,12 @@ test('completePairing rejects a replayed signed challenge (byte-identical resubm
   // Start a second, freshly-approved pairing and try to spend the *same*
   // signed challenge XDR against it — the nonce, not the pairing status,
   // must be what rejects this.
-  const otherState = await approvedPairing(store, wallets);
+  const otherState = await approvedPairing(
+    store,
+    wallets,
+    getNetworkPassphrase(),
+    client.publicKey(),
+  );
   const second = await completePairing(otherState, challenge, store);
   assert.deepEqual(second, { ok: false, reason: 'replayed' });
 });
@@ -291,8 +360,8 @@ test('completePairing rejects a deploy account already bound to a different prof
   t.after(() => __resetNonceStore());
   const { store, wallets } = fakeStore();
   const client = Keypair.random();
-  wallets.set(client.publicKey(), { pubkey: client.publicKey(), profileId: 'someone_else' });
-  const state = await approvedPairing(store, wallets);
+  wallets.set(client.publicKey(), fakeWallet(client.publicKey(), 'someone_else'));
+  const state = await approvedPairing(store, wallets, getNetworkPassphrase(), client.publicKey());
 
   const result = await completePairing(state, signedChallenge(client), store);
   assert.deepEqual(result, { ok: false, reason: 'wallet-bound-elsewhere' });
@@ -303,15 +372,18 @@ test('completePairing is idempotent when the deploy account is already bound to 
   t.after(() => __resetNonceStore());
   const { store, wallets } = fakeStore();
   const client = Keypair.random();
-  const state = await approvedPairing(store, wallets); // seeds GOWNER -> profile_1
-  wallets.set(client.publicKey(), { pubkey: client.publicKey(), profileId: 'profile_1' });
+  // seeds GOWNER -> profile_1
+  const state = await approvedPairing(store, wallets, getNetworkPassphrase(), client.publicKey());
+  wallets.set(client.publicKey(), fakeWallet(client.publicKey(), 'profile_1'));
 
   const result = await completePairing(state, signedChallenge(client), store);
-  assert.deepEqual(result, {
-    ok: true,
-    wallet: { pubkey: client.publicKey(), profileId: 'profile_1' },
-    handle: 'handle-for-profile_1',
-  });
+  assert.equal(result.ok, true);
+  if (result.ok) {
+    assert.equal(result.wallet.pubkey, client.publicKey());
+    assert.equal(result.wallet.source, 'cli');
+    assert.equal(result.wallet.indexingPending, true);
+    assert.equal(result.handle, 'handle-for-profile_1');
+  }
 });
 
 // ── the declared deploy key, and the browser's view of it ────────────────
@@ -327,16 +399,16 @@ test('startPairing records the deploy key the CLI declared', async () => {
 test('describePairing returns the declared key for a pending pairing', async () => {
   const { store } = fakeStore();
   const client = Keypair.random();
-  const { state } = (await startPairing('testnet', client.publicKey(), store))!;
+  const started = (await startPairing('testnet', client.publicKey(), store))!;
 
-  const view = await describePairing(state, store);
+  const view = await describePairing(started.state, started.userCode, store);
   assert.equal(view.ok, true);
   assert.equal(view.ok && view.publicKey, client.publicKey());
 });
 
 test('describePairing refuses an unknown code', async () => {
   const { store } = fakeStore();
-  assert.deepEqual(await describePairing('does-not-exist', store), {
+  assert.deepEqual(await describePairing('does-not-exist', 'ABCD2345', store), {
     ok: false,
     reason: 'not-found',
   });
@@ -344,25 +416,31 @@ test('describePairing refuses an unknown code', async () => {
 
 test('describePairing refuses an expired code', async () => {
   const { store, pairings } = fakeStore();
-  const { state } = (await startPairing('testnet', null, store))!;
-  pairings.get(state)!.expiresAt = new Date(Date.now() - 1000);
+  const started = (await startPairing('testnet', 'GDECLARED', store))!;
+  pairings.get(started.state)!.expiresAt = new Date(Date.now() - 1000);
 
-  assert.deepEqual(await describePairing(state, store), { ok: false, reason: 'expired' });
+  assert.deepEqual(await describePairing(started.state, started.userCode, store), {
+    ok: false,
+    reason: 'expired',
+  });
 });
 
 test('describePairing refuses a pairing that was already answered', async () => {
   const { store, wallets } = fakeStore();
   const state = await approvedPairing(store, wallets);
 
-  assert.deepEqual(await describePairing(state, store), { ok: false, reason: 'already-used' });
+  assert.deepEqual(await describePairing(state, 'ABCD2345', store), {
+    ok: false,
+    reason: 'already-used',
+  });
 });
 
-test('describePairing never discloses which profile approved', async () => {
+test('describePairing never discloses which profile approved, nor the code itself', async () => {
   const { store, wallets } = fakeStore();
-  const { state } = (await startPairing('testnet', 'GDECLARED', store))!;
-  wallets.set('GOWNER', { pubkey: 'GOWNER', profileId: 'profile_1' });
+  const started = (await startPairing('testnet', 'GDECLARED', store))!;
+  wallets.set('GOWNER', fakeWallet('GOWNER', 'profile_1'));
 
-  const view = await describePairing(state, store);
+  const view = await describePairing(started.state, started.userCode, store);
   assert.equal(view.ok, true);
   assert.deepEqual(Object.keys(view).sort(), ['expiresAt', 'ok', 'publicKey', 'state']);
 });
@@ -371,7 +449,7 @@ test('describePairing never discloses which profile approved', async () => {
 
 test('rejectPairing moves a pending pairing to rejected', async () => {
   const { store, pairings } = fakeStore();
-  const { state } = (await startPairing('testnet', null, store))!;
+  const { state } = (await startPairing('testnet', 'GDECLARED', store))!;
 
   assert.equal(await rejectPairing(state, store), 'ok');
   assert.equal(pairings.get(state)!.status, 'rejected');
@@ -384,7 +462,7 @@ test('rejectPairing reports not-found for an unknown state', async () => {
 
 test('rejectPairing reports expired for a pairing past its TTL', async () => {
   const { store, pairings } = fakeStore();
-  const { state } = (await startPairing('testnet', null, store))!;
+  const { state } = (await startPairing('testnet', 'GDECLARED', store))!;
   pairings.get(state)!.expiresAt = new Date(Date.now() - 1000);
 
   assert.equal(await rejectPairing(state, store), 'expired');
@@ -399,8 +477,8 @@ test('rejectPairing reports already-used for a pairing that was approved', async
 
 test('a rejected pairing cannot then be approved', async () => {
   const { store, wallets } = fakeStore();
-  wallets.set('GOWNER', { pubkey: 'GOWNER', profileId: 'profile_1' });
-  const { state } = (await startPairing('testnet', null, store))!;
+  wallets.set('GOWNER', fakeWallet('GOWNER', 'profile_1'));
+  const { state } = (await startPairing('testnet', 'GDECLARED', store))!;
 
   assert.equal(await rejectPairing(state, store), 'ok');
   assert.equal((await approvePairing(state, 'GOWNER', store)).outcome, 'already-used');
@@ -433,18 +511,20 @@ test('completePairing accepts the declared key', async (t) => {
   pairings.get(state)!.publicKey = declared.publicKey();
 
   const result = await completePairing(state, signedChallenge(declared), store);
-  assert.deepEqual(result, {
-    ok: true,
-    wallet: { pubkey: declared.publicKey(), profileId: 'profile_1' },
-    handle: 'handle-for-profile_1',
-  });
+  assert.equal(result.ok, true);
+  if (result.ok) {
+    assert.equal(result.wallet.pubkey, declared.publicKey());
+    assert.equal(result.wallet.source, 'cli');
+    assert.equal(result.wallet.indexingPending, true);
+    assert.equal(result.handle, 'handle-for-profile_1');
+  }
 });
 
 // ── the polling fallback (#273) ──────────────────────────────────────────
 
 test('startPairing returns a poll token that is not the pairing code', async () => {
   const { store, pairings } = fakeStore();
-  const started = (await startPairing('testnet', null, store))!;
+  const started = (await startPairing('testnet', 'GDECLARED', store))!;
 
   assert.ok(started.pollToken.length >= 32);
   assert.notEqual(started.pollToken, started.state);
@@ -453,15 +533,15 @@ test('startPairing returns a poll token that is not the pairing code', async () 
 
 test('pollPairing reports pending for a fresh pairing', async () => {
   const { store } = fakeStore();
-  const { pollToken } = (await startPairing('testnet', null, store))!;
+  const { pollToken } = (await startPairing('testnet', 'GDECLARED', store))!;
 
   assert.deepEqual(await pollPairing(pollToken, store), { ok: true, status: 'pending' });
 });
 
 test('pollPairing reports approved once the browser approves', async () => {
   const { store, wallets } = fakeStore();
-  wallets.set('GOWNER', { pubkey: 'GOWNER', profileId: 'profile_1' });
-  const { state, pollToken } = (await startPairing('testnet', null, store))!;
+  wallets.set('GOWNER', fakeWallet('GOWNER', 'profile_1'));
+  const { state, pollToken } = (await startPairing('testnet', 'GDECLARED', store))!;
   await approvePairing(state, 'GOWNER', store);
 
   assert.deepEqual(await pollPairing(pollToken, store), { ok: true, status: 'approved' });
@@ -469,7 +549,7 @@ test('pollPairing reports approved once the browser approves', async () => {
 
 test('pollPairing reports rejected once the browser refuses', async () => {
   const { store } = fakeStore();
-  const { state, pollToken } = (await startPairing('testnet', null, store))!;
+  const { state, pollToken } = (await startPairing('testnet', 'GDECLARED', store))!;
   await rejectPairing(state, store);
 
   assert.deepEqual(await pollPairing(pollToken, store), { ok: true, status: 'rejected' });
@@ -477,7 +557,7 @@ test('pollPairing reports rejected once the browser refuses', async () => {
 
 test('pollPairing reports expired for a pending pairing past its TTL', async () => {
   const { store, pairings } = fakeStore();
-  const { state, pollToken } = (await startPairing('testnet', null, store))!;
+  const { state, pollToken } = (await startPairing('testnet', 'GDECLARED', store))!;
   pairings.get(state)!.expiresAt = new Date(Date.now() - 1000);
 
   assert.deepEqual(await pollPairing(pollToken, store), { ok: true, status: 'expired' });
@@ -485,7 +565,7 @@ test('pollPairing reports expired for a pending pairing past its TTL', async () 
 
 test('pollPairing does not accept the pairing code in place of the poll token', async () => {
   const { store } = fakeStore();
-  const { state } = (await startPairing('testnet', null, store))!;
+  const { state } = (await startPairing('testnet', 'GDECLARED', store))!;
 
   assert.deepEqual(await pollPairing(state, store), { ok: false, reason: 'not-found' });
 });
@@ -499,8 +579,8 @@ test('pollPairing reports not-found for an unknown token', async () => {
 
 test('approvePairing returns a handoff code the browser can show', async () => {
   const { store, wallets } = fakeStore();
-  wallets.set('GOWNER', { pubkey: 'GOWNER', profileId: 'profile_1' });
-  const { state } = (await startPairing('testnet', null, store))!;
+  wallets.set('GOWNER', fakeWallet('GOWNER', 'profile_1'));
+  const { state } = (await startPairing('testnet', 'GDECLARED', store))!;
 
   const result = await approvePairing(state, 'GOWNER', store);
   assert.equal(result.outcome, 'ok');
@@ -511,11 +591,11 @@ test('completePairing accepts the handoff code the browser showed', async (t) =>
   __resetNonceStore();
   t.after(() => __resetNonceStore());
   const { store, wallets } = fakeStore();
-  wallets.set('GOWNER', { pubkey: 'GOWNER', profileId: 'profile_1' });
-  const { state } = (await startPairing(getNetworkPassphrase(), null, store))!;
+  wallets.set('GOWNER', fakeWallet('GOWNER', 'profile_1'));
+  const client = Keypair.random();
+  const { state } = (await startPairing(getNetworkPassphrase(), client.publicKey(), store))!;
   const approved = await approvePairing(state, 'GOWNER', store);
   const handoff = approved.outcome === 'ok' ? approved.handoffCode : '';
-  const client = Keypair.random();
 
   const result = await completePairing(state, signedChallenge(client), store, handoff);
   assert.equal(result.ok, true);
@@ -537,8 +617,8 @@ test('completePairing does not require a handoff code on the loopback path', asy
   __resetNonceStore();
   t.after(() => __resetNonceStore());
   const { store, wallets } = fakeStore();
-  const state = await approvedPairing(store, wallets);
   const client = Keypair.random();
+  const state = await approvedPairing(store, wallets, getNetworkPassphrase(), client.publicKey());
 
   const result = await completePairing(state, signedChallenge(client), store);
   assert.equal(result.ok, true);
@@ -612,9 +692,9 @@ test('a signed challenge for one pairing cannot complete a different pairing', a
   __resetNonceStore();
   t.after(() => __resetNonceStore());
   const { store, wallets } = fakeStore();
-  const first = await approvedPairing(store, wallets);
-  const second = await approvedPairing(store, wallets);
   const client = Keypair.random();
+  const first = await approvedPairing(store, wallets, getNetworkPassphrase(), client.publicKey());
+  const second = await approvedPairing(store, wallets, getNetworkPassphrase(), client.publicKey());
   const challenge = signedChallenge(client);
 
   assert.equal((await completePairing(first, challenge, store)).ok, true);
@@ -631,8 +711,8 @@ test('completePairing refuses a pairing the browser never approved', async (t) =
   const { store, wallets } = fakeStore();
   // Minted but never approved: the CLI holds a valid signature for a real
   // deploy key, which proves key control and nothing about handle ownership.
-  const { state } = (await startPairing(getNetworkPassphrase(), null, store))!;
   const client = Keypair.random();
+  const { state } = (await startPairing(getNetworkPassphrase(), client.publicKey(), store))!;
 
   const result = await completePairing(state, signedChallenge(client), store);
   assert.deepEqual(result, { ok: false, reason: 'not-approved' });
@@ -643,9 +723,9 @@ test('a rejected pairing cannot be completed', async (t) => {
   __resetNonceStore();
   t.after(() => __resetNonceStore());
   const { store, wallets } = fakeStore();
-  const { state } = (await startPairing(getNetworkPassphrase(), null, store))!;
-  await rejectPairing(state, store);
   const client = Keypair.random();
+  const { state } = (await startPairing(getNetworkPassphrase(), client.publicKey(), store))!;
+  await rejectPairing(state, store);
 
   const result = await completePairing(state, signedChallenge(client), store);
   assert.equal(result.ok, false);
@@ -669,14 +749,14 @@ test('an expired pairing cannot be completed even with a valid signature', async
 
 test('start with "testnet" on a testnet deployment mints a pairing that completes', async () => {
   const { store, wallets } = fakeStore();
-  wallets.set('GOWNER', { pubkey: 'GOWNER', profileId: 'profile_1' });
+  wallets.set('GOWNER', fakeWallet('GOWNER', 'profile_1'));
 
   const checked = checkStartNetwork('testnet');
   assert.deepEqual(checked, { ok: true, network: 'testnet' });
-  const { state } = (await startPairing('testnet', null, store))!;
+  const client = Keypair.random();
+  const { state } = (await startPairing('testnet', client.publicKey(), store))!;
   await approvePairing(state, 'GOWNER', store);
 
-  const client = Keypair.random();
   const result = await completePairing(state, signedChallenge(client), store);
   assert.equal(result.ok, true, `name-based pairing must complete, got ${JSON.stringify(result)}`);
 });
@@ -703,7 +783,7 @@ test('a network passphrase is still accepted for one release and maps to its nam
   const checked = checkStartNetwork('Test SDF Network ; September 2015');
   assert.deepEqual(checked, { ok: true, network: 'testnet' });
   const { store, pairings } = fakeStore();
-  const { state } = (await startPairing(checked.ok ? checked.network : '', null, store))!;
+  const { state } = (await startPairing(checked.ok ? checked.network : '', 'GDECLARED', store))!;
   assert.equal(pairings.get(state)!.network, 'testnet');
 });
 
@@ -714,4 +794,220 @@ test('start with no network, or an unknown one, is a 400', () => {
     ok: false,
     error: 'unknown-network',
   });
+});
+
+// ── #596: the deploy key is required, and the user code binds the page to
+// the terminal ─────────────────────────────────────────────────────────────
+
+test('start with no key, or a malformed one, is a 400 and creates no row', () => {
+  // The route returns 400 on !checkStartPublicKey and never calls
+  // startPairing — a keyless pairing must not exist at all, because it used
+  // to render an enabled Approve button next to "Not declared by the CLI",
+  // which is how an attacker got a victim to consent to an unshown key.
+  assert.equal(checkStartPublicKey(undefined), false);
+  assert.equal(checkStartPublicKey(''), false);
+  assert.equal(checkStartPublicKey('not-a-key'), false);
+  assert.equal(checkStartPublicKey('GDECLARED'), false); // right prefix, wrong shape
+  assert.equal(checkStartPublicKey(Keypair.random().publicKey()), true);
+});
+
+test('startPairing returns a user code and stores only its hash', async () => {
+  const { store, pairings } = fakeStore();
+  const started = (await startPairing('testnet', 'GDECLARED', store))!;
+
+  assert.match(started.userCode, /^[0-9A-HJKMNP-TV-Z]{8}$/);
+  const row = pairings.get(started.state)!;
+  assert.notEqual(row.userCodeHash, started.userCode);
+  assert.equal(row.userCodeHash, createHash('sha256').update(started.userCode).digest('hex'));
+});
+
+test('describePairing refuses a wrong or missing user code', async () => {
+  const { store } = fakeStore();
+  const started = (await startPairing('testnet', 'GDECLARED', store))!;
+
+  assert.deepEqual(await describePairing(started.state, 'WRONGCOD', store), {
+    ok: false,
+    reason: 'code-mismatch',
+  });
+  assert.deepEqual(await describePairing(started.state, undefined, store), {
+    ok: false,
+    reason: 'code-mismatch',
+  });
+  // The right code still renders — the refusals above are not a lockout.
+  assert.equal((await describePairing(started.state, started.userCode, store)).ok, true);
+});
+
+test('a legacy row with no user-code hash is refused rather than rendered', async () => {
+  const { store, pairings } = fakeStore();
+  const started = (await startPairing('testnet', 'GDECLARED', store))!;
+  pairings.get(started.state)!.userCodeHash = null;
+
+  assert.deepEqual(await describePairing(started.state, started.userCode, store), {
+    ok: false,
+    reason: 'code-mismatch',
+  });
+});
+
+test('a legacy null-key row cannot be described or approved', async () => {
+  const { store, wallets, pairings } = fakeStore();
+  wallets.set('GOWNER', fakeWallet('GOWNER', 'profile_1'));
+  const started = (await startPairing('testnet', 'GDECLARED', store))!;
+  pairings.get(started.state)!.publicKey = null;
+
+  // The key check outranks the code check: a keyless row is refused even
+  // with the right code, so the page never renders "Not declared by the CLI".
+  assert.deepEqual(await describePairing(started.state, started.userCode, store), {
+    ok: false,
+    reason: 'no-key',
+  });
+  assert.equal((await approvePairing(started.state, 'GOWNER', store)).outcome, 'no-key');
+  assert.equal(pairings.get(started.state)!.status, 'pending');
+});
+
+test('a legacy null-key row that reached approved is a key-mismatch at complete', async (t) => {
+  __resetNonceStore();
+  t.after(() => __resetNonceStore());
+  const { store, wallets, pairings } = fakeStore();
+  const client = Keypair.random();
+  const state = await approvedPairing(store, wallets, getNetworkPassphrase(), client.publicKey());
+  // Approved while the column still existed, then treated as the old skip
+  // path: null must now be a mismatch, never a bypass.
+  pairings.get(state)!.publicKey = null;
+
+  const result = await completePairing(state, signedChallenge(client), store);
+  assert.deepEqual(result, { ok: false, reason: 'key-mismatch' });
+  assert.equal(wallets.has(client.publicKey()), false);
+});
+
+// ── audit trail (#620) ───────────────────────────────────────────────────
+
+interface LoggedLine {
+  level: 'info' | 'warn';
+  msg: string;
+  fields: Record<string, unknown>;
+}
+
+/** Spy on the logger for the rest of the test; returns every line it was handed. */
+function captureLogs(t: TestContext): LoggedLine[] {
+  const lines: LoggedLine[] = [];
+  for (const level of ['info', 'warn'] as const) {
+    t.mock.method(logger, level, (fields: Record<string, unknown>, msg: string) => {
+      lines.push({ level, msg, fields });
+    });
+  }
+  return lines;
+}
+
+const AUDIT_NAMES: readonly string[] = Object.values(PAIRING_EVENTS);
+const auditLines = (lines: LoggedLine[]) => lines.filter((l) => AUDIT_NAMES.includes(l.msg));
+
+test('startPairing emits pairing.linkStarted with the declared key', async (t) => {
+  const { store } = fakeStore();
+  const client = Keypair.random();
+  const logs = captureLogs(t);
+
+  const { state } = (await startPairing('testnet', client.publicKey(), store))!;
+  assert.deepEqual(auditLines(logs), [
+    {
+      level: 'info',
+      msg: 'pairing.linkStarted',
+      fields: { state, outcome: 'started', source: 'cli-pairing', wallet: client.publicKey() },
+    },
+  ]);
+});
+
+test('a completion emits pairing.linkCompleted, and no line carries the challenge', async (t) => {
+  __resetNonceStore();
+  t.after(() => __resetNonceStore());
+  const { store, wallets } = fakeStore();
+  const client = Keypair.random();
+  const state = await approvedPairing(store, wallets, getNetworkPassphrase(), client.publicKey());
+  const challenge = signedChallenge(client);
+  const logs = captureLogs(t);
+
+  assert.equal((await completePairing(state, challenge, store)).ok, true);
+  assert.deepEqual(auditLines(logs), [
+    {
+      level: 'info',
+      msg: 'pairing.linkCompleted',
+      fields: {
+        state,
+        profileId: 'profile_1',
+        outcome: 'completed',
+        source: 'cli-pairing',
+        handle: 'handle-for-profile_1',
+        wallet: client.publicKey(),
+      },
+    },
+  ]);
+  assert.equal(JSON.stringify(logs).includes(challenge), false);
+});
+
+test('a refused completion emits pairing.linkRejected with the CompleteFailure', async (t) => {
+  __resetNonceStore();
+  t.after(() => __resetNonceStore());
+  const { store, wallets, pairings } = fakeStore();
+  const declared = Keypair.random();
+  const other = Keypair.random();
+  const state = await approvedPairing(store, wallets);
+  pairings.get(state)!.publicKey = declared.publicKey();
+  const challenge = signedChallenge(other);
+  const logs = captureLogs(t);
+
+  await completePairing(state, challenge, store);
+  assert.deepEqual(auditLines(logs), [
+    {
+      level: 'warn',
+      msg: 'pairing.linkRejected',
+      fields: {
+        state,
+        outcome: 'rejected',
+        source: 'cli-pairing',
+        wallet: other.publicKey(),
+        reason: 'key-mismatch',
+      },
+    },
+  ]);
+  assert.equal(JSON.stringify(logs).includes(challenge), false);
+});
+
+test('a bad signature emits pairing.linkRejected without the challenge', async (t) => {
+  const { store, wallets } = fakeStore();
+  const state = await approvedPairing(store, wallets);
+  const client = Keypair.random();
+  const unsigned = buildChallenge(client.publicKey());
+  const logs = captureLogs(t);
+
+  await completePairing(state, unsigned, store);
+  assert.deepEqual(auditLines(logs), [
+    {
+      level: 'warn',
+      msg: 'pairing.linkRejected',
+      fields: {
+        state,
+        outcome: 'rejected',
+        source: 'cli-pairing',
+        // Nothing is verified yet, so the wallet is the declared key (#596
+        // makes it always present).
+        wallet: 'GDECLARED',
+        reason: 'bad-challenge',
+      },
+    },
+  ]);
+  assert.equal(JSON.stringify(logs).includes(unsigned), false);
+});
+
+test('a refusal in the browser emits pairing.linkRejected', async (t) => {
+  const { store } = fakeStore();
+  const { state } = (await startPairing('testnet', Keypair.random().publicKey(), store))!;
+  const logs = captureLogs(t);
+
+  assert.equal(await rejectPairing(state, store), 'ok');
+  assert.deepEqual(auditLines(logs), [
+    {
+      level: 'warn',
+      msg: 'pairing.linkRejected',
+      fields: { state, outcome: 'rejected', source: 'cli-pairing', reason: 'refused' },
+    },
+  ]);
 });

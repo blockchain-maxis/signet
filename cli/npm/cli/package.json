@@ -37,6 +37,7 @@
     "@signet/cli-linux-x64": "0.0.0",
     "@signet/cli-linux-arm64": "0.0.0",
     "@signet/cli-darwin-arm64": "0.0.0",
+    "@signet/cli-darwin-x64": "0.0.0",
     "@signet/cli-windows-x64": "0.0.0"
   }
 }

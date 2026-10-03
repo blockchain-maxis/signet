@@ -1,5 +1,5 @@
 /**
- * @file Pure SVG renderer for the diagram model (#494).
+ * @file Pure SVG renderer for the diagram model (issue 494).
  *
  * Returns a string, not JSX, because the same output serves the React page
  * (inlined), file export, the CLI, and the local UI.
@@ -41,7 +41,7 @@ function escapeXml(s: string): string {
  * `var(--viz-*)` custom properties.
  *
  * No inline hex colours, no `<style>` block, no `<script>`, no animation
- * elements. A standalone export adds a `<style>` block (#506).
+ * elements. A standalone export adds a `<style>` block (issue 506).
  */
 export function renderDiagramSvg(
   model: DiagramModel,
@@ -81,7 +81,7 @@ export function renderDiagramSvg(
     const toNode = model.nodes.find((n) => n.id === edge.to);
     if (!fromNode || !toNode) continue;
 
-    // Simple straight-line edge for now; #487 will add proper routing with ports
+    // Simple straight-line edge for now; issue 487 will add proper routing with ports
     const fromX = 100;
     const fromY = 100;
     const toX = 300;

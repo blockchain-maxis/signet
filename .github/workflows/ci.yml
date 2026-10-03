@@ -49,6 +49,12 @@ jobs:
       - name: Check wallet source Go sync
         run: node scripts/check-wallet-source-go.mjs
 
+      # Same guard for the CLI wire contract: cli/internal/spec/zz_generated_api.go
+      # is generated from packages/types/src/cli-api.ts, and the CLI maps exit
+      # codes from the failure codes it declares. Also no Go toolchain needed.
+      - name: Check CLI spec Go sync
+        run: node scripts/check-cli-spec-go.mjs
+
   web:
     name: lint • typecheck • test • build
     runs-on: ubuntu-latest
@@ -84,13 +90,24 @@ jobs:
       - name: Build
         run: pnpm build
 
+  # Tests run on every OS the CLI ships for, because several packages behave
+  # differently per OS in ways a cross-compile cannot catch: internal/browser
+  # (open / xdg-open / rundll32), internal/config (os.UserConfigDir is
+  # XDG_CONFIG_HOME, ~/Library/Application Support or %AppData%),
+  # internal/loopback (binding 127.0.0.1, the Private Network Access
+  # preflight), and the fakestellar test helper (needs .exe on Windows).
   cli:
-    name: signet CLI (Go)
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
+    name: signet CLI (Go, ${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
     defaults:
       run:
         working-directory: cli
+        shell: bash
     steps:
       - uses: actions/checkout@v7
 
@@ -104,11 +121,29 @@ jobs:
       - name: Vet
         run: go vet ./...
 
-      # -race needs cgo (a C toolchain), which ubuntu-latest ships with —
-      # unlike the CGO_ENABLED=0 production build (see cmd/signet's
-      # cross-compile requirement), the test binary is never distributed.
+      # -race needs cgo (a C toolchain). ubuntu-latest and macos-latest always
+      # have one; unlike the CGO_ENABLED=0 production build (see cmd/signet's
+      # cross-compile requirement), the test binary is never distributed, so
+      # cgo in the test build is fine. On Windows, Go only enables cgo when it
+      # finds gcc on PATH, which the runner image does not promise, so there
+      # the suite runs without -race rather than failing to build. The Windows
+      # leg exists to catch per-OS behaviour; the Linux and macOS legs already
+      # race-check the same code.
       - name: Test
-        run: go test -race ./...
+        run: |
+          if [ "$(go env CGO_ENABLED)" = "1" ]; then
+            go test -race ./...
+          else
+            echo "cgo unavailable on $RUNNER_OS; running without -race"
+            go test ./...
+          fi
+
+      # Lint and the cross-compile smoke build run on Ubuntu only. The CLI has
+      # no OS-specific source files or build tags, so every OS compiles the
+      # same code and a lint pass on one of them sees all of it; the smoke
+      # build sets GOOS/GOARCH itself and needs no per-OS runner. Running
+      # either on all three legs would triple the cost and cover nothing new.
+      # If an OS-specific file is ever added, lint needs to run on that OS too.
 
       # Three things have to agree here, and the original v6 + `version: latest`
       # got two of them wrong:
@@ -122,7 +157,8 @@ jobs:
       #     go1.24 and fails with "can't load config: the Go language version
       #     (go1.24) ... is lower than the targeted Go version (1.25.0)".
       #   * `latest` would let both of those drift again without a commit here.
-      - uses: golangci/golangci-lint-action@v9
+      - if: runner.os == 'Linux'
+        uses: golangci/golangci-lint-action@v9
         with:
           version: v2.13.2
           working-directory: cli
@@ -132,15 +168,17 @@ jobs:
       # nobody's local machine matches (e.g. linux/arm64 built from an amd64
       # dev box) would otherwise stay invisible until it broke on a
       # stranger's machine. No cgo (see go.mod), so each target only needs
-      # GOOS/GOARCH — no per-platform runner or toolchain. The four targets
+      # GOOS/GOARCH — no per-platform runner or toolchain. The targets
       # are the same set release-cli.yml publishes.
       - name: Cross-compile smoke build
+        if: runner.os == 'Linux'
         run: |
           set -euo pipefail
           targets=(
             "linux   amd64"
             "linux   arm64"
             "darwin  arm64"
+            "darwin  amd64"
             "windows amd64"
           )
           for target in "${targets[@]}"; do
@@ -289,8 +327,10 @@ jobs:
       - name: Build web app
         run: pnpm --filter @signet/web build
 
+      # `@db` specs need Postgres and live in `e2e-linked`. Each spec runs in
+      # exactly one lane: this one takes everything else.
       - name: Run e2e smoke tests
-        run: pnpm --filter @signet/web test:e2e
+        run: pnpm --filter @signet/web exec playwright test --grep-invert @db
 
   e2e-linked:
     name: e2e linked flow (Postgres)
@@ -300,7 +340,8 @@ jobs:
     # registry, no RPC — and its specs assert the fallback behaviour that
     # depends on staying that way. This one is the opposite: the claim → link →
     # indexer → profile flow only exists when a database does (#277), so it
-    # needs its own environment rather than changing the shared one.
+    # needs its own environment rather than changing the shared one. Specs opt
+    # in with `@db` in their describe title (#463).
     services:
       postgres:
         image: postgres:16-alpine
@@ -353,8 +394,11 @@ jobs:
       - name: Build web app
         run: pnpm --filter @signet/web build
 
-      - name: Run the linked-flow e2e
-        run: pnpm --filter @signet/web exec playwright test e2e/claim-link-profile.spec.ts
+      # Every database-backed spec (tagged `@db` in its `describe` title): the
+      # linked flow and the contract page. The contract-page fixture is loaded
+      # by Playwright's globalSetup because DATABASE_URL is set.
+      - name: Run the database-backed e2e
+        run: pnpm --filter @signet/web exec playwright test --grep @db
 
       # This spec crosses four systems, so a failure is worth more than a log
       # line: the trace and the page snapshot say which stage broke.

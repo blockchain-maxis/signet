@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
+import type { ErrorBody, PairCompleteRequest, PairCompleteResponse } from '@signet/types';
 import { completePairing, type CompleteFailure } from '@/lib/server/pairing';
 import { LIMITS, enforceRateLimit } from '@/lib/rate-limit-http';
-import { logger } from '@/lib/logger';
 
 export const runtime = 'nodejs';
 
@@ -56,27 +56,33 @@ export async function POST(req: Request) {
   const limited = await enforceRateLimit(req, 'cli:pair:complete', LIMITS.cliPairComplete);
   if (limited) return limited;
 
-  const { state, transaction, handoffCode } = (await req.json().catch(() => ({}))) as {
-    state?: string;
-    transaction?: string;
-    handoffCode?: string;
-  };
+  const { state, transaction, handoffCode } = (await req
+    .json()
+    .catch(() => ({}))) as Partial<PairCompleteRequest>;
   if (!state || !transaction) {
-    return NextResponse.json({ error: 'state and transaction are required' }, { status: 400 });
+    return NextResponse.json(
+      { error: 'state and transaction are required', code: 'bad-request' } satisfies ErrorBody,
+      { status: 400 },
+    );
   }
 
   const result = await completePairing(state, transaction, undefined, handoffCode);
   if (!result.ok) {
-    logger.warn({ state, reason: result.reason }, 'cli.pairCompleteFailed');
+    // `code` is what the CLI branches on (exit 9 for `wallet-bound-elsewhere`);
+    // the message is for the person and free to change.
     return NextResponse.json(
-      { error: FAILURE_MESSAGE[result.reason] },
+      { error: FAILURE_MESSAGE[result.reason], code: result.reason } satisfies ErrorBody,
       { status: FAILURE_STATUS[result.reason], headers: { 'cache-control': 'no-store' } },
     );
   }
 
-  logger.info({ state, pubkey: result.wallet.pubkey }, 'cli.pairCompleted');
   return NextResponse.json(
-    { ok: true, wallet: result.wallet.pubkey, handle: result.handle },
+    {
+      ok: true,
+      wallet: result.wallet.pubkey,
+      handle: result.handle,
+      indexingPending: result.wallet.indexingPending,
+    } satisfies PairCompleteResponse,
     { headers: { 'cache-control': 'no-store' } },
   );
 }

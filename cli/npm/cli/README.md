@@ -17,6 +17,7 @@ you don't need is downloaded:
 | `@signet/cli-linux-x64` | Linux x64 |
 | `@signet/cli-linux-arm64` | Linux arm64 |
 | `@signet/cli-darwin-arm64` | macOS (Apple Silicon) |
+| `@signet/cli-darwin-x64` | macOS (Intel) |
 | `@signet/cli-windows-x64` | Windows x64 |
 
 Each platform package's version is pinned to exactly match this one — see

@@ -7,6 +7,7 @@ function createMockPruningStore() {
   const snapshots: Array<{ id: string; capturedAt: Date }> = [];
   const contracts: Array<{ id: string }> = [];
   const invocations: Array<{ id: string; contractId: string; createdAt: Date }> = [];
+  const pairings: Array<{ id: string; expiresAt: Date }> = [];
 
   const store: PruningStore = {
     operation: {
@@ -32,6 +33,16 @@ function createMockPruningStore() {
     contract: {
       findMany: async () => contracts,
     },
+    pairingState: {
+      deleteMany: async ({ where }) => {
+        const initialCount = pairings.length;
+        const remaining = pairings.filter((p) => !(p.expiresAt < where.expiresAt.lt));
+        const deletedCount = initialCount - remaining.length;
+        pairings.length = 0;
+        pairings.push(...remaining);
+        return { count: deletedCount };
+      },
+    },
     contractInvocation: {
       findMany: async ({ where, skip = 0 }) => {
         const matching = invocations
@@ -51,7 +62,7 @@ function createMockPruningStore() {
     },
   };
 
-  return { store, operations, snapshots, contracts, invocations };
+  return { store, operations, snapshots, contracts, invocations, pairings };
 }
 
 test('pruning worker deletes operations older than retention days', async () => {
@@ -104,25 +115,57 @@ test('pruning worker prunes contract invocations exceeding per-contract cap', as
   invocations.push({ id: 'inv-3', contractId: 'c-1', createdAt: new Date('2026-08-03') });
   invocations.push({ id: 'inv-4', contractId: 'c-1', createdAt: new Date('2026-08-04') });
 
-  const result = await runPruningWorker(
-    store,
-    { operationsRetentionDays: 0, snapshotsRetentionDays: 0, invocationsMaxPerContract: 2 },
-  );
+  const result = await runPruningWorker(store, {
+    operationsRetentionDays: 0,
+    snapshotsRetentionDays: 0,
+    invocationsMaxPerContract: 2,
+  });
 
   assert.equal(result.invocationsPruned, 2);
   assert.equal(invocations.length, 2);
   // The newest 2 (inv-4, inv-3) should be retained
-  assert.deepEqual(invocations.map((i) => i.id), ['inv-3', 'inv-4']);
+  assert.deepEqual(
+    invocations.map((i) => i.id),
+    ['inv-3', 'inv-4'],
+  );
+});
+
+test('pruning worker deletes expired pairings older than 24h', async () => {
+  const { store, pairings } = createMockPruningStore();
+  const now = new Date('2026-08-31T12:00:00Z');
+
+  // expired 25h ago (should be pruned)
+  pairings.push({ id: 'p-expired-old', expiresAt: new Date(now.getTime() - 25 * 60 * 60 * 1000) });
+  // expired 2h ago (should be retained)
+  pairings.push({
+    id: 'p-expired-recent',
+    expiresAt: new Date(now.getTime() - 2 * 60 * 60 * 1000),
+  });
+  // pending (expires in future, should be retained)
+  pairings.push({ id: 'p-pending', expiresAt: new Date(now.getTime() + 1 * 60 * 60 * 1000) });
+
+  const result = await runPruningWorker(
+    store,
+    { operationsRetentionDays: 0, snapshotsRetentionDays: 0 },
+    now,
+  );
+
+  assert.equal(result.pairingsPruned, 1);
+  assert.equal(pairings.length, 2);
+  assert.equal(pairings[0]?.id, 'p-expired-recent');
+  assert.equal(pairings[1]?.id, 'p-pending');
 });
 
 test('pruning worker skips deletion when retention is 0 (disabled)', async () => {
-  const { store, operations, snapshots, contracts, invocations } = createMockPruningStore();
+  const { store, operations, snapshots, contracts, invocations, pairings } =
+    createMockPruningStore();
   const now = new Date('2026-08-31T12:00:00Z');
 
   contracts.push({ id: 'c-1' });
   operations.push({ id: 'op-old', createdAt: new Date('2026-01-01T12:00:00Z') });
   snapshots.push({ id: 's-old', capturedAt: new Date('2026-01-01T12:00:00Z') });
   invocations.push({ id: 'inv-1', contractId: 'c-1', createdAt: new Date('2026-01-01') });
+  pairings.push({ id: 'p-1', expiresAt: new Date('2026-01-01T12:00:00Z') });
 
   const result = await runPruningWorker(
     store,
@@ -133,7 +176,10 @@ test('pruning worker skips deletion when retention is 0 (disabled)', async () =>
   assert.equal(result.opsPruned, 0);
   assert.equal(result.snapshotsPruned, 0);
   assert.equal(result.invocationsPruned, 0);
+  // Pairings are hardcoded to 24h, so they are always pruned
+  assert.equal(result.pairingsPruned, 1);
   assert.equal(operations.length, 1);
   assert.equal(snapshots.length, 1);
   assert.equal(invocations.length, 1);
+  assert.equal(pairings.length, 0);
 });

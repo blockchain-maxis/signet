@@ -4,9 +4,9 @@ import { SectionLabel } from '../../../_components/section-label';
 export default function FunctionsPage() {
   return (
     <section>
-      <SectionLabel>Functions</SectionLabel>
+      <SectionLabel as="h2">Functions</SectionLabel>
       <p
-        className="mt-6 text-[13px] leading-[1.7] text-[#5e5b51]"
+        className="mt-6 text-[13px] leading-[1.7] text-[#8a8779]"
         style={{ fontFamily: 'var(--font-mono)' }}
       >
         Not built yet — this tab exists so the URL is stable and linkable.

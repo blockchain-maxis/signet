@@ -41,6 +41,7 @@ test('ContractSpec type-level shape compilation using satisfies', () => {
       {
         name: 'initialize',
         doc: 'Initializes the contract owner and settings',
+        isConstructor: false,
         inputs: [
           {
             name: 'admin',
@@ -53,6 +54,7 @@ test('ContractSpec type-level shape compilation using satisfies', () => {
       {
         name: 'get_entry',
         doc: 'Fetches an entry by ID',
+        isConstructor: false,
         inputs: [
           {
             name: 'id',
@@ -68,6 +70,8 @@ test('ContractSpec type-level shape compilation using satisfies', () => {
       },
       {
         name: 'try_transfer',
+        doc: '',
+        isConstructor: false,
         inputs: [
           {
             name: 'recipient',
@@ -88,6 +92,8 @@ test('ContractSpec type-level shape compilation using satisfies', () => {
       },
       {
         name: 'batch_op',
+        doc: '',
+        isConstructor: false,
         inputs: [
           {
             name: 'items',
@@ -156,14 +162,13 @@ test('ContractSpec type-level shape compilation using satisfies', () => {
       {
         name: 'transferred',
         doc: 'Emitted when assets are transferred',
-        topics: [
-          { name: 'symbol', type: 'symbol' },
-          { name: 'from', type: 'address' },
+        prefixTopics: ['transferred'],
+        params: [
+          { name: 'from', type: 'address', location: 'topic' },
+          { name: 'to', type: 'address', location: 'data' },
+          { name: 'amount', type: 'i128', location: 'data' },
         ],
-        data: [
-          { name: 'to', type: 'address' },
-          { name: 'amount', type: 'i128' },
-        ],
+        dataFormat: 'map',
       },
     ] satisfies readonly SpecEvent[],
     build: {

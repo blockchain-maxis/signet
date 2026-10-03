@@ -1,16 +1,23 @@
-import { SectionLabel } from '../../../_components/section-label';
+import { RunPageClient } from './run-client';
 
-/** Placeholder segment for the Run locally tab (#445); its epic fills it in. */
-export default function RunPage() {
-  return (
-    <section>
-      <SectionLabel>Run locally</SectionLabel>
-      <p
-        className="mt-6 text-[13px] leading-[1.7] text-[#5e5b51]"
-        style={{ fontFamily: 'var(--font-mono)' }}
-      >
-        Not built yet — this tab exists so the URL is stable and linkable.
-      </p>
-    </section>
-  );
+interface RunPageProps {
+  params: Promise<{ handle: string; address: string }>;
+}
+
+// Server component. It used to live in the same `'use client'` file as
+// `RunPageClient`, which made this async function a client component: the
+// page rendered on the server but never hydrated, so the copy button did
+// nothing. Splitting the client half out (#461) is what makes it work.
+export default async function RunPage({ params }: RunPageProps) {
+  const { handle, address } = await params;
+  const { attributeContract } = await import('@/lib/contract-attribution');
+  const attribution = await attributeContract(handle, address);
+
+  if (attribution.status !== 'attributed') {
+    return null;
+  }
+
+  const network = attribution.contract.network;
+
+  return <RunPageClient address={address} network={network} />;
 }

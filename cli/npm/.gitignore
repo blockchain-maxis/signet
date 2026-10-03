@@ -4,6 +4,7 @@
 cli-linux-x64/bin/*
 cli-linux-arm64/bin/*
 cli-darwin-arm64/bin/*
+cli-darwin-x64/bin/*
 cli-windows-x64/bin/*
 !*/bin/.gitkeep
 

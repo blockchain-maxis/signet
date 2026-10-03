@@ -22,7 +22,8 @@ import { apiSignIn } from './support';
  * | Claim | Seeded: the handle→wallet binding written as a claim lands it |
  * | Link | **Real** — `pair/start`, the `/link` page in a browser, `pair/complete` |
  * | Indexer | **Real** — the operations and deployment workers, Horizon stubbed |
- * | Profile | **Real** — the deployed Next.js page, rendered in a browser |
+ * | Profile | **Real** — the deployed Next.js page, rendered in a browser, |
+ * |         | including the "Deployed contracts" section (#455) |
  *
  * Only two things are not real, and both are deliberate:
  *
@@ -61,7 +62,7 @@ const HAS_DB = Boolean(process.env.DATABASE_URL);
 // specs down with it.
 const here = __dirname;
 
-test.describe('claim → link → indexer → profile', () => {
+test.describe('claim → link → indexer → profile @db', () => {
   test.skip(
     !HAS_DB,
     'needs DATABASE_URL: this flow is the database-backed path, and the fallback path is a different flow',
@@ -104,16 +105,22 @@ test.describe('claim → link → indexer → profile', () => {
       data: { network: 'testnet', publicKey: deployer.publicKey() },
     });
     expect(started.ok(), 'pair/start should mint a pairing').toBeTruthy();
-    const { state, pollToken } = (await started.json()) as {
+    const { state, pollToken, userCode } = (await started.json()) as {
       state: string;
       pollToken: string;
+      userCode: string;
     };
     expect(pollToken, 'the CLI gets a poll token distinct from the pairing code').not.toBe(state);
+    expect(userCode, 'the CLI gets a user code to print next to the URL (#596)').toMatch(
+      /^[0-9A-HJKMNP-TV-Z]{8}$/,
+    );
 
     // The browser half: sign in as the handle's owner and approve. This is the
-    // proof that the person approving owns the handle.
+    // proof that the person approving owns the handle. The URL carries the
+    // user code exactly as the CLI builds it — /link verifies it against the
+    // stored hash before rendering the Approve button (#596).
     await apiSignIn(page, owner);
-    await page.goto(`/link?code=${state}`);
+    await page.goto(`/link?code=${state}&user_code=${userCode}`);
 
     // Assert the page *shape* before its contents. /link has several refusal
     // states (no session, unknown or expired code, no database, no handle) and
@@ -125,6 +132,9 @@ test.describe('claim → link → indexer → profile', () => {
 
     await expect(page.getByText(deployer.publicKey())).toBeVisible();
     await expect(page.getByText(`@${handle}`)).toBeVisible();
+    // The comparison step (#596): the page shows the same code the terminal
+    // printed, so the developer can tell this is their own link.
+    await expect(page.getByText(userCode)).toBeVisible();
     await page.getByRole('button', { name: /approve/i }).click();
     await expect(page.getByText(/return to your terminal/i)).toBeVisible();
 
@@ -136,8 +146,11 @@ test.describe('claim → link → indexer → profile', () => {
     expect(polled.ok()).toBeTruthy();
     expect((await polled.json()).status).toBe('approved');
 
-    // The CLI's second proof: a SEP-10 challenge signed by the deploy key.
-    const challenge = await page.request.get(`/api/auth/sep10?account=${deployer.publicKey()}`);
+    // The CLI's second proof: a CLI-link challenge (its own home domain, not the
+    // web sign-in one) signed by the deploy key.
+    const challenge = await page.request.get(
+      `/api/cli-link?account=${deployer.publicKey()}&network=testnet`,
+    );
     expect(challenge.ok()).toBeTruthy();
     const { transaction, network_passphrase } = (await challenge.json()) as {
       transaction: string;
@@ -150,13 +163,16 @@ test.describe('claim → link → indexer → profile', () => {
       data: { state, transaction: signed.toEnvelope().toXDR('base64') },
     });
     expect(completed.ok(), 'pair/complete should attach the wallet').toBeTruthy();
-    expect((await completed.json()).handle).toBe(handle);
+    const completedJson = await completed.json() as any;
+    expect(completedJson.handle).toBe(handle);
+    expect(completedJson.indexingPending).toBe(true);
 
     const linked = await prisma.wallet.findUnique({
       where: { pubkey: deployer.publicKey() },
     });
     expect(linked?.profileId, 'the deploy wallet is bound to the claimed profile').toBe(profile.id);
     expect(linked?.source, 'and recorded as a CLI link, not a curated one').toBe('cli');
+    expect(linked?.indexRequestedAt, 'indexer was asked to scan this wallet').not.toBeNull();
 
     // ── indexer ──────────────────────────────────────────────────────────
     // The real workers, one tick, against the real database.
@@ -188,10 +204,12 @@ test.describe('claim → link → indexer → profile', () => {
     expect(opCount, `operations worker wrote nothing; indexer said: ${output}`).toBeGreaterThan(0);
 
     // ── profile ──────────────────────────────────────────────────────────
-    // …and the operations worker put the activity where the profile reads it.
-    // This is the assertion that would catch a break in any seam above: the
-    // page renders operations, so an empty list here means the chain broke
-    // somewhere between the link and the read, whatever else passed.
+    // …the operations worker put the activity where the profile reads it,
+    // and the deployment worker's Contract row is listed with a link to its
+    // page (#455). This is the assertion that would catch a break in any seam
+    // above: the page renders operations and contracts, so an empty list here
+    // means the chain broke somewhere between the link and the read, whatever
+    // else passed.
     await page.goto(`/p/${handle}`);
     const profileText = await page.locator('body').innerText();
     // `invoke_contract`, not the raw function name: `resolveFunction` in
@@ -200,6 +218,20 @@ test.describe('claim → link → indexer → profile', () => {
     // renders as `invoke_contract`. Asserting the raw name would be asserting
     // against something the page never shows.
     expect(profileText, 'the profile should render the deployment').toContain('invoke_contract');
+
+    // The recorded contract is listed in "Deployed contracts" and the link
+    // resolves to its page (200): the row hrefs `/p/{handle}/contract/{address}`,
+    // which the attribution gate lets through because the indexer recorded
+    // this handle's wallet as the deployer.
+    const contractLink = page.locator(`a[href="/p/${handle}/contract/${contractAddress}"]`);
+    await expect(contractLink, 'the profile should list the recorded contract').toBeVisible();
+    const [contractResponse] = await Promise.all([
+      page.waitForResponse(
+        (r) => r.url().includes(`/p/${handle}/contract/${contractAddress}`) && r.request().method() === 'GET',
+      ),
+      contractLink.click(),
+    ]);
+    expect(contractResponse.status(), 'the contract page should resolve to 200').toBe(200);
 
     await prisma.$disconnect();
   });
