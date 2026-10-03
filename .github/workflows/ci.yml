@@ -49,6 +49,12 @@ jobs:
       - name: Check wallet source Go sync
         run: node scripts/check-wallet-source-go.mjs
 
+      # Same guard for the CLI wire contract: cli/internal/spec/zz_generated_api.go
+      # is generated from packages/types/src/cli-api.ts, and the CLI maps exit
+      # codes from the failure codes it declares. Also no Go toolchain needed.
+      - name: Check CLI spec Go sync
+        run: node scripts/check-cli-spec-go.mjs
+
   web:
     name: lint • typecheck • test • build
     runs-on: ubuntu-latest

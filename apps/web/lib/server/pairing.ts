@@ -1,5 +1,16 @@
 import { createHash, randomBytes, timingSafeEqual } from 'node:crypto';
-import { NETWORKS, networkPassphrase, normalizeNetwork, type Network } from '@signet/types';
+import {
+  NETWORKS,
+  networkPassphrase,
+  normalizeNetwork,
+  type ApproveFailure,
+  type ApproveOutcome,
+  type CompleteFailure,
+  type Network,
+  type PollFailure,
+  type PollStatus,
+  type RejectOutcome,
+} from '@signet/types';
 import { spendChallenge } from './challenge-spend.ts';
 import { Sep10Error } from '../sep10.ts';
 import { getConfiguredNetwork, verifyCliLinkChallenge } from '../cli-link.ts';
@@ -253,11 +264,11 @@ export async function startPairing(
  * stored — a pairing nobody touched again is still `pending` in the table
  * long after it stopped being usable, and the CLI needs to stop waiting.
  */
-export type PollStatus = 'pending' | 'approved' | 'rejected' | 'completed' | 'expired';
+// The outcome unions live in `@signet/types`' cli-api.ts — the wire contract
+// the Go CLI is generated from — and are re-exported here for the routes.
+export type { ApproveOutcome, CompleteFailure, PollStatus, RejectOutcome };
 
-export type PollResult =
-  | { ok: true; status: PollStatus }
-  | { ok: false; reason: 'unavailable' | 'not-found' };
+export type PollResult = { ok: true; status: PollStatus } | { ok: false; reason: PollFailure };
 
 /**
  * Report a pairing's progress to the CLI holding its poll token.
@@ -340,18 +351,7 @@ export async function describePairing(
 
 // ── approve ──────────────────────────────────────────────────────────────
 
-export type ApproveResult =
-  | { outcome: 'ok'; handoffCode: string }
-  | { outcome: Exclude<ApproveOutcome, 'ok'> };
-
-export type ApproveOutcome =
-  | 'ok'
-  | 'not-found'
-  | 'expired'
-  | 'already-used'
-  | 'no-profile'
-  | 'no-key'
-  | 'unavailable';
+export type ApproveResult = { outcome: 'ok'; handoffCode: string } | { outcome: ApproveFailure };
 
 /**
  * Record that the signed-in `address`'s profile is approving `state`.
@@ -420,8 +420,6 @@ export async function approvePairing(
 
 // ── reject ───────────────────────────────────────────────────────────────
 
-export type RejectOutcome = 'ok' | 'not-found' | 'expired' | 'already-used' | 'unavailable';
-
 /**
  * Record that the developer refused `state` in the browser.
  *
@@ -459,19 +457,6 @@ export async function rejectPairing(state: string, store?: PairingStore): Promis
 }
 
 // ── complete ─────────────────────────────────────────────────────────────
-
-export type CompleteFailure =
-  | 'unavailable'
-  | 'not-found'
-  | 'expired'
-  | 'not-approved'
-  | 'already-completed'
-  | 'network-mismatch'
-  | 'bad-challenge'
-  | 'key-mismatch'
-  | 'bad-handoff'
-  | 'replayed'
-  | 'wallet-bound-elsewhere';
 
 export type CompleteResult =
   | { ok: true; wallet: LinkedWallet; handle: string | null }

@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import type { ErrorBody, PairStartRequest, PairStartResponse } from '@signet/types';
 import { checkStartNetwork, checkStartPublicKey, startPairing } from '@/lib/server/pairing';
 import { LIMITS, enforceRateLimit } from '@/lib/rate-limit-http';
 
@@ -21,10 +22,7 @@ export async function POST(req: Request) {
   const limited = await enforceRateLimit(req, 'cli:pair:start', LIMITS.cliPairStart);
   if (limited) return limited;
 
-  const { network, publicKey } = (await req.json().catch(() => ({}))) as {
-    network?: string;
-    publicKey?: string;
-  };
+  const { network, publicKey } = (await req.json().catch(() => ({}))) as Partial<PairStartRequest>;
 
   // The deploy key is REQUIRED (#596). A keyless pairing used to reach the
   // approval page with an enabled Approve button next to "Not declared by the
@@ -37,7 +35,8 @@ export async function POST(req: Request) {
       {
         error:
           'publicKey is required and must be a Stellar G… address. Update the signet CLI if yours does not send one.',
-      },
+        code: 'invalid-public-key',
+      } satisfies ErrorBody,
       { status: 400 },
     );
   }
@@ -52,12 +51,16 @@ export async function POST(req: Request) {
       return NextResponse.json(
         {
           error: `Network mismatch: the CLI requested "${checked.requested}" but this deployment is configured for "${checked.configured}".`,
-        },
+          code: 'network-mismatch',
+        } satisfies ErrorBody,
         { status: 400 },
       );
     }
     return NextResponse.json(
-      { error: 'network must be a Stellar network name, e.g. "testnet" or "mainnet"' },
+      {
+        error: 'network must be a Stellar network name, e.g. "testnet" or "mainnet"',
+        code: 'unknown-network',
+      } satisfies ErrorBody,
       { status: 400 },
     );
   }
@@ -68,10 +71,13 @@ export async function POST(req: Request) {
       {
         error:
           'CLI linking requires a database, and this deployment has none configured. This is a deployment configuration problem, not something you did. The operator needs to provision DATABASE_URL.',
-      },
+        code: 'unavailable',
+      } satisfies ErrorBody,
       { status: 503 },
     );
   }
 
-  return NextResponse.json(pairing, { headers: { 'cache-control': 'no-store' } });
+  return NextResponse.json(pairing satisfies PairStartResponse, {
+    headers: { 'cache-control': 'no-store' },
+  });
 }

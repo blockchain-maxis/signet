@@ -283,8 +283,11 @@ func TestRun_TimeoutTellsYouHowToRetry(t *testing.T) {
 
 func TestRun_AlreadyLinkedIsItsOwnFailureMode(t *testing.T) {
 	deps := baseDeps(pair.StatusApproved)
+	// pair.Client classifies the refusal by its code (see pair_test.go); Run
+	// must pass that classification through rather than re-deriving it from
+	// the message, which is free to change.
 	deps.Complete = func(context.Context, string, string, string) (string, bool, error) {
-		return "", false, errors.New("network error: This deploy account is already bound to a different profile")
+		return "", false, fmt.Errorf("%w: reworded, and still already linked", exitcode.ErrAlreadyLinked)
 	}
 
 	_, err := Run(context.Background(), "https://signet.example", "testnet", "src", "GABC", deps)

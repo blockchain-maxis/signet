@@ -1,4 +1,10 @@
 import { NextResponse } from 'next/server';
+import type {
+  ErrorBody,
+  PairRejectRequest,
+  PairRejectResponse,
+  RejectFailure,
+} from '@signet/types';
 import { rejectPairing } from '@/lib/server/pairing';
 import { isSameOrigin } from '@/lib/security';
 import { currentAddress } from '@/lib/server/session';
@@ -21,14 +27,14 @@ export const runtime = 'nodejs';
  * being bound, and a developer who has not claimed a handle still has to be
  * able to refuse a pairing they did not start.
  */
-const OUTCOME_STATUS: Record<string, number> = {
+const OUTCOME_STATUS: Record<RejectFailure, number> = {
   'not-found': 404,
   expired: 410,
   'already-used': 409,
   unavailable: 503,
 };
 
-const OUTCOME_MESSAGE: Record<string, string> = {
+const OUTCOME_MESSAGE: Record<RejectFailure, string> = {
   'not-found': 'Pairing not found — it may have already been used',
   expired: 'This pairing has expired — restart it from the CLI',
   'already-used': 'This pairing has already been answered',
@@ -38,24 +44,39 @@ const OUTCOME_MESSAGE: Record<string, string> = {
 
 export async function POST(req: Request) {
   if (!isSameOrigin(req)) {
-    return NextResponse.json({ error: 'Cross-origin request rejected' }, { status: 403 });
+    return NextResponse.json(
+      { error: 'Cross-origin request rejected', code: 'cross-origin' } satisfies ErrorBody,
+      { status: 403 },
+    );
   }
   const limited = await enforceRateLimit(req, 'cli:pair:reject', LIMITS.authRevoke);
   if (limited) return limited;
 
   const address = await currentAddress();
-  if (!address) return NextResponse.json({ error: 'Not signed in' }, { status: 401 });
+  if (!address) {
+    return NextResponse.json(
+      { error: 'Not signed in', code: 'not-signed-in' } satisfies ErrorBody,
+      { status: 401 },
+    );
+  }
 
-  const { state } = (await req.json().catch(() => ({}))) as { state?: string };
-  if (!state) return NextResponse.json({ error: 'state is required' }, { status: 400 });
+  const { state } = (await req.json().catch(() => ({}))) as Partial<PairRejectRequest>;
+  if (!state) {
+    return NextResponse.json(
+      { error: 'state is required', code: 'bad-request' } satisfies ErrorBody,
+      { status: 400 },
+    );
+  }
 
   const outcome = await rejectPairing(state);
   if (outcome !== 'ok') {
     return NextResponse.json(
-      { error: OUTCOME_MESSAGE[outcome] ?? outcome },
-      { status: OUTCOME_STATUS[outcome] ?? 400 },
+      { error: OUTCOME_MESSAGE[outcome], code: outcome } satisfies ErrorBody,
+      { status: OUTCOME_STATUS[outcome] },
     );
   }
 
-  return NextResponse.json({ ok: true }, { headers: { 'cache-control': 'no-store' } });
+  return NextResponse.json({ ok: true } satisfies PairRejectResponse, {
+    headers: { 'cache-control': 'no-store' },
+  });
 }
