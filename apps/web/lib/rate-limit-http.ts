@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import type { ErrorBody } from '@signet/types';
 import { LIMITS, WINDOW_MS, rateLimitDecision } from './rate-limit-policy.ts';
 
 /**
@@ -31,8 +32,10 @@ export async function enforceRateLimit(
   const refusal = await rateLimitDecision(req.headers, bucket, max, windowMs);
   if (!refusal) return null;
 
+  // `code` is the CLI's machine-readable failure (packages/types/src/cli-api.ts);
+  // other callers ignore it.
   return NextResponse.json(
-    { error: 'Too many requests' },
+    { error: 'Too many requests', code: 'rate-limited' } satisfies ErrorBody,
     {
       status: 429,
       headers: {

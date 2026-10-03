@@ -29,6 +29,23 @@ export function contractTabHref(handle: string, address: string, tab: ContractTa
 }
 
 /**
+ * Absolute href for a tab addressed by its child segment, for callers that
+ * carry a segment string rather than a `ContractTab` (the Functions tab for
+ * #475's per-function permalink, for one). Reading the segment off
+ * `CONTRACT_TABS` keeps the literal in one place: a later epic cannot drift by
+ * inventing a `/functions` that the tab bar does not link to.
+ */
+export function contractTabSegmentHref(
+  handle: string,
+  address: string,
+  segment: string,
+): string {
+  const tab = CONTRACT_TABS.find((candidate) => candidate.segment === segment);
+  if (!tab) throw new RangeError(`No contract tab with segment: ${segment}`);
+  return contractTabHref(handle, address, tab);
+}
+
+/**
  * Gate for the `signet dev` CLI command (#563). Flip to `true` when the
  * command is released. While `false`, the Run locally tab shows a
  * "not released yet" notice above the command instead of hiding the tab.

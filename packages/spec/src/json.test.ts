@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
 import Ajv from 'ajv';
 import { contract, xdr } from '@stellar/stellar-sdk';
+import { buildEvents } from './events.ts';
 import { canonicalStringify, fromSpecJson, toSpecJson, type SpecJson } from './json.ts';
 import type {
   ContractSpec,
@@ -151,7 +152,7 @@ function decodeSpecEntries(entries: readonly xdr.ScSpecEntry[]): {
   const functions: SpecFunction[] = [];
   const types: SpecType[] = [];
   const errors: SpecErrorCase[] = [];
-  const events: SpecEvent[] = [];
+  const events: SpecEvent[] = buildEvents(entries);
 
   for (const entry of entries) {
     const arm = entry.switch().name;
@@ -263,19 +264,6 @@ function decodeSpecEntries(entries: readonly xdr.ScSpecEntry[]): {
           doc: c.doc().toString(),
         });
       }
-    } else if (arm === 'scSpecEntryEventV0') {
-      const ev = value as unknown as {
-        name(): { toString(): string };
-        doc(): { toString(): string };
-        prefixTopics(): Array<{ toString(): string }>;
-        params(): Array<Parameters<typeof decodeField>[0]>;
-      };
-      events.push({
-        name: str(ev.name()),
-        ...(optDoc(ev.doc()) !== undefined ? { doc: optDoc(ev.doc()) as string } : {}),
-        topics: ev.prefixTopics().map((t) => ({ name: t.toString(), type: 'symbol' as const })),
-        data: ev.params().map(decodeField),
-      });
     }
   }
 
@@ -423,7 +411,15 @@ function richSpec(): ContractSpec {
       },
     ],
     errors: [{ enumName: 'E', name: 'Broke', value: 1, doc: '' }],
-    events: [{ name: 'Ev', topics: [], data: [] }],
+    events: [
+      {
+        name: 'Ev',
+        doc: '',
+        prefixTopics: ['ev'],
+        params: [{ name: 'who', type: 'address', location: 'topic' }],
+        dataFormat: 'single_value',
+      },
+    ],
     build: { rustVersion: '1.91.1', sdkVersion: '26.1.0' },
     env: { protocolVersion: 25, preRelease: 0 },
     sdkVersion: SDK_VERSION,

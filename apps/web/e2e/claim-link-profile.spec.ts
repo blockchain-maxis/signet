@@ -105,16 +105,22 @@ test.describe('claim → link → indexer → profile @db', () => {
       data: { network: 'testnet', publicKey: deployer.publicKey() },
     });
     expect(started.ok(), 'pair/start should mint a pairing').toBeTruthy();
-    const { state, pollToken } = (await started.json()) as {
+    const { state, pollToken, userCode } = (await started.json()) as {
       state: string;
       pollToken: string;
+      userCode: string;
     };
     expect(pollToken, 'the CLI gets a poll token distinct from the pairing code').not.toBe(state);
+    expect(userCode, 'the CLI gets a user code to print next to the URL (#596)').toMatch(
+      /^[0-9A-HJKMNP-TV-Z]{8}$/,
+    );
 
     // The browser half: sign in as the handle's owner and approve. This is the
-    // proof that the person approving owns the handle.
+    // proof that the person approving owns the handle. The URL carries the
+    // user code exactly as the CLI builds it — /link verifies it against the
+    // stored hash before rendering the Approve button (#596).
     await apiSignIn(page, owner);
-    await page.goto(`/link?code=${state}`);
+    await page.goto(`/link?code=${state}&user_code=${userCode}`);
 
     // Assert the page *shape* before its contents. /link has several refusal
     // states (no session, unknown or expired code, no database, no handle) and
@@ -126,6 +132,9 @@ test.describe('claim → link → indexer → profile @db', () => {
 
     await expect(page.getByText(deployer.publicKey())).toBeVisible();
     await expect(page.getByText(`@${handle}`)).toBeVisible();
+    // The comparison step (#596): the page shows the same code the terminal
+    // printed, so the developer can tell this is their own link.
+    await expect(page.getByText(userCode)).toBeVisible();
     await page.getByRole('button', { name: /approve/i }).click();
     await expect(page.getByText(/return to your terminal/i)).toBeVisible();
 

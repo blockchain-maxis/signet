@@ -14,7 +14,9 @@ import (
 func main() {
 	args := os.Args[1:]
 
-	if len(args) == 4 && args[0] == "tx" && args[1] == "sign" && args[2] == "--sign-with-key" {
+	// `tx sign --sign-with-key <name> --network-passphrase <p>`: signet always
+	// passes the passphrase, so match on the prefix rather than the full arity.
+	if len(args) >= 4 && args[0] == "tx" && args[1] == "sign" && args[2] == "--sign-with-key" {
 		if detail := os.Getenv("FAKESTELLAR_SIGN_STDERR"); detail != "" {
 			fmt.Fprintln(os.Stderr, detail)
 			os.Exit(1)

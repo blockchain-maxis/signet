@@ -88,11 +88,33 @@ test('contract paths with a bad address, unknown tab or extra depth pass through
   // Overview is the index route (segment null), not a child segment.
   assert.equal(resolveRewriteTarget('alice.signet.dev', `/contract/${CONTRACT}/overview`), null);
   assert.equal(resolveRewriteTarget('alice.signet.dev', `/contract/${CONTRACT}/nonsense`), null);
+  // Only `functions` takes a name (#475); other tabs have no sub-path.
+  assert.equal(resolveRewriteTarget('alice.signet.dev', `/contract/${CONTRACT}/types/extra`), null);
   assert.equal(
-    resolveRewriteTarget('alice.signet.dev', `/contract/${CONTRACT}/functions/extra`),
+    resolveRewriteTarget('alice.signet.dev', `/contract/${CONTRACT}/functions/a/b`),
     null,
   );
   assert.equal(resolveRewriteTarget('alice.signet.dev', '/contract'), null);
+});
+
+test('the per-function permalink rewrites on handle subdomains and /@handle (#475)', () => {
+  assert.equal(
+    resolveRewriteTarget('alice.signet.dev', `/contract/${CONTRACT}/functions/claim`),
+    `/p/alice/contract/${CONTRACT}/functions/claim`,
+  );
+  assert.equal(
+    resolveRewriteTarget('signet.dev', `/@alice/contract/${CONTRACT}/functions/claim`),
+    `/p/alice/contract/${CONTRACT}/functions/claim`,
+  );
+  // A name that cannot be a Soroban symbol never reaches the page.
+  assert.equal(
+    resolveRewriteTarget('alice.signet.dev', `/contract/${CONTRACT}/functions/has-dash`),
+    null,
+  );
+  assert.equal(
+    resolveRewriteTarget('alice.signet.dev', `/contract/${CONTRACT}/functions/${'x'.repeat(33)}`),
+    null,
+  );
 });
 
 test('a well-shaped address routes without checksum validation — the page 404s fakes', () => {

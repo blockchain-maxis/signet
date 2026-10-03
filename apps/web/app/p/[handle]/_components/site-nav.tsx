@@ -25,7 +25,7 @@ export function SiteNav() {
         style={{ fontFamily: 'var(--font-mono)' }}
       >
         <span className="border-b border-[#8b1a1a] pb-1">Claim yours</span>
-        <span className="ml-1.5 text-[#8b1a1a]">→</span>
+        <span className="ml-1.5 text-[#e05a4b]" aria-hidden="true">→</span>
       </a>
     </nav>
   );

@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import type { ErrorBody, PairStatusResponse } from '@signet/types';
 import { pollPairing } from '@/lib/server/pairing';
 import { LIMITS, enforceRateLimit } from '@/lib/rate-limit-http';
 
@@ -30,7 +31,10 @@ export async function GET(req: Request) {
 
   const pollToken = new URL(req.url).searchParams.get('pollToken');
   if (!pollToken) {
-    return NextResponse.json({ error: 'pollToken is required' }, { status: 400 });
+    return NextResponse.json(
+      { error: 'pollToken is required', code: 'bad-request' } satisfies ErrorBody,
+      { status: 400 },
+    );
   }
 
   const result = await pollPairing(pollToken);
@@ -42,8 +46,13 @@ export async function GET(req: Request) {
       result.reason === 'unavailable'
         ? 'CLI linking requires a database, and this deployment has none configured. This is a deployment configuration problem, not something you did. The operator needs to provision DATABASE_URL.'
         : 'Pairing not found';
-    return NextResponse.json({ error }, { status, headers: { 'cache-control': 'no-store' } });
+    return NextResponse.json({ error, code: result.reason } satisfies ErrorBody, {
+      status,
+      headers: { 'cache-control': 'no-store' },
+    });
   }
 
-  return NextResponse.json({ status: result.status }, { headers: { 'cache-control': 'no-store' } });
+  return NextResponse.json({ status: result.status } satisfies PairStatusResponse, {
+    headers: { 'cache-control': 'no-store' },
+  });
 }

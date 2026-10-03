@@ -59,11 +59,18 @@ signet link
    turn your chosen identity into a public key. If you have exactly one
    identity it is used; if you have several you are asked which. *Proves
    nothing yet — it is just deciding which key the rest of the flow is about.*
-2. **Mint a pairing.** signet calls `POST /api/cli/pair/start`, declaring that
-   public key. The declaration is **not** trusted; it exists so the browser can
-   show you which key you are approving.
+2. **Mint a pairing.** signet calls `POST /api/cli/pair/start` with
+   `{network, publicKey}`. The key is **required** — the server refuses a
+   start without one, so an approval page can never show "key not declared" —
+   but the declaration is **not** trusted; it exists so the browser can show
+   you which key you are approving. The response includes a short
+   **confirmation code**, which signet prints next to the approval URL and
+   carries in that URL as `user_code`.
 3. **Approve in the browser.** signet prints (and tries to open) a `/link` URL.
-   The page shows the deploy key and the handle, and you approve or reject.
+   The page shows the deploy key, the handle, and the same confirmation code
+   your terminal printed — the server verifies the code against a stored hash
+   before it renders an Approve button at all. Check the code matches: a page
+   showing a different one is somebody else's link. Then approve or reject.
    *Proves you own the handle*, via your signed-in session.
 4. **Prove the key.** signet fetches a SEP-10 challenge for the deploy account
    and signs it with `stellar tx sign`. *Proves you control the deploy key.*
@@ -103,7 +110,7 @@ so signet never holds one to print.
 
 ```bash
 signet unlink            # asks first
-signet unlink --yes      # for scripts
+signet unlink --yes      # required when stdin is not a terminal (CI, pipes)
 ```
 
 Unlinking needs only the key proof — no browser step. Attaching a wallet makes
@@ -205,7 +212,7 @@ Stable, so scripts can branch on the code rather than on message text.
 | --- | --- |
 | `0` | Success |
 | `1` | Generic or unexpected error |
-| `2` | Invalid input — a malformed handle or public key |
+| `2` | Invalid input — a malformed handle or public key, or `unlink` run non-interactively without `--yes` |
 | `3` | Configuration — the config file, a flag or env var, the `stellar` CLI (missing or too old), or a deployment with no database |
 | `4` | No identity — `stellar` could not resolve the requested identity |
 | `5` | Signing failed |

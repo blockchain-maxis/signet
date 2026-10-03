@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
-import { checkStartNetwork, startPairing } from '@/lib/server/pairing';
+import type { ErrorBody, PairStartRequest, PairStartResponse } from '@signet/types';
+import { checkStartNetwork, checkStartPublicKey, startPairing } from '@/lib/server/pairing';
 import { LIMITS, enforceRateLimit } from '@/lib/rate-limit-http';
 
 export const runtime = 'nodejs';
@@ -21,16 +22,23 @@ export async function POST(req: Request) {
   const limited = await enforceRateLimit(req, 'cli:pair:start', LIMITS.cliPairStart);
   if (limited) return limited;
 
-  const { network, publicKey } = (await req.json().catch(() => ({}))) as {
-    network?: string;
-    publicKey?: string;
-  };
+  const { network, publicKey } = (await req.json().catch(() => ({}))) as Partial<PairStartRequest>;
 
-  // Shape check only — this is an unauthenticated claim, and it is checked for
-  // real at `complete`, where the challenge has to be signed by it. Rejecting
-  // a malformed value here just keeps junk out of the approval page.
-  if (publicKey !== undefined && !/^G[A-Z2-7]{55}$/.test(publicKey)) {
-    return NextResponse.json({ error: 'publicKey must be a Stellar G… address' }, { status: 400 });
+  // The deploy key is REQUIRED (#596). A keyless pairing used to reach the
+  // approval page with an enabled Approve button next to "Not declared by the
+  // CLI" — and since this endpoint is unauthenticated, anyone could mint one,
+  // get a signed-in user to open the link, and then complete it with their
+  // own key. Shape check only beyond that — the claim is checked for real at
+  // `complete`, where the challenge has to be signed by it.
+  if (!checkStartPublicKey(publicKey)) {
+    return NextResponse.json(
+      {
+        error:
+          'publicKey is required and must be a Stellar G… address. Update the signet CLI if yours does not send one.',
+        code: 'invalid-public-key',
+      } satisfies ErrorBody,
+      { status: 400 },
+    );
   }
 
   // The wire uses network names (#616). Unknown or missing → 400; a network
@@ -43,26 +51,33 @@ export async function POST(req: Request) {
       return NextResponse.json(
         {
           error: `Network mismatch: the CLI requested "${checked.requested}" but this deployment is configured for "${checked.configured}".`,
-        },
+          code: 'network-mismatch',
+        } satisfies ErrorBody,
         { status: 400 },
       );
     }
     return NextResponse.json(
-      { error: 'network must be a Stellar network name, e.g. "testnet" or "mainnet"' },
+      {
+        error: 'network must be a Stellar network name, e.g. "testnet" or "mainnet"',
+        code: 'unknown-network',
+      } satisfies ErrorBody,
       { status: 400 },
     );
   }
 
-  const pairing = await startPairing(checked.network, publicKey ?? null);
+  const pairing = await startPairing(checked.network, publicKey);
   if (!pairing) {
     return NextResponse.json(
       {
         error:
           'CLI linking requires a database, and this deployment has none configured. This is a deployment configuration problem, not something you did. The operator needs to provision DATABASE_URL.',
-      },
+        code: 'unavailable',
+      } satisfies ErrorBody,
       { status: 503 },
     );
   }
 
-  return NextResponse.json(pairing, { headers: { 'cache-control': 'no-store' } });
+  return NextResponse.json(pairing satisfies PairStartResponse, {
+    headers: { 'cache-control': 'no-store' },
+  });
 }

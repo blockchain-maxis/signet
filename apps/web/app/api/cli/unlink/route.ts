@@ -1,4 +1,5 @@
 import { NextResponse } from 'next/server';
+import type { ErrorBody, UnlinkRequest, UnlinkResponse } from '@signet/types';
 import { unlinkByChallenge, type UnlinkFailure } from '@/lib/server/cli-unlink';
 import { LIMITS, enforceRateLimit } from '@/lib/rate-limit-http';
 
@@ -39,21 +40,24 @@ export async function POST(req: Request) {
   const limited = await enforceRateLimit(req, 'cli:unlink', LIMITS.cliPairComplete);
   if (limited) return limited;
 
-  const { transaction } = (await req.json().catch(() => ({}))) as { transaction?: string };
+  const { transaction } = (await req.json().catch(() => ({}))) as Partial<UnlinkRequest>;
   if (!transaction) {
-    return NextResponse.json({ error: 'transaction is required' }, { status: 400 });
+    return NextResponse.json(
+      { error: 'transaction is required', code: 'bad-request' } satisfies ErrorBody,
+      { status: 400 },
+    );
   }
 
   const result = await unlinkByChallenge(transaction);
   if (!result.ok) {
     return NextResponse.json(
-      { error: OUTCOME_MESSAGE[result.reason] },
+      { error: OUTCOME_MESSAGE[result.reason], code: result.reason } satisfies ErrorBody,
       { status: OUTCOME_STATUS[result.reason], headers: { 'cache-control': 'no-store' } },
     );
   }
 
   return NextResponse.json(
-    { ok: true, wallet: result.pubkey, handle: result.handle },
+    { ok: true, wallet: result.pubkey, handle: result.handle } satisfies UnlinkResponse,
     { headers: { 'cache-control': 'no-store' } },
   );
 }

@@ -110,6 +110,7 @@ first:
 | [`docs/CONTRACT_DOCS_DESIGN.md`](docs/CONTRACT_DOCS_DESIGN.md) | Generating contract reference documentation from the deployed WASM's `contractspecv0` section |
 | [`docs/CONTRACT_SANDBOX_DESIGN.md`](docs/CONTRACT_SANDBOX_DESIGN.md) | Running a deployed contract's functions from a profile — RPC simulation first, embedded host second |
 | [`docs/CONTRACT_VISUALISER_DESIGN.md`](docs/CONTRACT_VISUALISER_DESIGN.md) | Rendering a deployed contract's call surface, type graph, and (later) call graph as a diagram a non-developer can read |
+| [`docs/API_V1.md`](docs/API_V1.md) | The public `/api/v1` contract: versioning, envelope and error codes, pagination, CORS, caching and rate limits |
 
 ## Architecture
 

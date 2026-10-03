@@ -164,9 +164,14 @@ export function toSpecJson(spec: ContractSpec, options: ToSpecJsonOptions = {}):
     })),
     events: spec.events.map((e) => ({
       name: e.name,
-      ...(e.doc !== undefined ? { doc: e.doc } : {}),
-      topics: e.topics.map(copyField),
-      data: e.data.map(copyField),
+      doc: e.doc,
+      prefixTopics: [...e.prefixTopics],
+      params: e.params.map((p) => ({
+        name: p.name,
+        type: copyTypeRef(p.type),
+        location: p.location,
+      })),
+      dataFormat: e.dataFormat,
     })),
     ...(spec.build !== undefined ? { build: { ...spec.build } } : {}),
     ...(spec.env !== undefined ? { env: { ...spec.env } } : {}),

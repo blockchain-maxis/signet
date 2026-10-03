@@ -61,6 +61,18 @@ export interface LayoutOptions {
  */
 export type LayoutContractGraph = (spec: ContractSpec, options?: LayoutOptions) => DiagramModel;
 
+// Deterministic orthogonal edge routing. Kept as a separate pure pass so the
+// layered layout can assign nodes before resolving ports and channels.
+export {
+  routeDiagram,
+  routeEdges,
+  type Point,
+  type RoutableEdge,
+  type RoutableNode,
+  type RouteOptions,
+  type RoutedEdge,
+} from './route.ts';
+
 // Deterministic text metrics (E-05): the layout's only measure of a label.
 export { MIN_TEXT_PX, textCells, textWidth, truncateLabel } from './metrics.ts';
 
@@ -77,6 +89,17 @@ export {
   type TypeGraphNode,
   type TypeGraphOptions,
 } from './type-graph.ts';
+
+/** Worth-drawing decision (§3): draw / too-simple / too-large. */
+export {
+  type ContractGraph,
+  type GraphNode,
+  type GraphEdge,
+  type DiagramDecision,
+  MAX_NODES,
+  MIN_EDGES,
+  diagramDecision,
+} from './decide.ts';
 
 // Theme tokens and CSS variables (§2.3 of docs/CONTRACT_VISUALISER_DESIGN.md)
 export {

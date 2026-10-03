@@ -79,8 +79,8 @@ signing goes through the stellar CLI.`,
 				Poll:      client.Poll,
 				Complete:  client.Complete,
 				Challenge: link.FetchChallenge(&http.Client{Timeout: 15 * time.Second}, resolved.BaseURL),
-				Sign: func(unsigned string) (string, error) {
-					return keys.SignChallenge(keys.DefaultBinary, source, unsigned)
+				Sign: func(unsigned, passphrase string) (string, error) {
+					return keys.SignChallenge(keys.DefaultBinary, source, unsigned, passphrase)
 				},
 				// flow.Run has already printed the URL — always, because a
 				// developer on a remote box needs to copy it to the machine

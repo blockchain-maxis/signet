@@ -17,6 +17,7 @@ const PLATFORM_PACKAGES = {
   'linux-x64': '@signet/cli-linux-x64',
   'linux-arm64': '@signet/cli-linux-arm64',
   'darwin-arm64': '@signet/cli-darwin-arm64',
+  'darwin-x64': '@signet/cli-darwin-x64',
   'win32-x64': '@signet/cli-windows-x64',
 };
 

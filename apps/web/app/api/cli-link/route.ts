@@ -1,5 +1,11 @@
 import { NextResponse } from 'next/server';
 import { WebAuth } from '@stellar/stellar-sdk';
+import type {
+  ChallengeResponse,
+  CliLinkVerifyRequest,
+  CliLinkVerifyResponse,
+  ErrorBody,
+} from '@signet/types';
 import {
   buildCliLinkChallenge,
   verifyCliLinkChallenge,
@@ -47,13 +53,19 @@ export async function GET(req: Request) {
 
   if (!account || !isValidStellarAddress(account)) {
     return NextResponse.json(
-      { error: 'account is required and must be a valid Stellar address' },
+      {
+        error: 'account is required and must be a valid Stellar address',
+        code: 'bad-request',
+      } satisfies ErrorBody,
       { status: 400, headers: CORS_HEADERS },
     );
   }
   if (!network) {
     return NextResponse.json(
-      { error: 'network is required (e.g. "testnet" or "mainnet")' },
+      {
+        error: 'network is required (e.g. "testnet" or "mainnet")',
+        code: 'bad-request',
+      } satisfies ErrorBody,
       { status: 400, headers: CORS_HEADERS },
     );
   }
@@ -61,13 +73,16 @@ export async function GET(req: Request) {
   try {
     const transaction = buildCliLinkChallenge(account, network);
     return NextResponse.json(
-      { transaction, network_passphrase: getNetworkPassphrase() },
+      { transaction, network_passphrase: getNetworkPassphrase() } satisfies ChallengeResponse,
       { headers: { ...CORS_HEADERS, 'cache-control': 'no-store' } },
     );
   } catch (err) {
     if (err instanceof CliLinkConfigError) {
       logger.error({ err: err.message }, 'cliLink.misconfigured');
-      return NextResponse.json({ error: err.message }, { status: 503, headers: CORS_HEADERS });
+      return NextResponse.json({ error: err.message, code: 'unavailable' } satisfies ErrorBody, {
+        status: 503,
+        headers: CORS_HEADERS,
+      });
     }
     if (err instanceof CliLinkError) {
       // A network mismatch names both networks — the caller needs both to
@@ -76,10 +91,13 @@ export async function GET(req: Request) {
         { requested: network, configured: getConfiguredNetwork(), error: err.message },
         'cliLink.networkMismatch',
       );
-      return NextResponse.json({ error: err.message }, { status: 400, headers: CORS_HEADERS });
+      return NextResponse.json(
+        { error: err.message, code: 'network-mismatch' } satisfies ErrorBody,
+        { status: 400, headers: CORS_HEADERS },
+      );
     }
     return NextResponse.json(
-      { error: 'Could not build challenge' },
+      { error: 'Could not build challenge', code: 'bad-request' } satisfies ErrorBody,
       { status: 400, headers: CORS_HEADERS },
     );
   }
@@ -89,10 +107,10 @@ export async function POST(req: Request) {
   const limited = await enforceRateLimit(req, 'cli-link:verify', LIMITS.cliLink);
   if (limited) return withCors(limited);
 
-  const { transaction } = (await req.json().catch(() => ({}))) as { transaction?: string };
+  const { transaction } = (await req.json().catch(() => ({}))) as Partial<CliLinkVerifyRequest>;
   if (!transaction) {
     return NextResponse.json(
-      { error: 'transaction is required' },
+      { error: 'transaction is required', code: 'bad-request' } satisfies ErrorBody,
       { status: 400, headers: CORS_HEADERS },
     );
   }
@@ -103,19 +121,25 @@ export async function POST(req: Request) {
   } catch (err) {
     if (err instanceof CliLinkConfigError) {
       logger.error({ err: err.message }, 'cliLink.misconfigured');
-      return NextResponse.json({ error: err.message }, { status: 503, headers: CORS_HEADERS });
+      return NextResponse.json({ error: err.message, code: 'unavailable' } satisfies ErrorBody, {
+        status: 503,
+        headers: CORS_HEADERS,
+      });
     }
     const message =
       err instanceof Sep10Error || err instanceof WebAuth.InvalidChallengeError
         ? err.message
         : 'Invalid challenge transaction';
     logger.warn({ error: message }, 'cliLink.verifyRejected');
-    return NextResponse.json({ error: message }, { status: 401, headers: CORS_HEADERS });
+    return NextResponse.json({ error: message, code: 'bad-challenge' } satisfies ErrorBody, {
+      status: 401,
+      headers: CORS_HEADERS,
+    });
   }
 
   logger.info({ address: clientAccountId }, 'cliLink.verified');
   return NextResponse.json(
-    { verified: true, publicKey: clientAccountId },
+    { verified: true, publicKey: clientAccountId } satisfies CliLinkVerifyResponse,
     { headers: CORS_HEADERS },
   );
 }

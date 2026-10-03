@@ -162,14 +162,13 @@ test('ContractSpec type-level shape compilation using satisfies', () => {
       {
         name: 'transferred',
         doc: 'Emitted when assets are transferred',
-        topics: [
-          { name: 'symbol', type: 'symbol' },
-          { name: 'from', type: 'address' },
+        prefixTopics: ['transferred'],
+        params: [
+          { name: 'from', type: 'address', location: 'topic' },
+          { name: 'to', type: 'address', location: 'data' },
+          { name: 'amount', type: 'i128', location: 'data' },
         ],
-        data: [
-          { name: 'to', type: 'address' },
-          { name: 'amount', type: 'i128' },
-        ],
+        dataFormat: 'map',
       },
     ] satisfies readonly SpecEvent[],
     build: {

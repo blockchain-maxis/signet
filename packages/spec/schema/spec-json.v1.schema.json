@@ -240,12 +240,24 @@
     },
     "specEvent": {
       "type": "object",
-      "required": ["name", "topics", "data"],
+      "required": ["name", "doc", "prefixTopics", "params", "dataFormat"],
       "properties": {
         "name": { "type": "string" },
         "doc": { "type": "string" },
-        "topics": { "type": "array", "items": { "$ref": "#/definitions/specField" } },
-        "data": { "type": "array", "items": { "$ref": "#/definitions/specField" } }
+        "prefixTopics": { "type": "array", "items": { "type": "string" } },
+        "params": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["name", "type", "location"],
+            "properties": {
+              "name": { "type": "string" },
+              "type": { "$ref": "#/definitions/typeRef" },
+              "location": { "enum": ["topic", "data"] }
+            }
+          }
+        },
+        "dataFormat": { "enum": ["single_value", "vec", "map"] }
       }
     },
     "contractBuild": {

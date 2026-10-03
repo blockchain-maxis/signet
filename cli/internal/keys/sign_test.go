@@ -27,7 +27,7 @@ func TestSignChallenge_PipesTheEnvelopeAndReturnsTheSignedOne(t *testing.T) {
 		return []byte(fakeSignedXDR + "\n"), nil, nil
 	})
 
-	signed, err := SignChallenge(buildFakeStellar(t), "alice", "AAAAunsignedAAAA")
+	signed, err := SignChallenge(buildFakeStellar(t), "alice", "AAAAunsignedAAAA", testPassphrase)
 	if err != nil {
 		t.Fatalf("SignChallenge: %v", err)
 	}
@@ -37,7 +37,7 @@ func TestSignChallenge_PipesTheEnvelopeAndReturnsTheSignedOne(t *testing.T) {
 	if gotStdin != "AAAAunsignedAAAA" {
 		t.Fatalf("piped %q to stellar", gotStdin)
 	}
-	want := []string{"tx", "sign", "--sign-with-key", "alice"}
+	want := []string{"tx", "sign", "--sign-with-key", "alice", "--network-passphrase", testPassphrase}
 	if strings.Join(gotArgs, " ") != strings.Join(want, " ") {
 		t.Fatalf("args = %v, want %v", gotArgs, want)
 	}
@@ -48,7 +48,7 @@ func TestSignChallenge_SurfacesStellarsStderr(t *testing.T) {
 		return nil, []byte("error: identity 'alice' not found\n"), errors.New("exit status 1")
 	})
 
-	_, err := SignChallenge(buildFakeStellar(t), "alice", "AAAAunsignedAAAA")
+	_, err := SignChallenge(buildFakeStellar(t), "alice", "AAAAunsignedAAAA", testPassphrase)
 	if err == nil {
 		t.Fatal("expected an error")
 	}
@@ -67,7 +67,7 @@ func TestSignChallenge_RedactsASecretFromStellarsStderr(t *testing.T) {
 		return nil, []byte("hardware wallet declined\nseed: " + secret + "\n"), errors.New("exit status 1")
 	})
 
-	_, err := SignChallenge(buildFakeStellar(t), "alice", "AAAAunsignedAAAA")
+	_, err := SignChallenge(buildFakeStellar(t), "alice", "AAAAunsignedAAAA", testPassphrase)
 	if err == nil {
 		t.Fatal("expected an error")
 	}
@@ -84,7 +84,7 @@ func TestSignChallenge_RejectsOutputThatIsNotAnEnvelope(t *testing.T) {
 		return []byte("Signing with alice... done!"), nil, nil
 	})
 
-	_, err := SignChallenge(buildFakeStellar(t), "alice", "AAAAunsignedAAAA")
+	_, err := SignChallenge(buildFakeStellar(t), "alice", "AAAAunsignedAAAA", testPassphrase)
 	if !errors.Is(err, exitcode.ErrSigningFailure) {
 		t.Fatalf("accepted non-envelope output: %v", err)
 	}
@@ -95,7 +95,7 @@ func TestSignChallenge_RejectsEmptyOutput(t *testing.T) {
 		return []byte("  \n"), nil, nil
 	})
 
-	_, err := SignChallenge(buildFakeStellar(t), "alice", "AAAAunsignedAAAA")
+	_, err := SignChallenge(buildFakeStellar(t), "alice", "AAAAunsignedAAAA", testPassphrase)
 	if !errors.Is(err, exitcode.ErrSigningFailure) {
 		t.Fatalf("accepted empty output: %v", err)
 	}
@@ -107,10 +107,10 @@ func TestSignChallenge_RequiresAnIdentityAndSomethingToSign(t *testing.T) {
 		return nil, nil, nil
 	})
 
-	if _, err := SignChallenge("stellar", "", "AAAA"); !errors.Is(err, exitcode.ErrSigningFailure) {
+	if _, err := SignChallenge("stellar", "", "AAAA", testPassphrase); !errors.Is(err, exitcode.ErrSigningFailure) {
 		t.Fatalf("empty identity: %v", err)
 	}
-	if _, err := SignChallenge("stellar", "alice", "   "); !errors.Is(err, exitcode.ErrSigningFailure) {
+	if _, err := SignChallenge("stellar", "alice", "   ", testPassphrase); !errors.Is(err, exitcode.ErrSigningFailure) {
 		t.Fatalf("empty envelope: %v", err)
 	}
 }
@@ -165,5 +165,42 @@ func TestValidateSignWithKey_RefusesKeyMaterial(t *testing.T) {
 func TestValidateSignWithKey_RefusesEmpty(t *testing.T) {
 	if err := ValidateSignWithKey("   "); !errors.Is(err, exitcode.ErrConfiguration) {
 		t.Fatalf("err = %v", err)
+	}
+}
+
+// ── network passphrase and stderr redaction (#602) ───────────────────────
+
+const testPassphrase = "Test SDF Network ; September 2015"
+
+func TestSignChallenge_RefusesAnEmptyPassphraseBeforeRunningStellar(t *testing.T) {
+	withStdinRunner(t, func(string, string, ...string) ([]byte, []byte, error) {
+		t.Fatal("should not have shelled out")
+		return nil, nil, nil
+	})
+
+	_, err := SignChallenge("stellar", "alice", "AAAAunsignedAAAA", "  ")
+	if !errors.Is(err, exitcode.ErrSigningFailure) {
+		t.Fatalf("err = %v, want a signing failure", err)
+	}
+	if code, _ := exitcode.CodeFor(err); code != exitcode.SigningFailure {
+		t.Fatalf("exit code = %d, want %d", code, exitcode.SigningFailure)
+	}
+}
+
+func TestSignChallenge_RedactsSecretsInStellarsStderr(t *testing.T) {
+	seed := "SASAAEJC6P5UZGRLYJ2I2KYLR7RXGF44JZXDYGCFBN7T5VIHECUUEMCD"
+	withStdinRunner(t, func(string, string, ...string) ([]byte, []byte, error) {
+		return nil, []byte("error: could not sign with " + seed + "\n"), errors.New("exit status 1")
+	})
+
+	_, err := SignChallenge(buildFakeStellar(t), "alice", "AAAAunsignedAAAA", testPassphrase)
+	if !errors.Is(err, exitcode.ErrSigningFailure) {
+		t.Fatalf("err = %v, want a signing failure", err)
+	}
+	if strings.Contains(err.Error(), seed) {
+		t.Fatalf("secret reached the error: %v", err)
+	}
+	if !strings.Contains(err.Error(), "could not sign with") {
+		t.Fatalf("lost the rest of stellar's stderr: %v", err)
 	}
 }

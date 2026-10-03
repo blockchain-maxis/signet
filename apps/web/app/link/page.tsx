@@ -23,6 +23,10 @@ const REFUSAL: Record<string, string> = {
   expired: 'That pairing code has expired. Run `signet link` again to get a new one.',
   'already-used':
     'That pairing code has already been answered. Start a new one from your terminal.',
+  'no-key':
+    'The terminal that started this link never declared which deploy wallet it wants to attach, so there is nothing safe to approve. Start the link again from an up-to-date CLI.',
+  'code-mismatch':
+    'This link does not match the confirmation code your terminal was given. Open the exact URL `signet link` printed — if you did, run it again to start over.',
   unavailable:
     'CLI linking needs a database and this deployment has none configured, so nothing could be saved even if you approved. This is the operator’s configuration to fix, not yours.',
 };
@@ -67,14 +71,28 @@ function Refusal({ message }: { message: string }) {
  * any other account, so what is displayed is what gets bound.
  *
  * A code that cannot be verified is never rendered: an unknown, expired, or
- * already-answered pairing gets a refusal page, not a form.
+ * already-answered pairing gets a refusal page, not a form. So does one whose
+ * `user_code` (#596) does not hash to what `start` stored — the code is the
+ * proof that this page was opened from the URL the developer's own terminal
+ * printed, and it is displayed so they can compare it against the terminal
+ * before approving.
  */
 export default async function LinkApprovalPage({
   searchParams,
 }: {
-  searchParams: Promise<{ code?: string; callback?: string; callback_state?: string }>;
+  searchParams: Promise<{
+    code?: string;
+    user_code?: string;
+    callback?: string;
+    callback_state?: string;
+  }>;
 }) {
-  const { code, callback, callback_state: callbackState } = await searchParams;
+  const {
+    code,
+    user_code: userCode,
+    callback,
+    callback_state: callbackState,
+  } = await searchParams;
 
   if (!code) {
     return (
@@ -98,7 +116,7 @@ export default async function LinkApprovalPage({
     );
   }
 
-  const pairing = await describePairing(code);
+  const pairing = await describePairing(code, userCode);
   if (!pairing.ok) {
     return <Refusal message={REFUSAL[pairing.reason] ?? 'That pairing code cannot be used.'} />;
   }
@@ -130,16 +148,27 @@ export default async function LinkApprovalPage({
             Deploy wallet
           </dt>
           <dd className="mt-2 break-all text-[13px] text-[#b8b5a8]" style={mono}>
-            {pairing.publicKey ??
-              'Not declared by the CLI — update to a newer version to see it here'}
+            {pairing.publicKey}
           </dd>
         </div>
-        <div className="px-6 py-5">
+        <div className="border-b border-[#1f1d19] px-6 py-5">
           <dt className="text-[10px] uppercase tracking-[0.2em] text-[#5e5b51]" style={mono}>
             Handle
           </dt>
           <dd className="mt-2 text-[13px] text-[#b8b5a8]" style={mono}>
             @{account.handle}
+          </dd>
+        </div>
+        <div className="px-6 py-5">
+          <dt className="text-[10px] uppercase tracking-[0.2em] text-[#5e5b51]" style={mono}>
+            Does your terminal show this code?
+          </dt>
+          <dd className="mt-2 text-[20px] tracking-[0.3em] text-[#b8b5a8]" style={mono}>
+            {userCode}
+          </dd>
+          <dd className="mt-2 text-[12px] leading-[1.7] text-[#5e5b51]" style={mono}>
+            `signet link` printed this code next to the URL. If your terminal shows a different one,
+            close this page — you are not looking at your own link.
           </dd>
         </div>
       </dl>

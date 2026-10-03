@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getAccount } from '@/lib/server/account';
-import { normalizeNetwork } from '@signet/types';
+import { normalizeNetwork, type ErrorBody, type WhoamiResponse } from '@signet/types';
 import { getConfiguredNetwork } from '@/lib/cli-link';
 import { isValidStellarAddress } from '@/lib/stellar-address';
 import { LIMITS, enforceRateLimit } from '@/lib/rate-limit-http';
@@ -29,7 +29,10 @@ export async function GET(req: Request) {
   const publicKey = new URL(req.url).searchParams.get('publicKey');
   if (!publicKey || !isValidStellarAddress(publicKey)) {
     return NextResponse.json(
-      { error: 'publicKey is required and must be a valid Stellar address' },
+      {
+        error: 'publicKey is required and must be a valid Stellar address',
+        code: 'bad-request',
+      } satisfies ErrorBody,
       { status: 400 },
     );
   }
@@ -45,7 +48,7 @@ export async function GET(req: Request) {
       // start route accepts them and this mirrors it. pair.Identity on the Go
       // side is unchanged; it only displays the value.
       network: normalizeNetwork(getConfiguredNetwork()),
-    },
+    } satisfies WhoamiResponse,
     { headers: { 'cache-control': 'no-store' } },
   );
 }
