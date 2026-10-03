@@ -6,14 +6,26 @@ export const metadata = {
   description: 'How Signet binds Stellar wallets to developer identities, and how to read the data.',
 };
 
-function H({ children }: { children: React.ReactNode }) {
+function H({ id, children }: { id?: string; children: React.ReactNode }) {
   return (
     <h2
+      id={id}
       className="mt-14 text-[11px] uppercase tracking-[0.26em] text-[#8b1a1a]"
       style={{ fontFamily: 'var(--font-mono)' }}
     >
       {children}
     </h2>
+  );
+}
+
+function Sub({ children }: { children: React.ReactNode }) {
+  return (
+    <h3
+      className="mt-8 text-[13px] font-medium text-[#f5f4ee]"
+      style={{ fontFamily: 'var(--font-mono)' }}
+    >
+      {children}
+    </h3>
   );
 }
 
@@ -78,6 +90,113 @@ export default function DocsPage() {
           on-chain operations shown are fetched from the public Stellar Horizon
           API, and each row links to its transaction on Stellar Expert for
           independent verification.
+        </p>
+
+        <H id="reading-a-contract-diagram">Reading a contract diagram</H>
+        <p className="mt-4 text-[14px] leading-[1.7] text-[#b8b5a8]">
+          The <strong>Diagram</strong> tab on a contract page draws the shape of a
+          Soroban contract from its compiled spec and from on-chain activity:
+          which functions exist, which events they emit, and which of those are
+          actually being used. It is a map of interface and usage, not a look
+          inside the contract&#8217;s storage.
+        </p>
+
+        <Sub>Node kinds</Sub>
+        <ul className="mt-3 space-y-2 text-[14px] leading-[1.7] text-[#b8b5a8]">
+          <li>
+            <strong>Function node</strong> — one exported entry point from the
+            contract spec. The label is the function name; the badge next to it
+            shows how many times it was invoked on chain.
+          </li>
+          <li>
+            <strong>Event node</strong> — an event the contract declares in its
+            spec. Events are drawn with a distinct outline so they are not
+            confused with callable functions.
+          </li>
+          <li>
+            <strong>External node</strong> — a contract this one calls into or is called
+            by, drawn at the edge of the graph with a muted treatment. External
+            contracts are not expanded unless they also have a Signet diagram.
+          </li>
+        </ul>
+
+        <Sub>Edge kinds</Sub>
+        <ul className="mt-3 space-y-2 text-[14px] leading-[1.7] text-[#b8b5a8]">
+          <li>
+            <strong>Call edge</strong> — a solid line from a function to another
+            function or external contract it invokes. Thickness reflects how often
+            the call was observed on chain.
+          </li>
+          <li>
+            <strong>Emit edge</strong> — a dashed line from a function to the event
+            it emits. Dashing distinguishes &quot;this function produces this
+            event&quot; from a function-to-function call.
+          </li>
+          <li>
+            <strong>Inferred edge</strong> — a dotted line drawn from observed
+            activity rather than from the spec. Inferred edges are labelled as
+            such so you always know what the contract declares versus what it
+            actually does.
+          </li>
+        </ul>
+
+        <Sub>Groups and stubs</Sub>
+        <p className="mt-3 text-[14px] leading-[1.7] text-[#b8b5a8]">
+          Functions and events are clustered into <strong>groups</strong> by the
+          convention in their names (e.g. a common prefix like <code>admin_</code>).
+          Groups are a reading aid, not a language feature. When a function or event
+          has no group match, it is drawn as a <strong>stub</strong> — a short
+          labeled node with no edges, listed so nothing from the spec is hidden.
+        </p>
+
+        <Sub>Size thresholds</Sub>
+        <p className="mt-3 text-[14px] leading-[1.7] text-[#b8b5a8]">
+          Node size is driven by observed invocation counts, not by source code
+          length. Nodes below the lower threshold are drawn at the minimum size;
+          nodes above the upper threshold are capped so a single hot function
+          does not dominate the layout. The thresholds are fixed per diagram, so
+          two contracts can be compared by shape at a glance.
+        </p>
+
+        <Sub>SVG export</Sub>
+        <p className="mt-3 text-[14px] leading-[1.7] text-[#b8b5a8]">
+          The diagram can be downloaded as an SVG for use in docs, proposals or
+          audits — the export is the same graph with the same legend, not a
+          screenshot. Text remains selectable and the file is self-contained.
+        </p>
+
+        <Sub>What the diagram cannot show</Sub>
+        <ul className="mt-3 space-y-2 text-[14px] leading-[1.7] text-[#b8b5a8]">
+          <li>
+            <strong>Mutability</strong> — the Soroban spec does not say whether a function
+            writes state, only that it exists. A function that looks read-only may
+            still mutate storage.
+          </li>
+          <li>
+            <strong>State layout</strong> — the spec describes the interface, not the
+            storage keys or the shape of what is stored. The diagram cannot tell
+            you what a function will read or write.
+          </li>
+          <li>
+            <strong>Authorization requirements</strong> — neither the spec nor
+            observed activity shows which addresses are allowed to call a given
+            function.
+          </li>
+          <li>
+            <strong>Anything not observed yet</strong> — a function with no observed
+            invocations is drawn but unsized. Absence of activity is not evidence
+            that a function is dead — it may simply not be indexed yet.
+          </li>
+        </ul>
+
+        <Sub>What &quot;observed&quot; means</Sub>
+        <p className="mt-3 text-[14px] leading-[1.7] text-[#b8b5a8]">
+          Today, &quot;observed&quot; means the invocations and events visible in
+          Signet&#8217;s index of public chain activity. Once the phase 2/3
+          indexer lands, every invocation and event for a contract will be
+          attributed from the chain itself, so &quot;observed&quot; will mean &quot;every
+          on-chain invocation Signet has indexed&quot; rather than &quot;what we have seen so
+          far&quot;. Until then, treat the counts as a lower bound.
         </p>
 
         <H>Linking your deploy wallet</H>

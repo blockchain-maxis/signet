@@ -1,7 +1,8 @@
 # Design: visualise a contract for non-developers
 
-**Status:** design note. Nothing here is built yet. This document exists to
-settle the shape before code, and — like the sandbox note — because
+**Status:** Phase 1 built. See the [`@signet/visualiser` package](../packages/visualiser/)
+for the implementation.
+This document exists to settle the shape before code, and — like the sandbox note — because
 investigating it changes what should be built. It is the third consumer of the
 shared spec reader that `CONTRACT_DOCS_DESIGN.md` §5 specifies and auto-docs
 builds first; it should not start before that reader exists.
