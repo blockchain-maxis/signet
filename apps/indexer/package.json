@@ -20,8 +20,8 @@
   },
   "devDependencies": {
     "@signet/fixtures": "workspace:*",
-    "@types/node": "^20.16.0",
-    "tsx": "^4.19.1",
-    "typescript": "^5.6.3"
+    "@types/node": "^26.6.3",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2"
   }
 }
