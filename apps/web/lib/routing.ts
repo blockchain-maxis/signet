@@ -59,6 +59,14 @@ const CONTRACT_TAB_SEGMENTS = new Set(
 const CONTRACT_ADDRESS_SHAPE = /^C[A-Z2-7]{55}$/;
 
 /**
+ * Shape of a Soroban function name (#475): the permalink's `{name}` segment.
+ * Soroban symbols are `[A-Za-z0-9_]` and at most 32 characters; anything else
+ * cannot be a function, so it is not rewritten (the page itself 404s unknown
+ * names, this only keeps junk off the internal route).
+ */
+const FUNCTION_NAME_SHAPE = /^[A-Za-z0-9_]{1,32}$/;
+
+/**
  * Extract the subdomain from a host header, or `null` when there isn't a
  * usable one (apex domain, bare `localhost`, or a `*.vercel.app` preview where
  * wildcard subdomains aren't available).
@@ -85,7 +93,8 @@ export function getSubdomain(host: string): string | null {
 }
 
 /**
- * `/contract/{address}` or `/contract/{address}/{tab}` relative to a profile:
+ * `/contract/{address}`, `/contract/{address}/{tab}` or
+ * `/contract/{address}/functions/{name}` relative to a profile:
  * the suffix to append to `/p/{handle}`, or `null` when the segments are not
  * a valid contract path (wrong shape, bad address, unknown tab).
  */
@@ -97,6 +106,11 @@ function contractSuffix(segments: string[]): string | null {
   const tab = segments[2];
   if (segments.length === 3 && tab && CONTRACT_TAB_SEGMENTS.has(tab)) {
     return `/contract/${address}/${tab}`;
+  }
+  // `/contract/{address}/functions/{name}` — the per-function permalink (#475).
+  const name = segments[3];
+  if (segments.length === 4 && tab === 'functions' && name && FUNCTION_NAME_SHAPE.test(name)) {
+    return `/contract/${address}/functions/${name}`;
   }
   return null;
 }

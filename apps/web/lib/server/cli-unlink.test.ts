@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { Keypair } from '@stellar/stellar-sdk';
 import { TransactionBuilder } from '@stellar/stellar-sdk';
 import { buildChallenge, getNetworkPassphrase } from '../sep10.ts';
+import { buildCliLinkChallenge } from '../cli-link.ts';
 import { __resetNonceStore } from '../nonce-store.ts';
 import { unlinkByChallenge, type UnlinkStore } from './cli-unlink.ts';
 import { logger } from '../logger.ts';
@@ -35,9 +36,9 @@ function fakeStore(seed: Record<string, Row> = {}) {
   return { store, wallets };
 }
 
-/** Build and sign a fresh SEP-10 challenge for `client`, as the CLI would. */
+/** Build and sign a fresh CLI-link challenge for `client`, as the CLI would. */
 function signedChallenge(client: Keypair): string {
-  const challenge = buildChallenge(client.publicKey());
+  const challenge = buildCliLinkChallenge(client.publicKey(), 'testnet');
   const tx = TransactionBuilder.fromXDR(challenge, getNetworkPassphrase());
   tx.sign(client);
   return tx.toEnvelope().toXDR('base64');
@@ -68,7 +69,30 @@ test('unlinkByChallenge refuses an unsigned challenge and removes nothing', asyn
     [client.publicKey()]: { profileId: 'profile_1', isPrimary: false },
   });
 
-  const result = await unlinkByChallenge(buildChallenge(client.publicKey()), store);
+  const result = await unlinkByChallenge(
+    buildCliLinkChallenge(client.publicKey(), 'testnet'),
+    store,
+  );
+  assert.deepEqual(result, { ok: false, reason: 'bad-challenge' });
+  assert.equal(wallets.has(client.publicKey()), true);
+});
+
+test('unlinkByChallenge rejects a signed web sign-in challenge (wrong domain)', async (t) => {
+  __resetNonceStore();
+  t.after(() => __resetNonceStore());
+  const client = Keypair.random();
+  const { store, wallets } = fakeStore({
+    [client.publicKey()]: { profileId: 'profile_1', isPrimary: false },
+  });
+  // A perfectly valid sign-in proof, signed by the wallet's own key: it must
+  // not be able to detach the wallet.
+  const signIn = TransactionBuilder.fromXDR(
+    buildChallenge(client.publicKey()),
+    getNetworkPassphrase(),
+  );
+  signIn.sign(client);
+
+  const result = await unlinkByChallenge(signIn.toEnvelope().toXDR('base64'), store);
   assert.deepEqual(result, { ok: false, reason: 'bad-challenge' });
   assert.equal(wallets.has(client.publicKey()), true);
 });
@@ -137,7 +161,7 @@ test('a failed signature does not spend the challenge', async (t) => {
   });
 
   // Anyone who merely sees the challenge could otherwise burn it.
-  await unlinkByChallenge(buildChallenge(client.publicKey()), store);
+  await unlinkByChallenge(buildCliLinkChallenge(client.publicKey(), 'testnet'), store);
   assert.equal((await unlinkByChallenge(signedChallenge(client), store)).ok, true);
 });
 

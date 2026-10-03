@@ -21,6 +21,39 @@ export type {
   PairingOutcome,
 } from './pairing.ts';
 
+// The CLI routes' wire contract — bodies and failure codes, mirrored to Go for
+// the CLI (cli/internal/spec).
+export type {
+  ApproveFailure,
+  ApproveOutcome,
+  ChallengeResponse,
+  CliFailureCode,
+  CliLinkFailure,
+  CliLinkVerifyRequest,
+  CliLinkVerifyResponse,
+  CompleteFailure,
+  ErrorBody,
+  PairApproveRequest,
+  PairApproveResponse,
+  PairCompleteRequest,
+  PairCompleteResponse,
+  PairRejectRequest,
+  PairRejectResponse,
+  PairStartRequest,
+  PairStartResponse,
+  PairStatusResponse,
+  PollFailure,
+  PollStatus,
+  RejectFailure,
+  RejectOutcome,
+  RequestFailure,
+  StartFailure,
+  UnlinkFailure,
+  UnlinkRequest,
+  UnlinkResponse,
+  WhoamiResponse,
+} from './cli-api.ts';
+
 /** Allowed `Wallet.source` values, mirrored to Go for the CLI. */
 export { WALLET_SOURCES, isWalletSource } from './wallet-source.ts';
 export type { WalletSource } from './wallet-source.ts';

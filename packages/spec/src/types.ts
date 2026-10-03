@@ -148,8 +148,10 @@ export interface SpecField {
 export interface SpecFunction {
   /** Exported function name. */
   readonly name: string;
-  /** Optional documentation comment. */
-  readonly doc?: string;
+  /** Documentation comment; `''` when the function has none. */
+  readonly doc: string;
+  /** True for the contract constructor (`__constructor`). */
+  readonly isConstructor: boolean;
   /** Ordered function arguments. */
   readonly inputs: readonly SpecField[];
   /** Function return type definitions. */
@@ -234,29 +236,56 @@ export type SpecType = SpecStruct | SpecUnion | SpecEnum;
  * Corresponds to `xdr.ScSpecUdtErrorEnumCaseV0` from `scSpecEntryUdtErrorEnumV0`.
  */
 export interface SpecErrorCase {
-  /** Name of the error enum if part of a named error set. */
-  readonly enumName?: string;
+  /** Name of the error enum that declares this case. */
+  readonly enumName: string;
   /** Symbolic name of the error condition. */
   readonly name: string;
   /** Numeric error code (u32 value). */
   readonly value: number;
-  /** Optional doc comment describing the failure. */
-  readonly doc?: string;
+  /** Doc comment describing the failure; `''` when absent. */
+  readonly doc: string;
+}
+
+/**
+ * Where an event parameter is carried on the emitted event.
+ * Corresponds to `xdr.ScSpecEventParamLocationV0`.
+ */
+export type SpecEventParamLocation = 'topic' | 'data';
+
+/**
+ * How the non-topic parameters are packed into the event's data value.
+ * Corresponds to `xdr.ScSpecEventDataFormat`.
+ */
+export type SpecEventDataFormat = 'single_value' | 'vec' | 'map';
+
+/**
+ * A single event parameter.
+ * Corresponds to `xdr.ScSpecEventParamV0`.
+ */
+export interface SpecEventParam {
+  /** Parameter name. */
+  readonly name: string;
+  /** Type definition reference. */
+  readonly type: TypeRef;
+  /** Whether the parameter is a topic or part of the data payload. */
+  readonly location: SpecEventParamLocation;
 }
 
 /**
  * Contract event specification descriptor.
- * Corresponds to `xdr.ScSpecEventV0` (`scSpecEntryEventV0`).
+ * Corresponds to `xdr.ScSpecEventV0` (`scSpecEntryEventV0`, SEP-48).
  */
 export interface SpecEvent {
-  /** Symbolic event name. */
+  /** Event name (the struct name for `#[contractevent]`). */
   readonly name: string;
-  /** Optional doc comment. */
-  readonly doc?: string;
-  /** Topic descriptors. */
-  readonly topics: readonly SpecField[];
-  /** Payload data descriptors. */
-  readonly data: readonly SpecField[];
+  /** Doc comment; `''` when absent. */
+  readonly doc: string;
+  /** Leading topic symbols emitted before any topic parameters. */
+  readonly prefixTopics: readonly string[];
+  /** Parameters in declaration order, each flagged as topic or data. */
+  readonly params: readonly SpecEventParam[];
+  /** How the data parameters are packed into the event's data value. */
+  readonly dataFormat: SpecEventDataFormat;
 }
 
 /**

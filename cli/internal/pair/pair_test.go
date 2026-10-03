@@ -131,6 +131,56 @@ func TestDo_SurfacesTheServersOwnMessage(t *testing.T) {
 	}
 }
 
+// #600: the exit code comes from the body's code, never its message. Before,
+// classifyComplete matched "already bound to a different profile", so
+// rewording that sentence in complete/route.ts silently turned exit 9 into 6.
+func TestDo_MapsByCodeNotMessage(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusConflict)
+		_, _ = io.WriteString(w, `{"error":"Somebody else has this wallet","code":"wallet-bound-elsewhere"}`)
+	}))
+	defer srv.Close()
+
+	_, _, err := New(srv.URL).Complete(context.Background(), "p_1", "xdr", "")
+	if got, _ := exitcode.CodeFor(err); got != exitcode.AlreadyLinked {
+		t.Fatalf("exit code = %d, want %d (err: %v)", got, exitcode.AlreadyLinked, err)
+	}
+	if !strings.Contains(err.Error(), "Somebody else has this wallet") {
+		t.Fatalf("error lost the server's message: %v", err)
+	}
+}
+
+// A code wins over the status: `unavailable` is a configuration problem
+// whatever status carried it, and a known refusal on a 503 is still that
+// refusal.
+func TestDo_ACodeOutranksTheStatus(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusBadRequest)
+		_, _ = io.WriteString(w, `{"error":"no database","code":"unavailable"}`)
+	}))
+	defer srv.Close()
+
+	_, err := New(srv.URL).Unlink(context.Background(), "SIGNED")
+	if !errors.Is(err, exitcode.ErrConfiguration) {
+		t.Fatalf("err = %v, want a configuration error", err)
+	}
+}
+
+// A code this build does not know (a newer server) falls back to the status,
+// exactly as a body with no code does.
+func TestDo_AnUnknownCodeFallsBackToTheStatus(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusServiceUnavailable)
+		_, _ = io.WriteString(w, `{"error":"down for a bit","code":"some-future-code"}`)
+	}))
+	defer srv.Close()
+
+	_, err := New(srv.URL).Start(context.Background(), "testnet", "GABC")
+	if !errors.Is(err, exitcode.ErrConfiguration) {
+		t.Fatalf("err = %v, want the 503 fallback", err)
+	}
+}
+
 func TestDo_RedactsSecretsInServerAndRequestErrors(t *testing.T) {
 	seed := "SASAAEJC6P5UZGRLYJ2I2KYLR7RXGF44JZXDYGCFBN7T5VIHECUUEMCD"
 

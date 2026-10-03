@@ -269,6 +269,13 @@ model PairingState {
   /// Binds "the person who approved" to "the terminal that completes" the way
   /// the loopback `state` does on the local path.
   handoffHash String?
+  /// SHA-256 of the short user code minted at `start` (#596). The CLI prints
+  /// the code and puts it in the approval URL; `/link` verifies it against
+  /// this hash before rendering an Approve button, so the page a developer
+  /// approves provably came from the URL their own terminal printed. Hashed
+  /// because a database read must not recover what the terminal shows. Null
+  /// only on rows minted before the column existed, which `/link` refuses.
+  userCodeHash String?
   /// Set by `approve` — the profile the signed-in browser session belongs to.
   profileId   String?
   createdAt   DateTime  @default(now())

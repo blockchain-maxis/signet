@@ -1,6 +1,11 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { CONTRACT_TABS, contractTabHref, SIGNET_DEV_RELEASED } from './contract-tabs.ts';
+import {
+  CONTRACT_TABS,
+  contractTabHref,
+  contractTabSegmentHref,
+  SIGNET_DEV_RELEASED,
+} from './contract-tabs.ts';
 
 test('tabs are in the order the design fixes', () => {
   assert.deepEqual(
@@ -24,6 +29,26 @@ test('hrefs put the index at the base route and every other tab under its segmen
   const [overview, functions] = CONTRACT_TABS;
   assert.equal(contractTabHref('alice', 'CABC', overview!), '/p/alice/contract/CABC');
   assert.equal(contractTabHref('alice', 'CABC', functions!), '/p/alice/contract/CABC/functions');
+});
+
+test('a segment lookup resolves to the same href the tab bar links to', () => {
+  assert.equal(
+    contractTabSegmentHref('alice', 'CABC', 'functions'),
+    '/p/alice/contract/CABC/functions',
+  );
+  for (const tab of CONTRACT_TABS) {
+    if (tab.segment === null) continue;
+    assert.equal(
+      contractTabSegmentHref('alice', 'CABC', tab.segment),
+      contractTabHref('alice', 'CABC', tab),
+    );
+  }
+});
+
+test('an unknown segment throws rather than building a URL nothing links to', () => {
+  assert.throws(() => contractTabSegmentHref('alice', 'CABC', 'nope'), RangeError);
+  // The index route has no segment, so it is not addressable this way.
+  assert.throws(() => contractTabSegmentHref('alice', 'CABC', ''), RangeError);
 });
 
 test('SIGNET_DEV_RELEASED is false by default (gates signet dev command)', () => {

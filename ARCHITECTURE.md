@@ -176,6 +176,14 @@ and skipped without advancing the relevant cursor, so the next tick retries.
   the signed challenge is spent via the same nonce store as sign-in, so a
   pairing cannot be replayed.
 
+### Public API
+
+The public, read-only HTTP contract is `/api/v1`. Its design rules — versioning,
+response envelope and error codes, pagination, CORS, caching and rate limits —
+are written down in [`docs/API_V1.md`](docs/API_V1.md), which every `/api/v1`
+endpoint is reviewed against. The app's own tRPC router and `/api/cli/*` are not
+part of that contract.
+
 ---
 
 ## Components

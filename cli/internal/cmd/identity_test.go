@@ -76,6 +76,29 @@ func TestIdentityCmd_HelpMentionsSourceFlag(t *testing.T) {
 	}
 }
 
+// goToolEnv pins the go tool's cache and config locations to where they were
+// before any test ran. isolateConfigDir moves HOME (macOS resolves the config
+// dir from it) and AppData; left alone, the `go build` below would then look
+// for its build and module caches under the empty temp dir and rebuild, and
+// re-download dependencies, from scratch. Captured at package init, which
+// runs before any test can change the environment.
+var goToolEnv = func() []string {
+	vars := []string{"GOCACHE", "GOMODCACHE", "GOPATH", "GOENV"}
+	out, err := exec.Command("go", append([]string{"env"}, vars...)...).Output()
+	if err != nil {
+		return nil
+	}
+	values := strings.Split(strings.TrimRight(string(out), "\r\n"), "\n")
+	if len(values) != len(vars) {
+		return nil
+	}
+	env := make([]string, len(vars))
+	for i, v := range vars {
+		env[i] = v + "=" + strings.TrimRight(values[i], "\r")
+	}
+	return env
+}()
+
 // buildFakeStellarOnPath compiles internal/keys/testdata/fakestellar into a
 // temp dir as `stellar`, prepends that dir to PATH, and returns — so
 // keys.ResolvePublicKey's shell-out hits the fake exactly as it would the
@@ -95,6 +118,7 @@ func buildFakeStellarOnPath(t *testing.T) {
 	}
 	out := filepath.Join(dir, name)
 	cmd := exec.Command(goBin, "build", "-o", out, "../keys/testdata/fakestellar")
+	cmd.Env = append(os.Environ(), goToolEnv...)
 	if output, err := cmd.CombinedOutput(); err != nil {
 		t.Fatalf("building fakestellar: %v\n%s", err, output)
 	}
