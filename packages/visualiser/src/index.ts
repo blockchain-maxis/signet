@@ -53,6 +53,18 @@ export interface LayoutOptions {
  */
 export type LayoutContractGraph = (spec: ContractSpec, options?: LayoutOptions) => DiagramModel;
 
+// Deterministic orthogonal edge routing. Kept as a separate pure pass so the
+// layered layout can assign nodes before resolving ports and channels.
+export {
+  routeDiagram,
+  routeEdges,
+  type Point,
+  type RoutableEdge,
+  type RoutableNode,
+  type RouteOptions,
+  type RoutedEdge,
+} from './route.ts';
+
 // Deterministic text metrics (E-05): the layout's only measure of a label.
 export { MIN_TEXT_PX, textCells, textWidth, truncateLabel } from './metrics.ts';
 
@@ -69,3 +81,18 @@ export {
 
 /** Pure SVG renderer (§4.2): DiagramModel -> SVG string. */
 export { renderDiagramSvg, type RenderOptions } from './render.ts';
+
+// Theme tokens and CSS variables (§2.3 of docs/CONTRACT_VISUALISER_DESIGN.md)
+export {
+  VIZ_CSS_VARIABLES,
+  VIZ_DARK_TOKENS,
+  VIZ_LIGHT_TOKENS,
+  VIZ_TOKEN_NAMES,
+  VIZ_TOKENS,
+  formatTokenDeclarations,
+  generateInlineTokensStyle,
+  generateTokensCss,
+  type VizTheme,
+  type VizThemeTokens,
+  type VizTokenName,
+} from './tokens.ts';

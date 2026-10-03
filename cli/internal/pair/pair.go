@@ -21,17 +21,21 @@ import (
 	"time"
 
 	"github.com/blockchain-maxis/signet/cli/internal/exitcode"
+	"github.com/blockchain-maxis/signet/cli/internal/redact"
+	"github.com/blockchain-maxis/signet/cli/internal/spec"
 )
 
-// Status is a pairing's state as reported by GET /api/cli/pair/status.
-type Status string
+// Status is a pairing's state as reported by GET /api/cli/pair/status. The
+// request and response types in this file are aliases for internal/spec's
+// generated ones, so they cannot drift from the routes that produce them.
+type Status = spec.PollStatus
 
 const (
-	StatusPending   Status = "pending"
-	StatusApproved  Status = "approved"
-	StatusRejected  Status = "rejected"
-	StatusCompleted Status = "completed"
-	StatusExpired   Status = "expired"
+	StatusPending   = spec.PollStatusPending
+	StatusApproved  = spec.PollStatusApproved
+	StatusRejected  = spec.PollStatusRejected
+	StatusCompleted = spec.PollStatusCompleted
+	StatusExpired   = spec.PollStatusExpired
 )
 
 // Client calls one Signet deployment's pairing API.
@@ -52,22 +56,15 @@ func New(baseURL string) *Client {
 }
 
 // Started is what `POST /api/cli/pair/start` hands back.
-type Started struct {
-	State     string `json:"state"`
-	PollToken string `json:"pollToken"`
-	ExpiresAt string `json:"expiresAt"`
-}
+type Started = spec.PairStartResponse
 
-// Start mints a pairing for the given network passphrase, declaring the deploy
+// Start mints a pairing for the given network name, declaring the deploy
 // account the CLI intends to link. The account is not proved here — it is
 // declared so the browser approval page can show the developer which key they
 // are approving, and the server refuses at `complete` if a different key
-// signs.
+// signs. An empty publicKey is omitted from the body.
 func (c *Client) Start(ctx context.Context, network, publicKey string) (Started, error) {
-	body := map[string]string{"network": network}
-	if publicKey != "" {
-		body["publicKey"] = publicKey
-	}
+	body := spec.PairStartRequest{Network: network, PublicKey: publicKey}
 	var out Started
 	if err := c.do(ctx, http.MethodPost, "/api/cli/pair/start", body, &out); err != nil {
 		return Started{}, err
@@ -77,9 +74,7 @@ func (c *Client) Start(ctx context.Context, network, publicKey string) (Started,
 
 // Poll reads a pairing's current status using the poll token from Start.
 func (c *Client) Poll(ctx context.Context, pollToken string) (Status, error) {
-	var out struct {
-		Status Status `json:"status"`
-	}
+	var out spec.PairStatusResponse
 	path := "/api/cli/pair/status?pollToken=" + url.QueryEscape(pollToken)
 	if err := c.do(ctx, http.MethodGet, path, nil, &out); err != nil {
 		return "", err
@@ -90,25 +85,17 @@ func (c *Client) Poll(ctx context.Context, pollToken string) (Status, error) {
 // Complete submits the signed SEP-10 challenge that attaches the wallet.
 // handoffCode is the code the browser showed, and is sent only on the manual
 // path — empty means "not applicable", not "empty code".
-func (c *Client) Complete(ctx context.Context, state, challengeXDR, handoffCode string) (string, error) {
-	body := map[string]string{"state": state, "transaction": challengeXDR}
-	if handoffCode != "" {
-		body["handoffCode"] = handoffCode
-	}
-	var out struct {
-		Handle string `json:"handle"`
-	}
+func (c *Client) Complete(ctx context.Context, state, challengeXDR, handoffCode string) (string, bool, error) {
+	body := spec.PairCompleteRequest{State: state, Transaction: challengeXDR, HandoffCode: handoffCode}
+	var out spec.PairCompleteResponse
 	if err := c.do(ctx, http.MethodPost, "/api/cli/pair/complete", body, &out); err != nil {
-		return "", err
+		return "", false, err
 	}
-	return out.Handle, nil
+	return out.Handle, out.IndexingPending, nil
 }
 
 // Unlinked is what `POST /api/cli/unlink` reports back.
-type Unlinked struct {
-	Wallet string `json:"wallet"`
-	Handle string `json:"handle"`
-}
+type Unlinked = spec.UnlinkResponse
 
 // Unlink detaches the wallet whose key signed challengeXDR.
 //
@@ -117,7 +104,7 @@ type Unlinked struct {
 // apps/web/lib/server/cli-unlink.ts for why that asymmetry is deliberate).
 func (c *Client) Unlink(ctx context.Context, challengeXDR string) (Unlinked, error) {
 	var out Unlinked
-	body := map[string]string{"transaction": challengeXDR}
+	body := spec.UnlinkRequest{Transaction: challengeXDR}
 	if err := c.do(ctx, http.MethodPost, "/api/cli/unlink", body, &out); err != nil {
 		return Unlinked{}, err
 	}
@@ -125,12 +112,7 @@ func (c *Client) Unlink(ctx context.Context, challengeXDR string) (Unlinked, err
 }
 
 // Identity is what `GET /api/cli/whoami` reports for a deploy account.
-type Identity struct {
-	PublicKey string `json:"publicKey"`
-	Handle    string `json:"handle"`
-	Linked    bool   `json:"linked"`
-	Network   string `json:"network"`
-}
+type Identity = spec.WhoamiResponse
 
 // WhoAmI asks a deployment which handle a deploy account is attributed to.
 //
@@ -154,7 +136,7 @@ func (c *Client) do(ctx context.Context, method, path string, body any, out any)
 	if body != nil {
 		encoded, err := json.Marshal(body)
 		if err != nil {
-			return fmt.Errorf("%w: encoding request: %w", exitcode.ErrNetwork, err)
+			return fmt.Errorf("%w: encoding request: %s", exitcode.ErrNetwork, redact.Secrets(err.Error()))
 		}
 		reader = strings.NewReader(string(encoded))
 	}
@@ -167,7 +149,7 @@ func (c *Client) do(ctx context.Context, method, path string, body any, out any)
 		req, err = http.NewRequestWithContext(ctx, method, c.BaseURL+path, nil)
 	}
 	if err != nil {
-		return fmt.Errorf("%w: building request: %w", exitcode.ErrNetwork, err)
+		return fmt.Errorf("%w: building request: %s", exitcode.ErrNetwork, redact.Secrets(err.Error()))
 	}
 	if body != nil {
 		req.Header.Set("content-type", "application/json")
@@ -175,35 +157,39 @@ func (c *Client) do(ctx context.Context, method, path string, body any, out any)
 
 	resp, err := c.HTTP.Do(req)
 	if err != nil {
-		return fmt.Errorf("%w: %s: %w", exitcode.ErrNetwork, c.BaseURL, err)
+		return fmt.Errorf("%w: %s", exitcode.ErrNetwork, redact.Secrets(c.BaseURL+": "+err.Error()))
 	}
 	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		var problem struct {
-			Error string `json:"error"`
-		}
+		var problem spec.ErrorBody
 		_ = json.NewDecoder(resp.Body).Decode(&problem)
 
-		// 503 from these endpoints means the deployment cannot do this at all
-		// — it has no database to write a link into (#277). That is the
-		// operator's problem, not the developer's, and reporting it as a
-		// network error would send them looking at their own connection.
-		kind := exitcode.ErrNetwork
-		if resp.StatusCode == http.StatusServiceUnavailable {
-			kind = exitcode.ErrConfiguration
+		// The body's code decides the exit code (internal/spec/errors.go), never
+		// its message: messages are for people and free to change.
+		kind, known := spec.ErrorFor(problem.Code)
+		if !known {
+			// No code, or one this build predates: fall back to the status.
+			// 503 means the deployment cannot do this at all — it has no
+			// database to write a link into (#277). That is the operator's
+			// problem, and reporting it as a network error would send the
+			// developer looking at their own connection.
+			kind = exitcode.ErrNetwork
+			if resp.StatusCode == http.StatusServiceUnavailable {
+				kind = exitcode.ErrConfiguration
+			}
 		}
 		if problem.Error != "" {
-			return fmt.Errorf("%w: %s", kind, problem.Error)
+			return fmt.Errorf("%w: %s", kind, redact.Secrets(problem.Error))
 		}
-		return fmt.Errorf("%w: %s returned %s", kind, path, resp.Status)
+		return fmt.Errorf("%w: %s returned %s", kind, redact.Secrets(path), resp.Status)
 	}
 
 	if out == nil {
 		return nil
 	}
 	if err := json.NewDecoder(resp.Body).Decode(out); err != nil {
-		return fmt.Errorf("%w: decoding response: %w", exitcode.ErrNetwork, err)
+		return fmt.Errorf("%w: decoding response: %s", exitcode.ErrNetwork, redact.Secrets(err.Error()))
 	}
 	return nil
 }

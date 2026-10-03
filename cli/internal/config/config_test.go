@@ -7,16 +7,24 @@ import (
 )
 
 // isolateConfigDir points os.UserConfigDir() at a fresh temp directory for
-// the duration of the test, on every OS: Unix honors XDG_CONFIG_HOME,
-// Windows honors AppData, and setting the one the current OS ignores is
-// harmless. This is what keeps these tests from touching the real user's
-// config file.
+// the duration of the test, on every OS: Linux honors XDG_CONFIG_HOME,
+// macOS ignores it and uses $HOME/Library/Application Support, and Windows
+// honors AppData. Setting the ones the current OS ignores is harmless. This
+// is what keeps these tests from touching the real user's config file.
+//
+// It returns what os.UserConfigDir() now resolves to, since on macOS that is
+// a subdirectory of the temp dir rather than the temp dir itself.
 func isolateConfigDir(t *testing.T) string {
 	t.Helper()
 	dir := t.TempDir()
 	t.Setenv("XDG_CONFIG_HOME", dir)
+	t.Setenv("HOME", dir)
 	t.Setenv("AppData", dir)
-	return dir
+	base, err := os.UserConfigDir()
+	if err != nil {
+		t.Fatalf("os.UserConfigDir: %v", err)
+	}
+	return base
 }
 
 func TestLoadWithNoConfigFileReturnsZeroValue(t *testing.T) {

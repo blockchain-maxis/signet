@@ -20,7 +20,7 @@ export function SiteFooter() {
         </span>
       </div>
       <div
-        className="text-[10px] uppercase tracking-[0.22em] text-[#3d3a33]"
+        className="text-[10px] uppercase tracking-[0.22em] text-[#8a8779]"
         style={{ fontFamily: 'var(--font-mono)' }}
       >
         Stellar Community Fund · 2026

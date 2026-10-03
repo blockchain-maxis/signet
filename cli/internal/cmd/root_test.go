@@ -18,6 +18,7 @@ func isolateConfigDir(t *testing.T) {
 	t.Helper()
 	dir := t.TempDir()
 	t.Setenv("XDG_CONFIG_HOME", dir)
+	t.Setenv("HOME", dir)
 	t.Setenv("AppData", dir)
 }
 

@@ -6,6 +6,7 @@ package cmd
 import (
 	"fmt"
 	"os"
+	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -49,7 +50,11 @@ instance) over its HTTP API.`,
 		flagURL, _ := cmd.Flags().GetString("url")
 		flagSource, _ := cmd.Flags().GetString("source")
 		flagSignWith, _ := cmd.Flags().GetString("sign-with-key")
-		if cmd.Flags().Changed("sign-with-key") {
+		// Keep the explicit-empty diagnostic tied to --sign-with-key. All other
+		// non-empty identities are validated after precedence is resolved, so a
+		// secret cannot bypass the check through --source, the environment, or a
+		// remembered config value.
+		if cmd.Flags().Changed("sign-with-key") && strings.TrimSpace(flagSignWith) == "" {
 			if err := keys.ValidateSignWithKey(flagSignWith); err != nil {
 				return err
 			}
@@ -65,6 +70,11 @@ instance) over its HTTP API.`,
 			EnvSignWithKey:     os.Getenv(config.EnvSignWithKey),
 		}
 		resolved := config.Resolve(opts, file)
+		if resolved.Source != "" {
+			if err := keys.ValidateSignWithKey(resolved.Source); err != nil {
+				return err
+			}
+		}
 		cmd.SetContext(config.WithResolved(cmd.Context(), resolved))
 
 		// Deliberately only --source: --sign-with-key and STELLAR_SIGN_WITH_KEY

@@ -23,3 +23,14 @@ export function profileRoutes(
     priority: 0.6,
   }));
 }
+
+export function contractRoutes(
+  entries: { handle: string; address: string; deployedAt: Date }[],
+  base = appUrl(),
+): MetadataRoute.Sitemap {
+  return entries.map((entry) => ({
+    url: `${base}/p/${entry.handle}/contract/${entry.address}`,
+    lastModified: entry.deployedAt,
+    priority: 0.5,
+  }));
+}

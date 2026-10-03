@@ -11,6 +11,7 @@ import (
 	"testing"
 
 	"github.com/blockchain-maxis/signet/cli/internal/exitcode"
+	"github.com/blockchain-maxis/signet/cli/internal/redact"
 )
 
 func TestStart_DeclaresTheDeployKey(t *testing.T) {
@@ -102,7 +103,7 @@ func TestComplete_OmitsHandoffCodeOnTheLoopbackPath(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	if _, err := New(srv.URL).Complete(context.Background(), "p_1", "xdr", ""); err != nil {
+	if _, _, err := New(srv.URL).Complete(context.Background(), "p_1", "xdr", ""); err != nil {
 		t.Fatalf("Complete: %v", err)
 	}
 	if _, present := got["handoffCode"]; present {
@@ -117,7 +118,7 @@ func TestDo_SurfacesTheServersOwnMessage(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	_, err := New(srv.URL).Complete(context.Background(), "p_1", "xdr", "")
+	_, _, err := New(srv.URL).Complete(context.Background(), "p_1", "xdr", "")
 	if err == nil {
 		t.Fatal("expected an error")
 	}
@@ -128,6 +129,87 @@ func TestDo_SurfacesTheServersOwnMessage(t *testing.T) {
 	if !errors.Is(err, exitcode.ErrNetwork) {
 		t.Fatalf("error is not classified: %v", err)
 	}
+}
+
+// #600: the exit code comes from the body's code, never its message. Before,
+// classifyComplete matched "already bound to a different profile", so
+// rewording that sentence in complete/route.ts silently turned exit 9 into 6.
+func TestDo_MapsByCodeNotMessage(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusConflict)
+		_, _ = io.WriteString(w, `{"error":"Somebody else has this wallet","code":"wallet-bound-elsewhere"}`)
+	}))
+	defer srv.Close()
+
+	_, _, err := New(srv.URL).Complete(context.Background(), "p_1", "xdr", "")
+	if got, _ := exitcode.CodeFor(err); got != exitcode.AlreadyLinked {
+		t.Fatalf("exit code = %d, want %d (err: %v)", got, exitcode.AlreadyLinked, err)
+	}
+	if !strings.Contains(err.Error(), "Somebody else has this wallet") {
+		t.Fatalf("error lost the server's message: %v", err)
+	}
+}
+
+// A code wins over the status: `unavailable` is a configuration problem
+// whatever status carried it, and a known refusal on a 503 is still that
+// refusal.
+func TestDo_ACodeOutranksTheStatus(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusBadRequest)
+		_, _ = io.WriteString(w, `{"error":"no database","code":"unavailable"}`)
+	}))
+	defer srv.Close()
+
+	_, err := New(srv.URL).Unlink(context.Background(), "SIGNED")
+	if !errors.Is(err, exitcode.ErrConfiguration) {
+		t.Fatalf("err = %v, want a configuration error", err)
+	}
+}
+
+// A code this build does not know (a newer server) falls back to the status,
+// exactly as a body with no code does.
+func TestDo_AnUnknownCodeFallsBackToTheStatus(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusServiceUnavailable)
+		_, _ = io.WriteString(w, `{"error":"down for a bit","code":"some-future-code"}`)
+	}))
+	defer srv.Close()
+
+	_, err := New(srv.URL).Start(context.Background(), "testnet", "GABC")
+	if !errors.Is(err, exitcode.ErrConfiguration) {
+		t.Fatalf("err = %v, want the 503 fallback", err)
+	}
+}
+
+func TestDo_RedactsSecretsInServerAndRequestErrors(t *testing.T) {
+	seed := "SASAAEJC6P5UZGRLYJ2I2KYLR7RXGF44JZXDYGCFBN7T5VIHECUUEMCD"
+
+	t.Run("server message", func(t *testing.T) {
+		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+			w.Header().Set("content-type", "application/json")
+			w.WriteHeader(http.StatusConflict)
+			_, _ = io.WriteString(w, `{"error":"refused `+seed+` identity"}`)
+		}))
+		defer srv.Close()
+
+		_, _, err := New(srv.URL).Complete(context.Background(), "p_1", "xdr", "")
+		if !errors.Is(err, exitcode.ErrNetwork) {
+			t.Fatalf("err = %v, want ErrNetwork", err)
+		}
+		if strings.Contains(err.Error(), seed) || !strings.Contains(err.Error(), "refused "+redact.Placeholder+" identity") {
+			t.Fatalf("server error was not safely preserved: %v", err)
+		}
+	})
+
+	t.Run("request URL", func(t *testing.T) {
+		_, err := New("://"+seed).WhoAmI(context.Background(), "GABC")
+		if !errors.Is(err, exitcode.ErrNetwork) {
+			t.Fatalf("err = %v, want ErrNetwork", err)
+		}
+		if strings.Contains(err.Error(), seed) || !strings.Contains(err.Error(), redact.Placeholder) {
+			t.Fatalf("request error was not redacted: %v", err)
+		}
+	})
 }
 
 func TestUnlink_PostsTheSignedChallengeAndReportsWhatWasRemoved(t *testing.T) {
@@ -195,7 +277,7 @@ func TestWhoAmI_ReportsTheHandleAKeyIsAttributedTo(t *testing.T) {
 	var gotKey string
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		gotKey = r.URL.Query().Get("publicKey")
-		_, _ = io.WriteString(w, `{"publicKey":"GABC","handle":"aquawolf","linked":true,"network":"testnet"}`)
+		_, _ = io.WriteString(w, `{"publicKey":"GABC","handle":"alice","linked":true,"network":"testnet"}`)
 	}))
 	defer srv.Close()
 
@@ -203,7 +285,7 @@ func TestWhoAmI_ReportsTheHandleAKeyIsAttributedTo(t *testing.T) {
 	if err != nil {
 		t.Fatalf("WhoAmI: %v", err)
 	}
-	if !identity.Linked || identity.Handle != "aquawolf" {
+	if !identity.Linked || identity.Handle != "alice" {
 		t.Fatalf("identity = %+v", identity)
 	}
 	if gotKey != "GABC" {

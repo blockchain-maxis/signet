@@ -8,6 +8,7 @@ import (
 	"regexp"
 
 	"github.com/blockchain-maxis/signet/cli/internal/exitcode"
+	"github.com/blockchain-maxis/signet/cli/internal/redact"
 )
 
 // handlePattern mirrors HANDLE_PATTERN in packages/types/src/handle.ts:
@@ -20,22 +21,6 @@ var handlePattern = regexp.MustCompile(`^[a-z0-9_-]{1,32}$`)
 // (see internal/keys), so this is deliberately the same shallow shape check
 // as a first filter, not a substitute for validating a real key.
 var publicKeyPattern = regexp.MustCompile(`^G[A-Z2-7]{55}$`)
-
-// secretPattern matches a Stellar StrKey secret seed. Used only to keep one
-// out of an error message — see redactSecrets.
-var secretPattern = regexp.MustCompile(`\bS[A-Z2-7]{55}\b`)
-
-// redactSecrets replaces anything shaped like a Stellar secret seed before it
-// goes into an error message.
-//
-// Echoing an invalid value back is genuinely useful — it is how someone spots
-// a typo — but a mistyped flag is exactly how a secret seed ends up in the
-// wrong argument slot, and an error message ends up in shell history, a CI
-// log, and a pasted bug report. So the value is still shown, unless showing
-// it would disclose a key.
-func redactSecrets(value string) string {
-	return secretPattern.ReplaceAllString(value, "[redacted: secret-shaped value]")
-}
 
 // ValidationError reports invalid input to Link — the caller's mistake, not
 // an unexpected failure. It maps to ExitInvalidInput (see internal/cmd's
@@ -56,7 +41,7 @@ func ValidateHandle(handle string) error {
 		return &ValidationError{
 			fmt.Sprintf(
 				"invalid handle %q: expected 1-32 lowercase letters, digits, _, or -",
-				redactSecrets(handle),
+				redact.Secrets(handle),
 			),
 		}
 	}
