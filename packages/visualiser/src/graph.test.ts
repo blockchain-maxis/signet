@@ -297,7 +297,9 @@ test('output is identical across calls and serialises identically', () => {
 test('errors, events and build pass through unchanged from a populated spec', () => {
   const entries = fixtureSpec('errors_multi').entries;
   const views = buildSpecViews(entries);
-  const events = [{ name: 'Moved', topics: [], data: [] }];
+  const events: ContractSpec['events'] = [
+    { name: 'Moved', doc: '', prefixTopics: [], params: [], dataFormat: 'single_value' },
+  ];
   const build = { rustVersion: '1.91.1' };
   const spec: ContractSpec = { ...specOf([...entries]), ...views, events, build };
 

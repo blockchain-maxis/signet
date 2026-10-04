@@ -1,11 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import {
-  MAX_NODES,
-  MIN_EDGES,
-  diagramDecision,
-  type DecidableGraph,
-} from './decide.ts';
+import { MAX_NODES, MIN_EDGES, diagramDecision, type DecidableGraph } from './decide.ts';
 import type { DiagramModel } from './index.ts';
 
 function makeModel(): DiagramModel {
@@ -62,8 +57,8 @@ function midSizeGraph(): DecidableGraph {
  * A synthetic graph with 120 nodes (exceeds MAX_NODES = 60).
  */
 function largeGraph(): DecidableGraph {
-  const nodes: DecidableGraph['nodes'] = [];
-  const edges: DecidableGraph['edges'] = [];
+  const nodes: unknown[] = [];
+  const edges: unknown[] = [];
 
   // 20 functions
   for (let i = 0; i < 20; i++) {

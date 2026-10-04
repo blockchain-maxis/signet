@@ -107,9 +107,7 @@ export {
 export {
   DEFAULT_TYPE_DEPTH,
   buildTypeGraph,
-  functionNodeId,
   typeAnchor,
-  typeNodeId,
   type TypeGraph,
   type TypeGraphEdge,
   type TypeGraphEdgeRole,
