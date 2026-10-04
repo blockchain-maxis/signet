@@ -3,7 +3,6 @@ package cmd
 import (
 	"context"
 	"fmt"
-	"io"
 
 	"github.com/spf13/cobra"
 
@@ -71,10 +70,4 @@ func printerFor(cmd *cobra.Command) *output.Printer {
 func jsonRequested(cmd *cobra.Command) bool {
 	v, _ := cmd.Flags().GetBool("json")
 	return v
-}
-
-// interactiveFor is where prompts for a command are written: stderr under
-// --json so stdout stays a single JSON object.
-func interactiveFor(cmd *cobra.Command) io.Writer {
-	return printerFor(cmd).Interactive()
 }
