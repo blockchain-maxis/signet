@@ -12,10 +12,10 @@ export default function DiagramPage() {
       >
         Not built yet — this tab exists so the URL is stable and linkable.
       </p>
-      <p className="mt-4 text-[13px] leading-[1.7] text-[#5e5b51]">
+      <p className="mt-4 text-[13px] leading-[1.7] text-[#8a8779]">
         <Link
           href="/docs#reading-a-contract-diagram"
-          className="underline decoration-[#5e5b51] underline-offset-2 transition-colors hover:text-[#f5f4ee]"
+          className="underline decoration-[#8a8779] underline-offset-2 transition-colors hover:text-[#f5f4ee]"
         >
           How the diagram will be read →
         </Link>
