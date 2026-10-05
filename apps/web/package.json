@@ -15,7 +15,7 @@
     "test:e2e": "playwright test"
   },
   "dependencies": {
-    "@creit.tech/stellar-wallets-kit": "^2.6.0",
+    "@creit.tech/stellar-wallets-kit": "^2.7.0",
     "@signet/db": "workspace:*",
     "@signet/sdk": "workspace:*",
     "@signet/spec": "workspace:*",
