@@ -11,6 +11,7 @@ import {
 import { contractTabSegmentHref } from '@/lib/contract-tabs';
 import { loadLatestSnapshot, loadOverviewSpec } from '@/lib/server/contract-overview-source';
 import { SectionLabel } from '../../_components/section-label';
+import { Provenance } from './_docs/provenance';
 
 const MONO = { fontFamily: 'var(--font-mono)' } as const;
 const DISPLAY = { fontFamily: 'var(--font-display)' } as const;
@@ -170,14 +171,13 @@ export default async function ContractOverviewPage({
         </div>
       </div>
 
-      {overview.status === 'ok' && overview.build && (
-        <div>
-          <SectionLabel>Build</SectionLabel>
-          <p className="mt-4 text-[13px] leading-[1.7] text-[#b8b5a8]" style={MONO}>
-            {overview.build}
-          </p>
-        </div>
-      )}
+      <Provenance
+        heading
+        address={address}
+        network={normalizeNetwork(contract.network)}
+        spec={specInput}
+        wasmHash={contract.wasmHash}
+      />
 
       <div>
         <SectionLabel>Activity</SectionLabel>

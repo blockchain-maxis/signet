@@ -67,7 +67,7 @@ test('build provenance is shown only when contractmetav0 supplied it', () => {
   });
   assert.equal(
     withBuild.status === 'ok' && withBuild.build,
-    'Built with Rust 1.91.1 and soroban-sdk 26.1.0',
+    'Built with Rust 1.91.1 · soroban-sdk 26.1.0',
   );
   // A spec with no build metadata gets no line, and no "unknown".
   const without = summariseSpec({ kind: 'spec', spec: { ...registry, build: undefined } });

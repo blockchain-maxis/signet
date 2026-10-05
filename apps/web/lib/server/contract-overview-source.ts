@@ -11,6 +11,7 @@ import type { Network } from '@signet/types';
 import type { ActivitySnapshotInput, SpecInput } from '../contract-overview.ts';
 import { logger } from '../logger.ts';
 import { loadContractSpec } from './contract-spec.ts';
+import { PrismaSpecCache } from './spec-store.ts';
 
 export interface OverviewSpecRequest {
   address: string;
@@ -63,3 +64,18 @@ export const loadLatestSnapshot = cache(
     }
   },
 );
+
+/**
+ * When the stored spec for a WASM hash was last extracted (#471), or `null`
+ * when there is no stored row (no database, or served from memory before the
+ * write landed). The provenance strip omits the time rather than guess it.
+ */
+export const loadSpecExtractedAt = cache(async (wasmHash: string): Promise<Date | null> => {
+  try {
+    const row = await new PrismaSpecCache().get(wasmHash);
+    return row?.extractedAt ?? null;
+  } catch (error) {
+    logger.warn({ wasmHash, error: String(error) }, 'spec extractedAt lookup failed');
+    return null;
+  }
+});
