@@ -23,7 +23,7 @@ const MONO = { fontFamily: 'var(--font-mono)' } as const;
 const DISPLAY = { fontFamily: 'var(--font-display)' } as const;
 
 const TYPE_LINK =
-  'text-[#e05a4b] underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#e05a4b] focus-visible:ring-offset-2 focus-visible:ring-offset-[#0a0908]';
+  'text-[#e05a4b] underline underline-offset-2 hover:decoration-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#e05a4b] focus-visible:ring-offset-2 focus-visible:ring-offset-[#0a0908]';
 
 /** Type or signature tokens; a named type the spec defines links to the Types tab. */
 function Parts({ parts }: { parts: readonly LinkedPart[] }) {
@@ -38,6 +38,32 @@ function Parts({ parts }: { parts: readonly LinkedPart[] }) {
           <React.Fragment key={i}>{part.text}</React.Fragment>
         ),
       )}
+    </>
+  );
+}
+
+/**
+ * The signature, wrapped at argument boundaries (#472). Each argument is an
+ * inline-block: it moves to the next line whole, and only an argument wider
+ * than the screen breaks inside itself. The text is unchanged, so selecting
+ * and copying the signature yields the plain source.
+ */
+function Signature({ parts }: { parts: readonly LinkedPart[] }) {
+  const groups: LinkedPart[][] = [[]];
+  for (const part of parts) {
+    if (part.text === ', ' && !part.href) groups.push([]);
+    else groups[groups.length - 1]!.push(part);
+  }
+  return (
+    <>
+      {groups.map((group, i) => (
+        <React.Fragment key={i}>
+          <span className="inline-block max-w-full">
+            <Parts parts={group} />
+          </span>
+          {i < groups.length - 1 && ', '}
+        </React.Fragment>
+      ))}
     </>
   );
 }
@@ -80,22 +106,23 @@ function FunctionBlock({
       id={section.id}
       aria-labelledby={`${section.id}-name`}
       data-testid="function-section"
-      className="scroll-mt-24 border-t border-[#1f1d19] py-8 first:border-t-0 first:pt-0"
+      tabIndex={-1}
+      className="scroll-mt-24 focus:outline-none focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-8 focus-visible:outline-[#8a8779] border-t border-[#1f1d19] py-8 first:border-t-0 first:pt-0"
     >
       <h3
         id={`${section.id}-name`}
-        className="text-[20px] font-bold tracking-[-0.015em] text-[#f5f4ee]"
+        className="text-[20px] font-bold tracking-[-0.015em] text-[#f5f4ee] [overflow-wrap:anywhere]"
         style={DISPLAY}
       >
         {section.name}
       </h3>
       <p
-        className="mt-3 break-words text-[13px] leading-[1.7] text-[#f5f4ee]"
+        className="mt-3 text-[13px] leading-[1.7] text-[#f5f4ee] [overflow-wrap:anywhere]"
         style={MONO}
         data-testid="function-signature"
       >
         <code>
-          <Parts parts={section.signature} />
+          <Signature parts={section.signature} />
         </code>
       </p>
 
@@ -110,7 +137,7 @@ function FunctionBlock({
       )}
 
       {section.args.length > 0 && (
-        <table className="mt-5 w-full max-w-[640px] border border-[#1f1d19] text-left">
+        <table className="mt-5 w-full max-w-[640px] border border-[#1f1d19] text-left [overflow-wrap:anywhere]">
           <caption className="sr-only">Arguments of {section.name}</caption>
           <thead>
             <tr className="border-b border-[#1f1d19]">

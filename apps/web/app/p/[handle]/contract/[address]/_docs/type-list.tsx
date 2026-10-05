@@ -23,10 +23,10 @@ const MONO = { fontFamily: 'var(--font-mono)' } as const;
 const DISPLAY = { fontFamily: 'var(--font-display)' } as const;
 
 const TYPE_LINK =
-  'text-[#e05a4b] underline-offset-2 hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#e05a4b] focus-visible:ring-offset-2 focus-visible:ring-offset-[#0a0908]';
+  'text-[#e05a4b] underline underline-offset-2 hover:decoration-2 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#e05a4b] focus-visible:ring-offset-2 focus-visible:ring-offset-[#0a0908]';
 
 const TH = 'px-4 py-2.5 text-[10px] font-normal uppercase tracking-[0.22em] text-[#8a8779]';
-const TABLE = 'mt-5 w-full max-w-[720px] border border-[#1f1d19] text-left';
+const TABLE = 'mt-5 w-full max-w-[720px] border border-[#1f1d19] text-left [overflow-wrap:anywhere]';
 const ROW = 'border-b border-[#1f1d19] align-top last:border-b-0';
 
 /** Type tokens; a named type the spec defines links to its entry below or above. */
@@ -188,11 +188,12 @@ function TypeBlock({ entry, refs }: { entry: TypeEntry; refs: Refs }) {
       id={entry.id}
       aria-labelledby={`${entry.id}-name`}
       data-testid="type-section"
-      className="scroll-mt-24 border-t border-[#1f1d19] py-8 first:border-t-0 first:pt-0"
+      tabIndex={-1}
+      className="scroll-mt-24 focus:outline-none focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-8 focus-visible:outline-[#8a8779] border-t border-[#1f1d19] py-8 first:border-t-0 first:pt-0"
     >
       <h3
         id={`${entry.id}-name`}
-        className="flex flex-wrap items-baseline gap-x-3 text-[20px] font-bold tracking-[-0.015em] text-[#f5f4ee]"
+        className="flex flex-wrap items-baseline gap-x-3 text-[20px] font-bold tracking-[-0.015em] text-[#f5f4ee] [overflow-wrap:anywhere]"
         style={DISPLAY}
       >
         {entry.name}

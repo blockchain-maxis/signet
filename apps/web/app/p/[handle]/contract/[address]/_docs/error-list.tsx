@@ -33,7 +33,7 @@ export function ErrorList({ spec, handle, address, className }: ErrorListProps) 
 
   return (
     <section aria-label="Errors" data-testid="error-list" className={className}>
-      <SectionLabel>Errors</SectionLabel>
+      <SectionLabel as="h2">Errors</SectionLabel>
       <div
         className="mt-3 max-w-[65ch] space-y-2 text-[12px] leading-[1.7] text-[#8a8779]"
         style={MONO}
@@ -44,10 +44,13 @@ export function ErrorList({ spec, handle, address, className }: ErrorListProps) 
 
       {reference.tables.map((table) => (
         <div key={table.enumName} className="mt-8" data-testid="error-table">
-          <h3 className="text-[20px] font-bold tracking-[-0.015em] text-[#f5f4ee]" style={DISPLAY}>
+          <h3
+            className="text-[20px] font-bold tracking-[-0.015em] text-[#f5f4ee] [overflow-wrap:anywhere]"
+            style={DISPLAY}
+          >
             {table.enumName}
           </h3>
-          <table className="mt-4 w-full max-w-[720px] border border-[#1f1d19] text-left">
+          <table className="mt-4 w-full max-w-[720px] border border-[#1f1d19] text-left [overflow-wrap:anywhere]">
             <caption className="sr-only">Error codes of {table.enumName}</caption>
             <thead>
               <tr className="border-b border-[#1f1d19]">
@@ -68,7 +71,8 @@ export function ErrorList({ spec, handle, address, className }: ErrorListProps) 
                   key={row.id}
                   id={row.id}
                   data-testid="error-row"
-                  className="scroll-mt-24 border-b border-[#1f1d19] align-top last:border-b-0"
+                  tabIndex={-1}
+                  className="scroll-mt-24 focus:outline-none focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-8 focus-visible:outline-[#8a8779] border-b border-[#1f1d19] align-top last:border-b-0"
                 >
                   <td className="px-4 py-2.5 text-[13px] tabular-nums text-[#f5f4ee]" style={MONO}>
                     {row.code}
