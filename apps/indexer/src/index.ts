@@ -82,7 +82,10 @@ async function tick(
   // Activity: refresh snapshots for tracked contracts. Same freshness
   // guarantee as deployments — a contract the deployment worker just found
   // this tick already shows up in this call's `contract.findMany()`.
-  const { snapshotsWritten } = await runActivityWorker(horizon, prisma as unknown as ActivityStore);
+  const { snapshotsWritten } = await runActivityWorker(
+    prisma as unknown as ActivityStore,
+    config,
+  );
 
   // Operations: pull recent Soroban invocations for tracked wallets
   const { opsUpserted } = await runOperationsWorker(

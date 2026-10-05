@@ -89,6 +89,23 @@ test.describe('contract page @db', () => {
     await expect(page.locator('main')).not.toContainText('No description available');
   });
 
+  test('Functions, Types and Diagram show an honest placeholder that links back to the Overview (#450)', async ({
+    page,
+  }) => {
+    const root = base(FIXTURE_HANDLE, CONTRACT_A);
+    for (const [segment, heading] of [
+      ['functions', 'Functions'],
+      ['types', 'Types'],
+      ['diagram', 'Diagram'],
+    ] as const) {
+      await page.goto(`${root}/${segment}`);
+      const slot = page.getByTestId(`slot-${segment}`);
+      await expect(slot.getByRole('heading', { level: 2, name: heading })).toBeVisible();
+      await expect(slot).toContainText('not built yet');
+      await expect(slot.getByRole('link', { name: 'Back to the Overview' })).toHaveAttribute('href', root);
+    }
+  });
+
   test('the Run locally command contains the contract address', async ({ page }) => {
     await page.goto(`${base(FIXTURE_HANDLE, CONTRACT_A)}/run`);
     await expect(page.locator('code', { hasText: `signet dev ${CONTRACT_A}` }).first()).toBeVisible();
