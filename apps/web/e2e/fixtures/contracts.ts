@@ -134,6 +134,7 @@ export async function seedContractFixture(): Promise<void> {
       errors: [{ enumName: 'RegistryError', name: 'HandleTaken', value: 1, doc: '' }],
       events: [],
       build: { rustVersion: '1.91.1', sdkVersion: '26.1.0' },
+      env: { protocolVersion: 23, preRelease: 0 },
       warnings: [],
     };
     await prisma.contractSpec.upsert({

@@ -5,9 +5,18 @@ import { useState, useCallback, useEffect, useRef } from 'react';
 interface CopyAddressProps {
   address: string;
   display: string;
+  /** What is being copied, for the button's name. Defaults to a wallet address. */
+  label?: string;
+  /** Name announced once copied. */
+  copiedLabel?: string;
 }
 
-export function CopyAddress({ address, display }: CopyAddressProps) {
+export function CopyAddress({
+  address,
+  display,
+  label = 'wallet address',
+  copiedLabel = 'Address copied',
+}: CopyAddressProps) {
   const [copied, setCopied] = useState(false);
   const resetTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
@@ -48,7 +57,7 @@ export function CopyAddress({ address, display }: CopyAddressProps) {
       type="button"
       onClick={handleCopy}
       title={address}
-      aria-label={copied ? 'Address copied' : `Copy wallet address ${address}`}
+      aria-label={copied ? copiedLabel : `Copy ${label} ${address}`}
       className="group flex items-center gap-2 text-left"
     >
       <span

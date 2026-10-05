@@ -40,6 +40,12 @@ export function withFlattenedViews(json: SpecJson): SpecJson {
 
 /** The slice of a decoded spec the overview reads; `SpecJson` satisfies it. */
 export interface OverviewSpec {
+  /** Hash the spec was decoded from; the provenance strip (#471) shows it. */
+  readonly wasmHash?: string;
+  /** `@stellar/stellar-sdk` version that decoded the spec. */
+  readonly sdkVersion?: string;
+  /** Protocol interface version from `contractenvmetav0`. */
+  readonly env?: { readonly protocolVersion: number; readonly preRelease: number };
   readonly functions: readonly { readonly doc?: string }[];
   readonly types: readonly unknown[];
   readonly errors: readonly unknown[];
@@ -120,14 +126,14 @@ function hasDoc(doc: string | undefined): boolean {
 /**
  * Build provenance from `contractmetav0`: the Rust and SDK versions the WASM
  * was built with, as the contract states them. `null` when neither is present,
- * so the line is omitted rather than written as "unknown". #471 replaces this
- * line with the full provenance strip.
+ * so the line is omitted rather than written as "unknown". The provenance
+ * strip (#471) shows this line.
  */
 export function buildProvenanceLine(build: OverviewSpec['build']): string | null {
   const parts: string[] = [];
   if (build?.rustVersion) parts.push(`Rust ${build.rustVersion}`);
   if (build?.sdkVersion) parts.push(`soroban-sdk ${build.sdkVersion}`);
-  return parts.length > 0 ? `Built with ${parts.join(' and ')}` : null;
+  return parts.length > 0 ? `Built with ${parts.join(' · ')}` : null;
 }
 
 /**

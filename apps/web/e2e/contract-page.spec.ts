@@ -109,7 +109,6 @@ test.describe('contract page @db', () => {
     await expect(page.getByRole('link', { name: '1 type', exact: true })).toHaveAttribute('href', `${root}/types`);
     await expect(page.getByRole('link', { name: '1 error case' })).toHaveAttribute('href', `${root}/types`);
     await expect(page.getByText('1 of 2 functions documented')).toBeVisible();
-    await expect(page.getByText('Built with Rust 1.91.1 and soroban-sdk 26.1.0')).toBeVisible();
     await expect(page.getByRole('link', { name: 'Open run locally' })).toHaveAttribute('href', `${root}/run`);
     await expect(page.getByRole('link', { name: 'Open activity' })).toHaveAttribute('href', `${root}/activity`);
 
@@ -144,6 +143,37 @@ test.describe('contract page @db', () => {
 
     await expectNoSeriousA11yViolations(page, 'Functions tab');
   });
+
+  test('the provenance strip states the WASM, toolchain and how to re-derive it, on the Overview and Functions (#471)', async ({
+    page,
+  }) => {
+    for (const tab of ['', '/functions']) {
+      await page.goto(`${base(FIXTURE_HANDLE, CONTRACT_A)}${tab}`);
+      const strip = page.getByTestId('contract-provenance');
+      await expect(strip.getByTestId('provenance-wasm-hash')).toHaveText('22'.repeat(32));
+      await expect(strip.getByRole('button', { name: /Copy WASM hash/ })).toBeVisible();
+      await expect(strip.getByTestId('provenance-built')).toHaveText(
+        'Built with Rust 1.91.1 · soroban-sdk 26.1.0',
+      );
+      await expect(strip.getByTestId('provenance-protocol')).toHaveText('Targets protocol 23');
+      await expect(strip.getByTestId('provenance-reader')).toContainText('Read with @stellar/stellar-sdk');
+      await expect(strip.getByRole('link', { name: /Stellar Expert/ })).toHaveAttribute(
+        'href',
+        new RegExp(`/contract/${CONTRACT_A}$`),
+      );
+
+      // Collapsed until opened, then the exact commands.
+      const commands = strip.getByTestId('provenance-commands');
+      await expect(commands).toBeHidden();
+      await strip.getByText('Re-derive this').click();
+      await expect(commands).toContainText(
+        `stellar contract fetch --id ${CONTRACT_A} --network ${CONFIGURED_NETWORK}`,
+      );
+      await expect(commands).toContainText('stellar contract info interface --wasm contract.wasm');
+    }
+    await expect(page.locator('main')).not.toContainText(/unknown/i);
+  });
+
 
   test('Types and Diagram show an honest placeholder that links back to the Overview (#450)', async ({
     page,

@@ -49,7 +49,7 @@ export interface HeaderModel {
 }
 
 /** Stellar Expert path segment for a contract's own network (not the configured one). */
-function explorerFor(network: string): string {
+export function explorerFor(network: string): string {
   return network === 'mainnet' ? 'public' : 'testnet';
 }
 
