@@ -55,9 +55,11 @@ export interface LayoutOptions {
 }
 
 /**
- * Pure layout signature: spec in, diagram model out. The implementation
- * lands with the graph/layout work (#500+); the type is declared here so
- * every consumer builds against one contract.
+ * Pure pipeline signature: spec in, diagram model out. It composes the passes
+ * below (`buildContractGraph`, then `layoutContractGraph`, then `routeDiagram`)
+ * and lands with the wiring work (#500+); the type is declared here so every
+ * consumer builds against one contract. `layoutContractGraph` itself takes the
+ * abstract graph, not the spec.
  */
 export type LayoutContractGraph = (spec: ContractSpec, options?: LayoutOptions) => DiagramModel;
 
@@ -87,6 +89,17 @@ export {
   type MissingNode,
   type TypeNode,
 } from './graph.ts';
+
+// Layered column layout (E-06): graph in, positioned diagram out.
+export {
+  LAYOUT_VERSION,
+  layoutContractGraph,
+  type LayoutGeometryOptions,
+  type PositionedDiagramModel,
+  type PositionedEdge,
+  type PositionedGroup,
+  type PositionedNode,
+} from './layout.ts';
 
 // Deterministic text metrics (E-05): the layout's only measure of a label.
 export { MIN_TEXT_PX, textCells, textWidth, truncateLabel } from './metrics.ts';
