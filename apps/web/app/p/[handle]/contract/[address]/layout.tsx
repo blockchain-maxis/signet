@@ -1,9 +1,11 @@
+import { Suspense } from 'react';
 import { notFound } from 'next/navigation';
 import { attributeContract } from '@/lib/contract-attribution';
 import { SiteFooter } from '../../_components/site-footer';
 import { SiteNav } from '../../_components/site-nav';
 import { AnnounceProvider } from './announcer';
 import { ContractHeader } from './_components/contract-header';
+import { ContractHeaderSkeleton } from './_components/contract-header-skeleton';
 import { ContractTabsNav } from './tabs-nav';
 import { TabFocus } from './tab-focus';
 
@@ -43,6 +45,13 @@ export default async function ContractLayout({
   if (attribution.status === 'not-attributed' || attribution.status === 'invalid') {
     notFound();
   }
+  // Attribution could not be decided (DB and Horizon both unreachable). Neither
+  // a 404 (the claim might be true) nor the page (it might not be) is honest
+  // here, so this throws to the error boundary in `contract/error.tsx`, which
+  // says the network could not be reached and offers a retry.
+  if (attribution.status === 'unavailable') {
+    throw new Error('contract attribution unavailable: indexer and Horizon unreachable');
+  }
 
   return (
     <AnnounceProvider>
@@ -66,56 +75,39 @@ export default async function ContractLayout({
 
       <SiteNav />
 
-      {attribution.status === 'unavailable' ? (
-        // Attribution could not be decided (DB and Horizon both unreachable).
-        // Neither a 404 (the claim might be true) nor the page (it might not
-        // be) is honest here; #459 builds the full error state, this is the
-        // minimal truthful placeholder until then.
-        <main id="contract-content" className="relative z-10 mx-auto max-w-5xl px-8 py-16 md:px-14">
-          <p
-            className="text-[13px] leading-[1.7] text-[#8a8779]"
-            style={{ fontFamily: 'var(--font-mono)' }}
+      {/* Identity strip: the contract is shown as part of this
+          developer's record, and the route says so. */}
+      <div className="relative z-10 border-b border-[#1f1d19] px-8 py-4 md:px-14">
+        {/* The page's single h1 (#461): short address, by the handle. */}
+        <h1
+          className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] font-normal uppercase tracking-[0.22em]"
+          style={{ fontFamily: 'var(--font-mono)' }}
+        >
+          <span className="text-[#8a8779]" title={address}>
+            {truncate(address, 8, 6)}
+          </span>{' '}
+          <span className="text-[#8a8779]">by</span>{' '}
+          <a
+            href={`/p/${handle}`}
+            className="text-[#e05a4b] transition-colors hover:text-[#f0806f] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#e05a4b] focus-visible:ring-offset-2 focus-visible:ring-offset-[#0a0908]"
           >
-            Attribution for this contract can&apos;t be verified right now — the indexer and
-            Horizon are both unreachable. Nothing is shown rather than something unverified.
-            Try again shortly.
-          </p>
-        </main>
-      ) : (
-        <>
-          {/* Identity strip: the contract is shown as part of this
-              developer's record, and the route says so. */}
-          <div className="relative z-10 border-b border-[#1f1d19] px-8 py-4 md:px-14">
-            {/* The page's single h1 (#461): short address, by the handle. */}
-            <h1
-              className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] font-normal uppercase tracking-[0.22em]"
-              style={{ fontFamily: 'var(--font-mono)' }}
-            >
-              <span className="text-[#8a8779]" title={address}>
-                {truncate(address, 8, 6)}
-              </span>{' '}
-              <span className="text-[#8a8779]">by</span>{' '}
-              <a
-                href={`/p/${handle}`}
-                className="text-[#e05a4b] transition-colors hover:text-[#f0806f] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#e05a4b] focus-visible:ring-offset-2 focus-visible:ring-offset-[#0a0908]"
-              >
-                @{handle}
-              </a>
-            </h1>
-          </div>
+            @{handle}
+          </a>
+        </h1>
+      </div>
 
-          {/* Header slot (#448): on every tab, from the same attribution. */}
-          <div className="relative z-10 px-8 pt-10 md:px-14" data-slot="contract-header">
-            <ContractHeader handle={handle} contract={attribution.contract} />
-          </div>
+      {/* Header slot (#448): on every tab, from the same attribution. */}
+      <div className="relative z-10 px-8 pt-10 md:px-14" data-slot="contract-header">
+        <Suspense fallback={<ContractHeaderSkeleton />}>
+          <ContractHeader handle={handle} contract={attribution.contract} />
+        </Suspense>
+      </div>
 
-          <ContractTabsNav handle={handle} address={address} />
+      <ContractTabsNav handle={handle} address={address} />
 
-          <main id="contract-content" className="relative z-10 mx-auto max-w-5xl px-8 py-16 md:px-14">
-            <TabFocus>{children}</TabFocus>
-          </main>
-        </>
-      )}
+      <main id="contract-content" className="relative z-10 mx-auto max-w-5xl px-8 py-16 md:px-14">
+        <TabFocus>{children}</TabFocus>
+      </main>
 
       <SiteFooter />
     </div>
