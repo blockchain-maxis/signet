@@ -1,8 +1,11 @@
 import { test, expect } from '@playwright/test';
+import { expectNoSeriousA11yViolations } from './a11y';
 import {
   CONTRACT_A,
   CONTRACT_B,
   CONTRACT_C,
+  CONFIGURED_NETWORK,
+  DEPLOY_TX_A,
   FIXTURE_HANDLE,
   MALFORMED_ADDRESS,
   OTHER_HANDLE,
@@ -59,16 +62,175 @@ test.describe('contract page @db', () => {
       'href',
       `/p/${FIXTURE_HANDLE}`,
     );
-    await expect(page.locator(`[title="${CONTRACT_A}"]`)).toBeVisible();
+    await expect(
+      page.getByRole('heading', { level: 1 }).locator(`[title="${CONTRACT_A}"]`),
+    ).toBeVisible();
   });
 
-  test.fixme(
-    'the header shows the address, a deploy transaction link and the network (#448)',
-    async () => {
-      // Turn on with the header (#448): assert the address, a link to the deploy
-      // transaction (fixture hash `DEPLOY_TX_A`) and the configured network.
-    },
-  );
+  test('the header shows address, network, WASM hash, deploy tx, date and deployer on every tab (#448)', async ({
+    page,
+  }) => {
+    for (const tab of TABS) {
+      await page.goto(`${base(FIXTURE_HANDLE, CONTRACT_A)}${tab}`);
+      const header = page.getByTestId('contract-header');
+      await expect(header, `tab "${tab || 'overview'}"`).toContainText(CONTRACT_A);
+      await expect(header.getByTestId('contract-network')).toHaveText(CONFIGURED_NETWORK);
+      await expect(header.getByTestId('contract-wasm-hash')).toBeVisible();
+      await expect(header.getByRole('link', { name: DEPLOY_TX_A })).toHaveAttribute(
+        'href',
+        new RegExp(`/tx/${DEPLOY_TX_A}$`),
+      );
+      await expect(header.getByText('1 Mar 2026')).toBeVisible();
+      await expect(header).toContainText(`linked to @${FIXTURE_HANDLE}`);
+    }
+    // The first explorer link is the contract's own.
+    await expect(
+      page.getByTestId('contract-header').getByRole('link', { name: /Stellar Expert/ }).first(),
+    ).toHaveAttribute('href', new RegExp(`/contract/${CONTRACT_A}$`));
+  });
+
+  test('the header says where the WASM hash came from, and never leaves it blank (#448)', async ({
+    page,
+  }) => {
+    await page.goto(base(FIXTURE_HANDLE, CONTRACT_A));
+    // Whether the live read succeeds depends on the runner's network; either
+    // way the field is labelled.
+    await expect(page.getByTestId('contract-wasm-source')).toHaveText(
+      /current, read from ledger|as of |as last indexed|unavailable \(RPC unreachable\)/,
+    );
+  });
+
+  test('the Overview summarises the interface and links each part to its tab (#449)', async ({ page }) => {
+    await page.goto(base(FIXTURE_HANDLE, CONTRACT_A));
+    const root = base(FIXTURE_HANDLE, CONTRACT_A);
+
+    // Fixture spec: 2 functions (1 documented), 1 type, 1 error case.
+    await expect(page.getByRole('link', { name: '2 functions' })).toHaveAttribute('href', `${root}/functions`);
+    await expect(page.getByRole('link', { name: '1 type', exact: true })).toHaveAttribute('href', `${root}/types`);
+    await expect(page.getByRole('link', { name: '1 error case' })).toHaveAttribute('href', `${root}/types`);
+    await expect(page.getByText('1 of 2 functions documented')).toBeVisible();
+    await expect(page.getByRole('link', { name: 'Open run locally' })).toHaveAttribute('href', `${root}/run`);
+    await expect(page.getByRole('link', { name: 'Open activity' })).toHaveAttribute('href', `${root}/activity`);
+
+    // The seeded snapshot has non-zero counts but no `countedSince`, so it is
+    // "not measured", not usage; and nothing on the tab is placeholder prose.
+    await expect(page.getByTestId('overview-activity-unmeasured')).toBeVisible();
+    await expect(page.locator('main')).not.toContainText('No description available');
+  });
+
+  test('the Functions tab lists one section per function, with the signature and only real prose (#466)', async ({
+    page,
+  }) => {
+    await page.goto(`${base(FIXTURE_HANDLE, CONTRACT_A)}/functions`);
+    const slot = page.getByTestId('slot-functions');
+    await expect(slot.getByRole('heading', { level: 2, name: 'Functions' })).toBeVisible();
+
+    // Fixture spec: `claim` (documented) and `resolve` (no doc comment).
+    const sections = slot.getByTestId('function-section');
+    await expect(sections).toHaveCount(2);
+    await expect(sections.nth(0)).toHaveAttribute('id', 'fn-claim');
+    await expect(sections.nth(0).getByTestId('function-signature')).toHaveText('claim() -> ()');
+    await expect(sections.nth(0)).toContainText('Claims a handle for a wallet.');
+    await expect(sections.nth(1)).toHaveAttribute('id', 'fn-resolve');
+    await expect(sections.nth(1).getByTestId('function-signature')).toHaveText('resolve() -> Address');
+
+    // The undocumented function renders its signature and nothing standing in for prose.
+    await expect(sections.nth(1).locator('p')).toHaveCount(1);
+    await expect(slot.locator('p:empty')).toHaveCount(0);
+    await expect(page.locator('main')).not.toContainText('No description');
+    // Partial documentation gets no note.
+    await expect(page.getByTestId('no-doc-comments-note')).toHaveCount(0);
+
+    await expectNoSeriousA11yViolations(page, 'Functions tab');
+  });
+
+  test('the provenance strip states the WASM, toolchain and how to re-derive it, on the Overview and Functions (#471)', async ({
+    page,
+  }) => {
+    for (const tab of ['', '/functions']) {
+      await page.goto(`${base(FIXTURE_HANDLE, CONTRACT_A)}${tab}`);
+      const strip = page.getByTestId('contract-provenance');
+      await expect(strip.getByTestId('provenance-wasm-hash')).toHaveText('22'.repeat(32));
+      await expect(strip.getByRole('button', { name: /Copy WASM hash/ })).toBeVisible();
+      await expect(strip.getByTestId('provenance-built')).toHaveText(
+        'Built with Rust 1.91.1 · soroban-sdk 26.1.0',
+      );
+      await expect(strip.getByTestId('provenance-protocol')).toHaveText('Targets protocol 23');
+      await expect(strip.getByTestId('provenance-reader')).toContainText('Read with @stellar/stellar-sdk');
+      await expect(strip.getByRole('link', { name: /Stellar Expert/ })).toHaveAttribute(
+        'href',
+        new RegExp(`/contract/${CONTRACT_A}$`),
+      );
+
+      // Collapsed until opened, then the exact commands.
+      const commands = strip.getByTestId('provenance-commands');
+      await expect(commands).toBeHidden();
+      await strip.getByText('Re-derive this').click();
+      await expect(commands).toContainText(
+        `stellar contract fetch --id ${CONTRACT_A} --network ${CONFIGURED_NETWORK}`,
+      );
+      await expect(commands).toContainText('stellar contract info interface --wasm contract.wasm');
+    }
+    await expect(page.locator('main')).not.toContainText(/unknown/i);
+  });
+
+  test('the Types tab keeps an unused type in a collapsed, counted group, never hidden (#467)', async ({
+    page,
+  }) => {
+    await page.goto(`${base(FIXTURE_HANDLE, CONTRACT_A)}/types`);
+    const slot = page.getByTestId('slot-types');
+    await expect(slot.getByRole('heading', { level: 2, name: 'Types' })).toBeVisible();
+
+    // Fixture spec: one struct, `Binding`, that neither function references.
+    const unused = slot.getByTestId('unused-types');
+    await expect(unused).toHaveCount(1);
+    await expect(unused.locator('summary')).toHaveText('Defined but not used by any function (1)');
+    await expect(unused).not.toHaveAttribute('open', '');
+    await expect(unused.locator('section#type-Binding')).toHaveCount(1);
+    await expect(slot.getByTestId('used-types')).toHaveCount(0);
+    await expect(slot.locator('p:empty')).toHaveCount(0);
+    await expect(page.locator('main')).not.toContainText('No description');
+
+    // Opening the group reveals the type.
+    await unused.locator('summary').click();
+    await expect(unused.getByRole('heading', { level: 3, name: /Binding/ })).toBeVisible();
+
+    await expectNoSeriousA11yViolations(page, 'Types tab');
+  });
+
+  test('Diagram shows an honest placeholder that links back to the Overview (#450)', async ({
+    page,
+  }) => {
+    const root = base(FIXTURE_HANDLE, CONTRACT_A);
+    await page.goto(`${root}/diagram`);
+    const slot = page.getByTestId('slot-diagram');
+    await expect(slot.getByRole('heading', { level: 2, name: 'Diagram' })).toBeVisible();
+    await expect(slot).toContainText('not built yet');
+    await expect(slot.getByRole('link', { name: 'Back to the Overview' })).toHaveAttribute('href', root);
+  });
+
+  test('the Types tab lists the error enum as a table with the on-chain note (#468)', async ({
+    page,
+  }) => {
+    await page.goto(`${base(FIXTURE_HANDLE, CONTRACT_A)}/types`);
+    const list = page.getByTestId('error-list');
+    await expect(list.getByText('Errors', { exact: true })).toBeVisible();
+    await expect(list.getByTestId('error-on-chain-note')).toContainText('Error(Contract, #n)');
+
+    // Fixture spec: one enum, RegistryError, with one case.
+    await expect(list.getByTestId('error-table')).toHaveCount(1);
+    await expect(list.getByRole('heading', { level: 3, name: 'RegistryError' })).toBeVisible();
+    const rows = list.getByTestId('error-row');
+    await expect(rows).toHaveCount(1);
+    await expect(rows.first()).toHaveAttribute('id', 'error-RegistryError-HandleTaken');
+    await expect(rows.first()).toContainText('1');
+    await expect(rows.first()).toContainText('HandleTaken');
+
+    // One enum cannot collide with itself, so no shared-number note.
+    await expect(list.getByTestId('error-shared-code-note')).toHaveCount(0);
+
+    await expectNoSeriousA11yViolations(page, 'Types tab errors');
+  });
 
   test('the Run locally command contains the contract address', async ({ page }) => {
     await page.goto(`${base(FIXTURE_HANDLE, CONTRACT_A)}/run`);

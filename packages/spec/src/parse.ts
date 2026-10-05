@@ -11,6 +11,7 @@
  */
 
 import { contract, hash, type xdr } from '@stellar/stellar-sdk';
+import { readContractMeta } from './meta.ts';
 import { InterfaceUnreadable, NoInterface } from './errors.ts';
 import { STELLAR_SDK_VERSION } from './sdk-version.ts';
 import type { ContractSpec } from './types.ts';
@@ -29,8 +30,13 @@ export const CONTRACT_SPEC_SECTION = 'contractspecv0';
  * after another until the buffer is exhausted.
  *
  * `functions`, `types`, `errors` and `events` are empty until their flattened
- * views land (#430, #431), and `build` is undefined until `contractmetav0` is
- * read (#432). `entries` and `spec` are complete now.
+ * views land (#430, #431). `entries` and `spec` are complete now.
+ *
+ * `build` and `env` come from `contractmetav0` and `contractenvmetav0`, which
+ * are independent of the spec: each is undefined when its section is missing
+ * or cannot be decoded, and a decode failure adds an entry to `warnings`
+ * instead of throwing. They are read after the spec, so a module with no
+ * interface still throws `NoInterface`.
  *
  * Throws:
  * - `InvalidWasm` — not a WebAssembly module (bad magic/version or framing);
@@ -51,6 +57,8 @@ export function parseContractSpec(wasm: Uint8Array): ContractSpec {
     throw new InterfaceUnreadable(STELLAR_SDK_VERSION, cause);
   }
 
+  const { build, env, warnings } = readContractMeta(sections);
+
   return {
     // The SDK's hash() is SHA-256, synchronous and isomorphic — unlike
     // WebCrypto's digest, which is async, or node:crypto, which is Node-only.
@@ -61,6 +69,9 @@ export function parseContractSpec(wasm: Uint8Array): ContractSpec {
     types: [],
     errors: [],
     events: [],
+    ...(build !== undefined ? { build } : {}),
+    ...(env !== undefined ? { env } : {}),
+    warnings,
     sdkVersion: STELLAR_SDK_VERSION,
   };
 }

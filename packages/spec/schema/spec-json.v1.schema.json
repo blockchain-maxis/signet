@@ -264,7 +264,12 @@
       "type": "object",
       "properties": {
         "rustVersion": { "type": "string" },
-        "sdkVersion": { "type": "string" }
+        "sdkVersion": { "type": "string" },
+        "entries": {
+          "type": "object",
+          "additionalProperties": { "type": "string" },
+          "description": "Every contractmetav0 key/value pair. Absent in documents written before it was added."
+        }
       }
     },
     "contractEnvMeta": {

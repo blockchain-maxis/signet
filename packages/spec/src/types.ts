@@ -296,6 +296,11 @@ export interface ContractBuild {
   readonly rustVersion?: string;
   /** Soroban SDK version string, e.g. "26.1.0". */
   readonly sdkVersion?: string;
+  /**
+   * Every `contractmetav0` key/value pair, including keys this package does
+   * not know (`rsver` and `rssdkver` appear here too).
+   */
+  readonly entries: Readonly<Record<string, string>>;
 }
 
 /**
@@ -333,6 +338,11 @@ export interface ContractSpec {
   readonly build?: ContractBuild;
   /** Protocol interface version from `contractenvmetav0`. */
   readonly env?: ContractEnvMeta;
+  /**
+   * Non-fatal notes from decoding, e.g. a `contractmetav0` section that could
+   * not be read (`build` is then undefined). Empty when nothing went wrong.
+   */
+  readonly warnings: readonly string[];
   /** Version of @stellar/stellar-sdk used to decode this spec. */
   readonly sdkVersion: string;
 }

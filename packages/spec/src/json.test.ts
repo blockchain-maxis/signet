@@ -302,6 +302,7 @@ function specFromFixture(key: string, entry: ManifestEntry): ContractSpec | null
     entries,
     spec: new contract.Spec(entries),
     ...views,
+    warnings: [],
     sdkVersion: SDK_VERSION,
   };
 }
@@ -420,8 +421,13 @@ function richSpec(): ContractSpec {
         dataFormat: 'single_value',
       },
     ],
-    build: { rustVersion: '1.91.1', sdkVersion: '26.1.0' },
+    build: {
+      rustVersion: '1.91.1',
+      sdkVersion: '26.1.0',
+      entries: { rsver: '1.91.1', rssdkver: '26.1.0' },
+    },
     env: { protocolVersion: 25, preRelease: 0 },
+    warnings: ['meta note'],
     sdkVersion: SDK_VERSION,
   };
 }
@@ -432,9 +438,10 @@ test('rich spec: optional branches round-trip and validate', () => {
   const back = fromSpecJson(json);
   assert.deepEqual(back.functions, json.functions);
   assert.deepEqual(back.types, json.types);
-  assert.deepEqual(back.build, { rustVersion: '1.91.1', sdkVersion: '26.1.0' });
+  assert.deepEqual(back.build, richSpec().build);
   assert.deepEqual(back.env, { protocolVersion: 25, preRelease: 0 });
-  assert.deepEqual(json.warnings, ['future arm surfaced as unknown']);
+  assert.deepEqual(json.warnings, ['meta note', 'future arm surfaced as unknown']);
+  assert.deepEqual(back.warnings, json.warnings);
 });
 
 test('fromSpecJson rejects a foreign schemaVersion', () => {

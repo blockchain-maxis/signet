@@ -89,9 +89,10 @@ test.describe('contract page accessibility @db', () => {
     const skip = page.getByRole('link', { name: 'Skip to contract content' });
     await expect(skip).toBeFocused();
 
-    // Tab order: (site nav links, unknown count) … handle link, then each tab.
+    // Tab order: (site nav links, unknown count) … handle link, the header's
+    // controls (#448), then each tab. Start from the header's last link.
     const nav = page.getByRole('navigation', { name: 'Contract sections' });
-    await page.getByRole('link', { name: `@${handle}` }).focus();
+    await page.getByTestId('contract-header').getByRole('link').last().focus();
     for (const tab of TABS) {
       await page.keyboard.press('Tab');
       await expect(nav.getByRole('link', { name: tab.label })).toBeFocused();

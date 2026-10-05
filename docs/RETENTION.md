@@ -27,6 +27,14 @@ Signet adopts an **active window retention policy** with configurable thresholds
 
 > **Indefinite Retention Option:** Setting `INDEXER_OPERATIONS_RETENTION_DAYS=0`, `INDEXER_SNAPSHOTS_RETENTION_DAYS=0`, or `INDEXER_INVOCATIONS_MAX_PER_CONTRACT=0` disables pruning and retains records indefinitely. Operators choosing indefinite retention should allocate Postgres storage to accommodate unbounded linear growth.
 
+### Contract activity snapshot counts and retention
+
+`ContractSnapshot` counts (`txCount24h`, `txCountTotal`, `lastActivity`) are derived from `ContractInvocation` rows, so they are bounded by what that table still holds:
+
+- **Invocation cap:** only the newest `INDEXER_INVOCATIONS_MAX_PER_CONTRACT` rows per contract survive pruning. `countedSince` records the oldest row a snapshot covers, and `totalIsFloor` is `true` when the contract is at the cap, meaning `txCountTotal` is a lower bound. A busy contract's total therefore stops growing at the cap while `countedSince` moves forward.
+- **Snapshot retention:** snapshots older than `INDEXER_SNAPSHOTS_RETENTION_DAYS` are pruned, so no history of counts exists beyond that window. The invocation rows, not old snapshots, are the source of truth for the current total.
+- **Before capture:** calls made before invocation capture started for a contract are not counted (RPC does not keep them). A contract with no captured invocations has no snapshot at all.
+
 ### Profile statistics and retention
 
 Profile invocation counts, function diversity, and the reputation heuristic are computed from the `Operation` rows that are still present in Postgres. They are therefore **retention-window statistics**, not lifetime statistics, whenever operation pruning is enabled.

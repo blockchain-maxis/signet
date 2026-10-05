@@ -8,32 +8,15 @@
  * the browser-safe `@signet/spec` surface stays free of network access.
  */
 
-import { Contract, contract, hash, rpc, StrKey } from '@stellar/stellar-sdk';
+import { Contract, rpc, StrKey } from '@stellar/stellar-sdk';
 import type { xdr } from '@stellar/stellar-sdk';
 import type { Network } from '@signet/types';
-import {
-  ContractNotFound,
-  InterfaceUnreadable,
-  InvalidWasm,
-  NoInterface,
-  RpcUnavailable,
-  isSpecReadError,
-} from './errors.ts';
+import { ContractNotFound, NoInterface, RpcUnavailable, isSpecReadError } from './errors.ts';
+import { parseContractSpec } from './parse.ts';
 import type { ContractSpec } from './types.ts';
-
-/** Custom WASM section that carries the contract's interface specification. */
-const CONTRACT_SPEC_SECTION = 'contractspecv0';
 
 /** Default deadline for a single fetch; callers override it through `opts.signal`. */
 const DEFAULT_TIMEOUT_MS = 10_000;
-
-/**
- * Version of `@stellar/stellar-sdk` used to decode fetched specs.
- *
- * TODO(#424): temporary inlined constant. Replace with `parseContractSpec` from
- * `./parse.ts` and `STELLAR_SDK_VERSION` from `./sdk-version.ts` once #424 lands.
- */
-const DECODE_SDK_VERSION = '16.1.0';
 
 /**
  * Minimal `rpc.Server` surface this module consumes, so tests can inject a stub
@@ -112,7 +95,7 @@ export async function fetchContractSpec(
     throw new NoInterface('stellar_asset_contract');
   }
   const wasm = await rpcCall(opts, () => server.getContractWasmByContractId(address));
-  const spec = decodeWasm(wasm);
+  const spec = parseContractSpec(wasm);
   if (spec.wasmHash !== result.wasmHash) {
     throw new RpcUnavailable(
       opts.rpcUrl,
@@ -161,47 +144,6 @@ function classifyInstance(value: xdr.LedgerEntryData, rpcUrl: string): WasmHashR
         new TypeError(`Unsupported contract executable: ${executable.switch().name}`),
       );
   }
-}
-
-/**
- * Decode fetched WASM bytes into a `ContractSpec`.
- *
- * TODO(#424): inlined stopgap for `parseContractSpec(wasm)` from `./parse.ts`;
- * flattened `functions`/`types`/`errors`/`events` fill in with that swap.
- */
-function decodeWasm(wasm: Buffer): ContractSpec {
-  let section: ArrayBuffer | undefined;
-  try {
-    section = WebAssembly.Module.customSections(
-      new WebAssembly.Module(Uint8Array.from(wasm)),
-      CONTRACT_SPEC_SECTION,
-    )[0];
-  } catch (cause) {
-    throw new InvalidWasm(cause);
-  }
-  if (section === undefined) {
-    throw new NoInterface('no_section');
-  }
-  const bytes = Buffer.from(section);
-  if (bytes.length === 0) {
-    throw new NoInterface('empty_section');
-  }
-  let spec: contract.Spec;
-  try {
-    spec = new contract.Spec(bytes);
-  } catch (cause) {
-    throw new InterfaceUnreadable(DECODE_SDK_VERSION, cause);
-  }
-  return {
-    wasmHash: hash(wasm).toString('hex'),
-    entries: spec.entries,
-    spec,
-    functions: [],
-    types: [],
-    errors: [],
-    events: [],
-    sdkVersion: DECODE_SDK_VERSION,
-  };
 }
 
 async function rpcCall<T>(opts: FetchOptions, work: () => Promise<T>): Promise<T> {

@@ -174,11 +174,13 @@ test('ContractSpec type-level shape compilation using satisfies', () => {
     build: {
       rustVersion: '1.91.1',
       sdkVersion: '26.1.0',
+      entries: { rsver: '1.91.1', rssdkver: '26.1.0' },
     },
     env: {
       protocolVersion: 23,
       preRelease: 0,
     },
+    warnings: [],
     sdkVersion: '16.1.0',
   } satisfies ContractSpec;
 

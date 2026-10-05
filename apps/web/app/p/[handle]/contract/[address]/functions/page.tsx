@@ -1,16 +1,29 @@
-import { SectionLabel } from '../../../_components/section-label';
+import { Provenance } from '../_docs/provenance';
+import { ContractFunctions, loadSlotProps } from '../_slots';
 
-/** Placeholder segment for the Functions tab (#445); its epic fills it in. */
-export default function FunctionsPage() {
+/**
+ * Functions tab (#445): the provenance strip (#471) above the
+ * `ContractFunctions` slot (#450).
+ */
+export default async function FunctionsPage({
+  params,
+}: {
+  params: Promise<{ handle: string; address: string }>;
+}) {
+  const { handle, address } = await params;
+  const props = await loadSlotProps(handle, address);
+  if (!props) return null;
   return (
-    <section>
-      <SectionLabel as="h2">Functions</SectionLabel>
-      <p
-        className="mt-6 text-[13px] leading-[1.7] text-[#8a8779]"
-        style={{ fontFamily: 'var(--font-mono)' }}
-      >
-        Not built yet — this tab exists so the URL is stable and linkable.
-      </p>
-    </section>
+    <>
+      <div className="mb-10">
+        <Provenance
+          address={props.address}
+          network={props.network}
+          spec={props.spec}
+          wasmHash={props.wasmHash}
+        />
+      </div>
+      <ContractFunctions {...props} />
+    </>
   );
 }
