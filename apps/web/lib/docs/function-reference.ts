@@ -83,8 +83,8 @@ export function typesTabHref(handle: string, address: string): string {
   return contractTabSegmentHref(handle, address, 'types');
 }
 
-/** A `TypeRef` as link tokens. */
-function linkedParts(
+/** A `TypeRef` as link tokens (shared with the Types tab, #467). */
+export function linkedParts(
   ref: TypeRef,
   typeNames: ReadonlySet<string>,
   typesHref: string,

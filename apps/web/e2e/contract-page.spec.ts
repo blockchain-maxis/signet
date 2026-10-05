@@ -174,21 +174,39 @@ test.describe('contract page @db', () => {
     await expect(page.locator('main')).not.toContainText(/unknown/i);
   });
 
+  test('the Types tab keeps an unused type in a collapsed, counted group, never hidden (#467)', async ({
+    page,
+  }) => {
+    await page.goto(`${base(FIXTURE_HANDLE, CONTRACT_A)}/types`);
+    const slot = page.getByTestId('slot-types');
+    await expect(slot.getByRole('heading', { level: 2, name: 'Types' })).toBeVisible();
 
-  test('Types and Diagram show an honest placeholder that links back to the Overview (#450)', async ({
+    // Fixture spec: one struct, `Binding`, that neither function references.
+    const unused = slot.getByTestId('unused-types');
+    await expect(unused).toHaveCount(1);
+    await expect(unused.locator('summary')).toHaveText('Defined but not used by any function (1)');
+    await expect(unused).not.toHaveAttribute('open', '');
+    await expect(unused.locator('section#type-Binding')).toHaveCount(1);
+    await expect(slot.getByTestId('used-types')).toHaveCount(0);
+    await expect(slot.locator('p:empty')).toHaveCount(0);
+    await expect(page.locator('main')).not.toContainText('No description');
+
+    // Opening the group reveals the type.
+    await unused.locator('summary').click();
+    await expect(unused.getByRole('heading', { level: 3, name: /Binding/ })).toBeVisible();
+
+    await expectNoSeriousA11yViolations(page, 'Types tab');
+  });
+
+  test('Diagram shows an honest placeholder that links back to the Overview (#450)', async ({
     page,
   }) => {
     const root = base(FIXTURE_HANDLE, CONTRACT_A);
-    for (const [segment, heading] of [
-      ['types', 'Types'],
-      ['diagram', 'Diagram'],
-    ] as const) {
-      await page.goto(`${root}/${segment}`);
-      const slot = page.getByTestId(`slot-${segment}`);
-      await expect(slot.getByRole('heading', { level: 2, name: heading })).toBeVisible();
-      await expect(slot).toContainText('not built yet');
-      await expect(slot.getByRole('link', { name: 'Back to the Overview' })).toHaveAttribute('href', root);
-    }
+    await page.goto(`${root}/diagram`);
+    const slot = page.getByTestId('slot-diagram');
+    await expect(slot.getByRole('heading', { level: 2, name: 'Diagram' })).toBeVisible();
+    await expect(slot).toContainText('not built yet');
+    await expect(slot.getByRole('link', { name: 'Back to the Overview' })).toHaveAttribute('href', root);
   });
 
   test('the Types tab lists the error enum as a table with the on-chain note (#468)', async ({
