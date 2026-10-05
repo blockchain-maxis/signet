@@ -14,6 +14,31 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
+  # Path filter for the `sandbox` job only. Every other job in this workflow
+  # runs on every PR, as before; do not add `needs: changes` to them without
+  # deciding that on purpose. Runs on pushes to main too (diffed against the
+  # previous commit), so main keeps a record of the sandbox job.
+  changes:
+    name: changed paths
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      pull-requests: read
+    outputs:
+      sandbox: ${{ steps.filter.outputs.sandbox }}
+    steps:
+      - uses: actions/checkout@v7
+
+      # dorny/paths-filter v4.0.3, pinned to the commit.
+      - uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d
+        id: filter
+        with:
+          filters: |
+            sandbox:
+              - 'sandbox/**'
+              - '.github/workflows/ci.yml'
+
   docs:
     name: docs links · env · scripts
     runs-on: ubuntu-latest
@@ -413,6 +438,52 @@ jobs:
           retention-days: 7
           if-no-files-found: ignore
 
+  sandbox:
+    name: sandbox simulator (Rust)
+    needs: changes
+    if: needs.changes.outputs.sandbox == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: sandbox
+    steps:
+      - uses: actions/checkout@v7
+
+      # sandbox/rust-toolchain.toml pins the exact toolchain and components;
+      # rustup installs them on the first cargo call below.
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo
+        uses: actions/cache@v6
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            sandbox/target
+          key: cargo-sandbox-${{ hashFiles('sandbox/Cargo.lock') }}
+
+      - name: Format check
+        run: cargo fmt --all --check
+
+      - name: Clippy
+        run: cargo clippy --locked -- -D warnings
+
+      - name: Test
+        run: cargo test --locked
+
+      # The cross-language transcript check (#522) is not built yet, so this
+      # step is skipped until sandbox/protocol/check-transcripts.mjs lands.
+      # Once it exists the step runs automatically and gates the job; no edit
+      # to this file is needed.
+      - name: Check protocol transcripts
+        run: |
+          if [ -f protocol/check-transcripts.mjs ]; then
+            node protocol/check-transcripts.mjs
+          else
+            echo "sandbox/protocol/check-transcripts.mjs not present yet (#522); skipping."
+          fi
+
   security:
     name: dependency audit
     runs-on: ubuntu-latest
@@ -441,3 +512,4 @@ jobs:
         run: |
           cargo install cargo-audit --locked || true
           (cd packages/contracts && cargo audit) || true
+          (cd sandbox && cargo audit) || true

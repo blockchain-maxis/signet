@@ -1,0 +1,21 @@
+[package]
+name = "signet-simulator"
+description = "Signet contract simulator: a separate executable the signet CLI drives over stdio."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
+build = "build.rs"
+
+[[bin]]
+name = "signet-simulator"
+path = "src/main.rs"
+
+[dependencies]
+soroban-env-host.workspace = true
+soroban-simulation.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+base64.workspace = true
+anyhow.workspace = true
+thiserror.workspace = true

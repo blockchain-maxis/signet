@@ -14,6 +14,10 @@ pass, commit conventions, and how issue points work.
   if you want to run its lint gate locally rather than waiting for CI
 - **Rust** with the `wasm32v1-none` target — only if you touch the Soroban
   contracts under `packages/contracts` (`rustup target add wasm32v1-none`)
+- **Rust** (stable; `sandbox/rust-toolchain.toml` pins the exact version and
+  `rustup` installs it) — only if you touch the contract simulator under
+  `sandbox/`. `make test` skips the sandbox tests, with a one-line notice, when
+  `cargo` is not installed
 - **Docker** — only if you run the indexer or the database locally
 
 ## Setup

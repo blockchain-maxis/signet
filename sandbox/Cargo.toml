@@ -1,0 +1,31 @@
+# Native workspace for the contract simulator (docs/CLI_RUST_BRIDGE.md §5).
+# Separate from packages/contracts on purpose: that one targets wasm32v1-none
+# and optimises for size; this one is a native interpreter binary.
+[workspace]
+resolver = "2"
+members = ["simulator", "fuzz"]
+# `fuzz` is a stub for the fuzz targets; plain `cargo build/test` skips it.
+default-members = ["simulator"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "Apache-2.0"
+publish = false
+
+[workspace.dependencies]
+soroban-env-host = { version = "=28.0.2", features = ["recording_mode"] }
+soroban-simulation = "=28.0.2"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+base64 = "0.22"
+anyhow = "1"
+thiserror = "2"
+
+[profile.release]
+opt-level = 3
+lto = "thin"
+codegen-units = 1
+strip = "symbols"
+# Not "abort": the message loop wraps each request in catch_unwind (#524).
+panic = "unwind"

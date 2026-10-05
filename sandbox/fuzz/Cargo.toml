@@ -1,0 +1,7 @@
+[package]
+name = "signet-simulator-fuzz"
+description = "Fuzz targets for signet-simulator (stub; excluded from default-members)."
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+publish.workspace = true
