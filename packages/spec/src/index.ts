@@ -24,3 +24,4 @@ export { parseContractSpec, CONTRACT_SPEC_SECTION } from './parse.ts';
 export { readCustomSections } from './wasm-sections.ts';
 export { STELLAR_SDK_VERSION } from './sdk-version.ts';
 export * from './events.ts';
+export { CONTRACT_META_SECTION, CONTRACT_ENV_META_SECTION } from './meta.ts';

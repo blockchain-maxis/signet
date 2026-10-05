@@ -94,6 +94,7 @@ function specOf(entries: xdr.ScSpecEntry[]): ContractSpec {
     types: [],
     errors: [],
     events: [],
+    warnings: [],
     sdkVersion: 'test',
   };
 }

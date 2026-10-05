@@ -58,13 +58,12 @@ test('the identity-registry fixture decodes to 9 entries: 8 functions and 1 erro
   assert.equal(spec.spec.entries.length, 9, 'spec is the SDK helper over the same entries');
 });
 
-test('the flattened views are empty and build is undefined until #430/#431/#432', () => {
+test('the flattened views are empty until #430/#431', () => {
   const spec = parseContractSpec(fixture('identity-registry'));
   assert.deepEqual(spec.functions, []);
   assert.deepEqual(spec.types, []);
   assert.deepEqual(spec.errors, []);
   assert.deepEqual(spec.events, []);
-  assert.equal(spec.build, undefined);
 });
 
 test('wasmHash is the manifest value, lowercase hex, for every fixture that has an interface', () => {
@@ -173,7 +172,7 @@ test('STELLAR_SDK_VERSION matches the installed @stellar/stellar-sdk', () => {
   assert.equal(STELLAR_SDK_VERSION, pkg.version, 'bump src/sdk-version.ts with the dependency');
 });
 
-test('parse.ts and wasm-sections.ts use no fetch, fs or process', () => {
+test('parse.ts, wasm-sections.ts and meta.ts use no fetch, fs or process', () => {
   // These run in the browser. Comments are stripped first: both files explain,
   // in prose, why they avoid exactly these names.
   const forbidden = [
@@ -183,7 +182,7 @@ test('parse.ts and wasm-sections.ts use no fetch, fs or process', () => {
     /\bfetch\s*\(/,
     /\bprocess\s*\./,
   ];
-  for (const file of ['parse.ts', 'wasm-sections.ts']) {
+  for (const file of ['parse.ts', 'wasm-sections.ts', 'meta.ts']) {
     const code = readFileSync(join(here, file), 'utf8')
       .replace(/\/\*[\s\S]*?\*\//g, '')
       .replace(/\/\/[^\n]*/g, '');

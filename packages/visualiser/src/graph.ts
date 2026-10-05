@@ -192,7 +192,7 @@ function typeMembers(type: SpecType): { via: string; field: SpecField }[] {
 
 /**
  * The flattened views to draw from. `parseContractSpec` does not populate
- * them yet (its test pins them empty until #430/#431/#432 wire them in), so a
+ * them yet (its test pins them empty until #430/#431 wire them in), so a
  * spec whose three views are all empty gets them derived from its raw
  * `entries` instead. A populated spec, such as one restored with
  * `fromSpecJson`, is used as it stands.

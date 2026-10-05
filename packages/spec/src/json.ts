@@ -62,7 +62,7 @@ export interface SpecJson {
   warnings: string[];
 }
 
-/** Optional extraction notes attached at serialisation time. Defaults to `[]`. */
+/** Extra extraction notes appended to the spec's own `warnings` at serialisation time. */
 export interface ToSpecJsonOptions {
   warnings?: readonly string[];
 }
@@ -173,9 +173,11 @@ export function toSpecJson(spec: ContractSpec, options: ToSpecJsonOptions = {}):
       })),
       dataFormat: e.dataFormat,
     })),
-    ...(spec.build !== undefined ? { build: { ...spec.build } } : {}),
+    ...(spec.build !== undefined
+      ? { build: { ...spec.build, entries: { ...spec.build.entries } } }
+      : {}),
     ...(spec.env !== undefined ? { env: { ...spec.env } } : {}),
-    warnings: [...(options.warnings ?? [])],
+    warnings: [...spec.warnings, ...(options.warnings ?? [])],
   };
 }
 
@@ -205,6 +207,7 @@ export function fromSpecJson(json: SpecJson): ContractSpec {
     events: json.events,
     ...(json.build !== undefined ? { build: json.build } : {}),
     ...(json.env !== undefined ? { env: json.env } : {}),
+    warnings: json.warnings,
     sdkVersion: json.sdkVersion,
   };
 }

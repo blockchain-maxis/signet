@@ -27,8 +27,9 @@ import { buildSpecViews, type SpecJson } from '@signet/spec';
  * off the network would otherwise read as "0 functions". That would present a
  * decoding gap as a fact about the contract. `entriesXdr` is the source of
  * truth, so the views are rebuilt from it; a spec whose views are already
- * populated is returned untouched. `build` stays absent until #432, so the
- * build line is simply omitted, never guessed.
+ * populated is returned untouched. `build` comes from `contractmetav0` and is
+ * absent when the contract has none, so the build line is simply omitted,
+ * never guessed.
  */
 export function withFlattenedViews(json: SpecJson): SpecJson {
   const empty = json.functions.length === 0 && json.types.length === 0 && json.errors.length === 0;
