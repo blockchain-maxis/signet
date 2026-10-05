@@ -3,6 +3,8 @@ import {
   CONTRACT_A,
   CONTRACT_B,
   CONTRACT_C,
+  CONFIGURED_NETWORK,
+  DEPLOY_TX_A,
   FIXTURE_HANDLE,
   MALFORMED_ADDRESS,
   OTHER_HANDLE,
@@ -59,16 +61,43 @@ test.describe('contract page @db', () => {
       'href',
       `/p/${FIXTURE_HANDLE}`,
     );
-    await expect(page.locator(`[title="${CONTRACT_A}"]`)).toBeVisible();
+    await expect(
+      page.getByRole('heading', { level: 1 }).locator(`[title="${CONTRACT_A}"]`),
+    ).toBeVisible();
   });
 
-  test.fixme(
-    'the header shows the address, a deploy transaction link and the network (#448)',
-    async () => {
-      // Turn on with the header (#448): assert the address, a link to the deploy
-      // transaction (fixture hash `DEPLOY_TX_A`) and the configured network.
-    },
-  );
+  test('the header shows address, network, WASM hash, deploy tx, date and deployer on every tab (#448)', async ({
+    page,
+  }) => {
+    for (const tab of TABS) {
+      await page.goto(`${base(FIXTURE_HANDLE, CONTRACT_A)}${tab}`);
+      const header = page.getByTestId('contract-header');
+      await expect(header, `tab "${tab || 'overview'}"`).toContainText(CONTRACT_A);
+      await expect(header.getByTestId('contract-network')).toHaveText(CONFIGURED_NETWORK);
+      await expect(header.getByTestId('contract-wasm-hash')).toBeVisible();
+      await expect(header.getByRole('link', { name: DEPLOY_TX_A })).toHaveAttribute(
+        'href',
+        new RegExp(`/tx/${DEPLOY_TX_A}$`),
+      );
+      await expect(header.getByText('1 Mar 2026')).toBeVisible();
+      await expect(header).toContainText(`linked to @${FIXTURE_HANDLE}`);
+    }
+    // The first explorer link is the contract's own.
+    await expect(
+      page.getByTestId('contract-header').getByRole('link', { name: /Stellar Expert/ }).first(),
+    ).toHaveAttribute('href', new RegExp(`/contract/${CONTRACT_A}$`));
+  });
+
+  test('the header says where the WASM hash came from, and never leaves it blank (#448)', async ({
+    page,
+  }) => {
+    await page.goto(base(FIXTURE_HANDLE, CONTRACT_A));
+    // Whether the live read succeeds depends on the runner's network; either
+    // way the field is labelled.
+    await expect(page.getByTestId('contract-wasm-source')).toHaveText(
+      /current, read from ledger|as of |as last indexed|unavailable \(RPC unreachable\)/,
+    );
+  });
 
   test('the Overview summarises the interface and links each part to its tab (#449)', async ({ page }) => {
     await page.goto(base(FIXTURE_HANDLE, CONTRACT_A));

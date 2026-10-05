@@ -190,12 +190,23 @@ test('an unreachable RPC is its own state, not "no interface"', () => {
   assert.doesNotMatch(copy.title, /no interface/i);
 });
 
+test('a wrong-network failure names both networks', () => {
+  const copy = failureCopy({
+    kind: 'wrong_network',
+    network: 'mainnet',
+    expectedNetwork: 'testnet',
+  });
+  assert.equal(copy.title, 'This contract is on mainnet');
+  assert.match(copy.detail ?? '', /reads testnet/);
+});
+
 test('no failure carries counts, and none invents a description', () => {
   const failures: SpecFailure[] = [
     { kind: 'contract_not_found', network: 'mainnet' },
     { kind: 'no_interface' },
     { kind: 'interface_unreadable', sdkVersion: '16.1.0' },
     { kind: 'unavailable' },
+    { kind: 'wrong_network', network: 'mainnet', expectedNetwork: 'testnet' },
   ];
   for (const failure of failures) {
     const summary = summariseSpec({ kind: 'failure', failure });

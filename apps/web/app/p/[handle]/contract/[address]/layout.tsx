@@ -3,6 +3,7 @@ import { attributeContract } from '@/lib/contract-attribution';
 import { SiteFooter } from '../../_components/site-footer';
 import { SiteNav } from '../../_components/site-nav';
 import { AnnounceProvider } from './announcer';
+import { ContractHeader } from './_components/contract-header';
 import { ContractTabsNav } from './tabs-nav';
 import { TabFocus } from './tab-focus';
 
@@ -103,8 +104,10 @@ export default async function ContractLayout({
             </h1>
           </div>
 
-          {/* Header slot — #448 fills this with the contract header. */}
-          <div className="relative z-10 px-8 pt-10 md:px-14" data-slot="contract-header" />
+          {/* Header slot (#448): on every tab, from the same attribution. */}
+          <div className="relative z-10 px-8 pt-10 md:px-14" data-slot="contract-header">
+            <ContractHeader handle={handle} contract={attribution.contract} />
+          </div>
 
           <ContractTabsNav handle={handle} address={address} />
 
