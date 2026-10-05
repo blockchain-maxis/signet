@@ -191,6 +191,29 @@ test.describe('contract page @db', () => {
     }
   });
 
+  test('the Types tab lists the error enum as a table with the on-chain note (#468)', async ({
+    page,
+  }) => {
+    await page.goto(`${base(FIXTURE_HANDLE, CONTRACT_A)}/types`);
+    const list = page.getByTestId('error-list');
+    await expect(list.getByText('Errors', { exact: true })).toBeVisible();
+    await expect(list.getByTestId('error-on-chain-note')).toContainText('Error(Contract, #n)');
+
+    // Fixture spec: one enum, RegistryError, with one case.
+    await expect(list.getByTestId('error-table')).toHaveCount(1);
+    await expect(list.getByRole('heading', { level: 3, name: 'RegistryError' })).toBeVisible();
+    const rows = list.getByTestId('error-row');
+    await expect(rows).toHaveCount(1);
+    await expect(rows.first()).toHaveAttribute('id', 'error-RegistryError-HandleTaken');
+    await expect(rows.first()).toContainText('1');
+    await expect(rows.first()).toContainText('HandleTaken');
+
+    // One enum cannot collide with itself, so no shared-number note.
+    await expect(list.getByTestId('error-shared-code-note')).toHaveCount(0);
+
+    await expectNoSeriousA11yViolations(page, 'Types tab errors');
+  });
+
   test('the Run locally command contains the contract address', async ({ page }) => {
     await page.goto(`${base(FIXTURE_HANDLE, CONTRACT_A)}/run`);
     await expect(page.locator('code', { hasText: `signet dev ${CONTRACT_A}` }).first()).toBeVisible();
