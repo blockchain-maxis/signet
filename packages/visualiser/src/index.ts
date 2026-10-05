@@ -103,6 +103,15 @@ export {
   diagramDecision,
 } from './decide.ts';
 
+// Function grouping by name prefix (E-04): clusters a flat function list.
+export {
+  LIFECYCLE_GROUP,
+  MIN_GROUP_SIZE,
+  OTHER_GROUP,
+  groupFunctions,
+  type FunctionGroup,
+} from './group.ts';
+
 // Type-graph depth policy (E-10): which types a diagram draws inline.
 export {
   DEFAULT_TYPE_DEPTH,
