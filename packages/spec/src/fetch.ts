@@ -48,10 +48,16 @@ export interface FetchOptions {
 
 /**
  * Result of reading a contract's instance executable.
+ *
+ * `archived` is present, and `true`, only when the instance entry's TTL has
+ * passed: the entry was returned, but it has expired and has to be restored
+ * before the contract can be invoked. The hash it holds is the last one
+ * recorded. An entry that has been evicted outright is not returned at all and
+ * reads as `ContractNotFound`; the RPC does not say it was archived.
  */
 export type WasmHashResult =
-  | { readonly type: 'wasm'; readonly wasmHash: string }
-  | { readonly type: 'stellar_asset' };
+  | { readonly type: 'wasm'; readonly wasmHash: string; readonly archived?: true }
+  | { readonly type: 'stellar_asset'; readonly archived?: true };
 
 /**
  * Fetch the executable recorded in a contract's instance ledger entry.
@@ -123,7 +129,17 @@ async function readInstance(address: string, opts: FetchOptions): Promise<Instan
   if (!entry || !entry.val) {
     throw new ContractNotFound(address, opts.network);
   }
-  return { server, result: classifyInstance(entry.val, opts.rpcUrl) };
+  const result = classifyInstance(entry.val, opts.rpcUrl);
+  return { server, result: isExpired(entry, response.latestLedger) ? { ...result, archived: true } : result };
+}
+
+/**
+ * An entry is live through the ledger in `liveUntilLedgerSeq` and expired from
+ * the next one on. An entry with no TTL in the response is treated as live:
+ * nothing says otherwise.
+ */
+function isExpired(entry: rpc.Api.LedgerEntryResult, latestLedger: number): boolean {
+  return entry.liveUntilLedgerSeq !== undefined && entry.liveUntilLedgerSeq < latestLedger;
 }
 
 function classifyInstance(value: xdr.LedgerEntryData, rpcUrl: string): WasmHashResult {

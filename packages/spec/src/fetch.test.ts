@@ -107,6 +107,52 @@ test('fetchWasmHash: registry instance yields its WASM hash', async () => {
   assert.equal(stub.wasmCalls, 0);
 });
 
+// The recorded registry entry is live: its TTL is ahead of the recorded ledger.
+function registryTtl(stub: StubRpcServer): number {
+  const ttl = stub.response.entries[0]?.liveUntilLedgerSeq;
+  assert.ok(ttl !== undefined, 'the recording carries a TTL');
+  return ttl;
+}
+
+test('fetchWasmHash: a live instance carries no archived flag at all', async () => {
+  const result = await fetchWasmHash(REGISTRY, stubOptions(registryStub()));
+  assert.equal('archived' in result, false);
+});
+
+test('fetchWasmHash: an instance whose TTL has passed is flagged archived, hash intact', async () => {
+  const stub = registryStub();
+  stub.response = { ...stub.response, latestLedger: registryTtl(stub) + 1 };
+
+  const result = await fetchWasmHash(REGISTRY, stubOptions(stub));
+
+  assert.deepEqual(result, { type: 'wasm', wasmHash: REGISTRY_WASM_HASH, archived: true });
+});
+
+test('fetchWasmHash: live through the TTL ledger itself, expired the ledger after', async () => {
+  const stub = registryStub();
+  const ttl = registryTtl(stub);
+
+  stub.response = { ...stub.response, latestLedger: ttl };
+  assert.equal('archived' in (await fetchWasmHash(REGISTRY, stubOptions(stub))), false);
+
+  stub.response = { ...stub.response, latestLedger: ttl + 1 };
+  assert.equal((await fetchWasmHash(REGISTRY, stubOptions(stub))).archived, true);
+});
+
+test('fetchWasmHash: an entry with no TTL in the response is not called archived', async () => {
+  const stub = registryStub();
+  const [entry] = stub.response.entries;
+  assert.ok(entry);
+  stub.response = {
+    latestLedger: Number.MAX_SAFE_INTEGER,
+    entries: [{ key: entry.key, val: entry.val }],
+  };
+
+  const result = await fetchWasmHash(REGISTRY, stubOptions(stub));
+
+  assert.deepEqual(result, { type: 'wasm', wasmHash: REGISTRY_WASM_HASH });
+});
+
 test('missing instance entry: ContractNotFound carries the network', async () => {
   const stub = new StubRpcServer();
   stub.response = { entries: [], latestLedger: 4887004 };
