@@ -17,7 +17,10 @@ import { expectNoSeriousA11yViolations } from './a11y';
  *
  * Not covered here: the error boundary. It needs attribution to be undecidable
  * (database and Horizon both unreachable after a profile resolves), which the
- * hermetic server cannot be put into without a mock Horizon.
+ * hermetic server cannot be put into without a mock Horizon. Its view and its
+ * retry button are unit-tested instead (`lib/contract-error.test.ts`): that
+ * proves the button calls the `retry` Next hands the boundary, not that a real
+ * server-side failure recovers after a retry.
  */
 
 const HANDLE = 'e2e-nobody';
