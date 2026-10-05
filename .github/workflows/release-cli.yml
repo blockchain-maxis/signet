@@ -8,7 +8,9 @@ name: Release CLI
 #
 # Go cross-compiles cleanly from one runner (just GOOS/GOARCH env vars, no
 # cgo — see cli/go.mod's no-cgo requirement), so this is a single job rather
-# than a build matrix with artifacts to shuffle between jobs.
+# than a build matrix with artifacts to shuffle between jobs. The build itself
+# is scripts/release/build-cli.sh, also run by the PR dry run
+# (release-cli-dry-run.yml) so the two cannot drift.
 #
 # OPT-IN, like deploy.yml: the actual publish steps are gated on
 # `vars.CLI_RELEASE_ENABLED == 'true'`, so they no-op for forks and until:
@@ -64,41 +66,14 @@ jobs:
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
           echo "version=${TAG#cli-v}" >> "$GITHUB_OUTPUT"
 
-      # goos/goarch/npm_pkg/binary-name, one line per release target.
-      - name: Build every target, stage each npm platform package, checksum
-        working-directory: cli
+      # The cross-compile loop, per-package staging, checksums and shim pin
+      # live in scripts/release/build-cli.sh, shared with the PR dry run
+      # (release-cli-dry-run.yml) so the two cannot drift.
+      - name: Build every target, stage each npm platform package, checksum, pin shim
         env:
           VERSION: ${{ steps.version.outputs.version }}
           COMMIT: ${{ github.sha }}
-        run: |
-          set -euo pipefail
-          mkdir -p dist
-          targets=(
-            "linux   amd64 cli-linux-x64    signet"
-            "linux   arm64 cli-linux-arm64  signet"
-            "darwin  arm64 cli-darwin-arm64 signet"
-            "darwin  amd64 cli-darwin-x64   signet"
-            "windows amd64 cli-windows-x64  signet.exe"
-          )
-          for target in "${targets[@]}"; do
-            read -r goos goarch npm_pkg binname <<< "$target"
-            out="dist/${npm_pkg}-${binname}"
-            echo "::group::build ${goos}/${goarch}"
-            CGO_ENABLED=0 GOOS="$goos" GOARCH="$goarch" go build \
-              -trimpath \
-              -ldflags "-s -w -X main.version=${VERSION} -X main.commit=${COMMIT}" \
-              -o "$out" \
-              ./cmd/signet
-            sha256sum "$out" >> dist/checksums.txt
-            node ../scripts/release/stage-platform-package.mjs \
-              "npm/${npm_pkg}" "$out" "${VERSION}"
-            echo "::endgroup::"
-          done
-          cat dist/checksums.txt
-
-      - name: Pin the shim's version and optionalDependencies
-        run: node ../scripts/release/pin-shim-version.mjs "${{ steps.version.outputs.version }}"
-        working-directory: cli
+        run: scripts/release/build-cli.sh
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v3

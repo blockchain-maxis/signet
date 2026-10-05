@@ -97,6 +97,23 @@ Create a GitHub Release describing the changes and referencing the tag.
    - Verify on-chain contract initialization (`initialize(admin)`).
    - Update `NEXT_PUBLIC_IDENTITY_REGISTRY_ID` in production environment variables.
 
+### CLI release dry run
+
+The real CLI release (`.github/workflows/release-cli.yml`, triggered by a `cli-v*.*.*` tag) is maintainer-only, so a broken `package.json`, shim or staging script would otherwise surface only while releasing. `.github/workflows/release-cli-dry-run.yml` rehearses it on every pull request that touches `cli/**`, `scripts/release/**` or either release workflow, without publishing anything (read-only token, no `NPM_TOKEN`, no `production` environment, no GitHub Release).
+
+- **Same steps as the release.** Both workflows run `scripts/release/build-cli.sh`, which cross-compiles every target, stages each `@signet/cli-<platform>` package, writes `cli/dist/checksums.txt` and pins the `@signet/cli` shim. The dry run uses the version `0.0.0-dryrun.<12-char head sha>`. Change the build in that script, not in a workflow, so the two cannot drift.
+- **`build` job.** Lints the two release workflows with a pinned, checksum-verified `actionlint`, runs the build script, `npm pack`s every package under `cli/npm/` (the shim plus one per platform) and uploads the tarballs as the `cli-tarballs` artifact.
+- **`install` job.** On ubuntu, macOS and Windows, installs the shim plus that OS's platform package from the tarballs into a temp directory (`npm install ./*.tgz`), then runs `npx signet --version` and `npx signet --help`. It asserts exit code 0 and that the `--version` output contains the dry-run version.
+
+To reproduce the build locally (all targets, or a subset with `BUILD_ONLY`):
+
+```bash
+VERSION=0.0.0-dryrun.local BUILD_ONLY="cli-linux-x64" scripts/release/build-cli.sh
+git checkout -- cli/npm   # discard the staged binary and pinned versions
+```
+
+Publishing is unchanged: only `release-cli.yml`, on a tag, and only when `vars.CLI_RELEASE_ENABLED == 'true'`.
+
 ---
 
 ## 4. Roles & Responsibilities

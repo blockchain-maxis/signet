@@ -1,0 +1,169 @@
+name: Release CLI dry run
+
+# Rehearses release-cli.yml on pull requests so a broken package.json, shim or
+# staging script is found in review, not when a maintainer cuts a release.
+#
+# It runs the same scripts/release/build-cli.sh as the real release (build every
+# target, stage each npm platform package, checksum, pin the shim) at the
+# throwaway version 0.0.0-dryrun.<sha>, `npm pack`s every package, and uploads
+# the tarballs. A second job then installs the shim plus that OS's platform
+# package from the tarballs on ubuntu, macos and windows, and runs the installed
+# `signet` through npx.
+#
+# Nothing is published or released: read-only token, no NPM_TOKEN, no
+# `environment: production`, no GitHub Release.
+
+on:
+  pull_request:
+    paths:
+      - 'cli/**'
+      - 'scripts/release/**'
+      - '.github/workflows/release-cli.yml'
+      - '.github/workflows/release-cli-dry-run.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release-cli-dry-run-${{ github.head_ref || github.ref }}
+  cancel-in-progress: true
+
+env:
+  # Pinned actionlint release; the tarball is verified against this checksum
+  # (from the release's actionlint_1.7.12_checksums.txt) before it is run.
+  ACTIONLINT_VERSION: 1.7.12
+  ACTIONLINT_SHA256: 8aca8db96f1b94770f1b0d72b6dddcb1ebb8123cb3712530b08cc387b349a3d8
+
+jobs:
+  build:
+    name: build, stage, and pack
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Lint the release workflows with actionlint
+        run: |
+          set -euo pipefail
+          archive="actionlint_${ACTIONLINT_VERSION}_linux_amd64.tar.gz"
+          curl -fsSL -o "$RUNNER_TEMP/$archive" \
+            "https://github.com/rhysd/actionlint/releases/download/v${ACTIONLINT_VERSION}/${archive}"
+          echo "${ACTIONLINT_SHA256}  $RUNNER_TEMP/$archive" | sha256sum -c -
+          tar -xzf "$RUNNER_TEMP/$archive" -C "$RUNNER_TEMP" actionlint
+          "$RUNNER_TEMP/actionlint" -color \
+            .github/workflows/release-cli.yml \
+            .github/workflows/release-cli-dry-run.yml
+
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: cli/go.mod
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+
+      - name: Resolve dry-run version
+        id: version
+        env:
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: echo "version=0.0.0-dryrun.${HEAD_SHA::12}" >> "$GITHUB_OUTPUT"
+
+      - name: Build every target, stage each npm platform package, checksum, pin shim
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+          COMMIT: ${{ github.event.pull_request.head.sha }}
+        run: scripts/release/build-cli.sh
+
+      - name: npm pack every package
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          set -euo pipefail
+          mkdir -p cli/dist/tarballs
+          for dir in cli/npm/*/; do
+            npm pack "$dir" --pack-destination cli/dist/tarballs
+          done
+          ls -l cli/dist/tarballs
+          count=$(find cli/dist/tarballs -name '*.tgz' | wc -l)
+          echo "packed ${count} packages"
+          test "$count" -eq "$(find cli/npm -mindepth 1 -maxdepth 1 -type d | wc -l)"
+          # Every tarball must carry the dry-run version.
+          test "$(find cli/dist/tarballs -name "*-${VERSION}.tgz" | wc -l)" -eq "$count"
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: cli-tarballs
+          path: cli/dist/tarballs/*.tgz
+          if-no-files-found: error
+
+  install:
+    name: install on ${{ matrix.os }}
+    needs: build
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    defaults:
+      run:
+        shell: bash
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: ubuntu-latest
+            platform_pkg: cli-linux-x64
+          - os: macos-latest
+            platform_pkg: cli-darwin-arm64
+          - os: windows-latest
+            platform_pkg: cli-windows-x64
+    steps:
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+
+      - uses: actions/download-artifact@v8
+        with:
+          name: cli-tarballs
+          path: tarballs
+
+      - name: Install the shim and this OS's platform package from the tarballs
+        env:
+          VERSION: ${{ needs.build.outputs.version }}
+          PLATFORM_PKG: ${{ matrix.platform_pkg }}
+        run: |
+          set -euo pipefail
+          ls -l tarballs
+          mkdir "$RUNNER_TEMP/consumer"
+          cp "tarballs/signet-cli-${VERSION}.tgz" "tarballs/signet-${PLATFORM_PKG}-${VERSION}.tgz" "$RUNNER_TEMP/consumer/"
+          cd "$RUNNER_TEMP/consumer"
+          npm init -y > /dev/null
+          # --offline: nothing may come from the registry. The shim pins all five
+          # platform packages as optionalDependencies at the dry-run version,
+          # which was never published; without this npm would try to fetch each
+          # of them. The four other platforms stay unmet, as intended.
+          npm install --offline --no-audit --no-fund ./*.tgz
+          npm ls --all || true
+
+      - name: signet --version and --help run through npx
+        env:
+          VERSION: ${{ needs.build.outputs.version }}
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/consumer"
+
+          # --no-install: only the tarball-installed signet may run, never a
+          # copy fetched from the registry.
+          code=0
+          version_out="$(npx --no-install signet --version)" || code=$?
+          echo "signet --version (exit ${code}): ${version_out}"
+          test "$code" -eq 0
+          case "$version_out" in
+            *"${VERSION}"*) ;;
+            *) echo "::error::version output does not contain ${VERSION}"; exit 1 ;;
+          esac
+
+          code=0
+          help_out="$(npx --no-install signet --help)" || code=$?
+          echo "$help_out"
+          test "$code" -eq 0
+          test -n "$help_out"

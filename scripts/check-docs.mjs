@@ -144,6 +144,7 @@ const ENV_ALLOW = new Set([
   'GITHUB_ACTIONS',
   'DEPLOY_ENABLED', // GitHub repo variable, not app env
   'BUDGET_BYTES', // CI workflow env
+  'BUILD_ONLY', // shell env for scripts/release/build-cli.sh, not app env
   'DEMO_HORIZON_URL', // GitHub repo variable, not app env
   'DEMO_WALLETS_REQUIRE_HORIZON', // GitHub repo variable, not app env
   'NETWORK', // shell override for deploy-contract.sh
