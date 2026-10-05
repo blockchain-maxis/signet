@@ -1,4 +1,5 @@
 import { defineConfig, devices } from '@playwright/test';
+import { mockRpcUrl } from './e2e/fixtures/docs-failures';
 
 /**
  * E2E config. Excluded from `tsc`/`pnpm test` so the gates don't require
@@ -50,6 +51,13 @@ export default defineConfig({
       // linking would correctly fail closed, failing the spec for the wrong
       // reason.
       ...(process.env.DATABASE_URL ? { DATABASE_URL: process.env.DATABASE_URL } : {}),
+      // With a database the contract pages resolve interfaces over RPC. Point
+      // them at the mock `globalSetup` starts (#470) so the docs failure
+      // states are deterministic and the run never touches a real network.
+      // Not set for the testnet spec, which needs the real endpoint.
+      ...(process.env.DATABASE_URL && !process.env.SIGNET_TESTNET_E2E
+        ? { SOROBAN_RPC_URL: mockRpcUrl() }
+        : {}),
       // The opt-in testnet spec (e2e/testnet-claim.spec.ts) needs the server's
       // chain fallback pointed at the registry it claims on. These are
       // server-side vars read at request time, so no rebuild is needed — and

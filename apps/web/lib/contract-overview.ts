@@ -47,6 +47,8 @@ export interface OverviewSpec {
     readonly rustVersion?: string;
     readonly sdkVersion?: string;
   };
+  /** Non-fatal extraction notes from the decoder (#432); shown on the docs tabs (#470). */
+  readonly warnings?: readonly string[];
 }
 
 /**
@@ -59,7 +61,14 @@ export interface OverviewSpec {
  */
 export type SpecFailure =
   | { readonly kind: 'contract_not_found'; readonly network: string }
-  | { readonly kind: 'no_interface' }
+  | {
+      readonly kind: 'no_interface';
+      /**
+       * Set only for a Stellar Asset Contract, whose interface the protocol
+       * defines (#470). Absent for a module with no `contractspecv0` section.
+       */
+      readonly reason?: 'stellar_asset_contract';
+    }
   | { readonly kind: 'interface_unreadable'; readonly sdkVersion: string }
   | { readonly kind: 'unavailable' }
   | {
@@ -215,12 +224,14 @@ export function summariseSpec(input: SpecInput): OverviewSummary {
  * nothing about the contract, and must not read as "no interface".
  */
 export function classifySpecError(error: unknown, network: string): SpecFailure {
-  const e = error as { kind?: unknown; sdkVersion?: unknown } | null;
+  const e = error as { kind?: unknown; sdkVersion?: unknown; reason?: unknown } | null;
   switch (e?.kind) {
     case 'contract_not_found':
       return { kind: 'contract_not_found', network };
     case 'no_interface':
-      return { kind: 'no_interface' };
+      return e.reason === 'stellar_asset_contract'
+        ? { kind: 'no_interface', reason: 'stellar_asset_contract' }
+        : { kind: 'no_interface' };
     case 'interface_unreadable':
       return {
         kind: 'interface_unreadable',
