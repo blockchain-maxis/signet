@@ -6,6 +6,12 @@
  * for one) address tabs by `segment` without re-declaring them. `segment` is
  * the App Router child segment — `null` is the index route (Overview), which
  * is also what `useSelectedLayoutSegment()` reports for it.
+ *
+ * Fragment contract (#450): a function is addressed at `…/functions#fn-{name}`,
+ * a type at `…/types#type-{name}` and an error case at
+ * `…/types#error-{enum}-{name}`. Build those ids with `fnAnchor`, `typeAnchor`
+ * and `errorAnchor` from `lib/docs/anchors.ts`, never by hand, so the tabs that
+ * render the targets and the links that point at them share one definition.
  */
 export interface ContractTab {
   id: string;

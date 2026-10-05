@@ -52,13 +52,22 @@ export interface OverviewSpec {
  * Why a spec could not be shown (§1.5). The first three are the design's
  * failure modes; `unavailable` is the fourth honest state the design does not
  * list: the RPC (or the index) could not be reached, so nothing is known about
- * the contract's interface either way.
+ * the contract's interface either way. `wrong_network` is the loader's own
+ * guard (#464): the contract is on a network this deployment does not read, so
+ * no RPC is queried and nothing is known about it from here.
  */
 export type SpecFailure =
   | { readonly kind: 'contract_not_found'; readonly network: string }
   | { readonly kind: 'no_interface' }
   | { readonly kind: 'interface_unreadable'; readonly sdkVersion: string }
-  | { readonly kind: 'unavailable' };
+  | { readonly kind: 'unavailable' }
+  | {
+      readonly kind: 'wrong_network';
+      /** The network the contract is on. */
+      readonly network: string;
+      /** The network this deployment reads. */
+      readonly expectedNetwork: string;
+    };
 
 /** What `summariseSpec` takes: a decoded spec, or the reason there is none. */
 export type SpecInput =
@@ -145,6 +154,12 @@ export function failureCopy(failure: SpecFailure): FailureCopy {
         kind: failure.kind,
         title: 'Interface could not be read',
         detail: `Decoding failed with @stellar/stellar-sdk ${failure.sdkVersion}.`,
+      };
+    case 'wrong_network':
+      return {
+        kind: failure.kind,
+        title: `This contract is on ${failure.network}`,
+        detail: `This site reads ${failure.expectedNetwork}, so the interface of a ${failure.network} contract cannot be shown here.`,
       };
     case 'unavailable':
       return {

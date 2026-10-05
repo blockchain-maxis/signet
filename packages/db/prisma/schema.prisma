@@ -219,6 +219,13 @@ model ContractSnapshot {
   txCount24h   Int      @default(0)
   txCountTotal Int      @default(0)
   lastActivity DateTime?
+  /// Oldest captured `ContractInvocation` the counts cover (#429). Null only on
+  /// pre-#429 rows, which came from a Horizon call that always failed and are
+  /// all zeros: readers treat null as "not measured".
+  countedSince DateTime?
+  /// True when the contract's invocation rows are at the capture cap, so
+  /// `txCountTotal` is a lower bound.
+  totalIsFloor Boolean  @default(false)
 
   contract     Contract @relation(fields: [contractId], references: [id], onDelete: Cascade)
 
