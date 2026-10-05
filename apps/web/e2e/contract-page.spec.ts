@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { expectNoSeriousA11yViolations } from './a11y';
 import {
   CONTRACT_A,
   CONTRACT_B,
@@ -118,12 +119,37 @@ test.describe('contract page @db', () => {
     await expect(page.locator('main')).not.toContainText('No description available');
   });
 
-  test('Functions, Types and Diagram show an honest placeholder that links back to the Overview (#450)', async ({
+  test('the Functions tab lists one section per function, with the signature and only real prose (#466)', async ({
+    page,
+  }) => {
+    await page.goto(`${base(FIXTURE_HANDLE, CONTRACT_A)}/functions`);
+    const slot = page.getByTestId('slot-functions');
+    await expect(slot.getByRole('heading', { level: 2, name: 'Functions' })).toBeVisible();
+
+    // Fixture spec: `claim` (documented) and `resolve` (no doc comment).
+    const sections = slot.getByTestId('function-section');
+    await expect(sections).toHaveCount(2);
+    await expect(sections.nth(0)).toHaveAttribute('id', 'fn-claim');
+    await expect(sections.nth(0).getByTestId('function-signature')).toHaveText('claim() -> ()');
+    await expect(sections.nth(0)).toContainText('Claims a handle for a wallet.');
+    await expect(sections.nth(1)).toHaveAttribute('id', 'fn-resolve');
+    await expect(sections.nth(1).getByTestId('function-signature')).toHaveText('resolve() -> Address');
+
+    // The undocumented function renders its signature and nothing standing in for prose.
+    await expect(sections.nth(1).locator('p')).toHaveCount(1);
+    await expect(slot.locator('p:empty')).toHaveCount(0);
+    await expect(page.locator('main')).not.toContainText('No description');
+    // Partial documentation gets no note.
+    await expect(page.getByTestId('no-doc-comments-note')).toHaveCount(0);
+
+    await expectNoSeriousA11yViolations(page, 'Functions tab');
+  });
+
+  test('Types and Diagram show an honest placeholder that links back to the Overview (#450)', async ({
     page,
   }) => {
     const root = base(FIXTURE_HANDLE, CONTRACT_A);
     for (const [segment, heading] of [
-      ['functions', 'Functions'],
       ['types', 'Types'],
       ['diagram', 'Diagram'],
     ] as const) {
