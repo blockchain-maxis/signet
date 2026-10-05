@@ -301,7 +301,7 @@ test('errors, events and build pass through unchanged from a populated spec', ()
   const events: ContractSpec['events'] = [
     { name: 'Moved', doc: '', prefixTopics: [], params: [], dataFormat: 'single_value' },
   ];
-  const build = { rustVersion: '1.91.1' };
+  const build = { rustVersion: '1.91.1', entries: { rsver: '1.91.1' } };
   const spec: ContractSpec = { ...specOf([...entries]), ...views, events, build };
 
   const graph = buildContractGraph(spec);
