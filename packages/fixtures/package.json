@@ -17,7 +17,7 @@
     "capture": "node --import tsx scripts/capture.ts"
   },
   "dependencies": {
-    "@stellar/stellar-sdk": "^16.1.0"
+    "@stellar/stellar-sdk": "^17.2.1"
   },
   "devDependencies": {
     "@types/node": "^20.16.0",
