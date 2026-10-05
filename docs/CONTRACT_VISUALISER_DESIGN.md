@@ -291,6 +291,14 @@ exactly as the spec is (`CONTRACT_DOCS_DESIGN.md` §4): an interface that has
 not changed has a layout that has not changed, and an upgraded contract
 (new WASM hash) gets both re-derived together.
 
+In the implementation the layout step takes the abstract graph that
+`buildContractGraph` derives from the spec (§2.2), not the spec itself, and
+returns a `PositionedDiagramModel`: `layoutContractGraph(graph: ContractGraph):
+PositionedDiagramModel`. The spec-to-diagram pipeline composes the two, then
+routes the edges (`routeDiagram`). The layout is hand-rolled columns with
+barycentre ordering (§2.1), and its `layoutVersion` goes into the cache key
+alongside `wasmHash`, so a change to the algorithm invalidates cached layouts.
+
 Phase 2's mutate/read marks and phase 3's call edges are separate overlays
 keyed on `(wasmHash, network)` and `(address, network, ledgerRange)`
 respectively — derived data with different freshness, not baked into the
