@@ -117,6 +117,31 @@ export async function seedContractFixture(): Promise<void> {
       ],
     });
 
+    // Fixture-only decoded interface for contract A's WASM hash, so the Overview
+    // renders without an RPC call. A hand-written `SpecJson` (2 functions, 1
+    // documented, 1 type, 1 error case), stamped with the SDK the server runs so
+    // the store does not treat it as stale.
+    const specJson = {
+      schemaVersion: 1,
+      wasmHash: WASM_HASH_2,
+      sdkVersion: '16.1.0',
+      entriesXdr: [],
+      functions: [
+        { name: 'claim', doc: 'Claims a handle for a wallet.', isConstructor: false, inputs: [], outputs: ['void'] },
+        { name: 'resolve', doc: '', isConstructor: false, inputs: [], outputs: ['address'] },
+      ],
+      types: [{ kind: 'struct', name: 'Binding', fields: [] }],
+      errors: [{ enumName: 'RegistryError', name: 'HandleTaken', value: 1, doc: '' }],
+      events: [],
+      build: { rustVersion: '1.91.1', sdkVersion: '26.1.0' },
+      warnings: [],
+    };
+    await prisma.contractSpec.upsert({
+      where: { wasmHash: WASM_HASH_2 },
+      update: { schemaVersion: 1, sdkVersion: '16.1.0', specJson },
+      create: { wasmHash: WASM_HASH_2, schemaVersion: 1, sdkVersion: '16.1.0', specJson },
+    });
+
     // Fixture-only invocations (composite id `${txHash}:${opIndex}`, as the capture worker writes).
     for (let i = 0; i < 4; i++) {
       const txHash = `${(0xd0 + i).toString(16)}`.repeat(32);

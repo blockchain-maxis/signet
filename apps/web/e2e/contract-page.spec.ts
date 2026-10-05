@@ -70,6 +70,25 @@ test.describe('contract page @db', () => {
     },
   );
 
+  test('the Overview summarises the interface and links each part to its tab (#449)', async ({ page }) => {
+    await page.goto(base(FIXTURE_HANDLE, CONTRACT_A));
+    const root = base(FIXTURE_HANDLE, CONTRACT_A);
+
+    // Fixture spec: 2 functions (1 documented), 1 type, 1 error case.
+    await expect(page.getByRole('link', { name: '2 functions' })).toHaveAttribute('href', `${root}/functions`);
+    await expect(page.getByRole('link', { name: '1 type', exact: true })).toHaveAttribute('href', `${root}/types`);
+    await expect(page.getByRole('link', { name: '1 error case' })).toHaveAttribute('href', `${root}/types`);
+    await expect(page.getByText('1 of 2 functions documented')).toBeVisible();
+    await expect(page.getByText('Built with Rust 1.91.1 and soroban-sdk 26.1.0')).toBeVisible();
+    await expect(page.getByRole('link', { name: 'Open run locally' })).toHaveAttribute('href', `${root}/run`);
+    await expect(page.getByRole('link', { name: 'Open activity' })).toHaveAttribute('href', `${root}/activity`);
+
+    // The seeded snapshot has non-zero counts but no `countedSince`, so it is
+    // "not measured", not usage; and nothing on the tab is placeholder prose.
+    await expect(page.getByTestId('overview-activity-unmeasured')).toBeVisible();
+    await expect(page.locator('main')).not.toContainText('No description available');
+  });
+
   test('the Run locally command contains the contract address', async ({ page }) => {
     await page.goto(`${base(FIXTURE_HANDLE, CONTRACT_A)}/run`);
     await expect(page.locator('code', { hasText: `signet dev ${CONTRACT_A}` }).first()).toBeVisible();
