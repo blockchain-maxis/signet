@@ -16,7 +16,7 @@
  * | What                          | Where                                      |
  * | ----------------------------- | ------------------------------------------ |
  * | Attribution verdict           | `attributeContract` (`contract-attribution`) |
- * | Live instance read            | `loadLiveWasmHash` (`contract-header-source`) |
+ * | Live instance read            | `loadLiveInstance` (`contract-header-source`) |
  * | Newest activity snapshot      | `getContractActivity` (`contract-activity`) |
  *
  * Across requests. A lifetime below is how long an entry is *fresh*. Next's data

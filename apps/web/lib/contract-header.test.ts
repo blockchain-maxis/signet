@@ -83,3 +83,38 @@ test("links use the contract's own network, and the date is formatted", () => {
   assert.equal(m.deployer.display, 'GDEPLOYE...AAAAAA');
   assert.equal(m.handle, 'aquawolf');
 });
+
+test('a live instance is not archived', () => {
+  const m = buildHeaderModel(contract(OLD), NEW, opts);
+  assert.equal(m.archived, null);
+});
+
+test('archived: the header says "archived on {network}" and the hash is labelled as last recorded', () => {
+  const m = buildHeaderModel(contract(OLD), OLD, { ...opts, archived: true });
+
+  assert.equal(m.archived?.label, 'archived on testnet');
+  assert.match(m.archived?.note ?? '', /expired on testnet/);
+  assert.match(m.archived?.note ?? '', /restored/);
+  assert.equal(m.wasm.state, 'archived');
+  assert.equal(m.wasm.hash, OLD);
+  assert.equal(m.wasm.label, 'last recorded on the ledger (archived)');
+  assert.equal(m.wasm.note, null, 'no "upgraded" claim from an expired entry');
+});
+
+test('archived: names the contract\'s own network, not the one this deployment serves', () => {
+  const m = buildHeaderModel(contract(OLD, 'mainnet'), OLD, { ...opts, archived: true });
+  assert.equal(m.archived?.label, 'archived on mainnet');
+});
+
+test('archived with no readable hash still says so, and the hash field falls back to the index', () => {
+  const m = buildHeaderModel(contract(OLD), null, { ...opts, archived: true });
+
+  assert.equal(m.archived?.label, 'archived on testnet');
+  assert.equal(m.wasm.state, 'indexed');
+  assert.equal(m.wasm.hash, OLD);
+});
+
+test('archived: false and omitted behave the same', () => {
+  assert.equal(buildHeaderModel(contract(OLD), NEW, { ...opts, archived: false }).archived, null);
+  assert.equal(buildHeaderModel(contract(OLD), NEW, opts).archived, null);
+});

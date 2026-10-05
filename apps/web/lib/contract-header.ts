@@ -19,7 +19,7 @@ import type { AttributedContract } from './contract-attribution.ts';
 import { formatDate } from './format-date.ts';
 import { stellarExpertAccountUrl, stellarExpertContractUrl, stellarExpertTxUrl } from './network.ts';
 
-export type WasmHashState = 'live' | 'indexed' | 'unavailable';
+export type WasmHashState = 'live' | 'archived' | 'indexed' | 'unavailable';
 
 export interface HeaderModel {
   address: string;
@@ -32,6 +32,12 @@ export interface HeaderModel {
     /** Sentence shown with a mismatch, otherwise null. */
     note: string | null;
   };
+  /**
+   * Set when the instance has expired on its network: the header says so and the
+   * page still renders. Null for a live instance, or when the read failed and
+   * nothing is known.
+   */
+  archived: { label: string; note: string } | null;
   wasm: {
     state: WasmHashState;
     /** The hash shown, or null when neither source has one. */
@@ -61,8 +67,14 @@ function wasmField(
   indexed: string | null,
   live: string | null,
   indexedAsOf: string | null,
+  archived: boolean,
 ): HeaderModel['wasm'] {
   const asOf = indexedAsOf ? `as of ${formatDate(indexedAsOf)}` : 'as last indexed';
+  if (live && archived) {
+    // The entry still holds a hash, but it is the last one recorded, not a
+    // current reading: nothing can have changed it while the instance is expired.
+    return { state: 'archived', hash: live, label: 'last recorded on the ledger (archived)', note: null };
+  }
   if (live) {
     const upgraded = indexed !== null && indexed.toLowerCase() !== live.toLowerCase();
     return {
@@ -85,11 +97,12 @@ function wasmField(
  * @param opts.handle - the handle the contract is attributed to.
  * @param opts.configuredNetwork - the network this deployment serves.
  * @param opts.indexedAsOf - ISO time the indexed hash was last checked.
+ * @param opts.archived - the live read found the instance entry expired.
  */
 export function buildHeaderModel(
   attributed: AttributedContract,
   liveWasmHash: string | null,
-  opts: { handle: string; configuredNetwork: string; indexedAsOf?: string | null },
+  opts: { handle: string; configuredNetwork: string; indexedAsOf?: string | null; archived?: boolean },
 ): HeaderModel {
   const explorer = explorerFor(attributed.network);
   const mismatch = attributed.network !== opts.configuredNetwork;
@@ -103,7 +116,13 @@ export function buildHeaderModel(
         ? `This contract is on ${attributed.network}, but this deployment serves ${opts.configuredNetwork}.`
         : null,
     },
-    wasm: wasmField(attributed.wasmHash, liveWasmHash, opts.indexedAsOf ?? null),
+    archived: opts.archived
+      ? {
+          label: `archived on ${attributed.network}`,
+          note: `This contract's instance has expired on ${attributed.network}. It has to be restored before it can be invoked; what is shown here is what was last recorded.`,
+        }
+      : null,
+    wasm: wasmField(attributed.wasmHash, liveWasmHash, opts.indexedAsOf ?? null, opts.archived === true),
     deployTx: {
       hash: attributed.deployTxHash,
       url: stellarExpertTxUrl(attributed.deployTxHash, explorer),

@@ -2,7 +2,7 @@ import { normalizeNetwork } from '@signet/types';
 import type { AttributedContract } from '@/lib/contract-attribution';
 import { buildHeaderModel } from '@/lib/contract-header';
 import { STELLAR_NETWORK } from '@/lib/chain';
-import { loadIndexedAsOf, loadLiveWasmHash } from '@/lib/server/contract-header-source';
+import { loadIndexedAsOf, loadLiveInstance } from '@/lib/server/contract-header-source';
 import { CopyAddress } from '../../../copy-address';
 import { ExternalLink } from '../external-link';
 
@@ -33,13 +33,14 @@ export async function ContractHeader({
   contract: AttributedContract;
 }) {
   const [live, indexedAsOf] = await Promise.all([
-    loadLiveWasmHash(contract.address, normalizeNetwork(contract.network)),
+    loadLiveInstance(contract.address, normalizeNetwork(contract.network)),
     contract.wasmHash ? loadIndexedAsOf(contract.address) : Promise.resolve(null),
   ]);
-  const m = buildHeaderModel(contract, live, {
+  const m = buildHeaderModel(contract, live.wasmHash, {
     handle,
     configuredNetwork: STELLAR_NETWORK,
     indexedAsOf,
+    archived: live.archived,
   });
 
   return (
@@ -77,6 +78,17 @@ export async function ContractHeader({
             <p className="mt-2 text-[#f0806f]" role="status">
               {m.network.note}
             </p>
+          )}
+          {m.archived && (
+            <div className="mt-2" data-testid="contract-archived">
+              <p
+                className="inline-block border border-[#8b1a1a] bg-[#1a0d0b] px-2 py-0.5 text-[11px] uppercase tracking-[0.18em] text-[#f0806f]"
+                role="status"
+              >
+                {m.archived.label}
+              </p>
+              <p className="mt-2 text-[#b8b5a8]">{m.archived.note}</p>
+            </div>
           )}
         </Row>
 
