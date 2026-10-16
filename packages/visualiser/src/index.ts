@@ -105,7 +105,12 @@ export {
 export { MIN_TEXT_PX, textCells, textWidth, truncateLabel } from './metrics.ts';
 
 /** Pure SVG renderer (§4.2): DiagramModel -> SVG string. */
-export { renderDiagramSvg, type RenderOptions } from './render.ts';
+export {
+  renderDiagramSvg,
+  renderStandaloneSvg,
+  type RenderOptions,
+  type StandaloneSvgOptions,
+} from './render.ts';
 
 /** Worth-drawing decision (§3): draw / too-simple / too-large. */
 export {

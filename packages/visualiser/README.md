@@ -79,3 +79,28 @@ it (#487, #493). Until then the goldens pin the renderer's output (nodes, labels
 links, ids, edges and the list-mode decision), not node positions. When the
 renderer starts drawing the layout, a change that moves a node changes the
 golden like any other output change.
+
+## Standalone SVG downloads
+
+`renderStandaloneSvg(layoutContractGraph(buildContractGraph(spec)), { theme,
+provenance: { address, network, wasmHash } })` returns an SVG document with its
+own dimensions, canvas, one style block, and a provenance footer. `theme` is
+`dark`, `light`, or `auto`; auto follows `prefers-color-scheme` in browsers and
+falls back to light in editors without media-query support. Colours come from
+`tokens.ts` and use literal CSS values so editors need no CSS-variable support.
+The renderer uses the positioned layout and orthogonal routing passes. Labels
+and provenance are XML-escaped; it emits no scripts, remote resources or links.
+
+The web Diagram tab links to
+`/p/{handle}/contract/{address}/diagram.svg?theme=auto`. Explicit `dark` and
+`light` queries are useful for slide/report backgrounds. The attachment route
+checks deployment attribution itself (layouts do not guard route handlers),
+returns 404 for invalid/unattributed contracts, 503 for unavailable attribution
+or interfaces, 400 for unsupported themes and 422 above the 60-node design
+limit. It uses the resolved interface's WASM hash for provenance and does not
+cache attribution or failed responses.
+
+The route currently reuses the canonical cached spec resolver and computes the
+pure layout. The versioned layout cache in #497 is still pending and should
+replace that computation when available; this change adds no second cache.
+The interactive Diagram slot remains owned by #498.

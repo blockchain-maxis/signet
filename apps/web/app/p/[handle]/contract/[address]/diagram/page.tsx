@@ -9,5 +9,18 @@ export default async function DiagramPage({
   const { handle, address } = await params;
   const props = await loadSlotProps(handle, address);
   if (!props) return null;
-  return <ContractDiagram {...props} />;
+  return (
+    <>
+      {props.spec.kind === 'spec' && (
+        <a
+          href={`/p/${encodeURIComponent(handle)}/contract/${encodeURIComponent(address)}/diagram.svg?theme=auto`}
+          className="mb-6 inline-block text-sm underline underline-offset-4 focus-visible:outline focus-visible:outline-2"
+          download
+        >
+          Download SVG
+        </a>
+      )}
+      <ContractDiagram {...props} />
+    </>
+  );
 }

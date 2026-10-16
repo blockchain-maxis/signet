@@ -36,12 +36,22 @@ test.describe('contract route 404', () => {
     }
   });
 
-  test('says the contract is not on this handle’s record, and offers both ways out', async ({ page }) => {
+  test('SVG export is a real 404 for a contract the handle did not deploy', async ({ request }) => {
+    const res = await request.get(`/p/${HANDLE}/contract/${ADDRESS}/diagram.svg?theme=dark`);
+    expect(res.status()).toBe(404);
+    expect(res.headers()['content-disposition']).toBeUndefined();
+  });
+
+  test('says the contract is not on this handle’s record, and offers both ways out', async ({
+    page,
+  }) => {
     const res = await page.goto(`/p/${HANDLE}/contract/${ADDRESS}`);
     expect(res?.status()).toBe(404);
 
     await expect(page.getByRole('heading', { level: 1, name: 'Contract not found' })).toBeVisible();
-    await expect(page.getByRole('main')).toContainText(`This contract isn't part of @${HANDLE}'s record.`);
+    await expect(page.getByRole('main')).toContainText(
+      `This contract isn't part of @${HANDLE}'s record.`,
+    );
 
     await expect(page.getByRole('link', { name: `View @${HANDLE}'s profile` })).toHaveAttribute(
       'href',
