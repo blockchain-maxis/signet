@@ -1,0 +1,30 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/counter_v1",
+    "crates/counter_v2_return",
+    "crates/counter_v2_event",
+    "crates/counter_v2_auth",
+    "crates/counter_v2_cost",
+    "crates/profile_v1",
+    "crates/profile_v2_field",
+    "crates/profile_v2_optional",
+    "crates/caller",
+    "crates/callee",
+    "crates/looper",
+    "crates/hog",
+    "crates/vesting",
+]
+
+[workspace.dependencies]
+soroban-sdk = "28"
+
+[profile.release]
+opt-level = "z"
+overflow-checks = true
+debug = 0
+strip = "symbols"
+debug-assertions = false
+panic = "abort"
+codegen-units = 1
+lto = true
