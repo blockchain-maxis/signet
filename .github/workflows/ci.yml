@@ -112,6 +112,9 @@ jobs:
       - name: Test
         run: pnpm test
 
+      - name: Smoke check generated TypeScript client stub
+        run: pnpm --filter @signet/spec smoke:client
+
       - name: Build
         run: pnpm build
 

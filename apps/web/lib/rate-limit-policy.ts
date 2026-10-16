@@ -58,6 +58,12 @@ export const LIMITS = {
   /** Plain reads; generous, still bounded. */
   read: 60,
   /**
+   * Generates a downloadable TypeScript client stub (ZIP). CPU-intensive AST
+   * generation and zip compression, unauthenticated per IP. Budgeted tightly
+   * like auth verification to prevent resource exhaustion.
+   */
+  stubTs: 15,
+  /**
    * Browser-posted CSP violation reports. A genuinely broken directive can fire
    * once per blocked subresource, so the ceiling is high enough that a real
    * page's first load reports in full, and still bounded — the endpoint is

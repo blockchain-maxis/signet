@@ -15,7 +15,8 @@
     "build": "tsc --noEmit",
     "typecheck": "tsc --noEmit",
     "lint": "eslint . --config ../../eslint.config.js",
-    "test": "node --experimental-strip-types --test \"src/**/*.test.ts\""
+    "test": "node --experimental-strip-types --test \"src/**/*.test.ts\"",
+    "smoke:client": "node --experimental-strip-types scripts/smoke-ts-client.ts"
   },
   "dependencies": {
     "@signet/types": "workspace:*",
