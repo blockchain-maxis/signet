@@ -8,13 +8,15 @@
   "types": "./src/index.ts",
   "exports": {
     ".": "./src/index.ts",
-    "./interactive": "./src/interactive.ts",
+    "./interactive": "./src/interactive/index.ts",
+    "./interactive/details": "./src/interactive/details.ts",
+    "./interactive/details.css": "./src/interactive/details.css",
     "./tokens": "./src/tokens.ts",
     "./tokens.css": "./src/tokens.css"
   },
   "scripts": {
-    "build": "tsc --noEmit",
-    "typecheck": "tsc --noEmit",
+    "build": "tsc --noEmit && tsc --noEmit -p tsconfig.interactive.json",
+    "typecheck": "tsc --noEmit && tsc --noEmit -p tsconfig.interactive.json",
     "lint": "eslint . --config ../../eslint.config.js",
     "test": "node --experimental-strip-types --test \"src/**/*.test.ts\""
   },

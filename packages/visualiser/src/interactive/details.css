@@ -1,0 +1,73 @@
+/*
+ * Detail-card and highlight styles for the interactive enhancer (#500).
+ *
+ * Every colour comes from a `--viz-*` token (defined in `tokens.css`), so the
+ * card passes the same contrast bar the diagram itself does and works on both
+ * grounds. Loaded by the page that mounts `enhanceDetails`; importing it is
+ * what keeps the enhancer free of inline styles (which the site's CSP blocks).
+ */
+
+.viz-details-card {
+  position: fixed;
+  box-sizing: border-box;
+  max-width: min(360px, calc(100vw - 16px));
+  padding: 10px 12px;
+  border: 1px solid var(--viz-edge, #736e62);
+  border-radius: 6px;
+  background: var(--viz-node, #181614);
+  color: var(--viz-node-text, #f5f4ee);
+  font-family: var(--typeface-mono-regular, ui-monospace, monospace);
+  font-size: 12px;
+  line-height: 1.5;
+  box-shadow: 0 6px 24px rgb(0 0 0 / 45%);
+  pointer-events: none;
+}
+
+.viz-details-card[hidden] {
+  display: none;
+}
+
+.viz-details-card__row {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 2px 8px;
+  margin: 0 0 6px;
+}
+
+.viz-details-card__row:last-child {
+  margin-bottom: 0;
+}
+
+.viz-details-card__label {
+  color: var(--viz-muted, #9e9a8f);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 10px;
+  padding-top: 1px;
+}
+
+.viz-details-card__value {
+  color: var(--viz-node-text, #f5f4ee);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+/*
+ * Highlighting. Neighbours get a thicker stroke as well as a colour, per the
+ * "never hue alone" rule (design §2.3), so the cue survives greyscale and
+ * colour-blindness.
+ */
+.diagram-edge.viz-edge--incident {
+  stroke: var(--viz-accent, #e05252);
+  stroke-width: 2.5;
+}
+
+.diagram-node.viz-node--related {
+  stroke: var(--viz-accent, #e05252);
+  stroke-width: 2.5;
+}
+
+.diagram-node.viz-node--active {
+  stroke: var(--viz-focus, #60a5fa);
+  stroke-width: 2.5;
+}

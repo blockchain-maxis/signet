@@ -105,6 +105,11 @@ export function renderDiagramSvg(model: DiagramModel, opts: RenderOptions): stri
     svgParts.push(`  <line`);
     svgParts.push(`    id="${escapeXml(edgeId)}"`);
     svgParts.push(`    class="diagram-edge${edge.label ? ' diagram-edge--labeled' : ''}"`);
+    // Endpoints as data attributes (issue 500). Node ids contain `:` (e.g.
+    // `fn:foo`), which cannot go in a `#id` selector unescaped, so the detail
+    // card enhancer matches incident edges by attribute value instead.
+    svgParts.push(`    data-edge-from="${escapeXml(edge.from)}"`);
+    svgParts.push(`    data-edge-to="${escapeXml(edge.to)}"`);
     svgParts.push(`    x1="${fromX}" y1="${fromY}" x2="${toX}" y2="${toY}"`);
     svgParts.push(`    marker-end="url(#arrowhead)"`);
     if (edge.label) {
