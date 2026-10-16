@@ -27,7 +27,6 @@ func init() { register(groupIdentity, newLinkCmd) }
 // signed in as when they approve in the browser — asking for it here would
 // invite typing one you do not own, and the server would refuse it anyway.
 func newLinkCmd() *cobra.Command {
-	var network string
 	var noBrowser bool
 
 	cmd := &cobra.Command{
@@ -64,6 +63,7 @@ signing goes through the stellar CLI.`,
 				return err
 			}
 
+			network := deps.Config.Network
 			client := deps.NewClient(resolved.BaseURL)
 
 			result, err := link.Run(cmd.Context(), resolved.BaseURL, network, source, publicKey, link.Deps{
@@ -117,7 +117,6 @@ signing goes through the stellar CLI.`,
 		},
 	}
 
-	cmd.Flags().StringVar(&network, "network", "testnet", "Stellar network the deploy wallet is on")
 	cmd.Flags().BoolVar(&noBrowser, "no-browser", false, "print the approval URL instead of opening a browser")
 
 	return cmd

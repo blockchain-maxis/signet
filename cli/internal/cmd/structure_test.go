@@ -86,6 +86,8 @@ func TestExistingCommandsLandInTheirGroups(t *testing.T) {
 		"unlink":     groupIdentity.id,
 		"whoami":     groupIdentity.id,
 		"identity":   groupIdentity.id,
+		"context":    groupDeployments.id,
+		"config":     groupDeployments.id,
 		"version":    groupOther.id,
 		"help":       groupOther.id,
 		"completion": groupOther.id,
@@ -134,13 +136,20 @@ func TestHelpListsTheGroupsInOrder(t *testing.T) {
 		last = idx
 	}
 
-	// The identity commands sit under the Identity heading, before Other's.
+	// The identity commands sit under the Identity heading, before Deployments.
 	identityAt := strings.Index(help, groupIdentity.title)
+	deployAt := strings.Index(help, groupDeployments.title)
 	otherAt := strings.Index(help, groupOther.title)
 	for _, name := range []string{"link", "unlink", "whoami", "identity"} {
 		at := strings.Index(help, "\n  "+name+" ")
-		if at < identityAt || at > otherAt {
+		if at < identityAt || at > deployAt {
 			t.Errorf("%s is not listed under %q:\n%s", name, groupIdentity.title, help)
+		}
+	}
+	for _, name := range []string{"context", "config"} {
+		at := strings.Index(help, "\n  "+name+" ")
+		if at < deployAt || at > otherAt {
+			t.Errorf("%s is not listed under %q:\n%s", name, groupDeployments.title, help)
 		}
 	}
 	for _, name := range []string{"completion", "version"} {
@@ -155,7 +164,7 @@ func TestJSONFlagIsPersistentOnTheRootOnly(t *testing.T) {
 	if root.PersistentFlags().Lookup("json") == nil {
 		t.Fatal("root has no persistent --json flag")
 	}
-	for _, name := range []string{"link", "unlink", "whoami"} {
+	for _, name := range []string{"link", "unlink", "whoami", "context", "config"} {
 		assertInheritsJSON(t, name)
 	}
 }
@@ -174,6 +183,8 @@ var failing = map[string][]string{
 	"unlink":   append([]string{"unlink", "--json", "--yes"}, runtimeFailure...),
 	"whoami":   append([]string{"whoami", "--json"}, runtimeFailure...),
 	"identity": append([]string{"identity", "--json"}, runtimeFailure...),
+	"context":  {"context", "use", "nonexistent-context-xyz", "--json"},
+	"config":   {"config", "get", "nonexistent-key-xyz", "--json"},
 }
 
 var cannotFail = map[string]bool{"version": true, "help": true, "completion": true}

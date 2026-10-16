@@ -4,6 +4,8 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/blockchain-maxis/signet/cli/internal/exitcode"
 )
 
 // isolateConfigDir points os.UserConfigDir() at a fresh temp directory for
@@ -34,7 +36,7 @@ func TestLoadWithNoConfigFileReturnsZeroValue(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Load with no config file present returned an error: %v", err)
 	}
-	if f != (File{}) {
+	if f.Version != 0 || f.Current != "" || len(f.Contexts) != 0 {
 		t.Fatalf("Load with no config file present = %+v, want zero value", f)
 	}
 }
@@ -42,7 +44,13 @@ func TestLoadWithNoConfigFileReturnsZeroValue(t *testing.T) {
 func TestSaveThenLoadRoundTrips(t *testing.T) {
 	isolateConfigDir(t)
 
-	want := File{BaseURL: "https://signet.example.internal", Source: "alice"}
+	want := File{
+		Version: 2,
+		Current: "default",
+		Contexts: map[string]Context{
+			"default": {URL: "https://signet.example.internal", Source: "alice"},
+		},
+	}
 	if err := Save(want); err != nil {
 		t.Fatalf("Save: %v", err)
 	}
@@ -51,7 +59,7 @@ func TestSaveThenLoadRoundTrips(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Load: %v", err)
 	}
-	if got != want {
+	if got.Version != want.Version || got.Current != want.Current || got.Contexts["default"] != want.Contexts["default"] {
 		t.Fatalf("Load after Save = %+v, want %+v", got, want)
 	}
 }
@@ -78,7 +86,13 @@ func TestSaveCreatesTheConfigDirectory(t *testing.T) {
 func TestRememberSourceUpdatesOnlySource(t *testing.T) {
 	isolateConfigDir(t)
 
-	if err := Save(File{BaseURL: "https://signet.example.internal"}); err != nil {
+	if err := Save(File{
+		Version: 2,
+		Current: "default",
+		Contexts: map[string]Context{
+			"default": {URL: "https://signet.example.internal"},
+		},
+	}); err != nil {
 		t.Fatalf("Save: %v", err)
 	}
 	if err := RememberSource("bob"); err != nil {
@@ -89,9 +103,9 @@ func TestRememberSourceUpdatesOnlySource(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Load: %v", err)
 	}
-	want := File{BaseURL: "https://signet.example.internal", Source: "bob"}
-	if got != want {
-		t.Fatalf("Load after RememberSource = %+v, want %+v", got, want)
+	ctx := got.Contexts["default"]
+	if ctx.URL != "https://signet.example.internal" || ctx.Source != "bob" {
+		t.Fatalf("Load after RememberSource = %+v, want url preserved and source bob", ctx)
 	}
 }
 
@@ -123,116 +137,256 @@ func TestRememberSourceIsANoopWhenUnchanged(t *testing.T) {
 	}
 }
 
-// ─── Resolve precedence: flag > env > config > default ─────────────────────
+// ─── Acceptance test 1: v1 -> v2 migration round trip ─────────────────────
 
-func TestResolveFallsBackToTheDefaultBaseURLWithNoConfigFile(t *testing.T) {
-	got := Resolve(ResolveOptions{}, File{})
-	if got.BaseURL != DefaultBaseURL {
-		t.Fatalf("BaseURL = %q, want the default %q", got.BaseURL, DefaultBaseURL)
+func TestV1ToV2MigrationRoundTrip(t *testing.T) {
+	isolateConfigDir(t)
+
+	path, err := Path()
+	if err != nil {
+		t.Fatalf("Path: %v", err)
 	}
-	if got.Source != "" {
-		t.Fatalf("Source = %q, want empty with no config and no --source", got.Source)
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+		t.Fatalf("MkdirAll: %v", err)
+	}
+
+	v1Content := []byte(`{
+  "baseUrl": "https://v1.example.com",
+  "source": "alice"
+}`)
+	if err := os.WriteFile(path, v1Content, 0o600); err != nil {
+		t.Fatalf("WriteFile v1: %v", err)
+	}
+
+	// 1. First Load triggers migration
+	f, err := Load()
+	if err != nil {
+		t.Fatalf("Load v1: %v", err)
+	}
+
+	if f.Version != 2 {
+		t.Errorf("Version = %d, want 2", f.Version)
+	}
+	if f.Current != "default" {
+		t.Errorf("Current = %q, want %q", f.Current, "default")
+	}
+	defaultCtx, ok := f.Contexts["default"]
+	if !ok {
+		t.Fatalf("Contexts[\"default\"] missing")
+	}
+	if defaultCtx.URL != "https://v1.example.com" {
+		t.Errorf("default.URL = %q, want https://v1.example.com", defaultCtx.URL)
+	}
+	if defaultCtx.Source != "alice" {
+		t.Errorf("default.Source = %q, want alice", defaultCtx.Source)
+	}
+
+	// 2. Check that .bak backup was written with exact original v1 bytes
+	bakData, err := os.ReadFile(path + ".bak")
+	if err != nil {
+		t.Fatalf("reading backup file: %v", err)
+	}
+	if string(bakData) != string(v1Content) {
+		t.Errorf("backup content = %q, want %q", string(bakData), string(v1Content))
+	}
+
+	// 3. Second Load reads back migrated v2 file without rewriting backup
+	f2, err := Load()
+	if err != nil {
+		t.Fatalf("second Load: %v", err)
+	}
+	if f2.Version != 2 || f2.Current != "default" || f2.Contexts["default"] != defaultCtx {
+		t.Errorf("second Load mismatch: got %+v, want %+v", f2, f)
 	}
 }
 
-func TestResolveConfigFileOverridesTheDefault(t *testing.T) {
-	got := Resolve(ResolveOptions{}, File{BaseURL: "https://from-config.example", Source: "alice"})
-	if got.BaseURL != "https://from-config.example" {
-		t.Fatalf("BaseURL = %q, want the config file's value", got.BaseURL)
-	}
-	if got.Source != "alice" {
-		t.Fatalf("Source = %q, want the config file's value", got.Source)
-	}
-}
+// ─── Acceptance test 2: precedence table covering every layer ─────────────
 
-func TestResolveEnvOverridesTheConfigFile(t *testing.T) {
-	got := Resolve(
-		ResolveOptions{EnvBaseURL: "https://from-env.example"},
-		File{BaseURL: "https://from-config.example"},
-	)
-	if got.BaseURL != "https://from-env.example" {
-		t.Fatalf("BaseURL = %q, want SIGNET_URL's value", got.BaseURL)
-	}
-}
-
-func TestResolveFlagOverridesEverything(t *testing.T) {
-	got := Resolve(
-		ResolveOptions{
-			FlagURL:       "https://from-flag.example",
-			FlagURLSet:    true,
-			FlagSource:    "bob",
-			FlagSourceSet: true,
-			EnvBaseURL:    "https://from-env.example",
+func TestPrecedenceTableEveryLayer(t *testing.T) {
+	tests := []struct {
+		name        string
+		opts        ResolveOptions
+		file        File
+		wantURL     string
+		wantNetwork string
+		wantSource  string
+		wantContext string
+	}{
+		{
+			name:        "all defaults when empty",
+			opts:        ResolveOptions{},
+			file:        File{},
+			wantURL:     DefaultBaseURL,
+			wantNetwork: DefaultNetwork,
+			wantSource:  "",
+			wantContext: DefaultContextName,
 		},
-		File{BaseURL: "https://from-config.example", Source: "alice"},
-	)
-	if got.BaseURL != "https://from-flag.example" {
-		t.Fatalf("BaseURL = %q, want --url's value", got.BaseURL)
+		{
+			name: "active context supplies values",
+			opts: ResolveOptions{},
+			file: File{
+				Version: 2,
+				Current: "staging",
+				Contexts: map[string]Context{
+					"staging": {
+						URL:     "https://staging.signet.internal",
+						Network: "mainnet",
+						Source:  "alice",
+					},
+				},
+			},
+			wantURL:     "https://staging.signet.internal",
+			wantNetwork: "mainnet",
+			wantSource:  "alice",
+			wantContext: "staging",
+		},
+		{
+			name: "environment variables beat context",
+			opts: ResolveOptions{
+				EnvBaseURL:     "https://env.signet.internal",
+				EnvNetwork:     "testnet",
+				EnvContext:     "prod",
+				EnvSignWithKey: "deployer",
+			},
+			file: File{
+				Version: 2,
+				Current: "staging",
+				Contexts: map[string]Context{
+					"staging": {
+						URL:     "https://staging.signet.internal",
+						Network: "mainnet",
+						Source:  "alice",
+					},
+					"prod": {
+						URL:     "https://prod.signet.internal",
+						Network: "mainnet",
+						Source:  "bob",
+					},
+				},
+			},
+			wantURL:     "https://env.signet.internal",
+			wantNetwork: "testnet",
+			wantSource:  "deployer",
+			wantContext: "prod",
+		},
+		{
+			name: "flags beat environment and context",
+			opts: ResolveOptions{
+				FlagURL:        "https://flag.signet.internal",
+				FlagURLSet:     true,
+				FlagNetwork:    "customnet",
+				FlagNetworkSet: true,
+				FlagContext:    "custom-ctx",
+				FlagContextSet: true,
+				FlagSource:     "charlie",
+				FlagSourceSet:  true,
+				EnvBaseURL:     "https://env.signet.internal",
+				EnvNetwork:     "testnet",
+				EnvContext:     "prod",
+				EnvSignWithKey: "deployer",
+			},
+			file: File{
+				Version: 2,
+				Current: "staging",
+				Contexts: map[string]Context{
+					"staging": {
+						URL:     "https://staging.signet.internal",
+						Network: "mainnet",
+						Source:  "alice",
+					},
+				},
+			},
+			wantURL:     "https://flag.signet.internal",
+			wantNetwork: "customnet",
+			wantSource:  "charlie",
+			wantContext: "custom-ctx",
+		},
+		{
+			name: "sign-with-key flag outranks source flag",
+			opts: ResolveOptions{
+				FlagSource:         "charlie",
+				FlagSourceSet:      true,
+				FlagSignWithKey:    "raw-secret-key",
+				FlagSignWithKeySet: true,
+			},
+			file:        File{},
+			wantURL:     DefaultBaseURL,
+			wantNetwork: DefaultNetwork,
+			wantSource:  "raw-secret-key",
+			wantContext: DefaultContextName,
+		},
+		{
+			name: "explicitly empty flags win over context and defaults",
+			opts: ResolveOptions{
+				FlagURL:        "",
+				FlagURLSet:     true,
+				FlagNetwork:    "",
+				FlagNetworkSet: true,
+			},
+			file: File{
+				Version: 2,
+				Current: "default",
+				Contexts: map[string]Context{
+					"default": {URL: "https://from-context.example", Network: "mainnet"},
+				},
+			},
+			wantURL:     "",
+			wantNetwork: "",
+			wantSource:  "",
+			wantContext: "default",
+		},
 	}
-	if got.Source != "bob" {
-		t.Fatalf("Source = %q, want --source's value", got.Source)
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := Resolve(tt.opts, tt.file)
+			if got.BaseURL != tt.wantURL {
+				t.Errorf("BaseURL = %q, want %q", got.BaseURL, tt.wantURL)
+			}
+			if got.Network != tt.wantNetwork {
+				t.Errorf("Network = %q, want %q", got.Network, tt.wantNetwork)
+			}
+			if got.Source != tt.wantSource {
+				t.Errorf("Source = %q, want %q", got.Source, tt.wantSource)
+			}
+			if got.Context != tt.wantContext {
+				t.Errorf("Context = %q, want %q", got.Context, tt.wantContext)
+			}
+		})
 	}
 }
 
-func TestResolveAnExplicitlyEmptyFlagStillWins(t *testing.T) {
-	// FlagURLSet distinguishes "--url ''" from "the flag wasn't passed" —
-	// without it, an intentionally empty override would silently fall through
-	// to the config file or default instead.
-	got := Resolve(
-		ResolveOptions{FlagURL: "", FlagURLSet: true},
-		File{BaseURL: "https://from-config.example"},
-	)
-	if got.BaseURL != "" {
-		t.Fatalf("BaseURL = %q, want the explicit empty flag value to win", got.BaseURL)
+// ─── Acceptance test 3: remove of current context refused with exit 2 ─────
+
+func TestRemoveCurrentContextRefusedWithExit2(t *testing.T) {
+	f := File{
+		Version: 2,
+		Current: "default",
+		Contexts: map[string]Context{
+			"default": {URL: "https://default.example", Network: "testnet"},
+			"staging": {URL: "https://staging.example", Network: "testnet"},
+		},
 	}
-}
 
-// ── non-interactive identity (#254) ──────────────────────────────────────
-
-func TestResolve_EnvSignWithKeySuppliesTheIdentity(t *testing.T) {
-	// A CI job exports STELLAR_SIGN_WITH_KEY once; both `stellar tx sign` and
-	// signet read it, so there is no second variable to keep in sync and no
-	// interactive prompt to hang on.
-	got := Resolve(ResolveOptions{EnvSignWithKey: "ci-deploy"}, File{})
-	if got.Source != "ci-deploy" {
-		t.Fatalf("Source = %q, want ci-deploy", got.Source)
+	// 1. Attempting to remove the active context fails with exit code 2
+	err := f.RemoveContext("default")
+	if err == nil {
+		t.Fatal("RemoveContext(\"default\") succeeded, want refusal")
 	}
-}
 
-func TestResolve_EnvSignWithKeyBeatsTheConfigFile(t *testing.T) {
-	got := Resolve(ResolveOptions{EnvSignWithKey: "ci-deploy"}, File{Source: "laptop"})
-	if got.Source != "ci-deploy" {
-		t.Fatalf("Source = %q, want the environment to win over the config file", got.Source)
+	coder, ok := err.(interface{ ExitCode() int })
+	if !ok {
+		t.Fatalf("error %T does not implement ExitCode()", err)
 	}
-}
-
-func TestResolve_FlagsBeatTheEnvironment(t *testing.T) {
-	got := Resolve(ResolveOptions{
-		EnvSignWithKey: "ci-deploy",
-		FlagSource:     "laptop",
-		FlagSourceSet:  true,
-	}, File{})
-	if got.Source != "laptop" {
-		t.Fatalf("Source = %q, want --source to win", got.Source)
+	if coder.ExitCode() != exitcode.InvalidInput {
+		t.Errorf("ExitCode() = %d, want %d (exit 2)", coder.ExitCode(), exitcode.InvalidInput)
 	}
-}
 
-func TestResolve_SignWithKeyFlagOutranksSource(t *testing.T) {
-	// --sign-with-key is the more specific statement of intent.
-	got := Resolve(ResolveOptions{
-		FlagSource:         "laptop",
-		FlagSourceSet:      true,
-		FlagSignWithKey:    "ci-deploy",
-		FlagSignWithKeySet: true,
-	}, File{})
-	if got.Source != "ci-deploy" {
-		t.Fatalf("Source = %q, want --sign-with-key to win", got.Source)
+	// 2. Removing a non-active context succeeds
+	if err := f.RemoveContext("staging"); err != nil {
+		t.Fatalf("RemoveContext(\"staging\"): %v", err)
 	}
-}
-
-func TestResolve_UnsetSignWithKeyChangesNothing(t *testing.T) {
-	got := Resolve(ResolveOptions{}, File{Source: "laptop"})
-	if got.Source != "laptop" {
-		t.Fatalf("Source = %q, want the config file's identity", got.Source)
+	if _, exists := f.Contexts["staging"]; exists {
+		t.Errorf("staging still exists in Contexts after removal")
 	}
 }
