@@ -1,0 +1,1044 @@
+<svg
+  xmlns="http://www.w3.org/2000/svg"
+  role="img"
+  aria-labelledby="axelar-its-title axelar-its-desc"
+  class="contract-diagram"
+>
+  <title id="axelar-its-title">axelar-its (mainnet CBDBMIOFHGWUFRYH3D3STI2DHBOWGDDBCRKQEUB4RGQEBVG74SEED6C6)</title>
+  <desc id="axelar-its-desc">49 functions in 31 groups, 0 types, 0 references</desc>
+  <defs>
+    <marker id="arrowhead" markerWidth="10" markerHeight="7"
+      refX="9" refY="3.5" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L10,3.5 L0,7 Z" class="diagram-edge-marker" />
+    </marker>
+  </defs>
+  <a href="#fn-gas_service" data-node-id="fn:gas_service">
+    <rect
+      id="axelar-its-node-fn:gas_service"
+      class="diagram-node diagram-node--function"
+      x="50"
+      y="50"
+      width="108"
+      height="28"
+      rx="4" ry="4"
+    />
+    <title>gas_service</title>
+    <text
+      class="diagram-node-label"
+      x="60"
+      y="68"
+      text-anchor="middle"
+      dominant-baseline="middle"
+    >
+      gas_service
+    </text>
+  </a>
+  <a href="#fn-chain_name" data-node-id="fn:chain_name">
+    <rect
+      id="axelar-its-node-fn:chain_name"
+      class="diagram-node diagram-node--function"
+      x="50"
+      y="50"
+      width="100"
+      height="28"
+      rx="4" ry="4"
+    />
+    <title>chain_name</title>
+    <text
+      class="diagram-node-label"
+      x="60"
+      y="68"
+      text-anchor="middle"
+      dominant-baseline="middle"
+    >
+      chain_name
+    </text>
+  </a>
+  <a href="#fn-its_hub_chain_name" data-node-id="fn:its_hub_chain_name">
+    <rect
+      id="axelar-its-node-fn:its_hub_chain_name"
+      class="diagram-node diagram-node--function"
+      x="50"
+      y="50"
+      width="164"
+      height="28"
+      rx="4" ry="4"
+    />
+    <title>its_hub_chain_name</title>
+    <text
+      class="diagram-node-label"
+      x="60"
+      y="68"
+      text-anchor="middle"
+      dominant-baseline="middle"
+    >
+      its_hub_chain_name
+    </text>
+  </a>
+  <a href="#fn-its_hub_address" data-node-id="fn:its_hub_address">
+    <rect
+      id="axelar-its-node-fn:its_hub_address"
+      class="diagram-node diagram-node--function"
+      x="50"
+      y="50"
+      width="140"
+      height="28"
+      rx="4" ry="4"
+    />
+    <title>its_hub_address</title>
+    <text
+      class="diagram-node-label"
+      x="60"
+      y="68"
+      text-anchor="middle"
+      dominant-baseline="middle"
+    >
+      its_hub_address
+    </text>
+  </a>
+  <a href="#fn-native_token_address" data-node-id="fn:native_token_address">
+    <rect
+      id="axelar-its-node-fn:native_token_address"
+      class="diagram-node diagram-node--function"
+      x="50"
+      y="50"
+      width="180"
+      height="28"
+      rx="4" ry="4"
+    />
+    <title>native_token_address</title>
+    <text
+      class="diagram-node-label"
+      x="60"
+      y="68"
+      text-anchor="middle"
+      dominant-baseline="middle"
+    >
+      native_token_address
+    </text>
+  </a>
+  <a href="#fn-is_trusted_chain" data-node-id="fn:is_trusted_chain">
+    <rect
+      id="axelar-its-node-fn:is_trusted_chain"
+      class="diagram-node diagram-node--function"
+      x="50"
+      y="50"
+      width="148"
+      height="28"
+      rx="4" ry="4"
+    />
+    <title>is_trusted_chain</title>
+    <text
+      class="diagram-node-label"
+      x="60"
+      y="68"
+      text-anchor="middle"
+      dominant-baseline="middle"
+    >
+      is_trusted_chain
+    </text>
+  </a>
+  <a href="#fn-set_trusted_chain" data-node-id="fn:set_trusted_chain">
+    <rect
+      id="axelar-its-node-fn:set_trusted_chain"
+      class="diagram-node diagram-node--function"
+      x="50"
+      y="50"
+      width="156"
+      height="28"
+      rx="4" ry="4"
+    />
+    <title>set_trusted_chain</title>
+    <text
+      class="diagram-node-label"
+      x="60"
+      y="68"
+      text-anchor="middle"
+      dominant-baseline="middle"
+    >
+      set_trusted_chain
+    </text>
+  </a>
+  <a href="#fn-remove_trusted_chain" data-node-id="fn:remove_trusted_chain">
+    <rect
+      id="axelar-its-node-fn:remove_trusted_chain"
+      class="diagram-node diagram-node--function"
+      x="50"
+      y="50"
+      width="180"
+      height="28"
+      rx="4" ry="4"
+    />
+    <title>remove_trusted_chain</title>
+    <text
+      class="diagram-node-label"
+      x="60"
+      y="68"
+      text-anchor="middle"
+      dominant-baseline="middle"
+    >
+      remove_trusted_chain
+    </text>
+  </a>
+  <a href="#fn-canonical_interchain_token_id" data-node-id="fn:canonical_interchain_token_id">
+    <rect
+      id="axelar-its-node-fn:canonical_interchain_token_id"
+      class="diagram-node diagram-node--function"
+      x="50"
+      y="50"
+      width="228"
+      height="28"
+      rx="4" ry="4"
+    />
+    <title>canonical_interchain_toke…</title>
+    <text
+      class="diagram-node-label"
+      x="60"
+      y="68"
+      text-anchor="middle"
+      dominant-baseline="middle"
+    >
+      canonical_interchain_toke…
+    </text>
+  </a>
+  <a href="#fn-linked_token_id" data-node-id="fn:linked_token_id">
+    <rect
+      id="axelar-its-node-fn:linked_token_id"
+      class="diagram-node diagram-node--function"
+      x="50"
+      y="50"
+      width="140"
+      height="28"
+      rx="4" ry="4"
+    />
+    <title>linked_token_id</title>
+    <text
+      class="diagram-node-label"
+      x="60"
+      y="68"
+      text-anchor="middle"
+      dominant-baseline="middle"
+    >
+      linked_token_id
+    </text>
+  </a>
+  <a href="#fn-registered_token_address" data-node-id="fn:registered_token_address">
+    <rect
+      id="axelar-its-node-fn:registered_token_address"
+      class="diagram-node diagram-node--function"
+      x="50"
+      y="50"
+      width="212"
+      height="28"
+      rx="4" ry="4"
+    />
+    <title>registered_token_address</title>
+    <text
+      class="diagram-node-label"
+      x="60"
+      y="68"
+      text-anchor="middle"
+      dominant-baseline="middle"
+    >
+      registered_token_address
+    </text>
+  </a>
+  <a href="#fn-deployed_token_manager" data-node-id="fn:deployed_token_manager">
+    <rect
+      id="axelar-its-node-fn:deployed_token_manager"
+      class="diagram-node diagram-node--function"
+      x="50"
+      y="50"
+      width="196"
+      height="28"
+      rx="4" ry="4"
+    />
+    <title>deployed_token_manager</title>
+    <text
+      class="diagram-node-label"
+      x="60"
+      y="68"
+      text-anchor="middle"
+      dominant-baseline="middle"
+    >
+      deployed_token_manager
+    </text>
+  </a>
+  <a href="#fn-is_flow_limiter" data-node-id="fn:is_flow_limiter">
+    <rect
+      id="axelar-its-node-fn:is_flow_limiter"
+      class="diagram-node diagram-node--function"
+      x="50"
+      y="50"
+      width="140"
+      height="28"
+      rx="4" ry="4"
+    />
+    <title>is_flow_limiter</title>
+    <text
+      class="diagram-node-label"
+      x="60"
+      y="68"
+      text-anchor="middle"
+      dominant-baseline="middle"
+    >
+      is_flow_limiter
+    </text>
+  </a>
+  <a href="#fn-set_flow_limit" data-node-id="fn:set_flow_limit">
+    <rect
+      id="axelar-its-node-fn:set_flow_limit"
+      class="diagram-node diagram-node--function"
+      x="50"
+      y="50"
+      width="132"
+      height="28"
+      rx="4" ry="4"
+    />
+    <title>set_flow_limit</title>
+    <text
+      class="diagram-node-label"
+      x="60"
+      y="68"
+      text-anchor="middle"
+      dominant-baseline="middle"
+    >
+      set_flow_limit
+    </text>
+  </a>
+  <a href="#fn-add_flow_limiter" data-node-id="fn:add_flow_limiter">
+    <rect
+      id="axelar-its-node-fn:add_flow_limiter"
+      class="diagram-node diagram-node--function"
+      x="50"
+      y="50"
+      width="148"
+      height="28"
+      rx="4" ry="4"
+    />
+    <title>add_flow_limiter</title>
+    <text
+      class="diagram-node-label"
+      x="60"
+      y="68"
+      text-anchor="middle"
+      dominant-baseline="middle"
+    >
+      add_flow_limiter
+    </text>
+  </a>
+  <a href="#fn-remove_flow_limiter" data-node-id="fn:remove_flow_limiter">
+    <rect
+      id="axelar-its-node-fn:remove_flow_limiter"
+      class="diagram-node diagram-node--function"
+      x="50"
+      y="50"
+      width="172"
+      height="28"
+      rx="4" ry="4"
+    />
+    <title>remove_flow_limiter</title>
+    <text
+      class="diagram-node-label"
+      x="60"
+      y="68"
+      text-anchor="middle"
+      dominant-baseline="middle"
+    >
+      remove_flow_limiter
+    </text>
+  </a>
+  <a href="#fn-link_token" data-node-id="fn:link_token">
+    <rect
+      id="axelar-its-node-fn:link_token"
+      class="diagram-node diagram-node--function"
+      x="50"
+      y="50"
+      width="100"
+      height="28"
+      rx="4" ry="4"
+    />
+    <title>link_token</title>
+    <text
+      class="diagram-node-label"
+      x="60"
+      y="68"
+      text-anchor="middle"
+      dominant-baseline="middle"
+    >
+      link_token
+    </text>
+  </a>
+  <a href="#fn-operator" data-node-id="fn:operator">
+    <rect
+      id="axelar-its-node-fn:operator"
+      class="diagram-node diagram-node--function"
+      x="50"
+      y="50"
+      width="84"
+      height="28"
+      rx="4" ry="4"
+    />
+    <title>operator</title>
+    <text
+      class="diagram-node-label"
+      x="60"
+      y="68"
+      text-anchor="middle"
+      dominant-baseline="middle"
+    >
+      operator
+    </text>
+  </a>
+  <a href="#fn-owner" data-node-id="fn:owner">
+    <rect
+      id="axelar-its-node-fn:owner"
+      class="diagram-node diagram-node--function"
+      x="50"
+      y="50"
+      width="60"
+      height="28"
+      rx="4" ry="4"
+    />
+    <title>owner</title>
+    <text
+      class="diagram-node-label"
+      x="60"
+      y="68"
+      text-anchor="middle"
+      dominant-baseline="middle"
+    >
+      owner
+    </text>
+  </a>
+  <a href="#fn-paused" data-node-id="fn:paused">
+    <rect
+      id="axelar-its-node-fn:paused"
+      class="diagram-node diagram-node--function"
+      x="50"
+      y="50"
+      width="68"
+      height="28"
+      rx="4" ry="4"
+    />
+    <title>paused</title>
+    <text
+      class="diagram-node-label"
+      x="60"
+      y="68"
+      text-anchor="middle"
+      dominant-baseline="middle"
+    >
+      paused
+    </text>
+  </a>
+  <a href="#fn-pause" data-node-id="fn:pause">
+    <rect
+      id="axelar-its-node-fn:pause"
+      class="diagram-node diagram-node--function"
+      x="50"
+      y="50"
+      width="60"
+      height="28"
+      rx="4" ry="4"
+    />
+    <title>pause</title>
+    <text
+      class="diagram-node-label"
+      x="60"
+      y="68"
+      text-anchor="middle"
+      dominant-baseline="middle"
+    >
+      pause
+    </text>
+  </a>
+  <a href="#fn-unpause" data-node-id="fn:unpause">
+    <rect
+      id="axelar-its-node-fn:unpause"
+      class="diagram-node diagram-node--function"
+      x="50"
+      y="50"
+      width="76"
+      height="28"
+      rx="4" ry="4"
+    />
+    <title>unpause</title>
+    <text
+      class="diagram-node-label"
+      x="60"
+      y="68"
+      text-anchor="middle"
+      dominant-baseline="middle"
+    >
+      unpause
+    </text>
+  </a>
+  <a href="#fn-required_auths" data-node-id="fn:required_auths">
+    <rect
+      id="axelar-its-node-fn:required_auths"
+      class="diagram-node diagram-node--function"
+      x="50"
+      y="50"
+      width="132"
+      height="28"
+      rx="4" ry="4"
+    />
+    <title>required_auths</title>
+    <text
+      class="diagram-node-label"
+      x="60"
+      y="68"
+      text-anchor="middle"
+      dominant-baseline="middle"
+    >
+      required_auths
+    </text>
+  </a>
+  <a href="#fn-migrate" data-node-id="fn:migrate">
+    <rect
+      id="axelar-its-node-fn:migrate"
+      class="diagram-node diagram-node--function"
+      x="50"
+      y="50"
+      width="76"
+      height="28"
+      rx="4" ry="4"
+    />
+    <title>migrate</title>
+    <text
+      class="diagram-node-label"
+      x="60"
+      y="68"
+      text-anchor="middle"
+      dominant-baseline="middle"
+    >
+      migrate
+    </text>
+  </a>
+  <a href="#fn-gateway" data-node-id="fn:gateway">
+    <rect
+      id="axelar-its-node-fn:gateway"
+      class="diagram-node diagram-node--function"
+      x="50"
+      y="50"
+      width="76"
+      height="28"
+      rx="4" ry="4"
+    />
+    <title>gateway</title>
+    <text
+      class="diagram-node-label"
+      x="60"
+      y="68"
+      text-anchor="middle"
+      dominant-baseline="middle"
+    >
+      gateway
+    </text>
+  </a>
+  <a href="#fn-execute" data-node-id="fn:execute">
+    <rect
+      id="axelar-its-node-fn:execute"
+      class="diagram-node diagram-node--function"
+      x="50"
+      y="50"
+      width="76"
+      height="28"
+      rx="4" ry="4"
+    />
+    <title>execute</title>
+    <text
+      class="diagram-node-label"
+      x="60"
+      y="68"
+      text-anchor="middle"
+      dominant-baseline="middle"
+    >
+      execute
+    </text>
+  </a>
+  <a href="#fn-interchain_token_wasm_hash" data-node-id="fn:interchain_token_wasm_hash">
+    <rect
+      id="axelar-its-node-fn:interchain_token_wasm_hash"
+      class="diagram-node diagram-node--function"
+      x="50"
+      y="50"
+      width="228"
+      height="28"
+      rx="4" ry="4"
+    />
+    <title>interchain_token_wasm_hash</title>
+    <text
+      class="diagram-node-label"
+      x="60"
+      y="68"
+      text-anchor="middle"
+      dominant-baseline="middle"
+    >
+      interchain_token_wasm_hash
+    </text>
+  </a>
+  <a href="#fn-interchain_token_id" data-node-id="fn:interchain_token_id">
+    <rect
+      id="axelar-its-node-fn:interchain_token_id"
+      class="diagram-node diagram-node--function"
+      x="50"
+      y="50"
+      width="172"
+      height="28"
+      rx="4" ry="4"
+    />
+    <title>interchain_token_id</title>
+    <text
+      class="diagram-node-label"
+      x="60"
+      y="68"
+      text-anchor="middle"
+      dominant-baseline="middle"
+    >
+      interchain_token_id
+    </text>
+  </a>
+  <a href="#fn-interchain_token_address" data-node-id="fn:interchain_token_address">
+    <rect
+      id="axelar-its-node-fn:interchain_token_address"
+      class="diagram-node diagram-node--function"
+      x="50"
+      y="50"
+      width="212"
+      height="28"
+      rx="4" ry="4"
+    />
+    <title>interchain_token_address</title>
+    <text
+      class="diagram-node-label"
+      x="60"
+      y="68"
+      text-anchor="middle"
+      dominant-baseline="middle"
+    >
+      interchain_token_address
+    </text>
+  </a>
+  <a href="#fn-interchain_transfer" data-node-id="fn:interchain_transfer">
+    <rect
+      id="axelar-its-node-fn:interchain_transfer"
+      class="diagram-node diagram-node--function"
+      x="50"
+      y="50"
+      width="172"
+      height="28"
+      rx="4" ry="4"
+    />
+    <title>interchain_transfer</title>
+    <text
+      class="diagram-node-label"
+      x="60"
+      y="68"
+      text-anchor="middle"
+      dominant-baseline="middle"
+    >
+      interchain_transfer
+    </text>
+  </a>
+  <a href="#fn-transfer_flow_limiter" data-node-id="fn:transfer_flow_limiter">
+    <rect
+      id="axelar-its-node-fn:transfer_flow_limiter"
+      class="diagram-node diagram-node--function"
+      x="50"
+      y="50"
+      width="188"
+      height="28"
+      rx="4" ry="4"
+    />
+    <title>transfer_flow_limiter</title>
+    <text
+      class="diagram-node-label"
+      x="60"
+      y="68"
+      text-anchor="middle"
+      dominant-baseline="middle"
+    >
+      transfer_flow_limiter
+    </text>
+  </a>
+  <a href="#fn-transfer_token_admin" data-node-id="fn:transfer_token_admin">
+    <rect
+      id="axelar-its-node-fn:transfer_token_admin"
+      class="diagram-node diagram-node--function"
+      x="50"
+      y="50"
+      width="180"
+      height="28"
+      rx="4" ry="4"
+    />
+    <title>transfer_token_admin</title>
+    <text
+      class="diagram-node-label"
+      x="60"
+      y="68"
+      text-anchor="middle"
+      dominant-baseline="middle"
+    >
+      transfer_token_admin
+    </text>
+  </a>
+  <a href="#fn-transfer_operatorship" data-node-id="fn:transfer_operatorship">
+    <rect
+      id="axelar-its-node-fn:transfer_operatorship"
+      class="diagram-node diagram-node--function"
+      x="50"
+      y="50"
+      width="188"
+      height="28"
+      rx="4" ry="4"
+    />
+    <title>transfer_operatorship</title>
+    <text
+      class="diagram-node-label"
+      x="60"
+      y="68"
+      text-anchor="middle"
+      dominant-baseline="middle"
+    >
+      transfer_operatorship
+    </text>
+  </a>
+  <a href="#fn-transfer_ownership" data-node-id="fn:transfer_ownership">
+    <rect
+      id="axelar-its-node-fn:transfer_ownership"
+      class="diagram-node diagram-node--function"
+      x="50"
+      y="50"
+      width="164"
+      height="28"
+      rx="4" ry="4"
+    />
+    <title>transfer_ownership</title>
+    <text
+      class="diagram-node-label"
+      x="60"
+      y="68"
+      text-anchor="middle"
+      dominant-baseline="middle"
+    >
+      transfer_ownership
+    </text>
+  </a>
+  <a href="#fn-deploy_interchain_token" data-node-id="fn:deploy_interchain_token">
+    <rect
+      id="axelar-its-node-fn:deploy_interchain_token"
+      class="diagram-node diagram-node--function"
+      x="50"
+      y="50"
+      width="204"
+      height="28"
+      rx="4" ry="4"
+    />
+    <title>deploy_interchain_token</title>
+    <text
+      class="diagram-node-label"
+      x="60"
+      y="68"
+      text-anchor="middle"
+      dominant-baseline="middle"
+    >
+      deploy_interchain_token
+    </text>
+  </a>
+  <a href="#fn-deploy_remote_interchain_token" data-node-id="fn:deploy_remote_interchain_token">
+    <rect
+      id="axelar-its-node-fn:deploy_remote_interchain_token"
+      class="diagram-node diagram-node--function"
+      x="50"
+      y="50"
+      width="228"
+      height="28"
+      rx="4" ry="4"
+    />
+    <title>deploy_remote_interchain_…</title>
+    <text
+      class="diagram-node-label"
+      x="60"
+      y="68"
+      text-anchor="middle"
+      dominant-baseline="middle"
+    >
+      deploy_remote_interchain_…
+    </text>
+  </a>
+  <a href="#fn-deploy_remote_canonical_token" data-node-id="fn:deploy_remote_canonical_token">
+    <rect
+      id="axelar-its-node-fn:deploy_remote_canonical_token"
+      class="diagram-node diagram-node--function"
+      x="50"
+      y="50"
+      width="228"
+      height="28"
+      rx="4" ry="4"
+    />
+    <title>deploy_remote_canonical_t…</title>
+    <text
+      class="diagram-node-label"
+      x="60"
+      y="68"
+      text-anchor="middle"
+      dominant-baseline="middle"
+    >
+      deploy_remote_canonical_t…
+    </text>
+  </a>
+  <a href="#fn-flow_limit" data-node-id="fn:flow_limit">
+    <rect
+      id="axelar-its-node-fn:flow_limit"
+      class="diagram-node diagram-node--function"
+      x="50"
+      y="50"
+      width="100"
+      height="28"
+      rx="4" ry="4"
+    />
+    <title>flow_limit</title>
+    <text
+      class="diagram-node-label"
+      x="60"
+      y="68"
+      text-anchor="middle"
+      dominant-baseline="middle"
+    >
+      flow_limit
+    </text>
+  </a>
+  <a href="#fn-flow_out_amount" data-node-id="fn:flow_out_amount">
+    <rect
+      id="axelar-its-node-fn:flow_out_amount"
+      class="diagram-node diagram-node--function"
+      x="50"
+      y="50"
+      width="140"
+      height="28"
+      rx="4" ry="4"
+    />
+    <title>flow_out_amount</title>
+    <text
+      class="diagram-node-label"
+      x="60"
+      y="68"
+      text-anchor="middle"
+      dominant-baseline="middle"
+    >
+      flow_out_amount
+    </text>
+  </a>
+  <a href="#fn-flow_in_amount" data-node-id="fn:flow_in_amount">
+    <rect
+      id="axelar-its-node-fn:flow_in_amount"
+      class="diagram-node diagram-node--function"
+      x="50"
+      y="50"
+      width="132"
+      height="28"
+      rx="4" ry="4"
+    />
+    <title>flow_in_amount</title>
+    <text
+      class="diagram-node-label"
+      x="60"
+      y="68"
+      text-anchor="middle"
+      dominant-baseline="middle"
+    >
+      flow_in_amount
+    </text>
+  </a>
+  <a href="#fn-__constructor" data-node-id="fn:__constructor">
+    <rect
+      id="axelar-its-node-fn:__constructor"
+      class="diagram-node diagram-node--function"
+      x="50"
+      y="50"
+      width="124"
+      height="28"
+      rx="4" ry="4"
+    />
+    <title>__constructor</title>
+    <text
+      class="diagram-node-label"
+      x="60"
+      y="68"
+      text-anchor="middle"
+      dominant-baseline="middle"
+    >
+      __constructor
+    </text>
+  </a>
+  <a href="#fn-version" data-node-id="fn:version">
+    <rect
+      id="axelar-its-node-fn:version"
+      class="diagram-node diagram-node--function"
+      x="50"
+      y="50"
+      width="76"
+      height="28"
+      rx="4" ry="4"
+    />
+    <title>version</title>
+    <text
+      class="diagram-node-label"
+      x="60"
+      y="68"
+      text-anchor="middle"
+      dominant-baseline="middle"
+    >
+      version
+    </text>
+  </a>
+  <a href="#fn-upgrade" data-node-id="fn:upgrade">
+    <rect
+      id="axelar-its-node-fn:upgrade"
+      class="diagram-node diagram-node--function"
+      x="50"
+      y="50"
+      width="76"
+      height="28"
+      rx="4" ry="4"
+    />
+    <title>upgrade</title>
+    <text
+      class="diagram-node-label"
+      x="60"
+      y="68"
+      text-anchor="middle"
+      dominant-baseline="middle"
+    >
+      upgrade
+    </text>
+  </a>
+  <a href="#fn-register_canonical_token" data-node-id="fn:register_canonical_token">
+    <rect
+      id="axelar-its-node-fn:register_canonical_token"
+      class="diagram-node diagram-node--function"
+      x="50"
+      y="50"
+      width="212"
+      height="28"
+      rx="4" ry="4"
+    />
+    <title>register_canonical_token</title>
+    <text
+      class="diagram-node-label"
+      x="60"
+      y="68"
+      text-anchor="middle"
+      dominant-baseline="middle"
+    >
+      register_canonical_token
+    </text>
+  </a>
+  <a href="#fn-register_token_metadata" data-node-id="fn:register_token_metadata">
+    <rect
+      id="axelar-its-node-fn:register_token_metadata"
+      class="diagram-node diagram-node--function"
+      x="50"
+      y="50"
+      width="204"
+      height="28"
+      rx="4" ry="4"
+    />
+    <title>register_token_metadata</title>
+    <text
+      class="diagram-node-label"
+      x="60"
+      y="68"
+      text-anchor="middle"
+      dominant-baseline="middle"
+    >
+      register_token_metadata
+    </text>
+  </a>
+  <a href="#fn-register_custom_token" data-node-id="fn:register_custom_token">
+    <rect
+      id="axelar-its-node-fn:register_custom_token"
+      class="diagram-node diagram-node--function"
+      x="50"
+      y="50"
+      width="188"
+      height="28"
+      rx="4" ry="4"
+    />
+    <title>register_custom_token</title>
+    <text
+      class="diagram-node-label"
+      x="60"
+      y="68"
+      text-anchor="middle"
+      dominant-baseline="middle"
+    >
+      register_custom_token
+    </text>
+  </a>
+  <a href="#fn-token_manager_wasm_hash" data-node-id="fn:token_manager_wasm_hash">
+    <rect
+      id="axelar-its-node-fn:token_manager_wasm_hash"
+      class="diagram-node diagram-node--function"
+      x="50"
+      y="50"
+      width="204"
+      height="28"
+      rx="4" ry="4"
+    />
+    <title>token_manager_wasm_hash</title>
+    <text
+      class="diagram-node-label"
+      x="60"
+      y="68"
+      text-anchor="middle"
+      dominant-baseline="middle"
+    >
+      token_manager_wasm_hash
+    </text>
+  </a>
+  <a href="#fn-token_manager_address" data-node-id="fn:token_manager_address">
+    <rect
+      id="axelar-its-node-fn:token_manager_address"
+      class="diagram-node diagram-node--function"
+      x="50"
+      y="50"
+      width="188"
+      height="28"
+      rx="4" ry="4"
+    />
+    <title>token_manager_address</title>
+    <text
+      class="diagram-node-label"
+      x="60"
+      y="68"
+      text-anchor="middle"
+      dominant-baseline="middle"
+    >
+      token_manager_address
+    </text>
+  </a>
+  <a href="#fn-token_manager_type" data-node-id="fn:token_manager_type">
+    <rect
+      id="axelar-its-node-fn:token_manager_type"
+      class="diagram-node diagram-node--function"
+      x="50"
+      y="50"
+      width="164"
+      height="28"
+      rx="4" ry="4"
+    />
+    <title>token_manager_type</title>
+    <text
+      class="diagram-node-label"
+      x="60"
+      y="68"
+      text-anchor="middle"
+      dominant-baseline="middle"
+    >
+      token_manager_type
+    </text>
+  </a>
+</svg>

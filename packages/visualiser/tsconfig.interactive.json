@@ -1,0 +1,10 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": ".",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "tsBuildInfoFile": "./.turbo/tsconfig.interactive.tsbuildinfo"
+  },
+  "include": ["src/interactive/**/*.ts"],
+  "exclude": ["node_modules", "dist", ".next", ".turbo"]
+}

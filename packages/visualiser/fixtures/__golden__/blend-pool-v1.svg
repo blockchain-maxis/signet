@@ -15,72 +15,96 @@
   <line
     id="blend-pool-v1-edge-fn:queue_set_reserve-type:ReserveConfig"
     class="diagram-edge"
+    data-edge-from="fn:queue_set_reserve"
+    data-edge-to="type:ReserveConfig"
     x1="100" y1="100" x2="300" y2="100"
     marker-end="url(#arrowhead)"
   />
   <line
     id="blend-pool-v1-edge-fn:get_positions-type:Positions"
     class="diagram-edge"
+    data-edge-from="fn:get_positions"
+    data-edge-to="type:Positions"
     x1="100" y1="100" x2="300" y2="100"
     marker-end="url(#arrowhead)"
   />
   <line
     id="blend-pool-v1-edge-fn:submit-type:Request"
     class="diagram-edge"
+    data-edge-from="fn:submit"
+    data-edge-to="type:Request"
     x1="100" y1="100" x2="300" y2="100"
     marker-end="url(#arrowhead)"
   />
   <line
     id="blend-pool-v1-edge-fn:submit-type:Positions"
     class="diagram-edge"
+    data-edge-from="fn:submit"
+    data-edge-to="type:Positions"
     x1="100" y1="100" x2="300" y2="100"
     marker-end="url(#arrowhead)"
   />
   <line
     id="blend-pool-v1-edge-fn:set_emissions_config-type:ReserveEmissionMetadata"
     class="diagram-edge"
+    data-edge-from="fn:set_emissions_config"
+    data-edge-to="type:ReserveEmissionMetadata"
     x1="100" y1="100" x2="300" y2="100"
     marker-end="url(#arrowhead)"
   />
   <line
     id="blend-pool-v1-edge-fn:new_liquidation_auction-type:AuctionData"
     class="diagram-edge"
+    data-edge-from="fn:new_liquidation_auction"
+    data-edge-to="type:AuctionData"
     x1="100" y1="100" x2="300" y2="100"
     marker-end="url(#arrowhead)"
   />
   <line
     id="blend-pool-v1-edge-fn:get_auction-type:AuctionData"
     class="diagram-edge"
+    data-edge-from="fn:get_auction"
+    data-edge-to="type:AuctionData"
     x1="100" y1="100" x2="300" y2="100"
     marker-end="url(#arrowhead)"
   />
   <line
     id="blend-pool-v1-edge-fn:new_bad_debt_auction-type:AuctionData"
     class="diagram-edge"
+    data-edge-from="fn:new_bad_debt_auction"
+    data-edge-to="type:AuctionData"
     x1="100" y1="100" x2="300" y2="100"
     marker-end="url(#arrowhead)"
   />
   <line
     id="blend-pool-v1-edge-fn:new_interest_auction-type:AuctionData"
     class="diagram-edge"
+    data-edge-from="fn:new_interest_auction"
+    data-edge-to="type:AuctionData"
     x1="100" y1="100" x2="300" y2="100"
     marker-end="url(#arrowhead)"
   />
   <line
     id="blend-pool-v1-edge-type:QueuedReserveInit-type:ReserveConfig"
     class="diagram-edge"
+    data-edge-from="type:QueuedReserveInit"
+    data-edge-to="type:ReserveConfig"
     x1="100" y1="100" x2="300" y2="100"
     marker-end="url(#arrowhead)"
   />
   <line
     id="blend-pool-v1-edge-type:PoolDataKey-type:UserReserveKey"
     class="diagram-edge"
+    data-edge-from="type:PoolDataKey"
+    data-edge-to="type:UserReserveKey"
     x1="100" y1="100" x2="300" y2="100"
     marker-end="url(#arrowhead)"
   />
   <line
     id="blend-pool-v1-edge-type:PoolDataKey-type:AuctionKey"
     class="diagram-edge"
+    data-edge-from="type:PoolDataKey"
+    data-edge-to="type:AuctionKey"
     x1="100" y1="100" x2="300" y2="100"
     marker-end="url(#arrowhead)"
   />
