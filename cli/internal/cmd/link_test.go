@@ -29,11 +29,22 @@ func TestLinkTakesNoArguments(t *testing.T) {
 
 func TestLinkFlags(t *testing.T) {
 	cmd := newLinkCmd()
-	for _, name := range []string{"network", "no-browser"} {
-		if cmd.Flags().Lookup(name) == nil {
-			t.Fatalf("--%s is missing", name)
-		}
+	if cmd.Flags().Lookup("no-browser") == nil {
+		t.Fatal("--no-browser is missing")
 	}
+	// --network is the root's persistent flag now (#604), replacing link's local flag.
+	root, _, _ := newTestRoot(t)
+	sub, _, err := root.Find([]string{"link"})
+	if err != nil || sub == nil {
+		t.Fatalf("link command not found: %v", err)
+	}
+	if sub.InheritedFlags().Lookup("network") == nil {
+		t.Fatal("link does not inherit --network from root")
+	}
+	if sub.LocalFlags().Lookup("network") != nil {
+		t.Fatal("link declares its own --network; the root's persistent flag is the only definition")
+	}
+
 	// --json is the root's persistent flag now (#603), not a local one.
 	assertInheritsJSON(t, "link")
 	// --public-key is deliberately gone: the key is resolved from the local

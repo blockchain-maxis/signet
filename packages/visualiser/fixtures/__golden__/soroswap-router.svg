@@ -1,0 +1,435 @@
+<svg
+  xmlns="http://www.w3.org/2000/svg"
+  role="img"
+  aria-labelledby="soroswap-router-title soroswap-router-desc"
+  class="contract-diagram"
+>
+  <title id="soroswap-router-title">soroswap-router (mainnet CAG5LRYQ5JVEUI5TEID72EYOVX44TTUJT5BQR2J6J77FH65PCCFAJDDH)</title>
+  <desc id="soroswap-router-desc">20 functions in 9 groups, 0 types, 0 references</desc>
+  <defs>
+    <marker id="arrowhead" markerWidth="10" markerHeight="7"
+      refX="9" refY="3.5" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L10,3.5 L0,7 Z" class="diagram-edge-marker" />
+    </marker>
+  </defs>
+  <a href="#fn-add_liquidity" data-node-id="fn:add_liquidity">
+    <rect
+      id="soroswap-router-node-fn:add_liquidity"
+      class="diagram-node diagram-node--function"
+      x="50"
+      y="50"
+      width="124"
+      height="28"
+      rx="4" ry="4"
+    />
+    <title>add_liquidity</title>
+    <text
+      class="diagram-node-label"
+      x="60"
+      y="68"
+      text-anchor="middle"
+      dominant-baseline="middle"
+    >
+      add_liquidity
+    </text>
+  </a>
+  <a href="#fn-remove_liquidity" data-node-id="fn:remove_liquidity">
+    <rect
+      id="soroswap-router-node-fn:remove_liquidity"
+      class="diagram-node diagram-node--function"
+      x="50"
+      y="50"
+      width="148"
+      height="28"
+      rx="4" ry="4"
+    />
+    <title>remove_liquidity</title>
+    <text
+      class="diagram-node-label"
+      x="60"
+      y="68"
+      text-anchor="middle"
+      dominant-baseline="middle"
+    >
+      remove_liquidity
+    </text>
+  </a>
+  <a href="#fn-swap_exact_tokens_for_tokens" data-node-id="fn:swap_exact_tokens_for_tokens">
+    <rect
+      id="soroswap-router-node-fn:swap_exact_tokens_for_tokens"
+      class="diagram-node diagram-node--function"
+      x="50"
+      y="50"
+      width="228"
+      height="28"
+      rx="4" ry="4"
+    />
+    <title>swap_exact_tokens_for_tok…</title>
+    <text
+      class="diagram-node-label"
+      x="60"
+      y="68"
+      text-anchor="middle"
+      dominant-baseline="middle"
+    >
+      swap_exact_tokens_for_tok…
+    </text>
+  </a>
+  <a href="#fn-swap_tokens_for_exact_tokens" data-node-id="fn:swap_tokens_for_exact_tokens">
+    <rect
+      id="soroswap-router-node-fn:swap_tokens_for_exact_tokens"
+      class="diagram-node diagram-node--function"
+      x="50"
+      y="50"
+      width="228"
+      height="28"
+      rx="4" ry="4"
+    />
+    <title>swap_tokens_for_exact_tok…</title>
+    <text
+      class="diagram-node-label"
+      x="60"
+      y="68"
+      text-anchor="middle"
+      dominant-baseline="middle"
+    >
+      swap_tokens_for_exact_tok…
+    </text>
+  </a>
+  <a href="#fn-sort_tokens" data-node-id="fn:sort_tokens">
+    <rect
+      id="soroswap-router-node-fn:sort_tokens"
+      class="diagram-node diagram-node--function"
+      x="50"
+      y="50"
+      width="108"
+      height="28"
+      rx="4" ry="4"
+    />
+    <title>sort_tokens</title>
+    <text
+      class="diagram-node-label"
+      x="60"
+      y="68"
+      text-anchor="middle"
+      dominant-baseline="middle"
+    >
+      sort_tokens
+    </text>
+  </a>
+  <a href="#fn-pair_for" data-node-id="fn:pair_for">
+    <rect
+      id="soroswap-router-node-fn:pair_for"
+      class="diagram-node diagram-node--function"
+      x="50"
+      y="50"
+      width="84"
+      height="28"
+      rx="4" ry="4"
+    />
+    <title>pair_for</title>
+    <text
+      class="diagram-node-label"
+      x="60"
+      y="68"
+      text-anchor="middle"
+      dominant-baseline="middle"
+    >
+      pair_for
+    </text>
+  </a>
+  <a href="#fn-quote" data-node-id="fn:quote">
+    <rect
+      id="soroswap-router-node-fn:quote"
+      class="diagram-node diagram-node--function"
+      x="50"
+      y="50"
+      width="60"
+      height="28"
+      rx="4" ry="4"
+    />
+    <title>quote</title>
+    <text
+      class="diagram-node-label"
+      x="60"
+      y="68"
+      text-anchor="middle"
+      dominant-baseline="middle"
+    >
+      quote
+    </text>
+  </a>
+  <a href="#fn-get_factory" data-node-id="fn:get_factory">
+    <rect
+      id="soroswap-router-node-fn:get_factory"
+      class="diagram-node diagram-node--function"
+      x="50"
+      y="50"
+      width="108"
+      height="28"
+      rx="4" ry="4"
+    />
+    <title>get_factory</title>
+    <text
+      class="diagram-node-label"
+      x="60"
+      y="68"
+      text-anchor="middle"
+      dominant-baseline="middle"
+    >
+      get_factory
+    </text>
+  </a>
+  <a href="#fn-get_reserves" data-node-id="fn:get_reserves">
+    <rect
+      id="soroswap-router-node-fn:get_reserves"
+      class="diagram-node diagram-node--function"
+      x="50"
+      y="50"
+      width="116"
+      height="28"
+      rx="4" ry="4"
+    />
+    <title>get_reserves</title>
+    <text
+      class="diagram-node-label"
+      x="60"
+      y="68"
+      text-anchor="middle"
+      dominant-baseline="middle"
+    >
+      get_reserves
+    </text>
+  </a>
+  <a href="#fn-get_amount_out" data-node-id="fn:get_amount_out">
+    <rect
+      id="soroswap-router-node-fn:get_amount_out"
+      class="diagram-node diagram-node--function"
+      x="50"
+      y="50"
+      width="132"
+      height="28"
+      rx="4" ry="4"
+    />
+    <title>get_amount_out</title>
+    <text
+      class="diagram-node-label"
+      x="60"
+      y="68"
+      text-anchor="middle"
+      dominant-baseline="middle"
+    >
+      get_amount_out
+    </text>
+  </a>
+  <a href="#fn-get_amount_in" data-node-id="fn:get_amount_in">
+    <rect
+      id="soroswap-router-node-fn:get_amount_in"
+      class="diagram-node diagram-node--function"
+      x="50"
+      y="50"
+      width="124"
+      height="28"
+      rx="4" ry="4"
+    />
+    <title>get_amount_in</title>
+    <text
+      class="diagram-node-label"
+      x="60"
+      y="68"
+      text-anchor="middle"
+      dominant-baseline="middle"
+    >
+      get_amount_in
+    </text>
+  </a>
+  <a href="#fn-get_amounts_out" data-node-id="fn:get_amounts_out">
+    <rect
+      id="soroswap-router-node-fn:get_amounts_out"
+      class="diagram-node diagram-node--function"
+      x="50"
+      y="50"
+      width="140"
+      height="28"
+      rx="4" ry="4"
+    />
+    <title>get_amounts_out</title>
+    <text
+      class="diagram-node-label"
+      x="60"
+      y="68"
+      text-anchor="middle"
+      dominant-baseline="middle"
+    >
+      get_amounts_out
+    </text>
+  </a>
+  <a href="#fn-get_amounts_in" data-node-id="fn:get_amounts_in">
+    <rect
+      id="soroswap-router-node-fn:get_amounts_in"
+      class="diagram-node diagram-node--function"
+      x="50"
+      y="50"
+      width="132"
+      height="28"
+      rx="4" ry="4"
+    />
+    <title>get_amounts_in</title>
+    <text
+      class="diagram-node-label"
+      x="60"
+      y="68"
+      text-anchor="middle"
+      dominant-baseline="middle"
+    >
+      get_amounts_in
+    </text>
+  </a>
+  <a href="#fn-router_pair_for" data-node-id="fn:router_pair_for">
+    <rect
+      id="soroswap-router-node-fn:router_pair_for"
+      class="diagram-node diagram-node--function"
+      x="50"
+      y="50"
+      width="140"
+      height="28"
+      rx="4" ry="4"
+    />
+    <title>router_pair_for</title>
+    <text
+      class="diagram-node-label"
+      x="60"
+      y="68"
+      text-anchor="middle"
+      dominant-baseline="middle"
+    >
+      router_pair_for
+    </text>
+  </a>
+  <a href="#fn-router_quote" data-node-id="fn:router_quote">
+    <rect
+      id="soroswap-router-node-fn:router_quote"
+      class="diagram-node diagram-node--function"
+      x="50"
+      y="50"
+      width="116"
+      height="28"
+      rx="4" ry="4"
+    />
+    <title>router_quote</title>
+    <text
+      class="diagram-node-label"
+      x="60"
+      y="68"
+      text-anchor="middle"
+      dominant-baseline="middle"
+    >
+      router_quote
+    </text>
+  </a>
+  <a href="#fn-router_get_amount_out" data-node-id="fn:router_get_amount_out">
+    <rect
+      id="soroswap-router-node-fn:router_get_amount_out"
+      class="diagram-node diagram-node--function"
+      x="50"
+      y="50"
+      width="188"
+      height="28"
+      rx="4" ry="4"
+    />
+    <title>router_get_amount_out</title>
+    <text
+      class="diagram-node-label"
+      x="60"
+      y="68"
+      text-anchor="middle"
+      dominant-baseline="middle"
+    >
+      router_get_amount_out
+    </text>
+  </a>
+  <a href="#fn-router_get_amount_in" data-node-id="fn:router_get_amount_in">
+    <rect
+      id="soroswap-router-node-fn:router_get_amount_in"
+      class="diagram-node diagram-node--function"
+      x="50"
+      y="50"
+      width="180"
+      height="28"
+      rx="4" ry="4"
+    />
+    <title>router_get_amount_in</title>
+    <text
+      class="diagram-node-label"
+      x="60"
+      y="68"
+      text-anchor="middle"
+      dominant-baseline="middle"
+    >
+      router_get_amount_in
+    </text>
+  </a>
+  <a href="#fn-router_get_amounts_out" data-node-id="fn:router_get_amounts_out">
+    <rect
+      id="soroswap-router-node-fn:router_get_amounts_out"
+      class="diagram-node diagram-node--function"
+      x="50"
+      y="50"
+      width="196"
+      height="28"
+      rx="4" ry="4"
+    />
+    <title>router_get_amounts_out</title>
+    <text
+      class="diagram-node-label"
+      x="60"
+      y="68"
+      text-anchor="middle"
+      dominant-baseline="middle"
+    >
+      router_get_amounts_out
+    </text>
+  </a>
+  <a href="#fn-router_get_amounts_in" data-node-id="fn:router_get_amounts_in">
+    <rect
+      id="soroswap-router-node-fn:router_get_amounts_in"
+      class="diagram-node diagram-node--function"
+      x="50"
+      y="50"
+      width="188"
+      height="28"
+      rx="4" ry="4"
+    />
+    <title>router_get_amounts_in</title>
+    <text
+      class="diagram-node-label"
+      x="60"
+      y="68"
+      text-anchor="middle"
+      dominant-baseline="middle"
+    >
+      router_get_amounts_in
+    </text>
+  </a>
+  <a href="#fn-initialize" data-node-id="fn:initialize">
+    <rect
+      id="soroswap-router-node-fn:initialize"
+      class="diagram-node diagram-node--function"
+      x="50"
+      y="50"
+      width="100"
+      height="28"
+      rx="4" ry="4"
+    />
+    <title>initialize</title>
+    <text
+      class="diagram-node-label"
+      x="60"
+      y="68"
+      text-anchor="middle"
+      dominant-baseline="middle"
+    >
+      initialize
+    </text>
+  </a>
+</svg>

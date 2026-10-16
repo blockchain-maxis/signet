@@ -24,7 +24,6 @@ func init() { register(groupIdentity, newUnlinkCmd) }
 // trust question as making one. Control of the deploy key is the whole proof.
 func newUnlinkCmd() *cobra.Command {
 	var assumeYes bool
-	var network string
 
 	cmd := &cobra.Command{
 		Use:   "unlink",
@@ -109,6 +108,7 @@ stellar CLI.`,
 				}
 			}
 
+			network := deps.Config.Network
 			unsigned, passphrase, err := link.FetchChallenge(
 				&http.Client{Timeout: 15 * time.Second}, resolved.BaseURL, network,
 			)(cmd.Context(), publicKey)
@@ -145,7 +145,6 @@ stellar CLI.`,
 		},
 	}
 
-	cmd.Flags().StringVar(&network, "network", "testnet", "Stellar network the deploy wallet is on")
 	cmd.Flags().BoolVar(&assumeYes, "yes", false, "skip the confirmation prompt")
 
 	return cmd

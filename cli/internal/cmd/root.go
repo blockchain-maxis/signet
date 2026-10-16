@@ -43,12 +43,16 @@ instance) over its HTTP API.`,
 		"write a single JSON result to stdout instead of human-readable output (diagnostics go to stderr)")
 	root.PersistentFlags().String("url", "",
 		fmt.Sprintf("Signet deployment URL (overrides %s, the config file, and the default)", config.EnvBaseURL))
+	root.PersistentFlags().String("network", "",
+		fmt.Sprintf("Stellar network to talk to (overrides %s, the context, and default %q)", config.EnvNetwork, config.DefaultNetwork))
+	root.PersistentFlags().String("context", "",
+		fmt.Sprintf("deployment context to use (overrides %s and the config file's current context)", config.EnvContext))
 	root.PersistentFlags().String("source", "",
 		"identity to sign as (remembered in the config file for next time)")
 	root.PersistentFlags().String("sign-with-key", "",
 		fmt.Sprintf("identity to sign with, for non-interactive use (same value as %s; not remembered)", config.EnvSignWithKey))
 
-	// Resolves --url/--source/SIGNET_URL/the config file into the
+	// Resolves --url/--network/--context/--source/env vars/the config file into the
 	// configuration this run actually uses, and attaches it to the command's
 	// context for subcommands to read via config.FromContext. Runs before
 	// every command, including the bare root — that's what lets `signet
@@ -60,6 +64,8 @@ instance) over its HTTP API.`,
 		}
 
 		flagURL, _ := cmd.Flags().GetString("url")
+		flagNetwork, _ := cmd.Flags().GetString("network")
+		flagContext, _ := cmd.Flags().GetString("context")
 		flagSource, _ := cmd.Flags().GetString("source")
 		flagSignWith, _ := cmd.Flags().GetString("sign-with-key")
 		// Keep the explicit-empty diagnostic tied to --sign-with-key. All other
@@ -74,11 +80,17 @@ instance) over its HTTP API.`,
 		opts := config.ResolveOptions{
 			FlagURL:            flagURL,
 			FlagURLSet:         cmd.Flags().Changed("url"),
+			FlagNetwork:        flagNetwork,
+			FlagNetworkSet:     cmd.Flags().Changed("network"),
+			FlagContext:        flagContext,
+			FlagContextSet:     cmd.Flags().Changed("context"),
 			FlagSource:         flagSource,
 			FlagSourceSet:      cmd.Flags().Changed("source"),
 			FlagSignWithKey:    flagSignWith,
 			FlagSignWithKeySet: cmd.Flags().Changed("sign-with-key"),
 			EnvBaseURL:         os.Getenv(config.EnvBaseURL),
+			EnvNetwork:         os.Getenv(config.EnvNetwork),
+			EnvContext:         os.Getenv(config.EnvContext),
 			EnvSignWithKey:     os.Getenv(config.EnvSignWithKey),
 		}
 		resolved := config.Resolve(opts, file)
@@ -95,7 +107,7 @@ instance) over its HTTP API.`,
 		// are not written to the config file, because either may carry a secret
 		// and neither is a preference the user asked signet to remember.
 		if opts.FlagSourceSet {
-			if err := config.RememberSource(resolved.Source); err != nil {
+			if err := config.RememberSourceInContext(resolved.Context, resolved.Source); err != nil {
 				return fmt.Errorf("%w: saving identity to config file: %w", exitcode.ErrConfiguration, err)
 			}
 		}

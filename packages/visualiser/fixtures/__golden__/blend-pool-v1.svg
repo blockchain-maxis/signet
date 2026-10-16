@@ -1,0 +1,867 @@
+<svg
+  xmlns="http://www.w3.org/2000/svg"
+  role="img"
+  aria-labelledby="blend-pool-v1-title blend-pool-v1-desc"
+  class="contract-diagram"
+>
+  <title id="blend-pool-v1-title">blend-pool-v1 (mainnet CDVQVKOY2YSXS2IC7KN6MNASSHPAO7UN2UR2ON4OI2SKMFJNVAMDX6DP)</title>
+  <desc id="blend-pool-v1-desc">18 functions in 11 groups, 18 types, 12 references</desc>
+  <defs>
+    <marker id="arrowhead" markerWidth="10" markerHeight="7"
+      refX="9" refY="3.5" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L10,3.5 L0,7 Z" class="diagram-edge-marker" />
+    </marker>
+  </defs>
+  <line
+    id="blend-pool-v1-edge-fn:queue_set_reserve-type:ReserveConfig"
+    class="diagram-edge"
+    data-edge-from="fn:queue_set_reserve"
+    data-edge-to="type:ReserveConfig"
+    x1="100" y1="100" x2="300" y2="100"
+    marker-end="url(#arrowhead)"
+  />
+  <line
+    id="blend-pool-v1-edge-fn:get_positions-type:Positions"
+    class="diagram-edge"
+    data-edge-from="fn:get_positions"
+    data-edge-to="type:Positions"
+    x1="100" y1="100" x2="300" y2="100"
+    marker-end="url(#arrowhead)"
+  />
+  <line
+    id="blend-pool-v1-edge-fn:submit-type:Request"
+    class="diagram-edge"
+    data-edge-from="fn:submit"
+    data-edge-to="type:Request"
+    x1="100" y1="100" x2="300" y2="100"
+    marker-end="url(#arrowhead)"
+  />
+  <line
+    id="blend-pool-v1-edge-fn:submit-type:Positions"
+    class="diagram-edge"
+    data-edge-from="fn:submit"
+    data-edge-to="type:Positions"
+    x1="100" y1="100" x2="300" y2="100"
+    marker-end="url(#arrowhead)"
+  />
+  <line
+    id="blend-pool-v1-edge-fn:set_emissions_config-type:ReserveEmissionMetadata"
+    class="diagram-edge"
+    data-edge-from="fn:set_emissions_config"
+    data-edge-to="type:ReserveEmissionMetadata"
+    x1="100" y1="100" x2="300" y2="100"
+    marker-end="url(#arrowhead)"
+  />
+  <line
+    id="blend-pool-v1-edge-fn:new_liquidation_auction-type:AuctionData"
+    class="diagram-edge"
+    data-edge-from="fn:new_liquidation_auction"
+    data-edge-to="type:AuctionData"
+    x1="100" y1="100" x2="300" y2="100"
+    marker-end="url(#arrowhead)"
+  />
+  <line
+    id="blend-pool-v1-edge-fn:get_auction-type:AuctionData"
+    class="diagram-edge"
+    data-edge-from="fn:get_auction"
+    data-edge-to="type:AuctionData"
+    x1="100" y1="100" x2="300" y2="100"
+    marker-end="url(#arrowhead)"
+  />
+  <line
+    id="blend-pool-v1-edge-fn:new_bad_debt_auction-type:AuctionData"
+    class="diagram-edge"
+    data-edge-from="fn:new_bad_debt_auction"
+    data-edge-to="type:AuctionData"
+    x1="100" y1="100" x2="300" y2="100"
+    marker-end="url(#arrowhead)"
+  />
+  <line
+    id="blend-pool-v1-edge-fn:new_interest_auction-type:AuctionData"
+    class="diagram-edge"
+    data-edge-from="fn:new_interest_auction"
+    data-edge-to="type:AuctionData"
+    x1="100" y1="100" x2="300" y2="100"
+    marker-end="url(#arrowhead)"
+  />
+  <line
+    id="blend-pool-v1-edge-type:QueuedReserveInit-type:ReserveConfig"
+    class="diagram-edge"
+    data-edge-from="type:QueuedReserveInit"
+    data-edge-to="type:ReserveConfig"
+    x1="100" y1="100" x2="300" y2="100"
+    marker-end="url(#arrowhead)"
+  />
+  <line
+    id="blend-pool-v1-edge-type:PoolDataKey-type:UserReserveKey"
+    class="diagram-edge"
+    data-edge-from="type:PoolDataKey"
+    data-edge-to="type:UserReserveKey"
+    x1="100" y1="100" x2="300" y2="100"
+    marker-end="url(#arrowhead)"
+  />
+  <line
+    id="blend-pool-v1-edge-type:PoolDataKey-type:AuctionKey"
+    class="diagram-edge"
+    data-edge-from="type:PoolDataKey"
+    data-edge-to="type:AuctionKey"
+    x1="100" y1="100" x2="300" y2="100"
+    marker-end="url(#arrowhead)"
+  />
+  <a href="#fn-initialize" data-node-id="fn:initialize">
+    <rect
+      id="blend-pool-v1-node-fn:initialize"
+      class="diagram-node diagram-node--function"
+      x="50"
+      y="50"
+      width="100"
+      height="28"
+      rx="4" ry="4"
+    />
+    <title>initialize</title>
+    <text
+      class="diagram-node-label"
+      x="60"
+      y="68"
+      text-anchor="middle"
+      dominant-baseline="middle"
+    >
+      initialize
+    </text>
+  </a>
+  <a href="#fn-set_admin" data-node-id="fn:set_admin">
+    <rect
+      id="blend-pool-v1-node-fn:set_admin"
+      class="diagram-node diagram-node--function"
+      x="50"
+      y="50"
+      width="92"
+      height="28"
+      rx="4" ry="4"
+    />
+    <title>set_admin</title>
+    <text
+      class="diagram-node-label"
+      x="60"
+      y="68"
+      text-anchor="middle"
+      dominant-baseline="middle"
+    >
+      set_admin
+    </text>
+  </a>
+  <a href="#fn-update_pool" data-node-id="fn:update_pool">
+    <rect
+      id="blend-pool-v1-node-fn:update_pool"
+      class="diagram-node diagram-node--function"
+      x="50"
+      y="50"
+      width="108"
+      height="28"
+      rx="4" ry="4"
+    />
+    <title>update_pool</title>
+    <text
+      class="diagram-node-label"
+      x="60"
+      y="68"
+      text-anchor="middle"
+      dominant-baseline="middle"
+    >
+      update_pool
+    </text>
+  </a>
+  <a href="#fn-queue_set_reserve" data-node-id="fn:queue_set_reserve">
+    <rect
+      id="blend-pool-v1-node-fn:queue_set_reserve"
+      class="diagram-node diagram-node--function"
+      x="50"
+      y="50"
+      width="156"
+      height="28"
+      rx="4" ry="4"
+    />
+    <title>queue_set_reserve</title>
+    <text
+      class="diagram-node-label"
+      x="60"
+      y="68"
+      text-anchor="middle"
+      dominant-baseline="middle"
+    >
+      queue_set_reserve
+    </text>
+  </a>
+  <a href="#fn-cancel_set_reserve" data-node-id="fn:cancel_set_reserve">
+    <rect
+      id="blend-pool-v1-node-fn:cancel_set_reserve"
+      class="diagram-node diagram-node--function"
+      x="50"
+      y="50"
+      width="164"
+      height="28"
+      rx="4" ry="4"
+    />
+    <title>cancel_set_reserve</title>
+    <text
+      class="diagram-node-label"
+      x="60"
+      y="68"
+      text-anchor="middle"
+      dominant-baseline="middle"
+    >
+      cancel_set_reserve
+    </text>
+  </a>
+  <a href="#fn-set_reserve" data-node-id="fn:set_reserve">
+    <rect
+      id="blend-pool-v1-node-fn:set_reserve"
+      class="diagram-node diagram-node--function"
+      x="50"
+      y="50"
+      width="108"
+      height="28"
+      rx="4" ry="4"
+    />
+    <title>set_reserve</title>
+    <text
+      class="diagram-node-label"
+      x="60"
+      y="68"
+      text-anchor="middle"
+      dominant-baseline="middle"
+    >
+      set_reserve
+    </text>
+  </a>
+  <a href="#fn-get_positions" data-node-id="fn:get_positions">
+    <rect
+      id="blend-pool-v1-node-fn:get_positions"
+      class="diagram-node diagram-node--function"
+      x="50"
+      y="50"
+      width="124"
+      height="28"
+      rx="4" ry="4"
+    />
+    <title>get_positions</title>
+    <text
+      class="diagram-node-label"
+      x="60"
+      y="68"
+      text-anchor="middle"
+      dominant-baseline="middle"
+    >
+      get_positions
+    </text>
+  </a>
+  <a href="#fn-submit" data-node-id="fn:submit">
+    <rect
+      id="blend-pool-v1-node-fn:submit"
+      class="diagram-node diagram-node--function"
+      x="50"
+      y="50"
+      width="68"
+      height="28"
+      rx="4" ry="4"
+    />
+    <title>submit</title>
+    <text
+      class="diagram-node-label"
+      x="60"
+      y="68"
+      text-anchor="middle"
+      dominant-baseline="middle"
+    >
+      submit
+    </text>
+  </a>
+  <a href="#fn-bad_debt" data-node-id="fn:bad_debt">
+    <rect
+      id="blend-pool-v1-node-fn:bad_debt"
+      class="diagram-node diagram-node--function"
+      x="50"
+      y="50"
+      width="84"
+      height="28"
+      rx="4" ry="4"
+    />
+    <title>bad_debt</title>
+    <text
+      class="diagram-node-label"
+      x="60"
+      y="68"
+      text-anchor="middle"
+      dominant-baseline="middle"
+    >
+      bad_debt
+    </text>
+  </a>
+  <a href="#fn-update_status" data-node-id="fn:update_status">
+    <rect
+      id="blend-pool-v1-node-fn:update_status"
+      class="diagram-node diagram-node--function"
+      x="50"
+      y="50"
+      width="124"
+      height="28"
+      rx="4" ry="4"
+    />
+    <title>update_status</title>
+    <text
+      class="diagram-node-label"
+      x="60"
+      y="68"
+      text-anchor="middle"
+      dominant-baseline="middle"
+    >
+      update_status
+    </text>
+  </a>
+  <a href="#fn-set_status" data-node-id="fn:set_status">
+    <rect
+      id="blend-pool-v1-node-fn:set_status"
+      class="diagram-node diagram-node--function"
+      x="50"
+      y="50"
+      width="100"
+      height="28"
+      rx="4" ry="4"
+    />
+    <title>set_status</title>
+    <text
+      class="diagram-node-label"
+      x="60"
+      y="68"
+      text-anchor="middle"
+      dominant-baseline="middle"
+    >
+      set_status
+    </text>
+  </a>
+  <a href="#fn-gulp_emissions" data-node-id="fn:gulp_emissions">
+    <rect
+      id="blend-pool-v1-node-fn:gulp_emissions"
+      class="diagram-node diagram-node--function"
+      x="50"
+      y="50"
+      width="132"
+      height="28"
+      rx="4" ry="4"
+    />
+    <title>gulp_emissions</title>
+    <text
+      class="diagram-node-label"
+      x="60"
+      y="68"
+      text-anchor="middle"
+      dominant-baseline="middle"
+    >
+      gulp_emissions
+    </text>
+  </a>
+  <a href="#fn-set_emissions_config" data-node-id="fn:set_emissions_config">
+    <rect
+      id="blend-pool-v1-node-fn:set_emissions_config"
+      class="diagram-node diagram-node--function"
+      x="50"
+      y="50"
+      width="180"
+      height="28"
+      rx="4" ry="4"
+    />
+    <title>set_emissions_config</title>
+    <text
+      class="diagram-node-label"
+      x="60"
+      y="68"
+      text-anchor="middle"
+      dominant-baseline="middle"
+    >
+      set_emissions_config
+    </text>
+  </a>
+  <a href="#fn-claim" data-node-id="fn:claim">
+    <rect
+      id="blend-pool-v1-node-fn:claim"
+      class="diagram-node diagram-node--function"
+      x="50"
+      y="50"
+      width="60"
+      height="28"
+      rx="4" ry="4"
+    />
+    <title>claim</title>
+    <text
+      class="diagram-node-label"
+      x="60"
+      y="68"
+      text-anchor="middle"
+      dominant-baseline="middle"
+    >
+      claim
+    </text>
+  </a>
+  <a href="#fn-new_liquidation_auction" data-node-id="fn:new_liquidation_auction">
+    <rect
+      id="blend-pool-v1-node-fn:new_liquidation_auction"
+      class="diagram-node diagram-node--function"
+      x="50"
+      y="50"
+      width="204"
+      height="28"
+      rx="4" ry="4"
+    />
+    <title>new_liquidation_auction</title>
+    <text
+      class="diagram-node-label"
+      x="60"
+      y="68"
+      text-anchor="middle"
+      dominant-baseline="middle"
+    >
+      new_liquidation_auction
+    </text>
+  </a>
+  <a href="#fn-get_auction" data-node-id="fn:get_auction">
+    <rect
+      id="blend-pool-v1-node-fn:get_auction"
+      class="diagram-node diagram-node--function"
+      x="50"
+      y="50"
+      width="108"
+      height="28"
+      rx="4" ry="4"
+    />
+    <title>get_auction</title>
+    <text
+      class="diagram-node-label"
+      x="60"
+      y="68"
+      text-anchor="middle"
+      dominant-baseline="middle"
+    >
+      get_auction
+    </text>
+  </a>
+  <a href="#fn-new_bad_debt_auction" data-node-id="fn:new_bad_debt_auction">
+    <rect
+      id="blend-pool-v1-node-fn:new_bad_debt_auction"
+      class="diagram-node diagram-node--function"
+      x="50"
+      y="50"
+      width="180"
+      height="28"
+      rx="4" ry="4"
+    />
+    <title>new_bad_debt_auction</title>
+    <text
+      class="diagram-node-label"
+      x="60"
+      y="68"
+      text-anchor="middle"
+      dominant-baseline="middle"
+    >
+      new_bad_debt_auction
+    </text>
+  </a>
+  <a href="#fn-new_interest_auction" data-node-id="fn:new_interest_auction">
+    <rect
+      id="blend-pool-v1-node-fn:new_interest_auction"
+      class="diagram-node diagram-node--function"
+      x="50"
+      y="50"
+      width="180"
+      height="28"
+      rx="4" ry="4"
+    />
+    <title>new_interest_auction</title>
+    <text
+      class="diagram-node-label"
+      x="60"
+      y="68"
+      text-anchor="middle"
+      dominant-baseline="middle"
+    >
+      new_interest_auction
+    </text>
+  </a>
+  <a href="#type-AuctionData" data-node-id="type:AuctionData">
+    <rect
+      id="blend-pool-v1-node-type:AuctionData"
+      class="diagram-node diagram-node--type"
+      x="250"
+      y="150"
+      width="108"
+      height="28"
+      rx="4" ry="4"
+    />
+    <title>AuctionData</title>
+    <text
+      class="diagram-node-label"
+      x="260"
+      y="168"
+      text-anchor="middle"
+      dominant-baseline="middle"
+    >
+      AuctionData
+    </text>
+  </a>
+  <a href="#type-ReserveEmissionMetadata" data-node-id="type:ReserveEmissionMetadata">
+    <rect
+      id="blend-pool-v1-node-type:ReserveEmissionMetadata"
+      class="diagram-node diagram-node--type"
+      x="250"
+      y="150"
+      width="204"
+      height="28"
+      rx="4" ry="4"
+    />
+    <title>ReserveEmissionMetadata</title>
+    <text
+      class="diagram-node-label"
+      x="260"
+      y="168"
+      text-anchor="middle"
+      dominant-baseline="middle"
+    >
+      ReserveEmissionMetadata
+    </text>
+  </a>
+  <a href="#type-Request" data-node-id="type:Request">
+    <rect
+      id="blend-pool-v1-node-type:Request"
+      class="diagram-node diagram-node--type"
+      x="250"
+      y="150"
+      width="76"
+      height="28"
+      rx="4" ry="4"
+    />
+    <title>Request</title>
+    <text
+      class="diagram-node-label"
+      x="260"
+      y="168"
+      text-anchor="middle"
+      dominant-baseline="middle"
+    >
+      Request
+    </text>
+  </a>
+  <a href="#type-Reserve" data-node-id="type:Reserve">
+    <rect
+      id="blend-pool-v1-node-type:Reserve"
+      class="diagram-node diagram-node--type"
+      x="250"
+      y="150"
+      width="76"
+      height="28"
+      rx="4" ry="4"
+    />
+    <title>Reserve</title>
+    <text
+      class="diagram-node-label"
+      x="260"
+      y="168"
+      text-anchor="middle"
+      dominant-baseline="middle"
+    >
+      Reserve
+    </text>
+  </a>
+  <a href="#type-Positions" data-node-id="type:Positions">
+    <rect
+      id="blend-pool-v1-node-type:Positions"
+      class="diagram-node diagram-node--type"
+      x="250"
+      y="150"
+      width="92"
+      height="28"
+      rx="4" ry="4"
+    />
+    <title>Positions</title>
+    <text
+      class="diagram-node-label"
+      x="260"
+      y="168"
+      text-anchor="middle"
+      dominant-baseline="middle"
+    >
+      Positions
+    </text>
+  </a>
+  <a href="#type-PoolConfig" data-node-id="type:PoolConfig">
+    <rect
+      id="blend-pool-v1-node-type:PoolConfig"
+      class="diagram-node diagram-node--type"
+      x="250"
+      y="150"
+      width="100"
+      height="28"
+      rx="4" ry="4"
+    />
+    <title>PoolConfig</title>
+    <text
+      class="diagram-node-label"
+      x="260"
+      y="168"
+      text-anchor="middle"
+      dominant-baseline="middle"
+    >
+      PoolConfig
+    </text>
+  </a>
+  <a href="#type-PoolEmissionConfig" data-node-id="type:PoolEmissionConfig">
+    <rect
+      id="blend-pool-v1-node-type:PoolEmissionConfig"
+      class="diagram-node diagram-node--type"
+      x="250"
+      y="150"
+      width="164"
+      height="28"
+      rx="4" ry="4"
+    />
+    <title>PoolEmissionConfig</title>
+    <text
+      class="diagram-node-label"
+      x="260"
+      y="168"
+      text-anchor="middle"
+      dominant-baseline="middle"
+    >
+      PoolEmissionConfig
+    </text>
+  </a>
+  <a href="#type-ReserveConfig" data-node-id="type:ReserveConfig">
+    <rect
+      id="blend-pool-v1-node-type:ReserveConfig"
+      class="diagram-node diagram-node--type"
+      x="250"
+      y="150"
+      width="124"
+      height="28"
+      rx="4" ry="4"
+    />
+    <title>ReserveConfig</title>
+    <text
+      class="diagram-node-label"
+      x="260"
+      y="168"
+      text-anchor="middle"
+      dominant-baseline="middle"
+    >
+      ReserveConfig
+    </text>
+  </a>
+  <a href="#type-QueuedReserveInit" data-node-id="type:QueuedReserveInit">
+    <rect
+      id="blend-pool-v1-node-type:QueuedReserveInit"
+      class="diagram-node diagram-node--type"
+      x="250"
+      y="150"
+      width="156"
+      height="28"
+      rx="4" ry="4"
+    />
+    <title>QueuedReserveInit</title>
+    <text
+      class="diagram-node-label"
+      x="260"
+      y="168"
+      text-anchor="middle"
+      dominant-baseline="middle"
+    >
+      QueuedReserveInit
+    </text>
+  </a>
+  <a href="#type-ReserveData" data-node-id="type:ReserveData">
+    <rect
+      id="blend-pool-v1-node-type:ReserveData"
+      class="diagram-node diagram-node--type"
+      x="250"
+      y="150"
+      width="108"
+      height="28"
+      rx="4" ry="4"
+    />
+    <title>ReserveData</title>
+    <text
+      class="diagram-node-label"
+      x="260"
+      y="168"
+      text-anchor="middle"
+      dominant-baseline="middle"
+    >
+      ReserveData
+    </text>
+  </a>
+  <a href="#type-ReserveEmissionsConfig" data-node-id="type:ReserveEmissionsConfig">
+    <rect
+      id="blend-pool-v1-node-type:ReserveEmissionsConfig"
+      class="diagram-node diagram-node--type"
+      x="250"
+      y="150"
+      width="196"
+      height="28"
+      rx="4" ry="4"
+    />
+    <title>ReserveEmissionsConfig</title>
+    <text
+      class="diagram-node-label"
+      x="260"
+      y="168"
+      text-anchor="middle"
+      dominant-baseline="middle"
+    >
+      ReserveEmissionsConfig
+    </text>
+  </a>
+  <a href="#type-ReserveEmissionsData" data-node-id="type:ReserveEmissionsData">
+    <rect
+      id="blend-pool-v1-node-type:ReserveEmissionsData"
+      class="diagram-node diagram-node--type"
+      x="250"
+      y="150"
+      width="180"
+      height="28"
+      rx="4" ry="4"
+    />
+    <title>ReserveEmissionsData</title>
+    <text
+      class="diagram-node-label"
+      x="260"
+      y="168"
+      text-anchor="middle"
+      dominant-baseline="middle"
+    >
+      ReserveEmissionsData
+    </text>
+  </a>
+  <a href="#type-UserEmissionData" data-node-id="type:UserEmissionData">
+    <rect
+      id="blend-pool-v1-node-type:UserEmissionData"
+      class="diagram-node diagram-node--type"
+      x="250"
+      y="150"
+      width="148"
+      height="28"
+      rx="4" ry="4"
+    />
+    <title>UserEmissionData</title>
+    <text
+      class="diagram-node-label"
+      x="260"
+      y="168"
+      text-anchor="middle"
+      dominant-baseline="middle"
+    >
+      UserEmissionData
+    </text>
+  </a>
+  <a href="#type-UserReserveKey" data-node-id="type:UserReserveKey">
+    <rect
+      id="blend-pool-v1-node-type:UserReserveKey"
+      class="diagram-node diagram-node--type"
+      x="250"
+      y="150"
+      width="132"
+      height="28"
+      rx="4" ry="4"
+    />
+    <title>UserReserveKey</title>
+    <text
+      class="diagram-node-label"
+      x="260"
+      y="168"
+      text-anchor="middle"
+      dominant-baseline="middle"
+    >
+      UserReserveKey
+    </text>
+  </a>
+  <a href="#type-AuctionKey" data-node-id="type:AuctionKey">
+    <rect
+      id="blend-pool-v1-node-type:AuctionKey"
+      class="diagram-node diagram-node--type"
+      x="250"
+      y="150"
+      width="100"
+      height="28"
+      rx="4" ry="4"
+    />
+    <title>AuctionKey</title>
+    <text
+      class="diagram-node-label"
+      x="260"
+      y="168"
+      text-anchor="middle"
+      dominant-baseline="middle"
+    >
+      AuctionKey
+    </text>
+  </a>
+  <a href="#type-PoolDataKey" data-node-id="type:PoolDataKey">
+    <rect
+      id="blend-pool-v1-node-type:PoolDataKey"
+      class="diagram-node diagram-node--type"
+      x="250"
+      y="150"
+      width="108"
+      height="28"
+      rx="4" ry="4"
+    />
+    <title>PoolDataKey</title>
+    <text
+      class="diagram-node-label"
+      x="260"
+      y="168"
+      text-anchor="middle"
+      dominant-baseline="middle"
+    >
+      PoolDataKey
+    </text>
+  </a>
+  <a href="#type-PriceData" data-node-id="type:PriceData">
+    <rect
+      id="blend-pool-v1-node-type:PriceData"
+      class="diagram-node diagram-node--type"
+      x="250"
+      y="150"
+      width="92"
+      height="28"
+      rx="4" ry="4"
+    />
+    <title>PriceData</title>
+    <text
+      class="diagram-node-label"
+      x="260"
+      y="168"
+      text-anchor="middle"
+      dominant-baseline="middle"
+    >
+      PriceData
+    </text>
+  </a>
+  <a href="#type-Asset" data-node-id="type:Asset">
+    <rect
+      id="blend-pool-v1-node-type:Asset"
+      class="diagram-node diagram-node--type"
+      x="250"
+      y="150"
+      width="60"
+      height="28"
+      rx="4" ry="4"
+    />
+    <title>Asset</title>
+    <text
+      class="diagram-node-label"
+      x="260"
+      y="168"
+      text-anchor="middle"
+      dominant-baseline="middle"
+    >
+      Asset
+    </text>
+  </a>
+</svg>

@@ -43,10 +43,7 @@ function escapeXml(s: string): string {
  * No inline hex colours, no `<style>` block, no `<script>`, no animation
  * elements. A standalone export adds a `<style>` block (issue 506).
  */
-export function renderDiagramSvg(
-  model: DiagramModel,
-  opts: RenderOptions,
-): string {
+export function renderDiagramSvg(model: DiagramModel, opts: RenderOptions): string {
   const { idPrefix, hrefForNode, title } = opts;
 
   const functionNodes = model.nodes.filter((n) => n.id.startsWith('fn:'));
@@ -91,6 +88,11 @@ export function renderDiagramSvg(
     svgParts.push(`  <line`);
     svgParts.push(`    id="${escapeXml(edgeId)}"`);
     svgParts.push(`    class="diagram-edge${edge.label ? ' diagram-edge--labeled' : ''}"`);
+    // Endpoints as data attributes (issue 500). Node ids contain `:` (e.g.
+    // `fn:foo`), which cannot go in a `#id` selector unescaped, so the detail
+    // card enhancer matches incident edges by attribute value instead.
+    svgParts.push(`    data-edge-from="${escapeXml(edge.from)}"`);
+    svgParts.push(`    data-edge-to="${escapeXml(edge.to)}"`);
     svgParts.push(`    x1="${fromX}" y1="${fromY}" x2="${toX}" y2="${toY}"`);
     svgParts.push(`    marker-end="url(#arrowhead)"`);
     if (edge.label) {
@@ -112,7 +114,9 @@ export function renderDiagramSvg(
     }
 
     const isFunction = node.id.startsWith('fn:');
-    const nodeClass = isFunction ? 'diagram-node diagram-node--function' : 'diagram-node diagram-node--type';
+    const nodeClass = isFunction
+      ? 'diagram-node diagram-node--function'
+      : 'diagram-node diagram-node--type';
 
     svgParts.push(`    <rect`);
     svgParts.push(`      id="${escapeXml(nodeId)}"`);

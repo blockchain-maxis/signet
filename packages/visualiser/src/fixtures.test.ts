@@ -11,6 +11,19 @@ import { FIXTURES_DIR, loadFixture, readFixture } from './load-fixture.ts';
 
 const REGISTRY = 'CASFJHI5PQSRWS7JV25CF7FOMRKIVBP3RXRP3E2GH2CV4BCAG7FUJRCN';
 
+/**
+ * Types a fixture's signatures reference but its spec does not define. The
+ * SDK's macros generate these (`__`-prefixed) and leave them out of the spec;
+ * `stellar contract build` prints the same warnings for this contract. Every
+ * other fixture resolves all of its references.
+ */
+const UNDEFINED_TYPES: Record<string, string[]> = {
+  'axelar-its': [
+    '__InterchainTokenServiceAxelarExecutableInterfaceError',
+    '__InterchainTokenServiceMigrationData',
+  ],
+};
+
 function fixtureNames(): string[] {
   return readdirSync(FIXTURES_DIR)
     .filter((f) => f.endsWith('.spec.json'))
@@ -82,17 +95,42 @@ test('the fixture set covers a mid-size contract with structs and unions', () =>
   );
 });
 
+test('the fixture set covers a large contract (40 or more functions) that still lays out', () => {
+  const large = fixtureNames()
+    .map((name) => ({ name, spec: loadFixture(name) }))
+    .filter(({ spec }) => spec.functions.length >= 40);
+  assert.ok(large.length > 0, 'a contract with 40 or more functions');
+  for (const { name, spec } of large) {
+    assert.ok(spec.types.length > 0, `${name}: has user-defined types`);
+    const model = layoutContractGraph(buildContractGraph(spec));
+    assert.equal(
+      model.nodes.length,
+      spec.functions.length + spec.types.length + (UNDEFINED_TYPES[name]?.length ?? 0),
+      name,
+    );
+    assert.ok(groupFunctions(spec.functions.map((f) => f.name)).length >= 2, `${name}: groups`);
+  }
+});
+
 // --- the fixtures drive the visualiser pipeline ------------------------------
 
-test('graph: one node per function and per type, no missing types, in every fixture', () => {
+test('graph: one node per function and per type, plus one per documented undefined type', () => {
   for (const name of fixtureNames()) {
     const spec = loadFixture(name);
     const graph = buildContractGraph(spec);
-    assert.equal(graph.nodes.length, spec.functions.length + spec.types.length, name);
+    const undefinedTypes = UNDEFINED_TYPES[name] ?? [];
     assert.equal(
-      graph.nodes.filter((n) => n.kind === 'missing').length,
-      0,
-      `${name}: every referenced type is defined in the spec`,
+      graph.nodes.length,
+      spec.functions.length + spec.types.length + undefinedTypes.length,
+      name,
+    );
+    assert.deepEqual(
+      graph.nodes
+        .filter((n) => n.kind === 'missing')
+        .map((n) => n.name)
+        .sort(),
+      undefinedTypes,
+      `${name}: only the documented references are undefined in the spec`,
     );
     assert.equal(graph.errors.length, spec.errors.length, name);
   }
@@ -134,12 +172,12 @@ test('group: grouping is all-or-nothing and never loses or repeats a function', 
   }
 });
 
-test('type graph: no unresolved references, and nodes are only types the spec defines', () => {
+test('type graph: no unresolved references beyond the documented ones, and nodes are only types the spec defines', () => {
   for (const name of fixtureNames()) {
     const spec = loadFixture(name);
     const graph = buildTypeGraph(spec);
     const defined = new Set(spec.types.map((t) => t.name));
-    assert.deepEqual(graph.missing, [], name);
+    assert.deepEqual([...graph.missing].sort(), UNDEFINED_TYPES[name] ?? [], name);
     assert.ok(
       graph.nodes.every((n) => defined.has(n.name)),
       name,

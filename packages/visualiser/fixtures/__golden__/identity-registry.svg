@@ -1,0 +1,183 @@
+<svg
+  xmlns="http://www.w3.org/2000/svg"
+  role="img"
+  aria-labelledby="identity-registry-title identity-registry-desc"
+  class="contract-diagram"
+>
+  <title id="identity-registry-title">identity-registry (testnet CASFJHI5PQSRWS7JV25CF7FOMRKIVBP3RXRP3E2GH2CV4BCAG7FUJRCN)</title>
+  <desc id="identity-registry-desc">8 functions in 8 groups, 0 types, 0 references</desc>
+  <defs>
+    <marker id="arrowhead" markerWidth="10" markerHeight="7"
+      refX="9" refY="3.5" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L10,3.5 L0,7 Z" class="diagram-edge-marker" />
+    </marker>
+  </defs>
+  <a href="#fn-claim" data-node-id="fn:claim">
+    <rect
+      id="identity-registry-node-fn:claim"
+      class="diagram-node diagram-node--function"
+      x="50"
+      y="50"
+      width="60"
+      height="28"
+      rx="4" ry="4"
+    />
+    <title>claim</title>
+    <text
+      class="diagram-node-label"
+      x="60"
+      y="68"
+      text-anchor="middle"
+      dominant-baseline="middle"
+    >
+      claim
+    </text>
+  </a>
+  <a href="#fn-count" data-node-id="fn:count">
+    <rect
+      id="identity-registry-node-fn:count"
+      class="diagram-node diagram-node--function"
+      x="50"
+      y="50"
+      width="60"
+      height="28"
+      rx="4" ry="4"
+    />
+    <title>count</title>
+    <text
+      class="diagram-node-label"
+      x="60"
+      y="68"
+      text-anchor="middle"
+      dominant-baseline="middle"
+    >
+      count
+    </text>
+  </a>
+  <a href="#fn-lookup" data-node-id="fn:lookup">
+    <rect
+      id="identity-registry-node-fn:lookup"
+      class="diagram-node diagram-node--function"
+      x="50"
+      y="50"
+      width="68"
+      height="28"
+      rx="4" ry="4"
+    />
+    <title>lookup</title>
+    <text
+      class="diagram-node-label"
+      x="60"
+      y="68"
+      text-anchor="middle"
+      dominant-baseline="middle"
+    >
+      lookup
+    </text>
+  </a>
+  <a href="#fn-release" data-node-id="fn:release">
+    <rect
+      id="identity-registry-node-fn:release"
+      class="diagram-node diagram-node--function"
+      x="50"
+      y="50"
+      width="76"
+      height="28"
+      rx="4" ry="4"
+    />
+    <title>release</title>
+    <text
+      class="diagram-node-label"
+      x="60"
+      y="68"
+      text-anchor="middle"
+      dominant-baseline="middle"
+    >
+      release
+    </text>
+  </a>
+  <a href="#fn-resolve" data-node-id="fn:resolve">
+    <rect
+      id="identity-registry-node-fn:resolve"
+      class="diagram-node diagram-node--function"
+      x="50"
+      y="50"
+      width="76"
+      height="28"
+      rx="4" ry="4"
+    />
+    <title>resolve</title>
+    <text
+      class="diagram-node-label"
+      x="60"
+      y="68"
+      text-anchor="middle"
+      dominant-baseline="middle"
+    >
+      resolve
+    </text>
+  </a>
+  <a href="#fn-is_bound" data-node-id="fn:is_bound">
+    <rect
+      id="identity-registry-node-fn:is_bound"
+      class="diagram-node diagram-node--function"
+      x="50"
+      y="50"
+      width="84"
+      height="28"
+      rx="4" ry="4"
+    />
+    <title>is_bound</title>
+    <text
+      class="diagram-node-label"
+      x="60"
+      y="68"
+      text-anchor="middle"
+      dominant-baseline="middle"
+    >
+      is_bound
+    </text>
+  </a>
+  <a href="#fn-admin_revoke" data-node-id="fn:admin_revoke">
+    <rect
+      id="identity-registry-node-fn:admin_revoke"
+      class="diagram-node diagram-node--function"
+      x="50"
+      y="50"
+      width="116"
+      height="28"
+      rx="4" ry="4"
+    />
+    <title>admin_revoke</title>
+    <text
+      class="diagram-node-label"
+      x="60"
+      y="68"
+      text-anchor="middle"
+      dominant-baseline="middle"
+    >
+      admin_revoke
+    </text>
+  </a>
+  <a href="#fn-initialize" data-node-id="fn:initialize">
+    <rect
+      id="identity-registry-node-fn:initialize"
+      class="diagram-node diagram-node--function"
+      x="50"
+      y="50"
+      width="100"
+      height="28"
+      rx="4" ry="4"
+    />
+    <title>initialize</title>
+    <text
+      class="diagram-node-label"
+      x="60"
+      y="68"
+      text-anchor="middle"
+      dominant-baseline="middle"
+    >
+      initialize
+    </text>
+  </a>
+</svg>
