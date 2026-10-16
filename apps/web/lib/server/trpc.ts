@@ -12,6 +12,7 @@ import { verifySession, SESSION_COOKIE } from '../auth.ts';
 import { clientIp, isSameOriginHeaders } from '../security.ts';
 import { getAccount, unlinkWallet, updateAccount, normalizeAccountUpdate } from './account.ts';
 import { boundCount, lookupWallet, resolveHandle } from './registry-read.ts';
+import { STELLAR_ADDR_RE } from '../stellar-address.ts';
 
 /**
  * tRPC server setup.
@@ -103,9 +104,6 @@ function handleInput(raw: unknown): { handle: string } {
   }
   return { handle };
 }
-
-/** Stellar account address: G… or C… followed by 55 base32 chars. */
-const STELLAR_ADDR_RE = /^[GC][A-Z2-7]{55}$/;
 
 function walletInput(raw: unknown): { wallet: string } {
   const wallet = String((raw as { wallet?: unknown })?.wallet ?? '');
