@@ -57,6 +57,8 @@ export const LIMITS = {
   authRevoke: 10,
   /** Plain reads; generous, still bounded. */
   read: 60,
+  /** Public v1 REST API read-only endpoints (anonymous per-IP budget). */
+  v1Read: 60,
   /**
    * Browser-posted CSP violation reports. A genuinely broken directive can fire
    * once per blocked subresource, so the ceiling is high enough that a real
@@ -65,6 +67,8 @@ export const LIMITS = {
    */
   cspReport: 120,
 } as const;
+
+export type RateLimitBucket = keyof typeof LIMITS;
 
 export const WINDOW_MS = 60_000;
 
