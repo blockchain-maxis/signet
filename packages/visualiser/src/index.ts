@@ -156,3 +156,11 @@ export {
   type VizThemeTokens,
   type VizTokenName,
 } from './tokens.ts';
+
+// Text-equivalent diagram outline (E-19, #499)
+export {
+  buildDiagramOutline,
+  collectOutlineEdgeIds,
+  renderOutlineHtml,
+  type OutlineNode,
+} from './outline.ts';
