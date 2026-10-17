@@ -120,6 +120,10 @@ size increase is expected and justified, bump `BUDGET_BYTES` in
 > formatting is **not** a CI gate — don't reformat files you didn't otherwise
 > change, as it adds noise to reviews.
 
+## API surfaces
+
+New public reads go into `/api/v1` (see [`docs/API_V1.md`](docs/API_V1.md)) — not tRPC and not `/api/cli/*`, which are internal and change with the app.
+
 ## Commit style
 
 Signet uses [Conventional Commits](https://www.conventionalcommits.org/) with an

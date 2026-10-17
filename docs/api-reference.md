@@ -1,4 +1,4 @@
-# Signet API Reference
+# Internal tRPC procedures used by the Signet web app. Not a public API: no stability guarantee, may change in any release. Integrators: use /api/v1 (see docs/API_V1.md).
 
 Generated from the tRPC router — do not edit by hand. Regenerate with `pnpm run docs:generate`.
 
@@ -89,6 +89,27 @@ None (session cookie carries the identity)
   bio: string | null;
 }
 ```
+
+---
+
+## `account.unlinkWallet`
+
+- **Type:** `mutation`
+- **Auth:** `protected`
+
+### Input
+
+```ts
+{ wallet: string }
+```
+A Stellar public key (`G…`, 56 chars) for a non-primary wallet bound to the signed-in profile. Validated by `walletInput()`.
+
+### Output
+
+```ts
+void
+```
+Resolves to nothing on success. Refuses the primary wallet (unlinking it is a registry operation) and any wallet bound to another profile, which gets the same `Wallet not found` as an unknown key.
 
 ---
 

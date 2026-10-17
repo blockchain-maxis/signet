@@ -20,6 +20,7 @@ model see the contract doc-comment in
                        │  /how-it-works, / (marketing)                 │
                        │  /app/*        dashboard (session-gated)       │
                        │  /api/trpc     profile.* · account.* · health  │
+                       │  /api/v1       public read-only API            │
                        │  /api/auth/*   SIWS challenge / verify / logout │
                        └───────┬───────────────────────────┬──────────┘
                                │ reads (DB-first,           │ writes bindings
@@ -154,7 +155,9 @@ and skipped without advancing the relevant cursor, so the next tick retries.
   ([`apps/web/lib/server/trpc.ts`](apps/web/lib/server/trpc.ts)):
   `profile.list`, `profile.byHandle`, and `health` are public (per-IP rate
   limited); `account.me` / `account.update` are `protectedProcedure`. The
-  external [`@signet/sdk`](packages/sdk) consumes these.
+  external [`@signet/sdk`](packages/sdk) consumes these. tRPC is the web app's
+  own data layer, not a public contract — integrators read `/api/v1`
+  (see [`docs/API_V1.md`](docs/API_V1.md)).
 - **Auth** is Sign-In With Stellar: `/api/auth/challenge` → wallet signs →
   `/api/auth/verify` issues a `SameSite=Lax` session cookie
   ([`apps/web/lib/auth.ts`](apps/web/lib/auth.ts)); mutations additionally

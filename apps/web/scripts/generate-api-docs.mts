@@ -135,6 +135,9 @@ function docForInput(path: string): string {
     'account.update':
       '```ts\n{ displayName: string | null; bio: string | null }\n```\n' +
       '`displayName`: max 80 chars. `bio`: max 280 chars. Validated by `normalizeAccountUpdate()`.',
+    'account.unlinkWallet':
+      '```ts\n{ wallet: string }\n```\n' +
+      'A Stellar public key (`G…`, 56 chars) for a non-primary wallet bound to the signed-in profile. Validated by `walletInput()`.',
     'registry.resolve':
       '```ts\n{ handle: string }\n```\n' +
       'A well-formed handle: 1–32 chars of `[a-z0-9_-]`. Validated by `handleInput()`.',
@@ -186,6 +189,10 @@ function docForOutput(path: string): string {
       '  displayName: string | null;\n' +
       '  bio: string | null;\n' +
       '}\n```',
+    'account.unlinkWallet':
+      '```ts\nvoid\n```\n' +
+      'Resolves to nothing on success. Refuses the primary wallet (unlinking it is a registry operation) ' +
+      'and any wallet bound to another profile, which gets the same `Wallet not found` as an unknown key.',
     'registry.resolve':
       '```ts\n{ handle: string; wallet: string } | null\n```\n' +
       '`null` when the on-chain directory is unreachable or the handle is unclaimed.',
@@ -210,7 +217,11 @@ function docForOutput(path: string): string {
 function render(procedures: ProcedureMeta[]): string {
   const lines: string[] = [];
 
-  lines.push('# Signet API Reference');
+  lines.push(
+    '# Internal tRPC procedures used by the Signet web app. Not a public API: no ' +
+      'stability guarantee, may change in any release. Integrators: use /api/v1 ' +
+      '(see docs/API_V1.md).',
+  );
   lines.push('');
   lines.push(
     'Generated from the tRPC router — do not edit by hand. ' +
