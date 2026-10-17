@@ -22,7 +22,7 @@ export function typeAnchor(name: string): string {
   return `type-${name}`;
 }
 
-/** Fragment id for one error case of an error enum on the Types tab. */
-export function errorAnchor(enumName: string, caseName: string): string {
-  return `error-${enumName}-${caseName}`;
+/** Fragment id for an error enum (or one case of it) on the Types tab. */
+export function errorAnchor(enumName: string, caseName?: string): string {
+  return caseName ? `error-${enumName}-${caseName}` : `error-${enumName}`;
 }
