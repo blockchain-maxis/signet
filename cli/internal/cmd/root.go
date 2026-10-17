@@ -137,5 +137,17 @@ instance) over its HTTP API.`,
 // Execute builds the command tree and runs it against the process's
 // arguments. main() only needs to report the error and set an exit code.
 func Execute(version, commit string) error {
-	return newRootCmd(version, commit).Execute()
+	return Run(newRootCmd(version, commit))
+}
+
+// Run executes root and, when it returns an error, records that error for
+// `signet bug-report` before returning it unchanged. Recording is best-effort
+// and never alters the error. It is Execute's body and the seam a test uses to
+// exercise last-error persistence without a real process exit.
+func Run(root *cobra.Command) error {
+	err := root.Execute()
+	if err != nil {
+		recordLastError(err)
+	}
+	return err
 }
