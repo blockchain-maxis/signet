@@ -54,6 +54,9 @@ func TestGenericErrorIsRecordedAndIncludedInTheBugReport(t *testing.T) {
 	failing.RunE = func(*cobra.Command, []string) error {
 		return fmt.Errorf("boom: %s", secretCanary)
 	}
+	// Execute reads os.Args when no args are set, which under `go test` are the
+	// test binary's own flags; set them explicitly so the RunE is what runs.
+	failing.SetArgs([]string{})
 	if err := Run(failing); err == nil {
 		t.Fatal("the failing command returned no error")
 	}
