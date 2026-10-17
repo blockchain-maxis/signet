@@ -9,6 +9,8 @@ import {
   FIXTURE_HANDLE,
   MALFORMED_ADDRESS,
   OTHER_HANDLE,
+  WASM_HASH_1,
+  WASM_HASH_2,
 } from './fixtures/contracts';
 
 /**
@@ -116,6 +118,44 @@ test.describe('contract page @db', () => {
     // "not measured", not usage; and nothing on the tab is placeholder prose.
     await expect(page.getByTestId('overview-activity-unmeasured')).toBeVisible();
     await expect(page.locator('main')).not.toContainText('No description available');
+  });
+
+  test('the Overview shows WASM upgrade history in order and header notes upgrade count (#454)', async ({
+    page,
+  }) => {
+    await page.goto(base(FIXTURE_HANDLE, CONTRACT_A));
+
+    // Header notes the upgrade
+    const header = page.getByTestId('contract-header');
+    await expect(header.getByTestId('contract-wasm-upgrades')).toHaveText(
+      'upgraded 1 time since 1 Mar 2026',
+    );
+
+    // Overview Upgrades section lists rows newest first
+    const upgrades = page.getByTestId('overview-upgrades');
+    await expect(upgrades).toBeVisible();
+
+    const rows = upgrades.getByTestId('upgrade-row');
+    await expect(rows).toHaveCount(2);
+
+    // Newest version first (WASM_HASH_2, observed 5 Mar 2026)
+    await expect(rows.nth(0)).toContainText('change observed by the indexer');
+    await expect(rows.nth(0)).toContainText('5 Mar 2026');
+    await expect(rows.nth(0)).toContainText('ledger 1,000,500');
+    await expect(rows.nth(0).getByRole('button', { name: new RegExp(`Copy WASM hash ${WASM_HASH_2}`) })).toBeVisible();
+
+    // Oldest version last (WASM_HASH_1, observed 1 Mar 2026)
+    await expect(rows.nth(1)).toContainText('first seen by the indexer');
+    await expect(rows.nth(1)).toContainText('1 Mar 2026');
+    await expect(rows.nth(1)).toContainText('ledger 999,000');
+    await expect(rows.nth(1).getByRole('button', { name: new RegExp(`Copy WASM hash ${WASM_HASH_1}`) })).toBeVisible();
+
+    // Window sentence
+    await expect(upgrades.getByTestId('upgrades-window-sentence')).toHaveText(
+      "Changes before 1 Mar 2026 are not recorded. Dates are when Signet's indexer noticed each hash, not when the upgrade transaction ran.",
+    );
+
+    await expectNoSeriousA11yViolations(page, 'Overview tab upgrades');
   });
 
   test('the Functions tab lists one section per function, with the signature and only real prose (#466)', async ({
