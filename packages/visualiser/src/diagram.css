@@ -1,0 +1,87 @@
+/*
+ * Styles for an inline contract diagram (#502).
+ *
+ * Every colour comes from a `--viz-*` token (defined in `tokens.css`), so the
+ * same SVG works on the dark site and on a light ground. The group header and
+ * the collapsed-group node are real links; their focus ring uses the focus
+ * token and a stroke change, never colour alone.
+ */
+
+.contract-diagram {
+  display: block;
+  width: 100%;
+  height: auto;
+  max-width: 100%;
+}
+
+.diagram-edge {
+  stroke: var(--viz-edge, #736e62);
+  stroke-width: 1.5;
+}
+
+.diagram-edge-marker {
+  fill: var(--viz-edge, #736e62);
+}
+
+.diagram-node {
+  fill: var(--viz-node, #181614);
+  stroke: var(--viz-edge, #736e62);
+  stroke-width: 1;
+}
+
+.diagram-node--group {
+  stroke-dasharray: 4 3;
+}
+
+.diagram-node-label {
+  fill: var(--viz-node-text, #f5f4ee);
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 14px;
+}
+
+.diagram-group-box {
+  fill: none;
+  stroke: var(--viz-edge, #736e62);
+  stroke-width: 1;
+}
+
+.diagram-group-toggle {
+  cursor: pointer;
+}
+
+.diagram-group-label,
+.diagram-group-control {
+  fill: var(--viz-muted, #9e9a8f);
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 12px;
+}
+
+a.diagram-group-toggle:hover .diagram-group-label,
+a.diagram-group-toggle:hover .diagram-group-control {
+  fill: var(--viz-node-text, #f5f4ee);
+}
+
+/* Focus is a colour change plus a thicker node stroke, so it survives greyscale. */
+a.diagram-node:focus-visible {
+  outline: none;
+}
+
+a.diagram-node:focus-visible .diagram-node {
+  stroke: var(--viz-focus, #60a5fa);
+  stroke-width: 2.5;
+}
+
+a.diagram-group-toggle:focus-visible {
+  outline: none;
+}
+
+a.diagram-group-toggle:focus-visible .diagram-group-label,
+a.diagram-group-toggle:focus-visible .diagram-group-control {
+  fill: var(--viz-focus, #60a5fa);
+  font-weight: 700;
+}
+
+.diagram-container {
+  overflow-x: auto;
+  padding-bottom: 4px;
+}

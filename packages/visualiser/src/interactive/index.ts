@@ -7,9 +7,10 @@
  *
  * Landed:
  * - `enhanceDetails` — hover/focus detail card (#500).
+ * - `enhanceExpand` — server-first group expand/collapse (#502).
  *
- * Still to come (#501–#505): keyboard navigation, group collapse/expand,
- * search/filter, bounded viewport with zoom and pan, and node permalinks.
+ * Still to come (#501, #503–#505): keyboard navigation, search/filter, a
+ * bounded viewport with zoom and pan, and node permalinks.
  */
 
 export type { DetailsData, EnhanceDetailsOptions, NodeDetails } from './details.ts';
@@ -21,6 +22,13 @@ export {
   placeCard,
   relatedTo,
 } from './details.ts';
+
+export {
+  GROUP_CONTROL_SELECTOR,
+  enhanceExpand,
+  groupToggleSelector,
+  type EnhanceExpandOptions,
+} from './expand.ts';
 
 /**
  * Placeholder for the pan/zoom/selection enhancer that lands in #501–#505.

@@ -17,6 +17,7 @@
  */
 
 import type { ContractSpec } from '@signet/spec';
+import type { LayoutGeometryOptions } from './layout.ts';
 
 export const VISUALISER_VERSION = '0.1.0';
 
@@ -41,8 +42,15 @@ export interface DiagramModel {
   edges: DiagramEdge[];
 }
 
-/** Options for the pure layout pass. */
-export interface LayoutOptions {
+/**
+ * Options for the spec-to-diagram composition (`layoutContractDiagram`).
+ *
+ * Geometry fields come from `LayoutGeometryOptions`. `collapsedGroups` names
+ * the function groups drawn as one node (#502); when omitted,
+ * `layoutContractDiagram` collapses every group once the contract exceeds
+ * `collapseThreshold` functions.
+ */
+export interface LayoutOptions extends LayoutGeometryOptions {
   direction?: 'lr' | 'tb';
   /**
    * Nesting levels of user-defined types drawn inline before the diagram hands
@@ -52,6 +60,8 @@ export interface LayoutOptions {
   typeDepth?: number;
   /** User-defined type names to open to their next level past `typeDepth`. */
   expandTypes?: string[];
+  /** Function count above which every group starts collapsed. Default 25. */
+  collapseThreshold?: number;
 }
 
 /**
@@ -93,13 +103,19 @@ export {
 // Layered column layout (E-06): graph in, positioned diagram out.
 export {
   LAYOUT_VERSION,
+  collapsedGroupLabel,
+  collapsedGroupNodeId,
   layoutContractGraph,
+  type CollapsedGroupNode,
   type LayoutGeometryOptions,
   type PositionedDiagramModel,
   type PositionedEdge,
   type PositionedGroup,
   type PositionedNode,
 } from './layout.ts';
+
+// Spec → diagram composition (#502): type depth, group collapse, then layout.
+export { COLLAPSE_THRESHOLD, defaultCollapsedGroups, layoutContractDiagram } from './diagram.ts';
 
 // Deterministic text metrics (E-05): the layout's only measure of a label.
 export { MIN_TEXT_PX, textCells, textWidth, truncateLabel } from './metrics.ts';
@@ -108,6 +124,7 @@ export { MIN_TEXT_PX, textCells, textWidth, truncateLabel } from './metrics.ts';
 export {
   renderDiagramSvg,
   renderStandaloneSvg,
+  type GroupRef,
   type RenderOptions,
   type StandaloneSvgOptions,
 } from './render.ts';
@@ -141,6 +158,9 @@ export {
   type TypeGraphNode,
   type TypeGraphOptions,
 } from './type-graph.ts';
+
+// The same policy over the abstract graph, for the composed diagram (#502).
+export { limitTypeDepth, type TypeDepthOptions } from './type-depth.ts';
 
 // Theme tokens and CSS variables (§2.3 of docs/CONTRACT_VISUALISER_DESIGN.md)
 export {

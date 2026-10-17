@@ -95,11 +95,20 @@ export interface LayoutGeometryOptions {
    * router's 16px, so their routes stay on the canvas.
    */
   margin?: number;
+  /**
+   * Function groups to draw collapsed (#502). A collapsed group is one node,
+   * labelled like `pool_* (12)`, and its members' outgoing edges are merged
+   * onto it. Names the graph does not group are ignored. Omit to draw every
+   * group expanded; `@signet/visualiser`'s `layoutContractDiagram` applies the
+   * size-based default instead.
+   */
+  collapsedGroups?: readonly string[];
 }
 
 /** A node with a position. Columns share an `x`, which `routeEdges` relies on. */
 export interface PositionedNode extends RoutableNode {
-  kind: GraphNode['kind'];
+  /** `'group'` is a synthetic node standing in for a collapsed function group (#502). */
+  kind: GraphNode['kind'] | 'group';
   /** The full name. `label` is truncated to fit `maxNodeWidth`. */
   name: string;
   /** True when `label` is shorter than `name`. */
@@ -206,6 +215,64 @@ interface OutEdge {
   index: number;
 }
 
+/** A synthetic column-0 node standing in for a collapsed function group. */
+export interface CollapsedGroupNode {
+  id: string;
+  kind: 'group';
+  name: string;
+  /** How many functions it hides. */
+  count: number;
+}
+
+/** A graph node widened with the layout's synthetic collapsed-group nodes. */
+type LayoutNode = GraphNode | CollapsedGroupNode;
+
+/** `group:<name>`: the id of a collapsed group's node. */
+export function collapsedGroupNodeId(name: string): string {
+  return `group:${name}`;
+}
+
+/** The label a collapsed group node carries: `pool_* (12)` or `other (4)`. */
+export function collapsedGroupLabel(group: FunctionGroup): string {
+  const count = group.functions.length;
+  return group.kind === 'prefix' ? `${group.name}_* (${count})` : `${group.name} (${count})`;
+}
+
+/**
+ * Merge edges that a collapse made parallel. Two members of one collapsed
+ * group pointing at the same type become one edge, carrying both roles.
+ */
+function remapEdges(
+  edges: readonly GraphEdge[],
+  memberGroup: ReadonlyMap<string, string>,
+): GraphEdge[] {
+  if (memberGroup.size === 0) return [...edges];
+  const result: GraphEdge[] = [];
+  const indexByKey = new Map<string, number>();
+  for (const edge of edges) {
+    const from = memberGroup.get(edge.from) ?? edge.from;
+    const to = memberGroup.get(edge.to) ?? edge.to;
+    const key = `${from}->${to}`;
+    const known = indexByKey.get(key);
+    if (known === undefined) {
+      indexByKey.set(key, result.length);
+      result.push(from === edge.from && to === edge.to ? edge : { ...edge, id: key, from, to });
+      continue;
+    }
+    const existing = result[known]!;
+    const kinds = [...existing.kinds];
+    for (const kind of edge.kinds) if (!kinds.includes(kind)) kinds.push(kind);
+    const roles = [...existing.roles];
+    for (const role of edge.roles) {
+      if (!roles.some((r) => r.kind === role.kind && r.path === role.path && r.via === role.via)) {
+        roles.push(role);
+      }
+    }
+    result[known] = { ...existing, id: key, kinds, roles };
+  }
+  return result;
+}
+
 /**
  * Indexes of the edges that close a cycle, found by a depth-first walk in
  * graph order. An edge into a function is also reported: nothing sits left of
@@ -214,7 +281,7 @@ interface OutEdge {
 function findBackEdges(
   order: readonly string[],
   out: ReadonlyMap<string, OutEdge[]>,
-  kindOf: ReadonlyMap<string, GraphNode['kind']>,
+  kindOf: ReadonlyMap<string, LayoutNode['kind']>,
 ): Set<number> {
   const back = new Set<number>();
   const state = new Map<string, 1 | 2>(); // 1 = on the walk's stack, 2 = finished
@@ -232,7 +299,11 @@ function findBackEdges(
         continue;
       }
       const { edge, index } = edges[top.next++]!;
-      if (kindOf.get(edge.to) === 'function' || state.get(edge.to) === 1) {
+      if (
+        kindOf.get(edge.to) === 'function' ||
+        kindOf.get(edge.to) === 'group' ||
+        state.get(edge.to) === 1
+      ) {
         back.add(index);
       } else if (!state.has(edge.to)) {
         state.set(edge.to, 1);
@@ -250,13 +321,14 @@ function findBackEdges(
 function assignRanks(
   order: readonly string[],
   out: ReadonlyMap<string, OutEdge[]>,
-  kindOf: ReadonlyMap<string, GraphNode['kind']>,
+  kindOf: ReadonlyMap<string, LayoutNode['kind']>,
   back: ReadonlySet<number>,
 ): Map<string, number> {
   const rank = new Map<string, number>();
   const inDegree = new Map<string, number>();
   for (const id of order) {
-    rank.set(id, kindOf.get(id) === 'function' ? 0 : 1);
+    const kind = kindOf.get(id);
+    rank.set(id, kind === 'function' || kind === 'group' ? 0 : 1);
     inDegree.set(id, 0);
   }
   for (const edges of out.values()) {
@@ -321,43 +393,82 @@ function sweep(
   }
 }
 
-/** One group with the node ids of its members, in order. */
+/** One group with the node ids of its members, in order, and its collapsed state. */
 interface GroupMembers {
   group: FunctionGroup;
+  /** Member function node ids, all of them, even when the group is collapsed. */
   ids: string[];
+  collapsed: boolean;
+  /** The single node drawn in place of the members when collapsed. */
+  nodeId: string;
 }
 
-/** A function's order in column 0: groups first (as `groupFunctions` ranks them). */
-function orderFunctions(functions: readonly Extract<GraphNode, { kind: 'function' }>[]): {
+/**
+ * A function's order in column 0: groups first (as `groupFunctions` ranks
+ * them), with a collapsed group standing in as one synthetic node.
+ *
+ * `ids` is the actual column order. `memberGroup` maps every hidden member id
+ * to its group node, so the caller can re-target their edges.
+ */
+function orderFunctions(
+  functions: readonly Extract<GraphNode, { kind: 'function' }>[],
+  collapsed: ReadonlySet<string>,
+): {
   ids: string[];
   groups: GroupMembers[];
   groupOf: Map<string, string>;
+  memberGroup: Map<string, string>;
+  synthetic: CollapsedGroupNode[];
 } {
   const groups = groupFunctions(functions.map((f) => f.name));
   if (groups.length === 0) {
-    return { ids: functions.map((f) => f.id), groups: [], groupOf: new Map() };
+    return {
+      ids: functions.map((f) => f.id),
+      groups: [],
+      groupOf: new Map(),
+      memberGroup: new Map(),
+      synthetic: [],
+    };
   }
   const idByName = new Map(functions.map((f) => [f.name, f.id]));
   const ids: string[] = [];
   const groupOf = new Map<string, string>();
+  const memberGroup = new Map<string, string>();
+  const synthetic: CollapsedGroupNode[] = [];
   const members: GroupMembers[] = groups.map((group) => {
     const memberIds = group.functions.map((name) => idByName.get(name)!);
-    for (const id of memberIds) {
-      ids.push(id);
-      groupOf.set(id, `group:${group.name}`);
+    const nodeId = collapsedGroupNodeId(group.name);
+    const isCollapsed = collapsed.has(group.name);
+    if (isCollapsed) {
+      for (const id of memberIds) memberGroup.set(id, nodeId);
+      ids.push(nodeId);
+      synthetic.push({
+        id: nodeId,
+        kind: 'group',
+        name: collapsedGroupLabel(group),
+        count: group.functions.length,
+      });
+    } else {
+      for (const id of memberIds) {
+        ids.push(id);
+        groupOf.set(id, `group:${group.name}`);
+      }
     }
-    return { group, ids: memberIds };
+    return { group, ids: memberIds, collapsed: isCollapsed, nodeId };
   });
-  return { ids, groups: members, groupOf };
+  return { ids, groups: members, groupOf, memberGroup, synthetic };
 }
 
 /**
  * Lays out an abstract contract graph in columns. Pure and synchronous.
  *
- * The positions are final except for edge routes: pass the result to
- * `routeDiagram` to resolve ports and channels. Throws on a malformed graph
- * (duplicate node ids, an edge to a node that does not exist) and on invalid
- * geometry options, rather than drawing something misleading.
+ * `collapsedGroups` replaces each named group with one synthetic node (issue
+ * 502), merges the members' outgoing edges onto it, and leaves the other
+ * groups expanded with their boxes. The positions are final except for edge
+ * routes: pass the result to `routeDiagram` to resolve ports and channels.
+ * Throws on a malformed graph (duplicate node ids, an edge to a node that does
+ * not exist) and on invalid geometry options, rather than drawing something
+ * misleading.
  */
 export function layoutContractGraph(
   graph: ContractGraph,
@@ -365,36 +476,44 @@ export function layoutContractGraph(
 ): PositionedDiagramModel {
   const geo = resolveGeometry(opts);
 
-  const nodeById = new Map<string, GraphNode>();
-  for (const node of graph.nodes) {
+  const functions = graph.nodes.filter(
+    (n): n is Extract<GraphNode, { kind: 'function' }> => n.kind === 'function',
+  );
+  const others = graph.nodes.filter((n) => n.kind !== 'function');
+  const fnOrder = orderFunctions(functions, new Set(opts.collapsedGroups ?? []));
+  const layoutNodes: LayoutNode[] = [
+    ...graph.nodes.filter((node) => node.kind !== 'function' || !fnOrder.memberGroup.has(node.id)),
+    ...fnOrder.synthetic,
+  ];
+  const edges = remapEdges(graph.edges, fnOrder.memberGroup);
+
+  const nodeById = new Map<string, LayoutNode>();
+  for (const node of layoutNodes) {
     if (nodeById.has(node.id)) {
       throw new Error(`Cannot lay out graph: duplicate node id ${node.id}`);
     }
     nodeById.set(node.id, node);
   }
   const out = new Map<string, OutEdge[]>();
-  graph.edges.forEach((edge, index) => {
+  edges.forEach((edge, index) => {
     if (!nodeById.has(edge.from) || !nodeById.has(edge.to)) {
       const missing = nodeById.has(edge.from) ? edge.to : edge.from;
-      throw new Error(`Cannot lay out edge ${edge.from} -> ${edge.to}: node ${missing} does not exist`);
+      throw new Error(
+        `Cannot lay out edge ${edge.from} -> ${edge.to}: node ${missing} does not exist`,
+      );
     }
     const list = out.get(edge.from);
     if (list) list.push({ edge, index });
     else out.set(edge.from, [{ edge, index }]);
   });
 
-  const functions = graph.nodes.filter(
-    (n): n is Extract<GraphNode, { kind: 'function' }> => n.kind === 'function',
-  );
-  const others = graph.nodes.filter((n) => n.kind !== 'function');
-  const order = [...functions, ...others].map((n) => n.id);
-  const kindOf = new Map(graph.nodes.map((n) => [n.id, n.kind] as const));
+  const order = [...fnOrder.ids, ...others.map((n) => n.id)];
+  const kindOf = new Map(layoutNodes.map((n) => [n.id, n.kind] as const));
 
   const back = findBackEdges(order, out, kindOf);
   const rank = assignRanks(order, out, kindOf, back);
 
   // Columns: rank -> node ids. Column 0 is the grouped function order.
-  const fnOrder = orderFunctions(functions);
   const maxRank = Math.max(0, ...order.map((id) => rank.get(id)!));
   const columns: string[][] = Array.from({ length: maxRank + 1 }, () => []);
   columns[0] = [...fnOrder.ids];
@@ -407,7 +526,7 @@ export function layoutContractGraph(
     if (list) list.push(value);
     else map.set(key, [value]);
   };
-  graph.edges.forEach((edge, index) => {
+  edges.forEach((edge, index) => {
     if (back.has(index)) return;
     link(preds, edge.to, edge.from);
     link(succs, edge.from, edge.to);
@@ -424,10 +543,12 @@ export function layoutContractGraph(
   const cell = textWidth('x', geo.fontSizePx);
   const maxCells = Math.floor((geo.maxNodeWidth - 2 * geo.nodePaddingX) / cell + 1e-9);
   const size = new Map<string, { label: string; width: number; truncated: boolean }>();
-  for (const node of graph.nodes) {
-    const fits = Math.ceil(textWidth(node.name, geo.fontSizePx)) + 2 * geo.nodePaddingX;
+  for (const node of layoutNodes) {
+    const name =
+      node.kind === 'type' && node.stub === true ? `${node.name} +${node.hidden ?? 0}` : node.name;
+    const fits = Math.ceil(textWidth(name, geo.fontSizePx)) + 2 * geo.nodePaddingX;
     const truncated = fits > geo.maxNodeWidth;
-    const label = truncated ? truncateLabel(node.name, maxCells) : node.name;
+    const label = truncated ? truncateLabel(name, maxCells) : name;
     size.set(node.id, {
       label,
       width: Math.ceil(textWidth(label, geo.fontSizePx)) + 2 * geo.nodePaddingX,
@@ -452,43 +573,47 @@ export function layoutContractGraph(
   // Column heights, to centre the shorter columns on the tallest.
   const stackHeight = (count: number) =>
     count === 0 ? 0 : count * geo.nodeHeight + (count - 1) * geo.rowGap;
-  const groupMembers = fnOrder.groups.map((g) => g.ids.length);
+  const groupHeight = (members: GroupMembers) =>
+    members.collapsed
+      ? geo.nodeHeight
+      : geo.groupHeaderHeight + stackHeight(members.ids.length) + geo.groupPadding;
   const groupedHeight =
-    groupMembers.length === 0
+    fnOrder.groups.length === 0
       ? 0
-      : groupMembers.reduce(
-          (sum, count) => sum + geo.groupHeaderHeight + stackHeight(count) + geo.groupPadding,
-          0,
-        ) +
-        (groupMembers.length - 1) * geo.groupGap;
+      : fnOrder.groups.reduce((sum, members) => sum + groupHeight(members), 0) +
+        (fnOrder.groups.length - 1) * geo.groupGap;
   const heights = columns.map((column, k) =>
-    k === 0 && groupMembers.length > 0 ? groupedHeight : stackHeight(column.length),
+    k === 0 && fnOrder.groups.length > 0 ? groupedHeight : stackHeight(column.length),
   );
   const tallest = Math.max(0, ...heights);
 
   const pos = new Map<string, { x: number; y: number }>();
   const groups: PositionedGroup[] = [];
   let cursor = top;
-  if (groupMembers.length > 0) {
-    for (const { group, ids } of fnOrder.groups) {
-      const boxY = cursor;
-      let y = boxY + geo.groupHeaderHeight;
-      for (const id of ids) {
-        pos.set(id, { x: columnX[0]!, y });
-        y += geo.nodeHeight + geo.rowGap;
+  if (fnOrder.groups.length > 0) {
+    for (const members of fnOrder.groups) {
+      const { group, ids, collapsed, nodeId } = members;
+      if (collapsed) {
+        pos.set(nodeId, { x: columnX[0]!, y: cursor });
+      } else {
+        const boxY = cursor;
+        let y = boxY + geo.groupHeaderHeight;
+        for (const id of ids) {
+          pos.set(id, { x: columnX[0]!, y });
+          y += geo.nodeHeight + geo.rowGap;
+        }
+        groups.push({
+          id: `group:${group.name}`,
+          name: group.name,
+          kind: group.kind,
+          nodeIds: ids,
+          x: columnX[0]! - geo.groupPadding,
+          y: boxY,
+          width: columnWidth[0]! + 2 * geo.groupPadding,
+          height: groupHeight(members),
+        });
       }
-      const height = geo.groupHeaderHeight + stackHeight(ids.length) + geo.groupPadding;
-      groups.push({
-        id: `group:${group.name}`,
-        name: group.name,
-        kind: group.kind,
-        nodeIds: ids,
-        x: columnX[0]! - geo.groupPadding,
-        y: boxY,
-        width: columnWidth[0]! + 2 * geo.groupPadding,
-        height,
-      });
-      cursor = boxY + height + geo.groupGap;
+      cursor += groupHeight(members) + geo.groupGap;
     }
   } else {
     columns[0]!.forEach((id, i) => {
@@ -505,7 +630,7 @@ export function layoutContractGraph(
   const columnOf = new Map<string, number>();
   columns.forEach((column, k) => column.forEach((id) => columnOf.set(id, k)));
 
-  const nodes: PositionedNode[] = graph.nodes.map((node) => {
+  const nodes: PositionedNode[] = layoutNodes.map((node) => {
     const { label, width, truncated } = size.get(node.id)!;
     const { x, y } = pos.get(node.id)!;
     const positioned: PositionedNode = {
@@ -526,7 +651,7 @@ export function layoutContractGraph(
     return positioned;
   });
 
-  const edges: PositionedEdge[] = graph.edges.map((edge, index) => ({
+  const positionedEdges: PositionedEdge[] = edges.map((edge, index) => ({
     id: edge.id,
     from: edge.from,
     to: edge.to,
@@ -535,13 +660,13 @@ export function layoutContractGraph(
   }));
 
   const lastColumn = columns.length - 1;
-  const hasNodes = graph.nodes.length > 0;
+  const hasNodes = layoutNodes.length > 0;
   return {
     layoutVersion: LAYOUT_VERSION,
     width: hasNodes ? columnX[lastColumn]! + columnWidth[lastColumn]! + side : 2 * geo.margin,
     height: top + tallest + geo.margin,
     nodes,
-    edges,
+    edges: positionedEdges,
     groups,
   };
 }

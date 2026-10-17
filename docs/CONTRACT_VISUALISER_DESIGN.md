@@ -2,14 +2,15 @@
 
 **Status:** phase 1 in progress, not shipped. The
 [`@signet/visualiser`](../packages/visualiser/) package has the text metrics,
-theme tokens, SVG renderer, edge routing and worth-drawing decision; the graph
-builder, layout, interactive enhancer and the web Diagram tab are not built
-yet, and phases 2 and 3 have not started. Plain-language reading guide: the
-"Reading a contract diagram" section of the site's `/docs` page. This document
-exists to settle the shape before code, and — like the sandbox note — because
-investigating it changes what should be built. It is the third consumer of the
-shared spec reader that `CONTRACT_DOCS_DESIGN.md` §5 specifies and auto-docs
-builds first; it should not start before that reader exists.
+theme tokens, SVG renderer, edge routing, worth-drawing decision, graph
+builder, layout, type-depth policy and progressive-enhancement entry points;
+the web Diagram tab server-renders the composed diagram, and phases 2 and 3
+have not started. Plain-language reading guide: the "Reading a contract
+diagram" section of the site's `/docs` page. This document exists to settle the
+shape before code, and — like the sandbox note — because investigating it
+changes what should be built. It is the third consumer of the shared spec
+reader that `CONTRACT_DOCS_DESIGN.md` §5 specifies and auto-docs builds first;
+it should not start before that reader exists.
 
 A profile proves _what_ an address deployed. To a reader who does not write
 Rust, a deployed contract is a `C…` string and an operation count. Auto-docs
@@ -357,9 +358,10 @@ that only the first is a small piece of work.
   shared profile card is a strong hook, but the OG renderer
   (`apps/web/app/p/[handle]/opengraph-image.tsx`) is size- and
   complexity-bound and would need the collapsed view (§3) as its only mode.
-- **How much interactivity is worth the static-rendering cost?** Pure SVG
-  (grouping expanded at render time, no JS) versus a little client JS for
-  collapse/expand and pan on large graphs. Phase 1 should try to stay pure.
+- **How much interactivity is worth the static-rendering cost?** Resolved for
+  collapse/expand (#502) in favour of server-first pure SVG: the URL carries
+  the state, the page renders it, and a small enhancer only swaps the
+  server-rendered fragment in place. Pan/zoom on large graphs remains open.
 - **A `/contract/{address}` route with no handle** — the same diagram is
   useful for any address, not only one on a profile. Deferred to auto-docs's
   version of this question; the profile-scoped route is what ships first.
