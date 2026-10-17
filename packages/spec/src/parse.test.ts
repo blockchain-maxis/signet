@@ -58,11 +58,24 @@ test('the identity-registry fixture decodes to 9 entries: 8 functions and 1 erro
   assert.equal(spec.spec.entries.length, 9, 'spec is the SDK helper over the same entries');
 });
 
-test('the flattened views are empty until #430/#431', () => {
+test('the identity-registry fixture populates its flattened interface views', () => {
   const spec = parseContractSpec(fixture('identity-registry'));
-  assert.deepEqual(spec.functions, []);
-  assert.deepEqual(spec.types, []);
-  assert.deepEqual(spec.errors, []);
+
+  assert.equal(spec.functions.length, 8);
+  assert.deepEqual(
+    spec.functions.map((fn) => fn.name),
+    [
+      'claim',
+      'count',
+      'lookup',
+      'release',
+      'resolve',
+      'is_bound',
+      'initialize',
+      'admin_revoke',
+    ],
+  );
+  assert.equal(spec.errors.length, 7);
   assert.deepEqual(spec.events, []);
 });
 

@@ -65,3 +65,26 @@ consumer.
   `spec-json.v2.schema.json` next to (never replacing) v1, and a versioned
   reader. `fromSpecJson` rejects anything but the version it handles rather
   than coercing.
+
+## Interface diffing
+
+`diffSpecs(before, after)` compares two `SpecJson` interfaces and returns a list of changes. Each change includes a `kind`, `path`, `breaking` flag, and one-line `reason`.
+
+| Change | Breaking? | Rule |
+|---|---|---|
+| Function added | No | Existing calls remain valid. |
+| Function removed | Yes | Existing callers may fail. |
+| Argument added, removed, renamed, or retyped | Yes | Function signatures may no longer match. |
+| Return type changed | Yes | Existing callers may expect the previous result. |
+| Documentation changed | No | Documentation does not alter the call interface. |
+| Type added | No | Existing declarations remain valid. |
+| Type removed or kind changed | Yes | Existing declarations may no longer resolve. |
+| Struct field added, removed, renamed, or retyped | Yes | The declared data shape changes. |
+| Union case added or removed | Yes | Consumers may depend on the previous set of cases. |
+| Enum variant added, removed, or renumbered | Yes | Exhaustive handling or numeric values may change. |
+| Error case added | No | Existing error identifiers remain valid. |
+| Error case removed or renumbered | Yes | Existing error handling may break. |
+
+Storage-layout compatibility is outside the scope of this function and remains the responsibility of the storage compatibility checks.
+
+**Fallback behavior:** if both specs have no flattened functions, types, or errors, but their raw `entriesXdr` values differ, the diff reports a breaking `spec-entries-changed` entry. This preserves detection of raw specification changes that cannot be compared through the flattened interface views.
