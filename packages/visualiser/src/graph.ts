@@ -44,6 +44,14 @@ export interface TypeNode {
   readonly kind: 'type';
   readonly name: string;
   readonly typeKind: SpecType['kind'];
+  /**
+   * True when the type-depth policy (#490) stopped at this node: its own
+   * member edges are not drawn, it links to its docs section instead, and
+   * {@link hidden} says how many edges that saved.
+   */
+  readonly stub?: boolean;
+  /** Member edges this stub hides; `0` or absent for an inline type. */
+  readonly hidden?: number;
 }
 
 /**

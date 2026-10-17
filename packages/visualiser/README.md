@@ -73,12 +73,12 @@ that.
 
 ### What the goldens pin today
 
-`renderDiagramSvg` does not read the layout's `x`/`y` yet: it draws every node
-at fixed coordinates until edge routing and the visual vocabulary are wired into
-it (#487, #493). Until then the goldens pin the renderer's output (nodes, labels,
-links, ids, edges and the list-mode decision), not node positions. When the
-renderer starts drawing the layout, a change that moves a node changes the
-golden like any other output change.
+`renderDiagramSvg` draws a positioned model at the layout's `x`/`y`, including
+its group boxes and group headers. The goldens therefore pin node positions as
+well as nodes, labels, links, ids, edges and the list-mode decision. A change
+that moves a node changes the golden like any other output change. SVG edge
+routing is still the renderer's straight port-to-port line; wiring in
+`routeEdges` for the inline diagram remains #487/#493.
 
 ## Standalone SVG downloads
 
@@ -103,4 +103,18 @@ cache attribution or failed responses.
 The route currently reuses the canonical cached spec resolver and computes the
 pure layout. The versioned layout cache in #497 is still pending and should
 replace that computation when available; this change adds no second cache.
-The interactive Diagram slot remains owned by #498.
+
+## Server-first expand/collapse
+
+The Diagram tab composes `layoutContractDiagram` from a decoded spec: type
+depth (#490), then group collapse (#502), then layout. With no explicit
+`collapsedGroups`, a contract above the 25-function collapse threshold starts
+with every group collapsed to one node labelled like `pool_* (12)`. The page parses
+`?expand=` and `?types=` against the spec's own names, so each collapsed group
+is a plain link to the URL that expands it and the feature works without JS.
+
+`@signet/visualiser/interactive/expand` upgrades those links: it fetches
+`…/diagram/fragment?expand=…`, swaps the SVG, restores focus to the toggled
+group and uses `history.replaceState`. A failed fetch navigates normally. The
+fragment and the page render through the same `renderContractDiagram` path and
+share its canonical per-state cache, so a permuted query hits the same entry.
