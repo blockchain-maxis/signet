@@ -1,4 +1,5 @@
 import { isValidHandle } from '@signet/types';
+import { verifyApiKey, type ApiKeyStore } from '../../api-keys.ts';
 import { logger } from '../../logger.ts';
 import { rateLimit } from '../../rate-limit.ts';
 import { LIMITS, WINDOW_MS, type RateLimitBucket } from '../../rate-limit-policy.ts';
@@ -7,6 +8,7 @@ import { isValidStellarAddress, STELLAR_ADDR_RE } from '../../stellar-address.ts
 
 export type V1ErrorCode =
   | 'bad_request'
+  | 'unauthorized'
   | 'not_found'
   | 'rate_limited'
   | 'unavailable'
@@ -14,6 +16,7 @@ export type V1ErrorCode =
 
 export const HTTP_STATUS_BY_CODE: Record<V1ErrorCode, number> = {
   bad_request: 400,
+  unauthorized: 401,
   not_found: 404,
   rate_limited: 429,
   unavailable: 503,
@@ -112,6 +115,7 @@ export function fail(
 export interface WithV1Options {
   bucket?: RateLimitBucket;
   cache?: string;
+  apiKeyStore?: ApiKeyStore;
 }
 
 export type V1Handler = (req: Request) => Promise<Response> | Response;
@@ -121,6 +125,7 @@ export type V1Handler = (req: Request) => Promise<Response> | Response;
  * - OPTIONS preflight handling (`Access-Control-Allow-*`)
  * - CORS headers (`Access-Control-Allow-Origin: *` on GET, HEAD, OPTIONS)
  * - 405 Method Not Allowed handling for mutating methods
+ * - Optional API key authentication for elevated rate limits (sgk_ keys)
  * - Rate-limit enforcement and `RateLimit-*` headers on every response
  * - Retry-After on 429
  * - Safe error mapping to `{ error: { code: 'internal' } }` with no stack traces
@@ -159,10 +164,40 @@ export function withV1(
       });
     }
 
-    // 3. Rate limiting check
-    const ip = clientIp(req.headers);
-    const limit = LIMITS[bucket] ?? 60;
-    const rateKey = `v1:${bucket}:${ip}`;
+    // 3. API key authentication and rate limiting
+    const authHeader = req.headers.get('Authorization');
+    let rateKey: string;
+    let limit: number;
+
+    if (authHeader) {
+      if (!authHeader.startsWith('Bearer ')) {
+        const response = fail('unauthorized', 'Invalid Authorization header format.', undefined, {
+          status: 401,
+          headers: { 'Cache-Control': 'no-store' },
+        });
+        applyCorsAndRateHeaders(response.headers, {});
+        return response;
+      }
+
+      const token = authHeader.slice(7).trim();
+      const verifyResult = await verifyApiKey(token, options.apiKeyStore);
+      if (!verifyResult.ok) {
+        const response = fail('unauthorized', verifyResult.reason, undefined, {
+          status: 401,
+          headers: { 'Cache-Control': 'no-store' },
+        });
+        applyCorsAndRateHeaders(response.headers, {});
+        return response;
+      }
+
+      rateKey = `v1:key:${verifyResult.record.id}`;
+      limit = LIMITS.v1Keyed;
+    } else {
+      const ip = clientIp(req.headers);
+      limit = LIMITS[bucket] ?? 60;
+      rateKey = `v1:${bucket}:${ip}`;
+    }
+
     const rateResult = await rateLimit(rateKey, limit, WINDOW_MS);
 
     const resetSeconds = Math.max(1, Math.ceil(rateResult.resetMs / 1000));

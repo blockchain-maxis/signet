@@ -60,6 +60,18 @@ export const LIMITS = {
   /** Public v1 REST API read-only endpoints (anonymous per-IP budget). */
   v1Read: 60,
   /**
+   * Public v1 REST API read-only endpoints (keyed tier, higher budget).
+   * Configurable via API_KEY_RATE_LIMIT_PER_MIN env var (default: 300).
+   */
+  get v1Keyed(): number {
+    const envVal = process.env.API_KEY_RATE_LIMIT_PER_MIN;
+    if (envVal) {
+      const parsed = parseInt(envVal, 10);
+      if (!isNaN(parsed) && parsed > 0) return parsed;
+    }
+    return 300;
+  },
+  /**
    * Generates a downloadable TypeScript client stub (ZIP). CPU-intensive AST
    * generation and zip compression, unauthenticated per IP. Budgeted tightly
    * like auth verification to prevent resource exhaustion.

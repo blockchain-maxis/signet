@@ -17,6 +17,7 @@ model Profile {
 
   wallets       Wallet[]
   pairingStates PairingState[]
+  apiKeys       ApiKey[]
 }
 
 model Wallet {
@@ -295,3 +296,22 @@ model PairingState {
 
   @@index([status])
 }
+
+// API keys for elevated rate-limit tier on public v1 read routes (#651).
+// Plaintext keys are never stored; only the SHA-256 hash is saved.
+model ApiKey {
+  id         String    @id @default(cuid())
+  profileId  String
+  name       String
+  prefix     String
+  hash       String    @unique
+  createdAt  DateTime  @default(now())
+  lastUsedAt DateTime?
+  revokedAt  DateTime?
+
+  profile    Profile   @relation(fields: [profileId], references: [id], onDelete: Cascade)
+
+  @@index([profileId])
+  @@index([prefix])
+}
+

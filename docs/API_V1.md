@@ -60,6 +60,7 @@ The error codes are a **closed** list. Each maps to exactly one HTTP status:
 | `code`         | HTTP status | Meaning                                                                            | Retry?              |
 | -------------- | ----------- | ---------------------------------------------------------------------------------- | ------------------- |
 | `bad_request`  | 400         | The request is malformed or a parameter is invalid                                 | No                  |
+| `unauthorized` | 401         | An invalid, malformed, or revoked API key was supplied in the Authorization header | No                  |
 | `not_found`    | 404         | The resource does not exist (or, for handles, is not currently bound)              | No                  |
 | `rate_limited` | 429         | The caller is over budget; see [Rate limits](#rate-limits)                         | After `Retry-After` |
 | `unavailable`  | 503         | A dependency (database, chain RPC, Horizon) could not answer; the API itself is up | Yes, with backoff   |
@@ -70,6 +71,11 @@ Worked example of each:
 ```http
 HTTP/1.1 400 Bad Request
 { "error": { "code": "bad_request", "message": "limit must be between 1 and 100.", "details": { "parameter": "limit", "max": 100 } } }
+```
+
+```http
+HTTP/1.1 401 Unauthorized
+{ "error": { "code": "unauthorized", "message": "Invalid or revoked API key." } }
 ```
 
 ```http

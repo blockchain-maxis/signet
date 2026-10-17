@@ -121,3 +121,15 @@ export interface RegistryCount {
 }
 
 export const SIGNET_TYPES_VERSION = '0.1.0';
+
+/** Prefix for all Signet API keys. */
+export const API_KEY_PREFIX = 'sgk_';
+
+/** Matches a complete valid Signet API key: sgk_<prefix>_<32 bytes base64url>. */
+export const API_KEY_REGEX = /^sgk_([A-Za-z0-9_-]{8})_([A-Za-z0-9_-]{43})$/;
+
+/** Matches a Signet API key anywhere in text (for redaction and scanner guards). */
+export const API_KEY_PATTERN = /\bsgk_[A-Za-z0-9_-]{8}_[A-Za-z0-9_-]{43}\b/;
+
+/** Loose pattern matching any sgk_ secret token for redaction filters. */
+export const API_KEY_REDACT_PATTERN = /\bsgk_[A-Za-z0-9_-]+\b/g;

@@ -22,3 +22,14 @@ func TestSecrets_LeavesPublicKeysAlone(t *testing.T) {
 		t.Fatalf("redacted a public key: %q", got)
 	}
 }
+
+func TestSecrets_RedactsApiKeysAndKeepsTheRest(t *testing.T) {
+	key := "sgk_a1b2c3d4_abcdefghijklmnopqrstuvwxyz0123456789-_ABC"
+	got := Secrets("Authorization: Bearer " + key)
+	if strings.Contains(got, key) {
+		t.Fatalf("api key survived: %q", got)
+	}
+	if got != "Authorization: Bearer "+Placeholder {
+		t.Fatalf("got %q", got)
+	}
+}

@@ -39,6 +39,7 @@ test('ok() omits meta when omitted', async () => {
 test('fail() creates standard error envelope with status mapping', async () => {
   const codes: V1ErrorCode[] = [
     'bad_request',
+    'unauthorized',
     'not_found',
     'rate_limited',
     'unavailable',
