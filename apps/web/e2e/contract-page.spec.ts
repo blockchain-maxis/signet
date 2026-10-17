@@ -285,7 +285,28 @@ test.describe('contract page @db', () => {
     // invocations (fixture: 4 rows) with offset/limit and assert hasMore flips.
   });
 
-  test.fixme('the contract page serves an OG image (#458)', async () => {
-    // Turn on with #458: GET {contract page}/opengraph-image returns image/png.
+  test('the contract page serves an OG image and head metadata', async ({ request, page }) => {
+    // 1. OG image endpoint returns image/png for attributed fixture
+    const res = await request.get(`${base(FIXTURE_HANDLE, CONTRACT_A)}/opengraph-image`);
+    expect(res.status()).toBe(200);
+    expect(res.headers()['content-type']).toContain('image/png');
+
+    // 2. Unattributed pair returns the generic card and the images differ
+    const unattributedRes = await request.get(`${base(OTHER_HANDLE, CONTRACT_A)}/opengraph-image`);
+    expect(unattributedRes.status()).toBe(200);
+    expect(unattributedRes.headers()['content-type']).toContain('image/png');
+    const bodyAttributed = await res.body();
+    const bodyUnattributed = await unattributedRes.body();
+    expect(bodyAttributed.equals(bodyUnattributed)).toBe(false);
+
+    // 3. Page carries canonical and og:image tags
+    await page.goto(base(FIXTURE_HANDLE, CONTRACT_A));
+    const canonical = page.locator('link[rel="canonical"]');
+    await expect(canonical).toHaveAttribute(
+      'href',
+      new RegExp(`${base(FIXTURE_HANDLE, CONTRACT_A)}$`),
+    );
+    const ogImage = page.locator('meta[property="og:image"]');
+    await expect(ogImage).toHaveAttribute('content', /opengraph-image/);
   });
 });

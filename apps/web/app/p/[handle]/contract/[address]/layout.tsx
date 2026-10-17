@@ -9,6 +9,9 @@ import { ContractHeaderSkeleton } from './_components/contract-header-skeleton';
 import { ContractTabsNav } from './tabs-nav';
 import { TabFocus } from './tab-focus';
 
+import type { Metadata } from 'next';
+import { formatDate } from '@/lib/format-date';
+
 // Rendered per request. The root layout reads request headers for the CSP
 // nonce, so no route can be statically pre-rendered anyway, and attribution
 // is a live DB/Horizon question. Declaring it explicitly matters: a dynamic
@@ -21,6 +24,41 @@ export const dynamic = 'force-dynamic';
 function truncate(str: string, head: number, tail: number): string {
   if (str.length <= head + tail + 3) return str;
   return `${str.slice(0, head)}...${str.slice(-tail)}`;
+}
+
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ handle: string; address: string }>;
+}): Promise<Metadata> {
+  const { handle, address } = await params;
+  const attribution = await attributeContract(handle, address);
+
+  if (attribution.status !== 'attributed') {
+    return {
+      title: 'Contract Not Found · Signet',
+      description:
+        'The requested contract could not be found or is not attributed to this developer.',
+    };
+  }
+
+  const { contract } = attribution;
+  const shortAddress = truncate(contract.address, 8, 6);
+  const deployDate = formatDate(contract.deployedAt);
+  const description = `Soroban smart contract deployed on ${contract.network} on ${deployDate}.`;
+
+  return {
+    title: `${shortAddress} · @${handle} · Signet`,
+    description,
+    alternates: {
+      canonical: `/p/${handle}/contract/${address}`,
+    },
+    openGraph: {
+      title: `${shortAddress} · @${handle} · Signet`,
+      description,
+      url: `/p/${handle}/contract/${address}`,
+    },
+  };
 }
 
 /**
