@@ -266,6 +266,8 @@ Stable, so scripts can branch on the code rather than on message text.
 
 ## Protocol
 
+The `/api/cli/*` endpoints serve the `signet` CLI only and change with it. Integrators use `/api/v1`.
+
 This section is the contract between the Go CLI (`cli/internal/pair`,
 `cli/internal/link`) and the route handlers under `apps/web/app/api/cli/**`
 and `apps/web/app/api/cli-link/route.ts`. A change to either side updates it
