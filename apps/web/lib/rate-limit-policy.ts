@@ -66,6 +66,15 @@ export const LIMITS = {
    */
   stubTs: 15,
   /**
+   * Reads a page of contract operations. A plain database read, generous but bounded per IP.
+   */
+  contractOperations: 60,
+  /**
+   * Renders the contract documentation page. Each uncached render can trigger
+   * RPC and Horizon calls (which walk operations), so it is budgeted tighter than a plain read.
+   */
+  contractPage: 30,
+  /**
    * Browser-posted CSP violation reports. A genuinely broken directive can fire
    * once per blocked subresource, so the ceiling is high enough that a real
    * page's first load reports in full, and still bounded — the endpoint is
