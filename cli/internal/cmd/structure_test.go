@@ -187,7 +187,14 @@ var failing = map[string][]string{
 	"config":   {"config", "get", "nonexistent-key-xyz", "--json"},
 }
 
-var cannotFail = map[string]bool{"version": true, "help": true, "completion": true}
+var cannotFail = map[string]bool{
+	"version":    true,
+	"help":       true,
+	"completion": true,
+	// doctor reports findings rather than failing on them, so it fails only on
+	// the same programming errors every command shares.
+	"doctor": true,
+}
 
 func TestEveryCommandIsCoveredByTheJSONErrorRule(t *testing.T) {
 	for _, c := range topLevelCommands(t) {
