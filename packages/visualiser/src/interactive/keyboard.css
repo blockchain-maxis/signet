@@ -1,0 +1,43 @@
+/*
+ * Keyboard navigation focus ring and hint styles (#501).
+ *
+ * Focus ring uses --viz-focus, at least 2px, with a shape offset (not colour alone).
+ * Uses CSS variables from tokens.css for strict theme conformity and contrast.
+ */
+
+.contract-diagram [data-node-id]:focus,
+.contract-diagram [data-node-id]:focus-visible,
+[data-node-id].viz-node--focused,
+.contract-diagram .viz-node--focused {
+  outline: 2px solid var(--viz-focus, #60a5fa);
+  outline-offset: 3px;
+}
+
+.contract-diagram [data-node-id]:focus rect,
+.contract-diagram [data-node-id]:focus-visible rect,
+[data-node-id].viz-node--focused rect,
+.contract-diagram .viz-node--focused rect {
+  stroke: var(--viz-focus, #60a5fa);
+  stroke-width: 2.5;
+}
+
+.viz-keyboard-hint {
+  display: inline-block;
+  color: var(--viz-muted, #9e9a8f);
+  font-family: var(--typeface-mono-regular, ui-monospace, monospace);
+  font-size: 11px;
+  line-height: 1.4;
+  letter-spacing: 0.02em;
+  padding: 4px 8px;
+  border-radius: 4px;
+  background: var(--viz-node, #181614);
+  border: 1px solid var(--viz-edge, #736e62);
+  margin-top: 6px;
+  opacity: 0.9;
+  user-select: none;
+  pointer-events: none;
+}
+
+.viz-keyboard-hint[hidden] {
+  display: none;
+}
