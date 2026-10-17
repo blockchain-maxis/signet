@@ -207,6 +207,8 @@ test.describe('contract page @db', () => {
     await expect(slot.getByRole('heading', { level: 2, name: 'Diagram' })).toBeVisible();
     await expect(slot).toContainText('not built yet');
     await expect(slot.getByRole('link', { name: 'Back to the Overview' })).toHaveAttribute('href', root);
+
+    await expectNoSeriousA11yViolations(page, 'Diagram tab');
   });
 
   test('the Types tab lists the error enum as a table with the on-chain note (#468)', async ({
