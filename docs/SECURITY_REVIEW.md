@@ -42,25 +42,57 @@ count, depth and time as inputs to bound, not properties to trust.
 
 - [ ] A maximum module size is enforced **before** the download completes:
       refuse on Content-Length where the transport provides it, and count
-      streamed bytes so a lying or absent header still cannot exceed the cap.
-      `[B: #433]`
-- [ ] Custom-section scanning is bounded — a cap on section count and on total
-      scanned bytes — so a module built of headers alone cannot pin the
-      parser. `[B: #424]`
-- [ ] `contractspecv0` decoding has an entry-count cap, a nesting-depth cap
-      for `ScSpecTypeDef`, and a wall-clock budget. `[B: #424]`
+      streamed bytes so a lying or absent header still cannot exceed the cap —
+      `maxRpcResponseBytes` / `createBoundedRpcServer` in
+      [`packages/spec/src/fetch.ts`](../packages/spec/src/fetch.ts) and the
+      256 KB module size guard in `parseContractSpec` in
+      [`packages/spec/src/parse.ts`](../packages/spec/src/parse.ts). Proof:
+      "fetchContractSpec aborts a streaming RPC response early when bytes exceed
+      the size cap" and "fetchContractSpec refuses an oversized Content-Length
+      before reading the body" in
+      [`packages/spec/src/fetch.test.ts`](../packages/spec/src/fetch.test.ts),
+      and `over_size_cap.wasm` in
+      [`packages/spec/src/property-fuzz.test.ts`](../packages/spec/src/property-fuzz.test.ts).
+- [ ] Custom-section scanning is bounded — a cap on section count (1,024 in
+      `readCustomSections` in
+      [`packages/spec/src/wasm-sections.ts`](../packages/spec/src/wasm-sections.ts))
+      and on total scanned bytes (256 KB in `parseContractSpec` in
+      [`packages/spec/src/parse.ts`](../packages/spec/src/parse.ts)) — so a
+      module built of headers alone cannot pin the parser. Proof:
+      `section_past_end.wasm`, `ten_thousand_sections.wasm`, and the custom
+      section boundary regression in
+      [`packages/spec/src/property-fuzz.test.ts`](../packages/spec/src/property-fuzz.test.ts).
+- [ ] `contractspecv0` decoding has an entry-count cap (1,024 in
+      `parseContractSpec` in
+      [`packages/spec/src/parse.ts`](../packages/spec/src/parse.ts)), a
+      nesting-depth cap for `ScSpecTypeDef` (32 in `assertTypeDepth` /
+      `toTypeRef` in
+      [`packages/spec/src/type-ref.ts`](../packages/spec/src/type-ref.ts)), and
+      a 200 ms wall-clock budget. Proof: `hundred_thousand_entries.wasm`,
+      `deep_type_1000.wasm`, `truncated_mid_entry.wasm`, `two_mb_doc.wasm`, and
+      the fuzz/cap suites in
+      [`packages/spec/src/property-fuzz.test.ts`](../packages/spec/src/property-fuzz.test.ts).
 - [ ] Decode failures are **content, not 500s**: an unreadable interface
       renders as the page states designed in
       [`CONTRACT_DOCS_DESIGN.md`](CONTRACT_DOCS_DESIGN.md) §1.5, using the
       typed failures already defined in
       [`packages/spec/src/errors.ts`](../packages/spec/src/errors.ts)
       (`ContractNotFound`, `NoInterface`, `InterfaceUnreadable`,
-      `RpcUnavailable`, `InvalidWasm`). Page-side handling: `[C: #450]`.
+      `RpcUnavailable`, `InvalidWasm`). Proof: the mutation fuzz property and
+      adversarial fixture suite in
+      [`packages/spec/src/property-fuzz.test.ts`](../packages/spec/src/property-fuzz.test.ts)
+      and failure-kind cases in
+      [`packages/spec/src/parse.test.ts`](../packages/spec/src/parse.test.ts).
+      Page-side handling: `[C: #450]`.
 - [ ] WASM is never instantiated or executed on the server. This is the
       package contract at the top of
       [`packages/spec/src/index.ts`](../packages/spec/src/index.ts) — a PR
       that adds `WebAssembly.instantiate` (or any VM emulation) to `@signet/spec`
-      or `apps/web` is wrong by definition, whatever it is trying to do.
+      or `apps/web` is wrong by definition, whatever it is trying to do. Proof:
+      `readCustomSections` in
+      [`packages/spec/src/wasm-sections.ts`](../packages/spec/src/wasm-sections.ts)
+      and the isomorphic/no-engine-execution checks in
+      [`packages/spec/src/parse.test.ts`](../packages/spec/src/parse.test.ts).
 
 ## 3. Rendering attacker-authored content (epics C/D and E)
 

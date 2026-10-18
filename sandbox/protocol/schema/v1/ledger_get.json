@@ -1,0 +1,97 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://signet.dev/schemas/sandbox/v1/ledger_get.json",
+  "title": "ledger_get (request)",
+  "description": "Read entries from the open ledger by key.",
+  "type": "object",
+  "properties": {
+    "version": {
+      "const": 1,
+      "description": "Wire protocol version; checked on every message"
+    },
+    "id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Caller-assigned; echoed on the response"
+    },
+    "type": {
+      "const": "ledger_get"
+    },
+    "keys_xdr": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "pattern": "^[A-Za-z0-9+/]+={0,2}$",
+        "description": "LedgerKey, base64 XDR"
+      },
+      "description": "Keys to read",
+      "minItems": 1
+    }
+  },
+  "required": ["version", "id", "type", "keys_xdr"],
+  "additionalProperties": false,
+  "definitions": {
+    "result": {
+      "title": "ledger_get (success response)",
+      "type": "object",
+      "properties": {
+        "version": {
+          "const": 1,
+          "description": "Wire protocol version; checked on every message"
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Echoes the id of the ledger_get request"
+        },
+        "type": {
+          "const": "result"
+        },
+        "entries": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "key_xdr": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^[A-Za-z0-9+/]+={0,2}$",
+                "description": "Requested key"
+              },
+              "entry_xdr": {
+                "oneOf": [
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "pattern": "^[A-Za-z0-9+/]+={0,2}$",
+                    "description": "Entry"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "live_until_ledger": {
+                "oneOf": [
+                  {
+                    "type": "integer",
+                    "description": "Live until",
+                    "minimum": 0
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["key_xdr", "entry_xdr"],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": ["version", "id", "type", "entries"],
+      "additionalProperties": false
+    }
+  }
+}

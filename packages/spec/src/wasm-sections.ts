@@ -24,6 +24,14 @@ const MAGIC = [0x00, 0x61, 0x73, 0x6d]; // "\0asm"
 const VERSION = [0x01, 0x00, 0x00, 0x00]; // 1, little-endian
 const CUSTOM_SECTION_ID = 0;
 
+/**
+ * Maximum number of sections (custom + standard) `readCustomSections` will scan
+ * in a single module. Real Soroban contracts carry fewer than two dozen
+ * sections; capping at 1,024 prevents a module packed with thousands of empty
+ * section headers from pinning the parser.
+ */
+export const MAX_WASM_SECTIONS = 1_024;
+
 /** Fatal so a malformed name is an invalid module, not a garbled map key. */
 const utf8 = new TextDecoder('utf-8', { fatal: true });
 
@@ -34,8 +42,9 @@ const utf8 = new TextDecoder('utf-8', { fatal: true });
  * `WebAssembly.Module.customSections` returns them all the same way. The
  * payloads are views into `wasm`, not copies.
  *
- * Throws `InvalidWasm` for a bad magic number or version, or for framing
- * that runs past the end of the buffer.
+ * Throws `InvalidWasm` for a bad magic number or version, for framing
+ * that runs past the end of the buffer, or when the section count exceeds
+ * {@link MAX_WASM_SECTIONS}.
  */
 export function readCustomSections(wasm: Uint8Array): Map<string, Uint8Array[]> {
   if (wasm.length < 8) throw new InvalidWasm(new Error('shorter than the 8-byte module header'));
@@ -46,7 +55,15 @@ export function readCustomSections(wasm: Uint8Array): Map<string, Uint8Array[]> 
 
   const sections = new Map<string, Uint8Array[]>();
   let pos = 8;
+  let sectionCount = 0;
   while (pos < wasm.length) {
+    sectionCount += 1;
+    if (sectionCount > MAX_WASM_SECTIONS) {
+      throw new InvalidWasm(
+        new Error(`module has more than ${MAX_WASM_SECTIONS} sections`),
+      );
+    }
+
     const id = wasm[pos++]!;
     const [size, payloadStart] = readVarU32(wasm, pos);
     const end = payloadStart + size;
@@ -55,7 +72,7 @@ export function readCustomSections(wasm: Uint8Array): Map<string, Uint8Array[]> 
     }
 
     if (id === CUSTOM_SECTION_ID) {
-      const [nameLength, nameStart] = readVarU32(wasm, payloadStart);
+      const [nameLength, nameStart] = readVarU32(wasm.subarray(0, end), payloadStart);
       const nameEnd = nameStart + nameLength;
       if (nameEnd > end)
         throw new InvalidWasm(new Error('custom section name runs past its section'));

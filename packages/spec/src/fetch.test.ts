@@ -1,13 +1,15 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
+import { createServer } from 'node:http';
+import type { AddressInfo } from 'node:net';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { rpc, xdr } from '@stellar/stellar-sdk';
 import { loadFixture, loadFixtureEnvelope } from '@signet/fixtures';
 import type { Network } from '@signet/types';
-import { ContractNotFound, NoInterface, RpcUnavailable } from './errors.ts';
-import { fetchContractSpec, fetchWasmHash } from './fetch.ts';
+import { ContractNotFound, InvalidWasm, NoInterface, RpcUnavailable } from './errors.ts';
+import { fetchContractSpec, fetchWasmHash, maxRpcResponseBytes } from './fetch.ts';
 import type { FetchOptions, SpecRpcServer } from './fetch.ts';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -237,6 +239,138 @@ test('WASM hash mismatch between instance and fetched module: RpcUnavailable', a
     assert.match(String((err.cause as Error).message), /does not match instance hash/);
     return true;
   });
+});
+
+test('fetchContractSpec aborts a streaming RPC response early when bytes exceed the size cap', async () => {
+  const instancePayload = loadFixture('registry-instance-entry');
+  const maxWasmBytes = 32 * 1024;
+  const maxResponseBytes = maxRpcResponseBytes(maxWasmBytes);
+  const totalStreamAttempt = 2 * 1024 * 1024; // 2 MB stream
+  const chunkSize = 8 * 1024;
+  let streamedBytes = 0;
+
+  const server = createServer((req, res) => {
+    const chunks: Buffer[] = [];
+    req.on('data', (c: Buffer) => chunks.push(c));
+    req.on('end', () => {
+      const body = JSON.parse(Buffer.concat(chunks).toString('utf8')) as {
+        id: number;
+        params?: { keys?: string[] };
+      };
+      const keyB64 = body.params?.keys?.[0] ?? '';
+      const key = xdr.LedgerKey.fromXDR(keyB64, 'base64');
+
+      if (key.switch().name === 'contractData') {
+        res.writeHead(200, { 'content-type': 'application/json' });
+        res.end(JSON.stringify({ jsonrpc: '2.0', id: body.id, result: instancePayload }));
+        return;
+      }
+
+      // contractCode request: stream chunked bytes via setImmediate until cancelled
+      res.writeHead(200, { 'content-type': 'application/json' });
+      res.flushHeaders();
+      const chunk = Buffer.alloc(chunkSize, 0x61);
+      const pump = () => {
+        if (res.destroyed || res.writableEnded || streamedBytes >= totalStreamAttempt) {
+          if (!res.destroyed && !res.writableEnded) res.end();
+          return;
+        }
+        streamedBytes += chunk.byteLength;
+        res.write(chunk, () => {
+          setImmediate(pump);
+        });
+      };
+      pump();
+    });
+  });
+
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+  const { port } = server.address() as AddressInfo;
+  const rpcUrl = `http://127.0.0.1:${port}`;
+
+  try {
+    await assert.rejects(
+      fetchContractSpec(REGISTRY, {
+        network: 'testnet',
+        rpcUrl,
+        allowHttp: true,
+        maxWasmBytes,
+      }),
+      (err: unknown) => {
+        assert.ok(err instanceof InvalidWasm, `expected InvalidWasm, got ${String(err)}`);
+        return true;
+      },
+    );
+
+    assert.ok(
+      streamedBytes > maxResponseBytes && streamedBytes < totalStreamAttempt / 2,
+      `expected stream to abort shortly after ${maxResponseBytes} bytes, but consumed ${streamedBytes} of ${totalStreamAttempt} bytes`,
+    );
+  } finally {
+    server.closeAllConnections();
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+  }
+});
+
+test('fetchContractSpec refuses an oversized Content-Length before reading the body', async () => {
+  const instancePayload = loadFixture('registry-instance-entry');
+  const maxWasmBytes = 32 * 1024;
+  let codeBodyBytesWritten = 0;
+
+  const server = createServer((req, res) => {
+    const chunks: Buffer[] = [];
+    req.on('data', (c: Buffer) => chunks.push(c));
+    req.on('end', () => {
+      const body = JSON.parse(Buffer.concat(chunks).toString('utf8')) as {
+        id: number;
+        params?: { keys?: string[] };
+      };
+      const keyB64 = body.params?.keys?.[0] ?? '';
+      const key = xdr.LedgerKey.fromXDR(keyB64, 'base64');
+
+      if (key.switch().name === 'contractData') {
+        res.writeHead(200, { 'content-type': 'application/json' });
+        res.end(JSON.stringify({ jsonrpc: '2.0', id: body.id, result: instancePayload }));
+        return;
+      }
+
+      res.writeHead(200, {
+        'content-type': 'application/json',
+        'content-length': String(10 * 1024 * 1024),
+      });
+      res.flushHeaders();
+      const timer = setTimeout(() => {
+        if (!res.destroyed && !res.writableEnded) {
+          codeBodyBytesWritten += 65_536;
+          res.write(Buffer.alloc(65_536, 0x61));
+        }
+      }, 200);
+      req.on('close', () => clearTimeout(timer));
+    });
+  });
+
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+  const { port } = server.address() as AddressInfo;
+  const rpcUrl = `http://127.0.0.1:${port}`;
+
+  try {
+    await assert.rejects(
+      fetchContractSpec(REGISTRY, {
+        network: 'testnet',
+        rpcUrl,
+        allowHttp: true,
+        maxWasmBytes,
+      }),
+      (err: unknown) => {
+        assert.ok(err instanceof InvalidWasm, `expected InvalidWasm, got ${String(err)}`);
+        return true;
+      },
+    );
+    assert.equal(codeBodyBytesWritten, 0);
+  } finally {
+    server.closeAllConnections();
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+  }
 });
 
 test(

@@ -1,0 +1,55 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://signet.dev/schemas/sandbox/v1/ledger_checkpoint.json",
+  "title": "ledger_checkpoint (request)",
+  "description": "Snapshot the open ledger so it can be rolled back to.",
+  "type": "object",
+  "properties": {
+    "version": {
+      "const": 1,
+      "description": "Wire protocol version; checked on every message"
+    },
+    "id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Caller-assigned; echoed on the response"
+    },
+    "type": {
+      "const": "ledger_checkpoint"
+    },
+    "label": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Optional human label"
+    }
+  },
+  "required": ["version", "id", "type"],
+  "additionalProperties": false,
+  "definitions": {
+    "result": {
+      "title": "ledger_checkpoint (success response)",
+      "type": "object",
+      "properties": {
+        "version": {
+          "const": 1,
+          "description": "Wire protocol version; checked on every message"
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Echoes the id of the ledger_checkpoint request"
+        },
+        "type": {
+          "const": "result"
+        },
+        "checkpoint": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Opaque checkpoint handle"
+        }
+      },
+      "required": ["version", "id", "type", "checkpoint"],
+      "additionalProperties": false
+    }
+  }
+}

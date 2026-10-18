@@ -1,0 +1,45 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://signet.dev/schemas/sandbox/v1/shutdown.json",
+  "title": "shutdown (request)",
+  "description": "Answer, then exit 0.",
+  "type": "object",
+  "properties": {
+    "version": {
+      "const": 1,
+      "description": "Wire protocol version; checked on every message"
+    },
+    "id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Caller-assigned; echoed on the response"
+    },
+    "type": {
+      "const": "shutdown"
+    }
+  },
+  "required": ["version", "id", "type"],
+  "additionalProperties": false,
+  "definitions": {
+    "result": {
+      "title": "shutdown (success response)",
+      "type": "object",
+      "properties": {
+        "version": {
+          "const": 1,
+          "description": "Wire protocol version; checked on every message"
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Echoes the id of the shutdown request"
+        },
+        "type": {
+          "const": "result"
+        }
+      },
+      "required": ["version", "id", "type"],
+      "additionalProperties": false
+    }
+  }
+}

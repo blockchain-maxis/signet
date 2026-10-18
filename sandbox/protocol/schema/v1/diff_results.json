@@ -1,0 +1,179 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://signet.dev/schemas/sandbox/v1/diff_results.json",
+  "title": "diff_results (request)",
+  "description": "Compare two simulate results field by field.",
+  "type": "object",
+  "properties": {
+    "version": {
+      "const": 1,
+      "description": "Wire protocol version; checked on every message"
+    },
+    "id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Caller-assigned; echoed on the response"
+    },
+    "type": {
+      "const": "diff_results"
+    },
+    "left": {
+      "type": "object",
+      "properties": {
+        "return_value_xdr": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9+/]+={0,2}$",
+          "description": "The returned ScVal, base64 XDR"
+        },
+        "events": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "minLength": 1,
+                "description": "contract | system | diagnostic"
+              },
+              "event_xdr": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^[A-Za-z0-9+/]+={0,2}$",
+                "description": "ContractEvent, base64 XDR"
+              }
+            },
+            "required": ["type", "event_xdr"],
+            "additionalProperties": false
+          }
+        },
+        "cost": {
+          "type": "object",
+          "properties": {
+            "cpu_insns": {
+              "type": "integer",
+              "description": "CPU instructions",
+              "minimum": 0
+            },
+            "mem_bytes": {
+              "type": "integer",
+              "description": "Memory bytes",
+              "minimum": 0
+            }
+          },
+          "required": ["cpu_insns", "mem_bytes"],
+          "additionalProperties": false
+        },
+        "logs": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": ["return_value_xdr", "events", "cost", "logs"],
+      "additionalProperties": false
+    },
+    "right": {
+      "type": "object",
+      "properties": {
+        "return_value_xdr": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9+/]+={0,2}$",
+          "description": "The returned ScVal, base64 XDR"
+        },
+        "events": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "minLength": 1,
+                "description": "contract | system | diagnostic"
+              },
+              "event_xdr": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^[A-Za-z0-9+/]+={0,2}$",
+                "description": "ContractEvent, base64 XDR"
+              }
+            },
+            "required": ["type", "event_xdr"],
+            "additionalProperties": false
+          }
+        },
+        "cost": {
+          "type": "object",
+          "properties": {
+            "cpu_insns": {
+              "type": "integer",
+              "description": "CPU instructions",
+              "minimum": 0
+            },
+            "mem_bytes": {
+              "type": "integer",
+              "description": "Memory bytes",
+              "minimum": 0
+            }
+          },
+          "required": ["cpu_insns", "mem_bytes"],
+          "additionalProperties": false
+        },
+        "logs": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": ["return_value_xdr", "events", "cost", "logs"],
+      "additionalProperties": false
+    }
+  },
+  "required": ["version", "id", "type", "left", "right"],
+  "additionalProperties": false,
+  "definitions": {
+    "result": {
+      "title": "diff_results (success response)",
+      "type": "object",
+      "properties": {
+        "version": {
+          "const": 1,
+          "description": "Wire protocol version; checked on every message"
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Echoes the id of the diff_results request"
+        },
+        "type": {
+          "const": "result"
+        },
+        "equal": {
+          "type": "boolean"
+        },
+        "differences": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "path": {
+                "type": "string",
+                "minLength": 1,
+                "description": "JSON pointer into the result"
+              },
+              "left": true,
+              "right": true
+            },
+            "required": ["path"],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": ["version", "id", "type", "equal", "differences"],
+      "additionalProperties": false
+    }
+  }
+}

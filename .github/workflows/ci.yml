@@ -535,17 +535,36 @@ jobs:
       - name: Test
         run: cargo test --locked
 
-      # The cross-language transcript check (#522) is not built yet, so this
-      # step is skipped until sandbox/protocol/check-transcripts.mjs lands.
-      # Once it exists the step runs automatically and gates the job; no edit
-      # to this file is needed.
-      - name: Check protocol transcripts
+      # The cross-language protocol check (#522): every golden transcript in
+      # sandbox/protocol/transcripts/ must validate against the JSON Schemas in
+      # sandbox/protocol/schema/v1/, and every schema must be documented in
+      # docs/CLI_RUST_BRIDGE.md. It needs `ajv`, which apps/web already pins in
+      # the lockfile, so install just that workspace's dependencies.
+      - uses: pnpm/action-setup@v6.1.0
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies (protocol check)
+        working-directory: .
+        run: pnpm install --frozen-lockfile --filter @signet/web... --ignore-scripts
+
+      - name: Compile the protocol schemas
+        working-directory: .
         run: |
-          if [ -f protocol/check-transcripts.mjs ]; then
-            node protocol/check-transcripts.mjs
-          else
-            echo "sandbox/protocol/check-transcripts.mjs not present yet (#522); skipping."
-          fi
+          node -e "
+            const Ajv = require('./apps/web/node_modules/ajv');
+            const fs = require('fs');
+            const ajv = new Ajv({ strict: true });
+            const dir = 'sandbox/protocol/schema/v1';
+            for (const f of fs.readdirSync(dir)) ajv.compile(JSON.parse(fs.readFileSync(dir + '/' + f, 'utf8')));
+            console.log('compiled', fs.readdirSync(dir).length, 'schemas');
+          "
+
+      - name: Check protocol transcripts
+        run: node protocol/check-transcripts.mjs
 
   security:
     name: dependency audit

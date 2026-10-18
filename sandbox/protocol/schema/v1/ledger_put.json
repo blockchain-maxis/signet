@@ -1,0 +1,79 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://signet.dev/schemas/sandbox/v1/ledger_put.json",
+  "title": "ledger_put (request)",
+  "description": "Write entries into the open ledger.",
+  "type": "object",
+  "properties": {
+    "version": {
+      "const": 1,
+      "description": "Wire protocol version; checked on every message"
+    },
+    "id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Caller-assigned; echoed on the response"
+    },
+    "type": {
+      "const": "ledger_put"
+    },
+    "entries": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "key_xdr": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9+/]+={0,2}$",
+            "description": "LedgerKey, base64 XDR"
+          },
+          "entry_xdr": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9+/]+={0,2}$",
+            "description": "LedgerEntry, base64 XDR"
+          },
+          "live_until_ledger": {
+            "type": "integer",
+            "description": "Last ledger the entry is live, for entries that expire",
+            "minimum": 0
+          }
+        },
+        "required": ["key_xdr", "entry_xdr"],
+        "additionalProperties": false
+      },
+      "description": "Entries to write",
+      "minItems": 1
+    }
+  },
+  "required": ["version", "id", "type", "entries"],
+  "additionalProperties": false,
+  "definitions": {
+    "result": {
+      "title": "ledger_put (success response)",
+      "type": "object",
+      "properties": {
+        "version": {
+          "const": 1,
+          "description": "Wire protocol version; checked on every message"
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Echoes the id of the ledger_put request"
+        },
+        "type": {
+          "const": "result"
+        },
+        "written": {
+          "type": "integer",
+          "description": "Entries written",
+          "minimum": 0
+        }
+      },
+      "required": ["version", "id", "type", "written"],
+      "additionalProperties": false
+    }
+  }
+}

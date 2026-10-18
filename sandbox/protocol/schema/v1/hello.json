@@ -1,0 +1,28 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://signet.dev/schemas/sandbox/v1/hello.json",
+  "title": "hello (request)",
+  "description": "First message of every session.",
+  "type": "object",
+  "properties": {
+    "version": {
+      "const": 1,
+      "description": "Wire protocol version; checked on every message"
+    },
+    "id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Caller-assigned"
+    },
+    "type": {
+      "const": "hello"
+    },
+    "client_protocol_version": {
+      "type": "integer",
+      "description": "The CLI's compiled-in protocol version",
+      "minimum": 1
+    }
+  },
+  "required": ["version", "id", "type", "client_protocol_version"],
+  "additionalProperties": false
+}
