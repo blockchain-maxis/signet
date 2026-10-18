@@ -1,0 +1,75 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://signet.dev/schemas/sandbox/v1/contract_error.json",
+  "title": "contract_error",
+  "description": "The call itself failed. A well-formed answer to a successful request cycle, never a simulator failure.",
+  "type": "object",
+  "properties": {
+    "version": {
+      "const": 1,
+      "description": "Wire protocol version; checked on every message"
+    },
+    "id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Echoes the request id"
+    },
+    "type": {
+      "const": "contract_error"
+    },
+    "kind": {
+      "enum": ["contract", "host"],
+      "description": "contract: a contracterror the contract returned. host: a trap, budget exhaustion or other host error."
+    },
+    "code": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Host error code, or the contract error name"
+    },
+    "message": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Human-readable explanation"
+    },
+    "decoded": {
+      "type": "object",
+      "description": "Fields decoded from the contract spec when kind is contract (#546)",
+      "properties": {
+        "error_enum": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Name of the contract error enum"
+        },
+        "error_name": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Name of the case"
+        },
+        "error_value": {
+          "type": "integer",
+          "description": "Numeric value of the case",
+          "minimum": 0
+        },
+        "error_doc": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Doc comment of the case"
+        }
+      },
+      "required": [],
+      "additionalProperties": false
+    },
+    "diagnostic_events": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "pattern": "^[A-Za-z0-9+/]+={0,2}$",
+        "description": "ContractEvent, base64 XDR"
+      },
+      "description": "Diagnostic events recorded before the failure"
+    }
+  },
+  "required": ["version", "id", "type", "kind", "code", "message", "diagnostic_events"],
+  "additionalProperties": false
+}

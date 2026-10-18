@@ -1,0 +1,89 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://signet.dev/schemas/sandbox/v1/spec_extract.json",
+  "title": "spec_extract (request)",
+  "description": "Read the contract spec out of an executable.",
+  "type": "object",
+  "properties": {
+    "version": {
+      "const": 1,
+      "description": "Wire protocol version; checked on every message"
+    },
+    "id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Caller-assigned; echoed on the response"
+    },
+    "type": {
+      "const": "spec_extract"
+    },
+    "source": {
+      "description": "A contract executable, by value or by installed contract",
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "wasm_base64": {
+              "type": "string",
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9+/]+={0,2}$",
+              "description": "The WASM executable, base64"
+            }
+          },
+          "required": ["wasm_base64"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "contract_id": {
+              "type": "string",
+              "minLength": 1,
+              "description": "An installed contract id (C...)"
+            }
+          },
+          "required": ["contract_id"],
+          "additionalProperties": false
+        }
+      ]
+    }
+  },
+  "required": ["version", "id", "type", "source"],
+  "additionalProperties": false,
+  "definitions": {
+    "result": {
+      "title": "spec_extract (success response)",
+      "type": "object",
+      "properties": {
+        "version": {
+          "const": 1,
+          "description": "Wire protocol version; checked on every message"
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Echoes the id of the spec_extract request"
+        },
+        "type": {
+          "const": "result"
+        },
+        "spec_entries_xdr": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9+/]+={0,2}$",
+            "description": "ScSpecEntry, base64 XDR"
+          }
+        },
+        "wasm_hash": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$",
+          "description": "Executable hash"
+        }
+      },
+      "required": ["version", "id", "type", "spec_entries_xdr", "wasm_hash"],
+      "additionalProperties": false
+    }
+  }
+}

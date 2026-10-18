@@ -1,0 +1,14 @@
+{"version":1,"id":"hello","type":"hello","client_protocol_version":1}
+{"commit":"<commit>","id":"hello","lanes":[{"env_host":"28.0.2","ledger_protocol":28,"simulation":"28.0.2"}],"server_protocol_version":1,"simulator_version":"<version>","type":"hello_ack","version":1}
+{"version":1,"id":"r1","type":"frobnicate"}
+{"code":"bad_request","detail":{"kind":"unknown_type","type":"frobnicate"},"id":"r1","message":"unknown message type `frobnicate`","type":"error","version":1}
+{"version":1,"id":"r2","type":"ledger_open","network_passphrase":7}
+{"code":"bad_request","detail":{"expected":"a string","kind":"invalid_field","path":"network_passphrase"},"id":"r2","message":"`network_passphrase` must be a string","type":"error","version":1}
+{"version":1,"id":"r3","type":"ledger_open","network_passphrase":"Test SDF Network ; September 2015","ledger_protocol":99}
+{"code":"unsupported_ledger_protocol","detail":{"kind":"ledger_protocol","requested":99,"supported":[28]},"id":"r3","message":"ledger protocol 99 is not supported","type":"error","version":1}
+{"version":1,"id":"r4","type":"simulate","contract_id":"CASFJHI5PQSRWS7JV25CF7FOMRKIVBP3RXRP3E2GH2CV4BCAG7FUJRCN","function":"lookup","args":["alice"]}
+{"id":"sim-1","keys_xdr":["AAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"],"type":"ledger_fetch","version":1}
+{"code":"fetch_failed","detail":{"kind":"rpc_unavailable"},"id":"r4","message":"could not fetch ledger entries","type":"error","version":1}
+{"version":1,"id":"r5","type":"contract_install","wasm_base64":"AGFzbQEAAAA="}
+{"code":"resource_limit","detail":{"kind":"wasm_size","limit":131072,"used":524288},"id":"r5","message":"executable is larger than the 128 KiB limit","type":"error","version":1}
+{"code":"internal_panic","detail":{"kind":"panic"},"id":null,"message":"index out of bounds","type":"error","version":1}

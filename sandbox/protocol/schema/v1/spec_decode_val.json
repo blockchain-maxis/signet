@@ -1,0 +1,89 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://signet.dev/schemas/sandbox/v1/spec_decode_val.json",
+  "title": "spec_decode_val (request)",
+  "description": "Decode a ScVal to JSON using the type a function declares for its return value.",
+  "type": "object",
+  "properties": {
+    "version": {
+      "const": 1,
+      "description": "Wire protocol version; checked on every message"
+    },
+    "id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Caller-assigned; echoed on the response"
+    },
+    "type": {
+      "const": "spec_decode_val"
+    },
+    "source": {
+      "description": "A contract executable, by value or by installed contract",
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "wasm_base64": {
+              "type": "string",
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9+/]+={0,2}$",
+              "description": "The WASM executable, base64"
+            }
+          },
+          "required": ["wasm_base64"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "contract_id": {
+              "type": "string",
+              "minLength": 1,
+              "description": "An installed contract id (C...)"
+            }
+          },
+          "required": ["contract_id"],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "function": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Function whose return type to decode as"
+    },
+    "val_xdr": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9+/]+={0,2}$",
+      "description": "ScVal, base64 XDR"
+    }
+  },
+  "required": ["version", "id", "type", "source", "function", "val_xdr"],
+  "additionalProperties": false,
+  "definitions": {
+    "result": {
+      "title": "spec_decode_val (success response)",
+      "type": "object",
+      "properties": {
+        "version": {
+          "const": 1,
+          "description": "Wire protocol version; checked on every message"
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Echoes the id of the spec_decode_val request"
+        },
+        "type": {
+          "const": "result"
+        },
+        "value": {
+          "description": "The decoded value, as JSON"
+        }
+      },
+      "required": ["version", "id", "type", "value"],
+      "additionalProperties": false
+    }
+  }
+}

@@ -1,0 +1,8 @@
+{"version":1,"id":"hello","type":"hello","client_protocol_version":1}
+{"commit":"<commit>","id":"hello","lanes":[{"env_host":"28.0.2","ledger_protocol":28,"simulation":"28.0.2"}],"server_protocol_version":1,"simulator_version":"<version>","type":"hello_ack","version":1}
+{"version":1,"id":"req-1","type":"simulate","contract_id":"CASFJHI5PQSRWS7JV25CF7FOMRKIVBP3RXRP3E2GH2CV4BCAG7FUJRCN","function":"claim","args":["alice","GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN"]}
+{"code":"Error(Contract, #2)","decoded":{"error_doc":"The handle is already claimed.","error_enum":"Error","error_name":"HandleTaken","error_value":2},"diagnostic_events":[],"id":"req-1","kind":"contract","message":"handle already claimed","type":"contract_error","version":1}
+{"version":1,"id":"req-2","type":"simulate","contract_id":"CASFJHI5PQSRWS7JV25CF7FOMRKIVBP3RXRP3E2GH2CV4BCAG7FUJRCN","function":"loop_forever","args":[]}
+{"code":"Error(Budget, ExceededLimit)","diagnostic_events":[],"id":"req-2","kind":"host","message":"cpu instruction budget exceeded","type":"contract_error","version":1}
+{"version":1,"id":"bye","type":"shutdown"}
+{"id":"bye","type":"result","version":1}

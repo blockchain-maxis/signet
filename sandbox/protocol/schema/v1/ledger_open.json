@@ -1,0 +1,75 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://signet.dev/schemas/sandbox/v1/ledger_open.json",
+  "title": "ledger_open (request)",
+  "description": "Open (or reset) the in-memory ledger a session simulates against.",
+  "type": "object",
+  "properties": {
+    "version": {
+      "const": 1,
+      "description": "Wire protocol version; checked on every message"
+    },
+    "id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Caller-assigned; echoed on the response"
+    },
+    "type": {
+      "const": "ledger_open"
+    },
+    "network_passphrase": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Network passphrase the ledger belongs to"
+    },
+    "ledger_protocol": {
+      "type": "integer",
+      "description": "Ledger protocol lane to run; defaults to the newest the binary supports",
+      "minimum": 1
+    },
+    "sequence": {
+      "type": "integer",
+      "description": "Ledger sequence number to start at",
+      "minimum": 1
+    },
+    "timestamp": {
+      "type": "integer",
+      "description": "Ledger close time, Unix seconds",
+      "minimum": 0
+    }
+  },
+  "required": ["version", "id", "type", "network_passphrase"],
+  "additionalProperties": false,
+  "definitions": {
+    "result": {
+      "title": "ledger_open (success response)",
+      "type": "object",
+      "properties": {
+        "version": {
+          "const": 1,
+          "description": "Wire protocol version; checked on every message"
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Echoes the id of the ledger_open request"
+        },
+        "type": {
+          "const": "result"
+        },
+        "ledger_protocol": {
+          "type": "integer",
+          "description": "Lane actually used",
+          "minimum": 1
+        },
+        "sequence": {
+          "type": "integer",
+          "description": "Starting sequence",
+          "minimum": 1
+        }
+      },
+      "required": ["version", "id", "type", "ledger_protocol", "sequence"],
+      "additionalProperties": false
+    }
+  }
+}

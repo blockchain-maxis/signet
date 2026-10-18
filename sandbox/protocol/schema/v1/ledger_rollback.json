@@ -1,0 +1,50 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://signet.dev/schemas/sandbox/v1/ledger_rollback.json",
+  "title": "ledger_rollback (request)",
+  "description": "Restore the ledger to a checkpoint. The checkpoint stays valid.",
+  "type": "object",
+  "properties": {
+    "version": {
+      "const": 1,
+      "description": "Wire protocol version; checked on every message"
+    },
+    "id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Caller-assigned; echoed on the response"
+    },
+    "type": {
+      "const": "ledger_rollback"
+    },
+    "checkpoint": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Handle from ledger_checkpoint"
+    }
+  },
+  "required": ["version", "id", "type", "checkpoint"],
+  "additionalProperties": false,
+  "definitions": {
+    "result": {
+      "title": "ledger_rollback (success response)",
+      "type": "object",
+      "properties": {
+        "version": {
+          "const": 1,
+          "description": "Wire protocol version; checked on every message"
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Echoes the id of the ledger_rollback request"
+        },
+        "type": {
+          "const": "result"
+        }
+      },
+      "required": ["version", "id", "type"],
+      "additionalProperties": false
+    }
+  }
+}
