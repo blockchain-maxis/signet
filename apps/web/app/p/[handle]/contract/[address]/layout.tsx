@@ -2,6 +2,7 @@ import { Suspense } from 'react';
 import { headers } from 'next/headers';
 import { notFound } from 'next/navigation';
 import { attributeContract } from '@/lib/contract-attribution';
+import { LIMITS, rateLimitDecision } from '@/lib/rate-limit-policy';
 import { SiteFooter } from '../../_components/site-footer';
 import { SiteNav } from '../../_components/site-nav';
 import { AnnounceProvider } from './announcer';
@@ -74,6 +75,35 @@ export default async function ContractLayout({
   params: Promise<{ handle: string; address: string }>;
   children: React.ReactNode;
 }) {
+  const refusal = await rateLimitDecision(await headers(), 'contract:page', LIMITS.contractPage);
+  if (refusal) {
+    // Next.js cannot set an HTTP 429 status code from a server component layout.
+    // We render an honest rate-limited state without making any upstream calls.
+    // Note that the attribution cache (#458) is what actually protects upstream services.
+    return (
+      <div className="relative min-h-screen bg-[#0a0908] text-[#f5f4ee]">
+        <SiteNav />
+        <main className="relative z-10 mx-auto max-w-5xl px-8 py-24 md:px-14">
+          <div className="border-l-2 border-[#8b1a1a] pl-5" role="status" data-testid="contract-page-rate-limited">
+            <h1
+              className="text-[20px] font-bold tracking-[-0.015em] text-[#f5f4ee]"
+              style={{ fontFamily: 'var(--font-display)' }}
+            >
+              Too many requests
+            </h1>
+            <p
+              className="mt-3 text-[13px] leading-[1.7] text-[#b8b5a8]"
+              style={{ fontFamily: 'var(--font-mono)' }}
+            >
+              Too many requests, retry in {refusal.retryAfter}s.
+            </p>
+          </div>
+        </main>
+        <SiteFooter />
+      </div>
+    );
+  }
+
   const { handle, address } = await params;
 
   // One attribution check for the whole route: the contract renders as part

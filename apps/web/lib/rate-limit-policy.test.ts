@@ -70,3 +70,25 @@ test('the two pairing buckets are independent, and so are two callers', async ()
     'a different IP has its own bucket',
   );
 });
+
+test('contract rate limit keys exist, are positive integers, and contract:page is namespaced separately (#462)', async () => {
+  assert.ok(Number.isInteger(LIMITS.contractOperations) && LIMITS.contractOperations > 0);
+  assert.ok(Number.isInteger(LIMITS.contractPage) && LIMITS.contractPage > 0);
+  assert.equal(LIMITS.contractOperations, 60);
+  assert.equal(LIMITS.contractPage, 30);
+
+  __resetRateLimit();
+  const headers = headersFrom('192.0.2.10');
+
+  // Exhaust contract:page budget
+  for (let i = 0; i < LIMITS.contractPage; i++) {
+    await rateLimitDecision(headers, 'contract:page', LIMITS.contractPage);
+  }
+  const pageRefused = await rateLimitDecision(headers, 'contract:page', LIMITS.contractPage);
+  assert.ok(pageRefused, 'contract:page should be spent');
+
+  // profile:operations is untouched because it uses its own namespace
+  const opsAllowed = await rateLimitDecision(headers, 'profile:operations', LIMITS.read);
+  assert.equal(opsAllowed, null, 'profile:operations must have its own namespace');
+});
+

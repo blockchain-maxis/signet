@@ -241,6 +241,8 @@ test.describe('contract docs accessibility and layout @db', () => {
     test.setTimeout(120_000);
     const linksIn = (p: Page) => p.getByTestId('slot-functions').locator('a[href*="#type-"]:visible');
     await page.goto(`${registryBase}/functions`);
+    // The page streams in behind its loading state; count only once links are there.
+    await expect(linksIn(page).first()).toBeVisible();
     const count = await linksIn(page).count();
     expect(count).toBeGreaterThan(0);
     for (let i = 0; i < count; i++) {
@@ -254,6 +256,8 @@ test.describe('contract docs accessibility and layout @db', () => {
     test.setTimeout(120_000);
     const linksIn = (p: Page) => p.getByTestId('slot-types').locator('a[href*="#type-"]:visible');
     await page.goto(`${registryBase}/types`);
+    // The page streams in behind its loading state; count only once links are there.
+    await expect(linksIn(page).first()).toBeVisible();
     const count = await linksIn(page).count();
     expect(count).toBeGreaterThan(0);
     for (let i = 0; i < count; i++) {
@@ -276,6 +280,7 @@ test.describe('contract docs accessibility and layout @db', () => {
     const signature = page
       .locator('#fn-record_observation_with_a_deliberately_long_function_name')
       .getByTestId('function-signature');
+    await expect(signature).toBeVisible();
     const box = await signature.boundingBox();
     expect(box).not.toBeNull();
     expect(box!.width).toBeLessThanOrEqual(360);

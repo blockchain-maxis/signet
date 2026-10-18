@@ -31,7 +31,7 @@ export async function GET(
   req: NextRequest,
   { params }: { params: Promise<{ handle: string; address: string }> },
 ) {
-  const limited = await enforceRateLimit(req, 'profile:contract-operations', LIMITS.read);
+  const limited = await enforceRateLimit(req, 'contract:operations', LIMITS.contractOperations);
   if (limited) return limited;
 
   const { handle, address } = await params;
