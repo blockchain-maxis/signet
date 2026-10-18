@@ -1,14 +1,17 @@
 import { test, expect } from '@playwright/test';
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawn } from 'node:child_process';
+import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { randomBytes } from 'node:crypto';
-import { Keypair, StrKey, TransactionBuilder } from '@stellar/stellar-sdk';
+import { Keypair, StrKey } from '@stellar/stellar-sdk';
 import { apiSignIn } from './support';
 
 /**
- * The end-to-end flow the product is judged on (#292): claim a handle, link a
- * deploy wallet from the terminal, let the indexer find what that wallet
- * deployed, and see it on the profile.
+ * The end-to-end flow the product is judged on (#292, #623): claim a handle,
+ * link a deploy wallet from the terminal with the real `signet` and `stellar`
+ * binaries, let the indexer find what that wallet deployed, and see it on the
+ * profile.
  *
  * It crosses four systems and nothing else in the suite covers the seams
  * between them. The existing e2e specs are smoke-only, and #208 covers
@@ -20,7 +23,7 @@ import { apiSignIn } from './support';
  * | Stage | How it runs |
  * |---|---|
  * | Claim | Seeded: the handle→wallet binding written as a claim lands it |
- * | Link | **Real** — `pair/start`, the `/link` page in a browser, `pair/complete` |
+ * | Link | **Real** — `stellar keys add`, `signet link --no-browser --json`, `/link` in a browser |
  * | Indexer | **Real** — the operations and deployment workers, Horizon stubbed |
  * | Profile | **Real** — the deployed Next.js page, rendered in a browser, |
  * |         | including the "Deployed contracts" section (#455) |
@@ -35,13 +38,12 @@ import { apiSignIn } from './support';
  *    is a `Keypair.random()` with no history on any real network. The workers
  *    themselves are not stubbed.
  *
- * The link step used to be stubbed too — this spec was written before
- * `signet link` existed. It does now (#393), so the CLI's half is performed
- * here exactly as the CLI performs it: mint a pairing declaring the deploy
- * key, approve it in a browser, then prove the key with a signed SEP-10
- * challenge. Only the loopback listener is absent, which is what "loopback
- * stubbed" in the issue means — and the polling path exists precisely because
- * that listener cannot always be reached.
+ * The link step drives the real `signet` binary built from `cli/` and the real
+ * `stellar` CLI (#623): the test registers its deploy key with `stellar keys
+ * add`, spawns `signet link --no-browser --json --url <baseURL> --source <name>`,
+ * reads the approval URL from stderr, approves (or rejects) it in Chromium as
+ * the handle owner, and waits for `signet` to finish proving the key via
+ * `stellar tx sign`.
  *
  * ## Why it needs a database
  *
@@ -62,27 +64,153 @@ const HAS_DB = Boolean(process.env.DATABASE_URL);
 // specs down with it.
 const here = __dirname;
 
+const SECRET_KEY_PATTERN = /\bS[A-Z2-7]{55}\b/;
+const APPROVAL_URL_PATTERN = /(https?:\/\/\S+\/link\?\S+)/;
+const USER_CODE_PATTERN = /The approval page will show this code:\s*([0-9A-HJKMNP-TV-Z]{8})/;
+
+function createCliEnv(configDir: string): NodeJS.ProcessEnv {
+  return {
+    ...process.env,
+    XDG_CONFIG_HOME: configDir,
+    STELLAR_CONFIG_HOME: path.join(configDir, 'stellar'),
+    // `stellar tx sign --network-passphrase` can demand an RPC URL on CI's runner
+    // ("network passphrase is used but rpc-url is missing"). Signing is offline and never
+    // contacts it, so point it at an address nothing listens on.
+    STELLAR_RPC_URL: process.env.STELLAR_RPC_URL ?? 'http://127.0.0.1:1',
+  };
+}
+
+function addStellarIdentity(sourceName: string, secret: string, configDir: string): void {
+  const stellarBin = process.env.STELLAR_E2E_BINARY ?? 'stellar';
+  execFileSync(stellarBin, ['keys', 'add', sourceName, '--secret-key', '--overwrite'], {
+    input: `${secret}\n`,
+    env: {
+      ...createCliEnv(configDir),
+      STELLAR_SECRET_KEY: secret,
+    },
+    stdio: ['pipe', 'pipe', 'pipe'],
+  });
+}
+
+function spawnSignetLink(options: {
+  baseURL: string;
+  sourceName: string;
+  configDir: string;
+}) {
+  const signetBin = process.env.SIGNET_E2E_BINARY ?? 'signet';
+  const child = spawn(
+    signetBin,
+    [
+      'link',
+      '--no-browser',
+      '--json',
+      '--url',
+      options.baseURL,
+      '--source',
+      options.sourceName,
+    ],
+    {
+      env: createCliEnv(options.configDir),
+      stdio: ['pipe', 'pipe', 'pipe'],
+    },
+  );
+  child.stdin.end();
+
+  let stdout = '';
+  let stderr = '';
+  let exitCode: number | null = null;
+  let exited = false;
+
+  const exitPromise = new Promise<{ code: number | null; stdout: string; stderr: string }>(
+    (resolve, reject) => {
+      child.on('error', reject);
+      child.on('close', (code) => {
+        exited = true;
+        exitCode = code;
+        resolve({ code, stdout, stderr });
+      });
+    },
+  );
+
+  const approvalPromptPromise = new Promise<{ approvalUrl: string; userCode: string }>(
+    (resolve, reject) => {
+      const checkStderr = () => {
+        const urlMatch = APPROVAL_URL_PATTERN.exec(stderr);
+        const codeMatch = USER_CODE_PATTERN.exec(stderr);
+        if (urlMatch?.[1] && codeMatch?.[1]) {
+          resolve({ approvalUrl: urlMatch[1], userCode: codeMatch[1] });
+          return true;
+        }
+        return false;
+      };
+
+      child.stderr.setEncoding('utf8');
+      child.stderr.on('data', (chunk: string) => {
+        stderr += chunk;
+        checkStderr();
+      });
+
+      child.stdout.setEncoding('utf8');
+      child.stdout.on('data', (chunk: string) => {
+        stdout += chunk;
+      });
+
+      child.on('error', reject);
+      child.on('close', (code) => {
+        if (!checkStderr()) {
+          reject(
+            new Error(
+              `signet link exited (${String(code)}) before printing approval URL.\nstdout: ${stdout}\nstderr: ${stderr}`,
+            ),
+          );
+        }
+      });
+    },
+  );
+
+  return {
+    waitForApprovalPrompt: () => approvalPromptPromise,
+    waitForExit: () => exitPromise,
+    killIfRunning: () => {
+      if (!exited && exitCode === null) {
+        child.kill('SIGTERM');
+      }
+    },
+  };
+}
+
 test.describe('claim → link → indexer → profile @db', () => {
+  test.describe.configure({ mode: 'serial' });
+
   test.skip(
     !HAS_DB,
     'needs DATABASE_URL: this flow is the database-backed path, and the fallback path is a different flow',
   );
 
-  // Unique per run, so a re-run cannot collide with its own leftovers and a
-  // failure leaves inspectable rows behind rather than being cleaned up by the
-  // next attempt.
-  const suffix = Date.now().toString(36);
-  const handle = `e2e${suffix}`.slice(0, 32);
-  const owner = Keypair.random();
-  const deployer = Keypair.random();
-  // Unique per run, and a real StrKey — `StrKey.decodeContract` validates
-  // the checksum, so this cannot be a padded placeholder. A fixed address
-  // made Playwright's retry find the *previous* attempt's Contract row and
-  // compare it against this attempt's deploy key.
-  const contractAddress = StrKey.encodeContract(randomBytes(32));
-
-  test('a linked deploy wallet ends up visible on the profile', async ({ page }) => {
+  test.afterAll(async () => {
+    if (!HAS_DB) return;
     const { prisma } = await import('@signet/db');
+    await prisma.$disconnect();
+  });
+
+  test('a linked deploy wallet ends up visible on the profile', async ({ page, baseURL }) => {
+    const { prisma } = await import('@signet/db');
+
+    // Unique per attempt, so a retry or re-run cannot collide with leftovers and
+    // a failure leaves inspectable rows behind rather than being cleaned up by
+    // the next attempt.
+    const suffix = `${Date.now().toString(36)}${randomBytes(2).toString('hex')}`;
+    const handle = `e2e${suffix}`.slice(0, 32);
+    const owner = Keypair.random();
+    const deployer = Keypair.random();
+    const sourceName = `e2e-deploy-${suffix}`;
+    // Unique per run, and a real StrKey — `StrKey.decodeContract` validates
+    // the checksum, so this cannot be a padded placeholder. A fixed address
+    // made Playwright's retry find the *previous* attempt's Contract row and
+    // compare it against this attempt's deploy key.
+    const contractAddress = StrKey.encodeContract(randomBytes(32));
+    const configDir = fs.mkdtempSync(path.join(os.tmpdir(), 'signet-e2e-approve-'));
+    const targetBaseUrl = baseURL ?? 'http://localhost:3100';
 
     // ── claim ────────────────────────────────────────────────────────────
     // The binding a claim produces: a profile, and the claiming wallet as its
@@ -97,75 +225,80 @@ test.describe('claim → link → indexer → profile @db', () => {
     });
 
     // ── link ─────────────────────────────────────────────────────────────
-    // The CLI's first call: mint a pairing, declaring the deploy account so
-    // the browser can show which key it is approving. The body is shaped
-    // exactly as `signet link --network testnet` sends it (#616) — omitting
-    // `network` was how this spec missed the name-vs-passphrase mismatch.
-    const started = await page.request.post('/api/cli/pair/start', {
-      data: { network: 'testnet', publicKey: deployer.publicKey() },
+    // Register the deploy key in the local stellar keystore and spawn the real
+    // `signet link` binary (#623).
+    addStellarIdentity(sourceName, deployer.secret(), configDir);
+    const cli = spawnSignetLink({
+      baseURL: targetBaseUrl,
+      sourceName,
+      configDir,
     });
-    expect(started.ok(), 'pair/start should mint a pairing').toBeTruthy();
-    const { state, pollToken, userCode } = (await started.json()) as {
-      state: string;
-      pollToken: string;
-      userCode: string;
-    };
-    expect(pollToken, 'the CLI gets a poll token distinct from the pairing code').not.toBe(state);
-    expect(userCode, 'the CLI gets a user code to print next to the URL (#596)').toMatch(
-      /^[0-9A-HJKMNP-TV-Z]{8}$/,
-    );
 
-    // The browser half: sign in as the handle's owner and approve. This is the
-    // proof that the person approving owns the handle. The URL carries the
-    // user code exactly as the CLI builds it — /link verifies it against the
-    // stored hash before rendering the Approve button (#596).
-    await apiSignIn(page, owner);
-    await page.goto(`/link?code=${state}&user_code=${userCode}`);
+    try {
+      const { approvalUrl, userCode } = await cli.waitForApprovalPrompt();
+      expect(userCode, 'the CLI prints an 8-char Crockford user code on stderr (#596)').toMatch(
+        /^[0-9A-HJKMNP-TV-Z]{8}$/,
+      );
+      const parsedApprovalUrl = new URL(approvalUrl);
+      expect(parsedApprovalUrl.pathname).toBe('/link');
+      expect(parsedApprovalUrl.searchParams.get('user_code')).toBe(userCode);
 
-    // Assert the page *shape* before its contents. /link has several refusal
-    // states (no session, unknown or expired code, no database, no handle) and
-    // they all render a heading instead of the approval form — so a missing
-    // key below would otherwise report only "element not found" and say
-    // nothing about which of them happened.
-    const shown = await page.locator('body').innerText();
-    expect(shown, 'the /link page should show the approval form').toContain('Approve this link');
+      // The browser half: sign in as the handle's owner and visit the exact
+      // approval URL `signet link` printed to stderr.
+      await apiSignIn(page, owner);
+      await page.goto(approvalUrl);
 
-    await expect(page.getByText(deployer.publicKey())).toBeVisible();
-    await expect(page.getByText(`@${handle}`)).toBeVisible();
-    // The comparison step (#596): the page shows the same code the terminal
-    // printed, so the developer can tell this is their own link.
-    await expect(page.getByText(userCode)).toBeVisible();
-    await page.getByRole('button', { name: /approve/i }).click();
-    await expect(page.getByText(/return to your terminal/i)).toBeVisible();
+      // Assert the page *shape* before its contents. /link has several refusal
+      // states (no session, unknown or expired code, no database, no handle) and
+      // they all render a heading instead of the approval form — so a missing
+      // key below would otherwise report only "element not found" and say
+      // nothing about which of them happened.
+      const shown = await page.locator('body').innerText();
+      expect(shown, 'the /link page should show the approval form').toContain('Approve this link');
 
-    // The CLI now sees the approval. Polling is the path that always works —
-    // the loopback callback is the one this spec does not run.
-    const polled = await page.request.get(
-      `/api/cli/pair/status?pollToken=${encodeURIComponent(pollToken)}`,
-    );
-    expect(polled.ok()).toBeTruthy();
-    expect((await polled.json()).status).toBe('approved');
+      await expect(page.getByText(deployer.publicKey())).toBeVisible();
+      await expect(page.getByText(`@${handle}`)).toBeVisible();
+      // The comparison step (#596): the page shows the same code the terminal
+      // printed, so the developer can tell this is their own link.
+      await expect(page.getByText(userCode)).toBeVisible();
+      await page.getByRole('button', { name: /approve/i }).click();
+      await expect(page.getByText(/return to your terminal/i)).toBeVisible();
 
-    // The CLI's second proof: a CLI-link challenge (its own home domain, not the
-    // web sign-in one) signed by the deploy key.
-    const challenge = await page.request.get(
-      `/api/cli-link?account=${deployer.publicKey()}&network=testnet`,
-    );
-    expect(challenge.ok()).toBeTruthy();
-    const { transaction, network_passphrase } = (await challenge.json()) as {
-      transaction: string;
-      network_passphrase: string;
-    };
-    const signed = TransactionBuilder.fromXDR(transaction, network_passphrase);
-    signed.sign(deployer);
+      const { code, stdout, stderr } = await cli.waitForExit();
+      expect(code, `signet link failed.\nstdout: ${stdout}\nstderr: ${stderr}`).toBe(0);
+      expect(stdout, 'stdout must never contain secret key material').not.toMatch(
+        SECRET_KEY_PATTERN,
+      );
+      expect(stderr, 'stderr must never contain secret key material').not.toMatch(
+        SECRET_KEY_PATTERN,
+      );
 
-    const completed = await page.request.post('/api/cli/pair/complete', {
-      data: { state, transaction: signed.toEnvelope().toXDR('base64') },
-    });
-    expect(completed.ok(), 'pair/complete should attach the wallet').toBeTruthy();
-    const completedJson = await completed.json() as any;
-    expect(completedJson.handle).toBe(handle);
-    expect(completedJson.indexingPending).toBe(true);
+      const stdoutLines = stdout
+        .trim()
+        .split('\n')
+        .filter((line) => line.length > 0);
+      expect(
+        stdoutLines,
+        `--json must emit exactly one JSON object on stdout; got:\n${stdout}`,
+      ).toHaveLength(1);
+      const completedJson = JSON.parse(stdoutLines[0] ?? '') as {
+        handle: string;
+        publicKey: string;
+        network: string;
+        status: string;
+        indexingPending: boolean;
+      };
+      expect(completedJson).toEqual({
+        handle,
+        publicKey: deployer.publicKey(),
+        network: 'testnet',
+        status: 'linked',
+        indexingPending: true,
+      });
+    } finally {
+      cli.killIfRunning();
+      fs.rmSync(configDir, { recursive: true, force: true });
+    }
 
     const linked = await prisma.wallet.findUnique({
       where: { pubkey: deployer.publicKey() },
@@ -227,12 +360,78 @@ test.describe('claim → link → indexer → profile @db', () => {
     await expect(contractLink, 'the profile should list the recorded contract').toBeVisible();
     const [contractResponse] = await Promise.all([
       page.waitForResponse(
-        (r) => r.url().includes(`/p/${handle}/contract/${contractAddress}`) && r.request().method() === 'GET',
+        (r) =>
+          r.url().includes(`/p/${handle}/contract/${contractAddress}`) &&
+          r.request().method() === 'GET',
       ),
       contractLink.click(),
     ]);
     expect(contractResponse.status(), 'the contract page should resolve to 200').toBe(200);
+  });
 
-    await prisma.$disconnect();
+  test('a rejected link exits 8 and leaves no Wallet row', async ({ page, baseURL }) => {
+    const { prisma } = await import('@signet/db');
+
+    const suffix = `${Date.now().toString(36)}${randomBytes(2).toString('hex')}`;
+    const handle = `e2er${suffix}`.slice(0, 32);
+    const owner = Keypair.random();
+    const deployer = Keypair.random();
+    const sourceName = `e2e-reject-${suffix}`;
+    const configDir = fs.mkdtempSync(path.join(os.tmpdir(), 'signet-e2e-reject-'));
+    const targetBaseUrl = baseURL ?? 'http://localhost:3100';
+
+    await prisma.profile.create({
+      data: {
+        handle,
+        wallets: {
+          create: { pubkey: owner.publicKey(), source: 'onchain', isPrimary: true },
+        },
+      },
+    });
+
+    addStellarIdentity(sourceName, deployer.secret(), configDir);
+    const cli = spawnSignetLink({
+      baseURL: targetBaseUrl,
+      sourceName,
+      configDir,
+    });
+
+    try {
+      const { approvalUrl, userCode } = await cli.waitForApprovalPrompt();
+
+      await apiSignIn(page, owner);
+      await page.goto(approvalUrl);
+
+      const shown = await page.locator('body').innerText();
+      expect(shown, 'the /link page should show the approval form').toContain('Approve this link');
+      await expect(page.getByText(deployer.publicKey())).toBeVisible();
+      await expect(page.getByText(`@${handle}`)).toBeVisible();
+      await expect(page.getByText(userCode)).toBeVisible();
+
+      await page.getByRole('button', { name: /reject/i }).click();
+      await expect(page.getByText(/rejected\. nothing was linked/i)).toBeVisible();
+
+      const { code, stdout, stderr } = await cli.waitForExit();
+      expect(
+        code,
+        `signet link should exit 8 (ApprovalRejected).\nstdout: ${stdout}\nstderr: ${stderr}`,
+      ).toBe(8);
+      expect(stdout.trim(), '--json must write nothing to stdout on error').toBe('');
+      expect(stdout, 'stdout must never contain secret key material').not.toMatch(
+        SECRET_KEY_PATTERN,
+      );
+      expect(stderr, 'stderr must never contain secret key material').not.toMatch(
+        SECRET_KEY_PATTERN,
+      );
+    } finally {
+      cli.killIfRunning();
+      fs.rmSync(configDir, { recursive: true, force: true });
+    }
+
+    const rejectedWallet = await prisma.wallet.findUnique({
+      where: { pubkey: deployer.publicKey() },
+    });
+    expect(rejectedWallet, 'rejecting the link must not create a Wallet row').toBeNull();
   });
 });
+

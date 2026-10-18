@@ -464,6 +464,47 @@ jobs:
       - name: Apply migrations
         run: pnpm db:deploy
 
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: cli/go.mod
+          cache-dependency-path: cli/go.sum
+
+      - name: Build signet CLI
+        working-directory: cli
+        run: |
+          go build -o "$RUNNER_TEMP/signet" ./cmd/signet
+          echo "$RUNNER_TEMP" >> "$GITHUB_PATH"
+
+      # Pinned to MinimumStellarVersion in cli/internal/keys/check.go and cached
+      # so driving the real signet + stellar binaries in claim-link-profile.spec.ts
+      # adds only seconds to the job (#623).
+      - name: Cache stellar-cli
+        uses: actions/cache@v6
+        id: stellar-cache
+        with:
+          path: ~/.cache/stellar-cli
+          key: stellar-cli-${{ runner.os }}-${{ hashFiles('cli/internal/keys/check.go') }}
+
+      - name: Install stellar-cli
+        run: |
+          version=$(sed -n 's/^const MinimumStellarVersion = "\(.*\)"/\1/p' cli/internal/keys/check.go)
+          if [ -z "$version" ]; then
+            echo "::error::Could not read MinimumStellarVersion from cli/internal/keys/check.go"
+            exit 1
+          fi
+          mkdir -p ~/.cache/stellar-cli
+          if [ "${{ steps.stellar-cache.outputs.cache-hit }}" != "true" ] || [ ! -x ~/.cache/stellar-cli/stellar ]; then
+            curl -sSfL "https://github.com/stellar/stellar-cli/releases/download/v${version}/stellar-cli-${version}-x86_64-unknown-linux-gnu.tar.gz" \
+              | tar -xz -C ~/.cache/stellar-cli stellar
+          fi
+          echo "$HOME/.cache/stellar-cli" >> "$GITHUB_PATH"
+          ~/.cache/stellar-cli/stellar --version
+
+      - name: Add e2e deploy key with stellar keys add
+        run: |
+          secret=$(node -e "const { Keypair } = require('./apps/web/node_modules/@stellar/stellar-sdk'); process.stdout.write(Keypair.random().secret());")
+          STELLAR_SECRET_KEY="$secret" stellar keys add e2e-deploy --secret-key --overwrite
+
       - name: Cache Playwright browsers
         uses: actions/cache@v6
         id: pw-cache
