@@ -88,14 +88,14 @@ function DiagramBody(props: ContractSlotProps) {
 
   if (decision.kind === 'too-large') {
     logger.warn(
-      { address: props.address, limit: MAX_NODES, observed: model.nodes.length },
+      { address: props.address, limit: MAX_NODES, observed: decision.nodeCount },
       'spec.limit.exceeded',
     );
     return (
       <section data-testid="slot-diagram">
         <SectionLabel as="h2">Diagram</SectionLabel>
         <p className="mt-6 text-[13px] leading-[1.7] text-[#8a8779]">
-          This contract’s interface has {model.nodes.length} nodes, which is too large to diagram usefully on one canvas.
+          This contract’s interface has {decision.nodeCount} nodes, which is too large to diagram usefully on one canvas.
         </p>
         {outlineDetails}
       </section>

@@ -1,0 +1,70 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://signet.dev/schemas/sandbox/v1/contract_swap.json",
+  "title": "contract_swap (request)",
+  "description": "Point an installed contract at a different executable, as an upgrade would.",
+  "type": "object",
+  "properties": {
+    "version": {
+      "const": 1,
+      "description": "Wire protocol version; checked on every message"
+    },
+    "id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Caller-assigned; echoed on the response"
+    },
+    "type": {
+      "const": "contract_swap"
+    },
+    "contract_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Installed contract id"
+    },
+    "wasm_hash": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$",
+      "description": "Hash of an already installed executable"
+    }
+  },
+  "required": ["version", "id", "type", "contract_id", "wasm_hash"],
+  "additionalProperties": false,
+  "definitions": {
+    "result": {
+      "title": "contract_swap (success response)",
+      "type": "object",
+      "properties": {
+        "version": {
+          "const": 1,
+          "description": "Wire protocol version; checked on every message"
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Echoes the id of the contract_swap request"
+        },
+        "type": {
+          "const": "result"
+        },
+        "contract_id": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Contract id"
+        },
+        "previous_wasm_hash": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$",
+          "description": "Hash before the swap"
+        },
+        "wasm_hash": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$",
+          "description": "Hash now in use"
+        }
+      },
+      "required": ["version", "id", "type", "contract_id", "previous_wasm_hash", "wasm_hash"],
+      "additionalProperties": false
+    }
+  }
+}

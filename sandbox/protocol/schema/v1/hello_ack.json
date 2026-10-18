@@ -1,0 +1,73 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://signet.dev/schemas/sandbox/v1/hello_ack.json",
+  "title": "hello_ack",
+  "description": "Answer to hello. The integer protocol versions must match exactly; the rest is for diagnostics and lane selection.",
+  "type": "object",
+  "properties": {
+    "version": {
+      "const": 1,
+      "description": "Wire protocol version; checked on every message"
+    },
+    "id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Echoes the hello id"
+    },
+    "type": {
+      "const": "hello_ack"
+    },
+    "server_protocol_version": {
+      "type": "integer",
+      "description": "The simulator's protocol version",
+      "minimum": 1
+    },
+    "simulator_version": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Simulator crate version (#533)"
+    },
+    "commit": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Commit the binary was built from"
+    },
+    "lanes": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "ledger_protocol": {
+            "type": "integer",
+            "description": "Ledger protocol number the lane runs",
+            "minimum": 1
+          },
+          "env_host": {
+            "type": "string",
+            "minLength": 1,
+            "description": "soroban-env-host version (#538)"
+          },
+          "simulation": {
+            "type": "string",
+            "minLength": 1,
+            "description": "soroban-simulation version (#538)"
+          }
+        },
+        "required": ["ledger_protocol", "env_host", "simulation"],
+        "additionalProperties": false
+      },
+      "description": "Ledger protocol lanes compiled into this binary",
+      "minItems": 1
+    }
+  },
+  "required": [
+    "version",
+    "id",
+    "type",
+    "server_protocol_version",
+    "simulator_version",
+    "commit",
+    "lanes"
+  ],
+  "additionalProperties": false
+}

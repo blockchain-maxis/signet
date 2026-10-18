@@ -1,0 +1,128 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://signet.dev/schemas/sandbox/v1/layout_check.json",
+  "title": "layout_check (request)",
+  "description": "Check that a new executable keeps the stored-data layout of the old one.",
+  "type": "object",
+  "properties": {
+    "version": {
+      "const": 1,
+      "description": "Wire protocol version; checked on every message"
+    },
+    "id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Caller-assigned; echoed on the response"
+    },
+    "type": {
+      "const": "layout_check"
+    },
+    "old": {
+      "description": "A contract executable, by value or by installed contract",
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "wasm_base64": {
+              "type": "string",
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9+/]+={0,2}$",
+              "description": "The WASM executable, base64"
+            }
+          },
+          "required": ["wasm_base64"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "contract_id": {
+              "type": "string",
+              "minLength": 1,
+              "description": "An installed contract id (C...)"
+            }
+          },
+          "required": ["contract_id"],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "new": {
+      "description": "A contract executable, by value or by installed contract",
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "wasm_base64": {
+              "type": "string",
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9+/]+={0,2}$",
+              "description": "The WASM executable, base64"
+            }
+          },
+          "required": ["wasm_base64"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "contract_id": {
+              "type": "string",
+              "minLength": 1,
+              "description": "An installed contract id (C...)"
+            }
+          },
+          "required": ["contract_id"],
+          "additionalProperties": false
+        }
+      ]
+    }
+  },
+  "required": ["version", "id", "type", "old", "new"],
+  "additionalProperties": false,
+  "definitions": {
+    "result": {
+      "title": "layout_check (success response)",
+      "type": "object",
+      "properties": {
+        "version": {
+          "const": 1,
+          "description": "Wire protocol version; checked on every message"
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Echoes the id of the layout_check request"
+        },
+        "type": {
+          "const": "result"
+        },
+        "compatible": {
+          "type": "boolean"
+        },
+        "issues": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "minLength": 1,
+                "description": "Type whose layout changed"
+              },
+              "message": {
+                "type": "string",
+                "minLength": 1,
+                "description": "Why it is incompatible"
+              }
+            },
+            "required": ["type", "message"],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": ["version", "id", "type", "compatible", "issues"],
+      "additionalProperties": false
+    }
+  }
+}

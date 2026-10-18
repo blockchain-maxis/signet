@@ -115,13 +115,23 @@ export function readContractMeta(sections: ReadonlyMap<string, readonly Uint8Arr
   };
 }
 
+/** Maximum number of entries decoded from a single meta custom section. */
+export const MAX_META_ENTRIES = 1_024;
+
 /** Read `section` as back-to-back `T` values until the buffer is exhausted. */
 function* readStream<T>(
   section: Uint8Array,
   type: { read(reader: InstanceType<typeof cereal.XdrReader>): T },
 ): Generator<T> {
   const reader = new cereal.XdrReader(Buffer.from(section));
-  while (!reader.eof) yield type.read(reader);
+  let count = 0;
+  while (!reader.eof) {
+    count += 1;
+    if (count > MAX_META_ENTRIES) {
+      throw new RangeError(`meta section exceeds maximum of ${MAX_META_ENTRIES} entries`);
+    }
+    yield type.read(reader);
+  }
 }
 
 function text(bytes: Uint8Array | string): string {

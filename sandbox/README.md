@@ -12,11 +12,11 @@ killing the process.
 
 ## Layout
 
-| Path         | What                                                                 |
-| ------------ | -------------------------------------------------------------------- |
-| `simulator/` | The `signet-simulator` binary                                        |
-| `protocol/`  | Golden NDJSON transcripts replayed by `simulator/tests/transcripts.rs` |
-| `fuzz/`      | Fuzz target stub; excluded from default members, so plain `cargo` skips it |
+| Path         | What                                                                                                                                                              |
+| ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `simulator/` | The `signet-simulator` binary                                                                                                                                     |
+| `protocol/`  | JSON Schemas (`schema/v1/`) and golden NDJSON transcripts for every message in `docs/CLI_RUST_BRIDGE.md`; `check-transcripts.mjs` validates one against the other |
+| `fuzz/`      | Fuzz target stub; excluded from default members, so plain `cargo` skips it                                                                                        |
 
 ## Message loop
 

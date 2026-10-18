@@ -11,12 +11,27 @@
 import { Contract, rpc, StrKey } from '@stellar/stellar-sdk';
 import type { xdr } from '@stellar/stellar-sdk';
 import type { Network } from '@signet/types';
-import { ContractNotFound, NoInterface, RpcUnavailable, isSpecReadError } from './errors.ts';
-import { parseContractSpec } from './parse.ts';
+import {
+  ContractNotFound,
+  InvalidWasm,
+  NoInterface,
+  RpcUnavailable,
+  isSpecReadError,
+} from './errors.ts';
+import { MAX_WASM_BYTES, parseContractSpec } from './parse.ts';
 import type { ContractSpec } from './types.ts';
 
 /** Default deadline for a single fetch; callers override it through `opts.signal`. */
 const DEFAULT_TIMEOUT_MS = 10_000;
+
+/**
+ * Maximum HTTP response body bytes accepted from Soroban RPC for a given
+ * `maxWasmBytes` cap: base64 expansion (4/3) of the `ContractCodeEntry` XDR
+ * plus 4 KB of headroom for the JSON-RPC envelope.
+ */
+export function maxRpcResponseBytes(maxWasmBytes: number = MAX_WASM_BYTES): number {
+  return Math.ceil((maxWasmBytes + 64) * (4 / 3)) + 4_096;
+}
 
 /**
  * Minimal `rpc.Server` surface this module consumes, so tests can inject a stub
@@ -42,6 +57,8 @@ export interface FetchOptions {
    * pass your own signal to configure the timeout.
    */
   readonly signal?: AbortSignal;
+  /** Maximum allowed WASM byte size (defaults to {@link MAX_WASM_BYTES}). */
+  readonly maxWasmBytes?: number;
   /** Injected `rpc.Server`-shaped client (tests); a real `rpc.Server` otherwise. */
   readonly server?: SpecRpcServer;
 }
@@ -87,10 +104,10 @@ export async function fetchWasmHash(address: string, opts: FetchOptions): Promis
  * @param opts - network, required RPC endpoint, and optional overrides.
  * @returns the decoded `ContractSpec`.
  * @throws `NoInterface` for a SAC or a module without a spec section,
- *   `InvalidWasm` for a non-WASM module, `InterfaceUnreadable` when the spec
- *   section cannot be decoded by this SDK version, `ContractNotFound` when the
- *   instance entry is missing, `RpcUnavailable` for transport failures or an
- *   inconsistent endpoint response.
+ *   `InvalidWasm` for a non-WASM or oversized module, `InterfaceUnreadable`
+ *   when the spec section cannot be decoded by this SDK version,
+ *   `ContractNotFound` when the instance entry is missing, `RpcUnavailable`
+ *   for transport failures or an inconsistent endpoint response.
  */
 export async function fetchContractSpec(
   address: string,
@@ -100,8 +117,17 @@ export async function fetchContractSpec(
   if (result.type === 'stellar_asset') {
     throw new NoInterface('stellar_asset_contract');
   }
-  const wasm = await rpcCall(opts, () => server.getContractWasmByContractId(address));
-  const spec = parseContractSpec(wasm);
+  const wasm = await rpcCall(opts, async () => {
+    try {
+      return await server.getContractWasmByContractId(address);
+    } catch (cause) {
+      if (cause instanceof Error && /maxContentLength/i.test(cause.message)) {
+        throw new InvalidWasm(cause);
+      }
+      throw cause;
+    }
+  });
+  const spec = parseContractSpec(wasm, { maxBytes: opts.maxWasmBytes ?? MAX_WASM_BYTES });
   if (spec.wasmHash !== result.wasmHash) {
     throw new RpcUnavailable(
       opts.rpcUrl,
@@ -118,11 +144,19 @@ interface InstanceRead {
   readonly result: WasmHashResult;
 }
 
+function createBoundedRpcServer(opts: FetchOptions): rpc.Server {
+  const server = new rpc.Server(opts.rpcUrl, { allowHttp: opts.allowHttp ?? false });
+  server.httpClient.defaults.maxContentLength = maxRpcResponseBytes(
+    opts.maxWasmBytes ?? MAX_WASM_BYTES,
+  );
+  return server;
+}
+
 async function readInstance(address: string, opts: FetchOptions): Promise<InstanceRead> {
   if (!StrKey.isValidContract(address)) {
     throw new TypeError(`Invalid contract address: ${address}`);
   }
-  const server = opts.server ?? new rpc.Server(opts.rpcUrl, { allowHttp: opts.allowHttp ?? false });
+  const server = opts.server ?? createBoundedRpcServer(opts);
   const footprint = new Contract(address).getFootprint();
   const response = await rpcCall(opts, () => server.getLedgerEntries(footprint));
   const entry = response.entries[0];

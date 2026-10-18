@@ -1,0 +1,81 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://signet.dev/schemas/sandbox/v1/wasm_inspect.json",
+  "title": "wasm_inspect (request)",
+  "description": "Report what an executable declares, without running it.",
+  "type": "object",
+  "properties": {
+    "version": {
+      "const": 1,
+      "description": "Wire protocol version; checked on every message"
+    },
+    "id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Caller-assigned; echoed on the response"
+    },
+    "type": {
+      "const": "wasm_inspect"
+    },
+    "wasm_base64": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9+/]+={0,2}$",
+      "description": "The WASM executable, base64"
+    }
+  },
+  "required": ["version", "id", "type", "wasm_base64"],
+  "additionalProperties": false,
+  "definitions": {
+    "result": {
+      "title": "wasm_inspect (success response)",
+      "type": "object",
+      "properties": {
+        "version": {
+          "const": 1,
+          "description": "Wire protocol version; checked on every message"
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Echoes the id of the wasm_inspect request"
+        },
+        "type": {
+          "const": "result"
+        },
+        "wasm_hash": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$",
+          "description": "SHA-256, hex"
+        },
+        "size_bytes": {
+          "type": "integer",
+          "description": "Executable size",
+          "minimum": 0
+        },
+        "interface_version": {
+          "type": "integer",
+          "description": "Soroban env interface version the executable targets",
+          "minimum": 0
+        },
+        "exports": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          },
+          "description": "Exported function names"
+        }
+      },
+      "required": [
+        "version",
+        "id",
+        "type",
+        "wasm_hash",
+        "size_bytes",
+        "interface_version",
+        "exports"
+      ],
+      "additionalProperties": false
+    }
+  }
+}

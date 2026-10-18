@@ -1,0 +1,115 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://signet.dev/schemas/sandbox/v1/simulate.json",
+  "title": "simulate (request)",
+  "description": "Run a contract function against the open ledger (#534). Arguments are JSON; the simulator encodes them from the contract spec (#545).",
+  "type": "object",
+  "properties": {
+    "version": {
+      "const": 1,
+      "description": "Wire protocol version; checked on every message"
+    },
+    "id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Caller-assigned; echoed on the response"
+    },
+    "type": {
+      "const": "simulate"
+    },
+    "contract_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Installed contract id"
+    },
+    "function": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Function name"
+    },
+    "args": {
+      "type": "array",
+      "items": true,
+      "description": "Arguments as JSON values, in declaration order"
+    },
+    "source_account": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Invoking account (G...); a default is used if omitted"
+    }
+  },
+  "required": ["version", "id", "type", "contract_id", "function", "args"],
+  "additionalProperties": false,
+  "definitions": {
+    "result": {
+      "title": "simulate (success response)",
+      "type": "object",
+      "properties": {
+        "version": {
+          "const": 1,
+          "description": "Wire protocol version; checked on every message"
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Echoes the id of the simulate request"
+        },
+        "type": {
+          "const": "result"
+        },
+        "return_value_xdr": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9+/]+={0,2}$",
+          "description": "The returned ScVal, base64 XDR"
+        },
+        "events": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "minLength": 1,
+                "description": "contract | system | diagnostic"
+              },
+              "event_xdr": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^[A-Za-z0-9+/]+={0,2}$",
+                "description": "ContractEvent, base64 XDR"
+              }
+            },
+            "required": ["type", "event_xdr"],
+            "additionalProperties": false
+          }
+        },
+        "cost": {
+          "type": "object",
+          "properties": {
+            "cpu_insns": {
+              "type": "integer",
+              "description": "CPU instructions",
+              "minimum": 0
+            },
+            "mem_bytes": {
+              "type": "integer",
+              "description": "Memory bytes",
+              "minimum": 0
+            }
+          },
+          "required": ["cpu_insns", "mem_bytes"],
+          "additionalProperties": false
+        },
+        "logs": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": ["version", "id", "type", "return_value_xdr", "events", "cost", "logs"],
+      "additionalProperties": false
+    }
+  }
+}

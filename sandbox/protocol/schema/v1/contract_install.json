@@ -1,0 +1,66 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://signet.dev/schemas/sandbox/v1/contract_install.json",
+  "title": "contract_install (request)",
+  "description": "Install a contract executable into the open ledger.",
+  "type": "object",
+  "properties": {
+    "version": {
+      "const": 1,
+      "description": "Wire protocol version; checked on every message"
+    },
+    "id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Caller-assigned; echoed on the response"
+    },
+    "type": {
+      "const": "contract_install"
+    },
+    "wasm_base64": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9+/]+={0,2}$",
+      "description": "The WASM executable, base64 (can be a very large line)"
+    },
+    "contract_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Contract id to deploy it at; generated if omitted"
+    }
+  },
+  "required": ["version", "id", "type", "wasm_base64"],
+  "additionalProperties": false,
+  "definitions": {
+    "result": {
+      "title": "contract_install (success response)",
+      "type": "object",
+      "properties": {
+        "version": {
+          "const": 1,
+          "description": "Wire protocol version; checked on every message"
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Echoes the id of the contract_install request"
+        },
+        "type": {
+          "const": "result"
+        },
+        "contract_id": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Contract id (C...)"
+        },
+        "wasm_hash": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$",
+          "description": "SHA-256 of the executable, hex"
+        }
+      },
+      "required": ["version", "id", "type", "contract_id", "wasm_hash"],
+      "additionalProperties": false
+    }
+  }
+}

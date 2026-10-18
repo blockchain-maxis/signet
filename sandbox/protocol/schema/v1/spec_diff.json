@@ -1,0 +1,140 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://signet.dev/schemas/sandbox/v1/spec_diff.json",
+  "title": "spec_diff (request)",
+  "description": "Compare the interfaces of two executables.",
+  "type": "object",
+  "properties": {
+    "version": {
+      "const": 1,
+      "description": "Wire protocol version; checked on every message"
+    },
+    "id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Caller-assigned; echoed on the response"
+    },
+    "type": {
+      "const": "spec_diff"
+    },
+    "old": {
+      "description": "A contract executable, by value or by installed contract",
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "wasm_base64": {
+              "type": "string",
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9+/]+={0,2}$",
+              "description": "The WASM executable, base64"
+            }
+          },
+          "required": ["wasm_base64"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "contract_id": {
+              "type": "string",
+              "minLength": 1,
+              "description": "An installed contract id (C...)"
+            }
+          },
+          "required": ["contract_id"],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "new": {
+      "description": "A contract executable, by value or by installed contract",
+      "oneOf": [
+        {
+          "type": "object",
+          "properties": {
+            "wasm_base64": {
+              "type": "string",
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9+/]+={0,2}$",
+              "description": "The WASM executable, base64"
+            }
+          },
+          "required": ["wasm_base64"],
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "properties": {
+            "contract_id": {
+              "type": "string",
+              "minLength": 1,
+              "description": "An installed contract id (C...)"
+            }
+          },
+          "required": ["contract_id"],
+          "additionalProperties": false
+        }
+      ]
+    }
+  },
+  "required": ["version", "id", "type", "old", "new"],
+  "additionalProperties": false,
+  "definitions": {
+    "result": {
+      "title": "spec_diff (success response)",
+      "type": "object",
+      "properties": {
+        "version": {
+          "const": 1,
+          "description": "Wire protocol version; checked on every message"
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Echoes the id of the spec_diff request"
+        },
+        "type": {
+          "const": "result"
+        },
+        "compatible": {
+          "type": "boolean",
+          "description": "False if any change breaks an existing caller"
+        },
+        "changes": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "enum": ["added", "removed", "changed"]
+              },
+              "item": {
+                "type": "string",
+                "minLength": 1,
+                "description": "function | type | error | event"
+              },
+              "name": {
+                "type": "string",
+                "minLength": 1,
+                "description": "Name"
+              },
+              "breaking": {
+                "type": "boolean"
+              },
+              "detail": {
+                "type": "string",
+                "minLength": 1,
+                "description": "What changed"
+              }
+            },
+            "required": ["kind", "item", "name", "breaking"],
+            "additionalProperties": false
+          }
+        }
+      },
+      "required": ["version", "id", "type", "compatible", "changes"],
+      "additionalProperties": false
+    }
+  }
+}

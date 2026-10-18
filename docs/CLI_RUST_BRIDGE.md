@@ -1,9 +1,12 @@
 # The Go ↔ Rust bridge (design note)
 
 This is a design note, not implementation. **No Rust crate is scaffolded by
-this document** — it exists so the boundary between the future Go CLI
-(`cmd/`, `internal/`) and the Rust contract simulator is fixed _before_ code
-lands on either side of it, per [#298](https://github.com/blockchain-maxis/signet/issues/298).
+this document** — it exists so the boundary between the Go CLI
+(`cli/cmd`, `cli/internal`) and the Rust contract simulator (`sandbox/simulator`)
+is fixed _before_ code lands on either side of it, per
+[#298](https://github.com/blockchain-maxis/signet/issues/298). §2 holds the
+message catalogue; the machine-readable form of every message is in
+[`sandbox/protocol/schema/v1/`](../sandbox/protocol/schema/v1).
 
 ## Why this can't wait
 
@@ -71,8 +74,21 @@ only at startup.
 { "version": 1, "id": "hello", "type": "hello", "client_protocol_version": 1 }
 
 // Rust -> Go, first line read
-{ "version": 1, "id": "hello", "type": "hello_ack", "server_protocol_version": 1 }
+{
+  "version": 1, "id": "hello", "type": "hello_ack",
+  "server_protocol_version": 1,
+  "simulator_version": "0.1.0",
+  "commit": "7ad61d0dc5da",
+  "lanes": [{ "ledger_protocol": 28, "env_host": "28.0.2", "simulation": "28.0.2" }]
+}
 ```
+
+`hello_ack` also says which build answered: `simulator_version`, the `commit` it
+was built from, and `lanes`, one entry per ledger protocol the binary can run
+(the `soroban-env-host` and `soroban-simulation` versions behind each). The
+compatibility rule is unchanged: **the integer protocol versions must match
+exactly.** The other three fields are for diagnostics and for choosing a lane
+in `ledger_open`; Go never refuses a binary because of them.
 
 Go compares `client_protocol_version` (its own, compiled in) against
 `server_protocol_version` (whatever the spawned binary reports) before
@@ -91,42 +107,157 @@ clear message instead of a hang or a cryptic decode error on the day it
 happens anyway (a manually replaced binary, a stale `PATH` entry, a partial
 upgrade).
 
-### Request / response messages
+### Request / response messages (the v1 catalogue)
+
+Every message is a `type` value in the envelope above. A request from Go is
+answered by one line with the same `id`: `type: "result"` on success, or one of
+the failures in §3 (`contract_error`, `error`). The fields below are the
+contract; [`sandbox/protocol/schema/v1/<type>.json`](../sandbox/protocol/schema/v1)
+is the same thing as a JSON Schema, and each request schema also carries its
+success response under `definitions.result`.
+
+**Go never parses XDR.** It moves base64 blobs between the RPC and the
+simulator and never decodes them, so the CLI does not depend on
+`github.com/stellar/go`, and XDR version skew between ledger-protocol lanes stays
+inside Rust. Anything Go needs to look inside (a spec, a value, a transaction,
+a ledger key) is a message that returns JSON.
+
+| `type`              | What it does                                                                   | Request fields                                                            | `result` fields                                                       |
+| ------------------- | ------------------------------------------------------------------------------ | ------------------------------------------------------------------------- | --------------------------------------------------------------------- |
+| `ledger_open`       | Open or reset the in-memory ledger a session simulates against                 | `network_passphrase`; optional `ledger_protocol`, `sequence`, `timestamp` | `ledger_protocol`, `sequence`                                         |
+| `ledger_put`        | Write entries into the open ledger                                             | `entries[]` of `{key_xdr, entry_xdr, live_until_ledger?}`                 | `written`                                                             |
+| `ledger_get`        | Read entries by key                                                            | `keys_xdr[]`                                                              | `entries[]`, `entry_xdr: null` when absent                            |
+| `ledger_checkpoint` | Snapshot the ledger                                                            | optional `label`                                                          | `checkpoint`                                                          |
+| `ledger_rollback`   | Restore a checkpoint (it stays valid)                                          | `checkpoint`                                                              | none                                                                  |
+| `ledger_import`     | Replace the ledger with a whole snapshot                                       | `ledger_sequence`, `entries[]`; optional `ledger_timestamp`               | `imported`, `ledger_sequence`                                         |
+| `contract_install`  | Install an executable                                                          | `wasm_base64`; optional `contract_id`                                     | `contract_id`, `wasm_hash`                                            |
+| `contract_swap`     | Point an installed contract at another executable, as an upgrade would         | `contract_id`, `wasm_hash`                                                | `contract_id`, `previous_wasm_hash`, `wasm_hash`                      |
+| `simulate`          | Run a function ([#534](https://github.com/blockchain-maxis/signet/issues/534)) | `contract_id`, `function`, `args[]` (JSON); optional `source_account`     | `return_value_xdr`, `events[]`, `cost`, `logs[]`                      |
+| `spec_extract`      | Read the spec out of an executable                                             | `source`: `{wasm_base64}` or `{contract_id}`                              | `spec_entries_xdr[]`, `wasm_hash`                                     |
+| `spec_encode_args`  | Encode JSON arguments to ScVals from a spec                                    | `source`, `function`, `args[]`                                            | `args_xdr[]`                                                          |
+| `spec_decode_val`   | Decode a ScVal to JSON as a function's return type                             | `source`, `function`, `val_xdr`                                           | `value`                                                               |
+| `spec_diff`         | Compare the interfaces of two executables                                      | `old`, `new` (each a `source`)                                            | `compatible`, `changes[]`                                             |
+| `layout_check`      | Check that stored-data layout survives an upgrade                              | `old`, `new`                                                              | `compatible`, `issues[]`                                              |
+| `diff_results`      | Compare two `simulate` results field by field                                  | `left`, `right` (each a `simulate` result body)                           | `equal`, `differences[]`                                              |
+| `xdr_keys`          | Derive the ledger key of each entry                                            | `entries_xdr[]`                                                           | `keys_xdr[]`                                                          |
+| `tx_decode`         | Decode a transaction envelope                                                  | `transaction_xdr`                                                         | `transaction`                                                         |
+| `wasm_inspect`      | Report what an executable declares, without running it                         | `wasm_base64`                                                             | `wasm_hash`, `size_bytes`, `interface_version`, `exports[]`           |
+| `status`            | Report simulator state                                                         | none                                                                      | `uptime_ms`, `ledger_open`, `ledger_sequence`, `entries`, `contracts` |
+| `shutdown`          | Answer, then exit 0                                                            | none                                                                      | none                                                                  |
+
+`hello` / `hello_ack` are the handshake above. `ledger_fetch` and
+`ledger_entries` are the one exchange that runs the other way, described next.
+
+`simulate` takes **JSON arguments** and the simulator encodes them from the
+contract's spec
+([#545](https://github.com/blockchain-maxis/signet/issues/545)); this replaces
+the earlier sketch of an `args_xdr` list built in Go. `spec_encode_args` and
+`spec_decode_val` expose the same encoding on their own.
 
 ```jsonc
 // Go -> Rust
-{
-  "version": 1, "id": "req-7", "type": "simulate",
-  "contract_id": "C...",
-  "function": "transfer",
-  "args_xdr": ["AAAA...", "AAAA..."],
-  "network_passphrase": "Test SDF Network ; September 2015",
-  "ledger_snapshot": "..."          // opaque snapshot handle/path — format owned by the Rust side
-}
+{ "version": 1, "id": "req-7", "type": "simulate",
+  "contract_id": "C...", "function": "transfer", "args": ["alice", "100"] }
 
 // Rust -> Go, on a successful simulation (the call executed, whatever it returned)
-{
-  "version": 1, "id": "req-7", "type": "result",
+{ "version": 1, "id": "req-7", "type": "result",
   "return_value_xdr": "AAAA...",
-  "events": [ /* ... */ ],
+  "events": [{ "type": "contract", "event_xdr": "AAAA..." }],
   "cost": { "cpu_insns": 1234, "mem_bytes": 5678 },
-  "logs": [ "..." ]
-}
-
-// Rust -> Go, on a contract-level failure (see error contract below)
-{
-  "version": 1, "id": "req-7", "type": "contract_error",
-  "code": "HostError::...", "message": "...",
-  "diagnostic_events": [ /* ... */ ]
-}
-
-// Rust -> Go, on a protocol-level failure
-{
-  "version": 1, "id": "req-7", "type": "error",
-  "code": "bad_request" | "unsupported_version" | "internal_panic",
-  "message": "..."
-}
+  "logs": [] }
 ```
+
+#### `ledger_fetch`: the simulator asking Go for state
+
+While a `simulate` is in flight the simulator may need a ledger entry it does
+not hold. It writes one request of its own, and Go answers it before the
+`simulate` can finish:
+
+```jsonc
+// Rust -> Go, while req-7 is still running
+{ "version": 1, "id": "sim-1", "type": "ledger_fetch", "keys_xdr": ["AAAA..."] }
+
+// Go -> Rust
+{ "version": 1, "id": "sim-1", "type": "ledger_entries",
+  "entries": [{ "key_xdr": "AAAA...", "entry_xdr": "AAAA...", "live_until_ledger": 1000 }] }
+```
+
+It has its own `id` space: every simulator-originated id starts with `sim-`, so
+it can never collide with an id Go assigned
+([#531](https://github.com/blockchain-maxis/signet/issues/531)). An entry Go
+could not find comes back with `entry_xdr: null`.
+
+Why a request at all, and not a snapshot sent up front: `soroban-simulation`
+reads state through a `SnapshotSource`, the RPC's `getLedgerEntries` only serves
+the **latest** ledger, and `stellar snapshot create` took 3m27s and then failed
+when tested for this epic. So the earlier sketch's per-request `ledger_snapshot`
+cannot be the default way state reaches the simulator.
+
+#### Errors
+
+`contract_error` and `error` keep the split in §3. Both now carry more:
+
+- **`contract_error.kind`** is `"contract"` (a `contracterror` the contract
+  returned) or `"host"` (a trap, budget exhaustion or another host error).
+  A `contract` error may also carry `decoded`: the error enum, case name, value
+  and doc comment read from the contract's spec
+  ([#546](https://github.com/blockchain-maxis/signet/issues/546)).
+- **`error.code`** is one of the six below, and **`error.detail`** is always an
+  object with a machine-readable `kind`. `id` is `null` only when the line could
+  not be read far enough to find one.
+
+| `code`                        | When                                                                                                                                                                | `detail.kind` values                                                                                                                                     |
+| ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `bad_request`                 | The line or the message is not valid                                                                                                                                | `line_too_long`, `invalid_utf8`, `invalid_json`, `not_an_object`, `invalid_field` (with `path`), `unknown_type`, `handshake_required`, `already_greeted` |
+| `unsupported_version`         | `version` is not the protocol version this binary speaks                                                                                                            | `version_mismatch` (with `expected`, `received`)                                                                                                         |
+| `internal_panic`              | The simulator panicked; the last line before a non-zero exit                                                                                                        | `panic`                                                                                                                                                  |
+| `unsupported_ledger_protocol` | `ledger_open` asked for a lane this binary does not carry ([#533](https://github.com/blockchain-maxis/signet/issues/533))                                           | `ledger_protocol` (with `requested`, `supported`)                                                                                                        |
+| `fetch_failed`                | Go could not answer a `ledger_fetch` ([#531](https://github.com/blockchain-maxis/signet/issues/531), [#535](https://github.com/blockchain-maxis/signet/issues/535)) | `rpc_unavailable`, `timeout`, `rejected`                                                                                                                 |
+| `resource_limit`              | A request went over a limit the simulator enforces ([#536](https://github.com/blockchain-maxis/signet/issues/536))                                                  | `cpu_budget`, `memory_budget`, `ledger_entries`, `wasm_size`                                                                                             |
+
+#### Maximum line length
+
+A line may be at most **64 MiB** by default, because `contract_install` carries
+a whole executable and `ledger_import` a whole snapshot. A longer line is
+answered with `bad_request` / `line_too_long`, and the reader skips to the next
+newline and carries on.
+
+#### Who owns what
+
+**Go owns retries, caching, timeouts and restarts. Rust owns XDR and execution.**
+The simulator is single-threaded and has no in-band cancel, so Go enforces a
+deadline by killing the process (§4) and then rebuilds the state from the fork
+cache and the session log
+([#526](https://github.com/blockchain-maxis/signet/issues/526)).
+
+### Schemas and transcripts
+
+- [`sandbox/protocol/schema/v1/*.json`](../sandbox/protocol/schema/v1): one JSON
+  Schema (draft-07) per message type above plus `hello`, `hello_ack`,
+  `contract_error`, `error`, `ledger_fetch` and `ledger_entries`. They are
+  self-contained. Check that they compile with:
+
+  ```bash
+  npx ajv-cli compile -s 'sandbox/protocol/schema/v1/*.json'
+  ```
+
+- [`sandbox/protocol/transcripts/*.ndjson`](../sandbox/protocol/transcripts):
+  golden transcripts, one message per line, in the order they cross the pipe:
+  the handshake, a version mismatch, a simple `simulate`, a `ledger_fetch` round
+  trip, a `contract_error` of each kind, and each `error` code. In them
+  `<commit>` and `<version>` stand for the build identity baked into the binary.
+- [`sandbox/protocol/check-transcripts.mjs`](../sandbox/protocol/check-transcripts.mjs)
+  validates every transcript line against its schema (a `result` against the
+  `definitions.result` of the request with the same `id`), and fails if a schema
+  is not mentioned in this note. A request answered by an `error` with the same
+  `id` is the malformed input that error is about, so it is exempt.
+
+  ```bash
+  node sandbox/protocol/check-transcripts.mjs
+  ```
+
+  The simulator's own integration test (`sandbox/simulator/tests/transcripts.rs`)
+  replays the transcripts the binary already implements byte for byte.
 
 ## 3. Error contract
 
@@ -184,8 +315,10 @@ this line.
   itself; shipping it as a sibling file keeps the two build pipelines (`go
 build`, `cargo build`) fully independent.
 - It is built for the same target matrix the Go binary already ships for —
-  whatever that matrix is at the time (linux/darwin/windows × amd64/arm64,
-  today), since a Rust target without a corresponding Go release target is
+  whatever that matrix is at the time. Today it is linux/amd64, linux/arm64,
+  darwin/amd64, darwin/arm64 and windows/amd64 — not every OS × architecture
+  pair; see `scripts/release/build-cli.sh` and `.github/workflows/release-cli.yml`
+  — since a Rust target without a corresponding Go release target is
   never reachable and a Go release target without a matching Rust build would
   ship a CLI whose sandbox silently can't start on that platform.
 - **Packaging.** Each per-platform release archive contains both binaries at
@@ -212,11 +345,11 @@ build`, `cargo build`) fully independent.
 
 ## What this note deliberately does not do
 
-- It does not define the `simulate` request/response fields exhaustively —
-  §2's schema is illustrative of the _shape_ (envelope, versioning,
-  correlation id), not a final contract. The exact fields land with the
-  sandbox work itself, once there is a concrete host-environment API to
-  reflect.
+- It does not make a message real by listing it. §2 fixes the fields of every
+  v1 message so both sides build against one spec, but a message exists in
+  the simulator only once its own issue lands (`hello` and `shutdown` today).
+  A message the binary does not know yet is answered with `bad_request` /
+  `unknown_type`, which is part of the contract, not a bug.
 - It does not scaffold `cmd/`, `internal/`, or a `simulator/` crate. Per the
   issue this fixes the boundary _before_ code exists on either side of it —
   writing code here would be deciding implementation details this note is

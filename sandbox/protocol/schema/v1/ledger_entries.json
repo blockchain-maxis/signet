@@ -1,0 +1,63 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://signet.dev/schemas/sandbox/v1/ledger_entries.json",
+  "title": "ledger_entries (Go to simulator)",
+  "description": "Go's answer to a ledger_fetch. Entries it could not find come back as null.",
+  "type": "object",
+  "properties": {
+    "version": {
+      "const": 1,
+      "description": "Wire protocol version; checked on every message"
+    },
+    "id": {
+      "type": "string",
+      "pattern": "^sim-.+$"
+    },
+    "type": {
+      "const": "ledger_entries"
+    },
+    "entries": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "key_xdr": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9+/]+={0,2}$",
+            "description": "Requested key"
+          },
+          "entry_xdr": {
+            "oneOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^[A-Za-z0-9+/]+={0,2}$",
+                "description": "Entry"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "live_until_ledger": {
+            "oneOf": [
+              {
+                "type": "integer",
+                "description": "Live until",
+                "minimum": 0
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": ["key_xdr", "entry_xdr"],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": ["version", "id", "type", "entries"],
+  "additionalProperties": false
+}

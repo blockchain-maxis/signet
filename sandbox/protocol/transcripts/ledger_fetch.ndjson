@@ -1,0 +1,10 @@
+{"version":1,"id":"hello","type":"hello","client_protocol_version":1}
+{"commit":"<commit>","id":"hello","lanes":[{"env_host":"28.0.2","ledger_protocol":28,"simulation":"28.0.2"}],"server_protocol_version":1,"simulator_version":"<version>","type":"hello_ack","version":1}
+{"version":1,"id":"req-1","type":"ledger_open","network_passphrase":"Test SDF Network ; September 2015"}
+{"id":"req-1","ledger_protocol":28,"sequence":1,"type":"result","version":1}
+{"version":1,"id":"req-2","type":"simulate","contract_id":"CASFJHI5PQSRWS7JV25CF7FOMRKIVBP3RXRP3E2GH2CV4BCAG7FUJRCN","function":"lookup","args":["alice"]}
+{"id":"sim-1","keys_xdr":["AAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"],"type":"ledger_fetch","version":1}
+{"entries":[{"entry_xdr":"AAAAAAAAAABBBBBBBBBBBBBBBBBBBB==","key_xdr":"AAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA","live_until_ledger":1000}],"id":"sim-1","type":"ledger_entries","version":1}
+{"cost":{"cpu_insns":1234,"mem_bytes":5678},"events":[],"id":"req-2","logs":[],"return_value_xdr":"AAAAAwAAAAE=","type":"result","version":1}
+{"version":1,"id":"bye","type":"shutdown"}
+{"id":"bye","type":"result","version":1}
