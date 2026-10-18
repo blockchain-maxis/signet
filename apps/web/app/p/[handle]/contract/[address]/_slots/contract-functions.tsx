@@ -3,6 +3,7 @@ import { typesTabHref } from '@/lib/docs/function-reference';
 import { buildFunctionsToc } from '@/lib/docs/toc';
 import { SectionLabel } from '../../../_components/section-label';
 import {
+  DocsSearch,
   FunctionList,
   TableOfContentsDetails,
   TableOfContentsSticky,
@@ -12,9 +13,10 @@ import { SpecWarnings } from '../_docs/spec-warnings';
 import type { ContractSlotProps } from './slot-props';
 
 /**
- * Functions slot (#450, #466, #473): the function reference with in-page TOC.
- * The h2 is the tab's heading. When the interface could not be read, `DocsState`
- * says why (#470, §1.5) and shows no list; the decoder's warnings sit below the list.
+ * Functions slot (#450, #466, #473, #479): the function reference with in-page TOC
+ * and client-side search. The h2 is the tab's heading. When the interface could not
+ * be read, `DocsState` says why (#470, §1.5) and shows no list; the decoder's
+ * warnings sit below the list.
  */
 export function ContractFunctions({ handle, address, network, spec }: ContractSlotProps) {
   if (spec.kind === 'failure') {
@@ -28,6 +30,13 @@ export function ContractFunctions({ handle, address, network, spec }: ContractSl
     <section data-testid="slot-functions">
       <SectionLabel as="h2">Functions</SectionLabel>
       <div className="mt-6">
+        {specJson.functions.length > 0 && (
+          <DocsSearch
+            label="Filter functions"
+            placeholder="Filter by function, argument, type, or doc (/)"
+            itemNoun="functions"
+          />
+        )}
         <TableOfContentsDetails items={tocItems} className="lg:hidden" />
         <div className="lg:flex lg:gap-12 lg:items-start">
           <div className="min-w-0 flex-1">

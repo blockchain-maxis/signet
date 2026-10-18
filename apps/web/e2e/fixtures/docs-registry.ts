@@ -1,4 +1,8 @@
+import { readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { StrKey } from '@stellar/stellar-sdk';
+import { parseContractSpec, toSpecJson } from '@signet/spec';
 
 /**
  * Database fixtures for the docs accessibility e2e (#472).
@@ -15,8 +19,9 @@ import { StrKey } from '@stellar/stellar-sdk';
  *   e2e-registry (profile)
  *     └─ wallet 4 ── REGISTRY      a registry-shaped contract: 8 functions,
  *                 │                 3 types, 1 error enum, doc comments
- *                 └─ UNDOCUMENTED   2 functions and 1 type, no doc comments at
- *                                   all, one of them with a long signature
+ *                 ├─ UNDOCUMENTED   2 functions and 1 type, no doc comments at
+ *                 │                 all, one of them with a long signature
+ *                 └─ TYPES_ZOO      decoded from packages/spec/fixtures/types_zoo.wasm
  *
  * The profile is separate from `e2e-dev` and `e2e-docs` so the contract-list
  * specs on those profiles keep their counts.
@@ -28,10 +33,31 @@ const contractId = (byte: number) => StrKey.encodeContract(Buffer.alloc(32, byte
 
 export const REGISTRY = contractId(0xa7);
 export const UNDOCUMENTED = contractId(0xa8);
+export const TYPES_ZOO = contractId(0xa9);
 
 const WALLET_4 = StrKey.encodeEd25519PublicKey(Buffer.alloc(32, 0xe4));
 const REGISTRY_WASM = '33'.repeat(32);
 const UNDOCUMENTED_WASM = '44'.repeat(32);
+
+const TYPES_ZOO_WASM_PATH = join(
+  dirname(fileURLToPath(import.meta.url)),
+  '..',
+  '..',
+  '..',
+  '..',
+  'packages',
+  'spec',
+  'fixtures',
+  'types_zoo.wasm',
+);
+const rawTypesZooSpec = toSpecJson(parseContractSpec(readFileSync(TYPES_ZOO_WASM_PATH)));
+const typesZooSpec = JSON.parse(
+  JSON.stringify({
+    ...rawTypesZooSpec,
+    sdkVersion: '16.1.0',
+  }),
+) as typeof registrySpec;
+const TYPES_ZOO_WASM = rawTypesZooSpec.wasmHash;
 
 /** The SDK the e2e server runs (`RUNNING_SDK_VERSION`); a row stamped with another is stale and re-read over RPC. */
 const SDK_VERSION = '16.1.0';
@@ -222,6 +248,7 @@ export async function seedDocsRegistryFixture(): Promise<void> {
     const rows = [
       { address: REGISTRY, tx: 'a7', wasm: REGISTRY_WASM, spec: registrySpec },
       { address: UNDOCUMENTED, tx: 'a8', wasm: UNDOCUMENTED_WASM, spec: undocumentedSpec },
+      { address: TYPES_ZOO, tx: 'a9', wasm: TYPES_ZOO_WASM, spec: typesZooSpec },
     ];
     for (const row of rows) {
       const data = {

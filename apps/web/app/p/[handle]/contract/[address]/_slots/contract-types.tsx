@@ -3,6 +3,7 @@ import { typesTabHref } from '@/lib/docs/function-reference';
 import { buildTypesToc } from '@/lib/docs/toc';
 import { SectionLabel } from '../../../_components/section-label';
 import {
+  DocsSearch,
   ErrorList,
   TypeList,
   TableOfContentsDetails,
@@ -13,8 +14,9 @@ import { SpecWarnings } from '../_docs/spec-warnings';
 import type { ContractSlotProps } from './slot-props';
 
 /**
- * Types slot (#450, #467, #468, #473): the types a function can reach, then the
- * contract's errors as a sibling block below, with in-page table of contents.
+ * Types slot (#450, #467, #468, #473, #479): the types a function can reach, then the
+ * contract's errors as a sibling block below, with in-page table of contents and
+ * client-side search.
  */
 export function ContractTypes(props: ContractSlotProps) {
   if (props.spec.kind === 'failure') {
@@ -31,11 +33,19 @@ export function ContractTypes(props: ContractSlotProps) {
   const spec = props.spec.spec as SpecJson;
   const typesHref = typesTabHref(props.handle, props.address);
   const tocItems = buildTypesToc(spec, typesHref);
+  const hasSearchableItems = spec.types.length > 0 || spec.errors.length > 0;
 
   return (
     <section data-testid="slot-types">
       <SectionLabel as="h2">Types</SectionLabel>
       <div className="mt-6">
+        {hasSearchableItems && (
+          <DocsSearch
+            label="Filter types and errors"
+            placeholder="Filter by type, field, error, or doc (/)"
+            itemNoun="items"
+          />
+        )}
         <TableOfContentsDetails items={tocItems} className="lg:hidden" />
         <div className="lg:flex lg:gap-12 lg:items-start">
           <div className="min-w-0 flex-1">

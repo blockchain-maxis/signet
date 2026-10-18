@@ -2,6 +2,7 @@ import { docRefsFromSpec } from '@/lib/contract-docs';
 import { buildErrorReference } from '@/lib/docs/error-reference';
 import { typesTabHref, type FunctionReferenceSpec } from '@/lib/docs/function-reference';
 import { errorAnchor } from '@/lib/docs/anchors';
+import { errorRowSearchText } from '@/lib/docs/search';
 import { SectionLabel } from '../../../_components/section-label';
 import { DocComment } from './doc-comment';
 import { HeadingAnchor } from './heading-anchor';
@@ -78,6 +79,7 @@ export function ErrorList({ spec, handle, address, className }: ErrorListProps) 
                   key={row.id}
                   id={row.id}
                   data-testid="error-row"
+                  data-search-text={errorRowSearchText(table.enumName, row)}
                   tabIndex={-1}
                   className="scroll-mt-24 focus:outline-none focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-8 focus-visible:outline-[#8a8779] border-b border-[#1f1d19] align-top last:border-b-0"
                 >

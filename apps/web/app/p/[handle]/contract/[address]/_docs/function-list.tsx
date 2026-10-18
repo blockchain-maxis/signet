@@ -8,6 +8,7 @@ import {
   type FunctionSection,
   type LinkedPart,
 } from '@/lib/docs/function-reference';
+import { functionSearchText } from '@/lib/docs/search';
 import { SectionLabel } from '../../../_components/section-label';
 import { DocComment } from './doc-comment';
 import { NoDocCommentsNote } from './no-doc-comments-note';
@@ -107,6 +108,7 @@ function FunctionBlock({
       id={section.id}
       aria-labelledby={`${section.id}-name`}
       data-testid="function-section"
+      data-search-text={functionSearchText(section)}
       tabIndex={-1}
       className="scroll-mt-24 focus:outline-none focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-8 focus-visible:outline-[#8a8779] border-t border-[#1f1d19] py-8 first:border-t-0 first:pt-0"
     >

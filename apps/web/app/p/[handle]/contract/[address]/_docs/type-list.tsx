@@ -1,6 +1,7 @@
 import React from 'react';
 import { docRefsFromSpec } from '@/lib/contract-docs';
 import { typesTabHref, type LinkedPart } from '@/lib/docs/function-reference';
+import { typeSearchText } from '@/lib/docs/search';
 import {
   NO_TYPES_NOTE,
   buildTypeReference,
@@ -189,6 +190,7 @@ function TypeBlock({ entry, refs }: { entry: TypeEntry; refs: Refs }) {
       id={entry.id}
       aria-labelledby={`${entry.id}-name`}
       data-testid="type-section"
+      data-search-text={typeSearchText(entry)}
       tabIndex={-1}
       className="scroll-mt-24 focus:outline-none focus-visible:outline focus-visible:outline-1 focus-visible:outline-offset-8 focus-visible:outline-[#8a8779] border-t border-[#1f1d19] py-8 first:border-t-0 first:pt-0"
     >
