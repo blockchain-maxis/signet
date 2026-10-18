@@ -28,6 +28,16 @@ import { clientIp } from './security.ts';
  * limit than ordinary reads.
  */
 
+/**
+ * A positive integer from the environment, else `fallback`. Lets a deployment
+ * (or the e2e server, whose whole suite shares one `unknown` IP bucket) move a
+ * budget without a code change.
+ */
+function positiveIntFromEnv(name: string, fallback: number): number {
+  const parsed = Number(process.env[name]);
+  return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
+}
+
 /** Per-minute allowances, chosen against what each endpoint costs to serve. */
 export const LIMITS = {
   /** Signs a transaction per call — the most expensive unauthenticated path. */
@@ -73,7 +83,7 @@ export const LIMITS = {
    * Renders the contract documentation page. Each uncached render can trigger
    * RPC and Horizon calls (which walk operations), so it is budgeted tighter than a plain read.
    */
-  contractPage: 30,
+  contractPage: positiveIntFromEnv('SIGNET_CONTRACT_PAGE_RATE_LIMIT_PER_MIN', 30),
   /**
    * Browser-posted CSP violation reports. A genuinely broken directive can fire
    * once per blocked subresource, so the ceiling is high enough that a real
