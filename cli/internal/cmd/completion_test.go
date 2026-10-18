@@ -11,6 +11,7 @@ import (
 func TestCompleteSourceFlagWithFakeStellar(t *testing.T) {
 	isolateConfigDir(t)
 	buildFakeStellarOnPath(t)
+	t.Setenv("FAKESTELLAR_IDENTITIES", "alice\nbob")
 
 	root := newRootCmd("dev", "none")
 	out := &bytes.Buffer{}
@@ -33,6 +34,7 @@ func TestCompleteSourceFlagWithFakeStellar(t *testing.T) {
 func TestCompleteSignWithKeyFlagWithFakeStellar(t *testing.T) {
 	isolateConfigDir(t)
 	buildFakeStellarOnPath(t)
+	t.Setenv("FAKESTELLAR_IDENTITIES", "alice\nbob")
 
 	root := newRootCmd("dev", "none")
 	out := &bytes.Buffer{}
