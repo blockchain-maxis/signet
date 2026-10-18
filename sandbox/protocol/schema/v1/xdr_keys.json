@@ -1,0 +1,65 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://signet.dev/schemas/sandbox/v1/xdr_keys.json",
+  "title": "xdr_keys (request)",
+  "description": "Derive the ledger key of each entry, so Go can address entries without parsing XDR.",
+  "type": "object",
+  "properties": {
+    "version": {
+      "const": 1,
+      "description": "Wire protocol version; checked on every message"
+    },
+    "id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Caller-assigned; echoed on the response"
+    },
+    "type": {
+      "const": "xdr_keys"
+    },
+    "entries_xdr": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "pattern": "^[A-Za-z0-9+/]+={0,2}$",
+        "description": "LedgerEntry, base64 XDR"
+      },
+      "description": "Entries",
+      "minItems": 1
+    }
+  },
+  "required": ["version", "id", "type", "entries_xdr"],
+  "additionalProperties": false,
+  "definitions": {
+    "result": {
+      "title": "xdr_keys (success response)",
+      "type": "object",
+      "properties": {
+        "version": {
+          "const": 1,
+          "description": "Wire protocol version; checked on every message"
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Echoes the id of the xdr_keys request"
+        },
+        "type": {
+          "const": "result"
+        },
+        "keys_xdr": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9+/]+={0,2}$",
+            "description": "LedgerKey, base64 XDR"
+          }
+        }
+      },
+      "required": ["version", "id", "type", "keys_xdr"],
+      "additionalProperties": false
+    }
+  }
+}

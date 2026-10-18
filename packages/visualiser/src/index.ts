@@ -93,6 +93,7 @@ export {
 // Layered column layout (E-06): graph in, positioned diagram out.
 export {
   LAYOUT_VERSION,
+  MAX_RAW_NODES,
   layoutContractGraph,
   type LayoutGeometryOptions,
   type PositionedDiagramModel,

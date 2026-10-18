@@ -1,0 +1,34 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://signet.dev/schemas/sandbox/v1/ledger_fetch.json",
+  "title": "ledger_fetch (simulator to Go)",
+  "description": "Sent while a simulate is in flight when the simulator needs ledger entries it does not hold (#531). Uses its own id space: ids start with `sim-`. Go answers with ledger_entries.",
+  "type": "object",
+  "properties": {
+    "version": {
+      "const": 1,
+      "description": "Wire protocol version; checked on every message"
+    },
+    "id": {
+      "type": "string",
+      "pattern": "^sim-.+$",
+      "description": "Starts with `sim-`, so it cannot collide with a Go-assigned id"
+    },
+    "type": {
+      "const": "ledger_fetch"
+    },
+    "keys_xdr": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "pattern": "^[A-Za-z0-9+/]+={0,2}$",
+        "description": "LedgerKey, base64 XDR"
+      },
+      "description": "Keys the simulator needs",
+      "minItems": 1
+    }
+  },
+  "required": ["version", "id", "type", "keys_xdr"],
+  "additionalProperties": false
+}

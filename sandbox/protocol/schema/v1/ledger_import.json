@@ -1,0 +1,93 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://signet.dev/schemas/sandbox/v1/ledger_import.json",
+  "title": "ledger_import (request)",
+  "description": "Replace the ledger with a whole snapshot (can be a very large line; see the maximum line length).",
+  "type": "object",
+  "properties": {
+    "version": {
+      "const": 1,
+      "description": "Wire protocol version; checked on every message"
+    },
+    "id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Caller-assigned; echoed on the response"
+    },
+    "type": {
+      "const": "ledger_import"
+    },
+    "ledger_sequence": {
+      "type": "integer",
+      "description": "Sequence the snapshot was taken at",
+      "minimum": 1
+    },
+    "ledger_timestamp": {
+      "type": "integer",
+      "description": "Close time, Unix seconds",
+      "minimum": 0
+    },
+    "entries": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "key_xdr": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9+/]+={0,2}$",
+            "description": "LedgerKey, base64 XDR"
+          },
+          "entry_xdr": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9+/]+={0,2}$",
+            "description": "LedgerEntry, base64 XDR"
+          },
+          "live_until_ledger": {
+            "type": "integer",
+            "description": "Last ledger the entry is live, for entries that expire",
+            "minimum": 0
+          }
+        },
+        "required": ["key_xdr", "entry_xdr"],
+        "additionalProperties": false
+      },
+      "description": "Every entry in the snapshot"
+    }
+  },
+  "required": ["version", "id", "type", "ledger_sequence", "entries"],
+  "additionalProperties": false,
+  "definitions": {
+    "result": {
+      "title": "ledger_import (success response)",
+      "type": "object",
+      "properties": {
+        "version": {
+          "const": 1,
+          "description": "Wire protocol version; checked on every message"
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Echoes the id of the ledger_import request"
+        },
+        "type": {
+          "const": "result"
+        },
+        "imported": {
+          "type": "integer",
+          "description": "Entries imported",
+          "minimum": 0
+        },
+        "ledger_sequence": {
+          "type": "integer",
+          "description": "Sequence now open",
+          "minimum": 1
+        }
+      },
+      "required": ["version", "id", "type", "imported", "ledger_sequence"],
+      "additionalProperties": false
+    }
+  }
+}

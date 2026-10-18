@@ -1,0 +1,55 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://signet.dev/schemas/sandbox/v1/tx_decode.json",
+  "title": "tx_decode (request)",
+  "description": "Decode a transaction envelope to JSON.",
+  "type": "object",
+  "properties": {
+    "version": {
+      "const": 1,
+      "description": "Wire protocol version; checked on every message"
+    },
+    "id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Caller-assigned; echoed on the response"
+    },
+    "type": {
+      "const": "tx_decode"
+    },
+    "transaction_xdr": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9+/]+={0,2}$",
+      "description": "TransactionEnvelope, base64 XDR"
+    }
+  },
+  "required": ["version", "id", "type", "transaction_xdr"],
+  "additionalProperties": false,
+  "definitions": {
+    "result": {
+      "title": "tx_decode (success response)",
+      "type": "object",
+      "properties": {
+        "version": {
+          "const": 1,
+          "description": "Wire protocol version; checked on every message"
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Echoes the id of the tx_decode request"
+        },
+        "type": {
+          "const": "result"
+        },
+        "transaction": {
+          "type": "object",
+          "description": "The envelope as JSON"
+        }
+      },
+      "required": ["version", "id", "type", "transaction"],
+      "additionalProperties": false
+    }
+  }
+}

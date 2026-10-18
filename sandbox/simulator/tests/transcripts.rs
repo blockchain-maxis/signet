@@ -75,6 +75,16 @@ fn hello_transcript_replays_byte_for_byte() {
 }
 
 #[test]
+fn version_mismatch_transcript_replays_byte_for_byte() {
+    // A message with the wrong `version` is refused mid-session with
+    // `unsupported_version`, and the session carries on.
+    let (sent, expected) = load("version_mismatch.ndjson");
+    let replay = run_simulator(&sent);
+    assert_eq!(replay.stdout, expected);
+    assert!(replay.status.success());
+}
+
+#[test]
 fn hello_then_eof_prints_one_hello_ack_and_exits_zero() {
     let replay = run_simulator(
         "{\"version\":1,\"id\":\"hello\",\"type\":\"hello\",\"client_protocol_version\":1}\n",

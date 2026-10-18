@@ -60,6 +60,13 @@ import type { RoutableEdge, RoutableNode } from './route.ts';
  */
 export const LAYOUT_VERSION = 1;
 
+/**
+ * Maximum number of raw nodes `layoutContractGraph` will lay out (#507).
+ * Above this ceiling it returns a `too-large` model immediately without
+ * running cycle detection, rank assignment, or barycentre sweeps.
+ */
+export const MAX_RAW_NODES = 500;
+
 /** Barycentre sweeps over the columns after the first (design: 4, alternating). */
 const SWEEPS = 4;
 
@@ -137,6 +144,12 @@ export interface PositionedGroup {
 /** What the renderer and the router consume. A `DiagramModel` with geometry. */
 export interface PositionedDiagramModel extends DiagramModel {
   layoutVersion: number;
+  /** Set to `'too-large'` when `graph.nodes.length > MAX_RAW_NODES` (#507). */
+  status?: 'too-large';
+  /** True when the raw-node guard refused to lay out the graph (#507). */
+  tooLarge?: boolean;
+  /** Raw node count when refused by the raw-node guard (#507). */
+  rawNodeCount?: number;
   width: number;
   height: number;
   nodes: PositionedNode[];
@@ -364,6 +377,20 @@ export function layoutContractGraph(
   opts: LayoutGeometryOptions = {},
 ): PositionedDiagramModel {
   const geo = resolveGeometry(opts);
+
+  if (graph.nodes.length > MAX_RAW_NODES) {
+    return {
+      layoutVersion: LAYOUT_VERSION,
+      status: 'too-large',
+      tooLarge: true,
+      rawNodeCount: graph.nodes.length,
+      width: 0,
+      height: 0,
+      nodes: [],
+      edges: [],
+      groups: [],
+    };
+  }
 
   const nodeById = new Map<string, GraphNode>();
   for (const node of graph.nodes) {

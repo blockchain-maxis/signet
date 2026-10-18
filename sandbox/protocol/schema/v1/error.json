@@ -1,0 +1,199 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://signet.dev/schemas/sandbox/v1/error.json",
+  "title": "error",
+  "description": "A protocol-level failure: the request was bad or the simulator itself failed. Distinct from contract_error.",
+  "type": "object",
+  "properties": {
+    "version": {
+      "const": 1,
+      "description": "Wire protocol version; checked on every message"
+    },
+    "id": {
+      "oneOf": [
+        {
+          "type": "string",
+          "minLength": 1
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "description": "Echoes the request id, or null when none could be read"
+    },
+    "type": {
+      "const": "error"
+    },
+    "code": {
+      "enum": [
+        "bad_request",
+        "unsupported_version",
+        "internal_panic",
+        "unsupported_ledger_protocol",
+        "fetch_failed",
+        "resource_limit"
+      ]
+    },
+    "message": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Human-readable explanation"
+    },
+    "detail": {
+      "type": "object",
+      "description": "Machine-readable detail; `kind` says which failure",
+      "properties": {
+        "kind": {
+          "type": "string",
+          "minLength": 1
+        }
+      },
+      "required": ["kind"]
+    }
+  },
+  "required": ["version", "id", "type", "code", "message", "detail"],
+  "additionalProperties": false,
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "code": {
+            "const": "bad_request"
+          }
+        },
+        "required": ["code"]
+      },
+      "then": {
+        "properties": {
+          "detail": {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "enum": [
+                  "line_too_long",
+                  "invalid_utf8",
+                  "invalid_json",
+                  "not_an_object",
+                  "invalid_field",
+                  "unknown_type",
+                  "handshake_required",
+                  "already_greeted"
+                ]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "code": {
+            "const": "unsupported_version"
+          }
+        },
+        "required": ["code"]
+      },
+      "then": {
+        "properties": {
+          "detail": {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "enum": ["version_mismatch"]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "code": {
+            "const": "internal_panic"
+          }
+        },
+        "required": ["code"]
+      },
+      "then": {
+        "properties": {
+          "detail": {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "enum": ["panic"]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "code": {
+            "const": "unsupported_ledger_protocol"
+          }
+        },
+        "required": ["code"]
+      },
+      "then": {
+        "properties": {
+          "detail": {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "enum": ["ledger_protocol"]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "code": {
+            "const": "fetch_failed"
+          }
+        },
+        "required": ["code"]
+      },
+      "then": {
+        "properties": {
+          "detail": {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "enum": ["rpc_unavailable", "timeout", "rejected"]
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "code": {
+            "const": "resource_limit"
+          }
+        },
+        "required": ["code"]
+      },
+      "then": {
+        "properties": {
+          "detail": {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "enum": ["cpu_budget", "memory_budget", "ledger_entries", "wasm_size"]
+              }
+            }
+          }
+        }
+      }
+    }
+  ]
+}
