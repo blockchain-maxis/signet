@@ -133,6 +133,7 @@ instance) over its HTTP API.`,
 	// Commands register themselves into a group from their own file (see
 	// commands.go), so adding one never touches this function.
 	addRegisteredCommands(root)
+	registerFlagCompletions(root, base)
 
 	return root
 }

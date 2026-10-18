@@ -182,6 +182,59 @@ deployment URL in a config file:
 Settings resolve highest-priority first: flag → environment → config file →
 built-in default.
 
+## Shell completion
+
+`signet completion` generates tab-completion scripts for bash, zsh, fish and
+PowerShell. In addition to subcommands and flags, it completes dynamic values:
+
+- `--source` and `--sign-with-key` from the local `stellar` keystore (`stellar keys ls`);
+- `--context`, `context use`, `context show`, and `context remove` from the contexts stored in `config.json`;
+- `--network` (`testnet`, `mainnet`).
+
+### Bash
+
+```bash
+source <(signet completion bash)
+
+# Load on every shell start (Linux):
+signet completion bash > ~/.local/share/bash-completion/completions/signet
+```
+
+### Zsh
+
+```zsh
+source <(signet completion zsh)
+
+# Or write to a directory on $fpath before compinit runs:
+signet completion zsh > "${fpath[1]}/_signet"
+```
+
+### Fish
+
+```fish
+signet completion fish | source
+
+# Load on every shell start:
+signet completion fish > ~/.config/fish/completions/signet.fish
+```
+
+### PowerShell
+
+```powershell
+signet completion powershell | Out-String | Invoke-Expression
+
+# To persist across sessions, append the output of `signet completion powershell` to $PROFILE.
+```
+
+### `npx` caveat
+
+Shell completion hooks bind to the `signet` command on `PATH` and invoke
+`signet __complete ...` on every Tab press. Running through `npx @signet/cli`
+does not put a `signet` binary on `PATH` (and spawning `npx` on each Tab press
+would be too slow for interactive use). Install the CLI globally
+(`npm install -g @signet/cli`) or place the release binary on `PATH` before
+enabling shell completions.
+
 ## Self-hosted deployments
 
 Point the CLI at your own instance:
