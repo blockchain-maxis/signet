@@ -180,7 +180,7 @@ export default async function ContractLayout({
 
         <ContractTabsNav handle={handle} address={address} />
 
-        <main id="contract-content" className="relative z-10 mx-auto max-w-5xl px-8 py-16 md:px-14">
+        <main id="contract-content" className="relative z-20 mx-auto max-w-5xl px-8 py-16 md:px-14">
           <TabFocus>{children}</TabFocus>
         </main>
 
