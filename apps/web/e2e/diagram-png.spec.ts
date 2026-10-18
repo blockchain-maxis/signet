@@ -139,6 +139,16 @@ test.describe('diagram PNG export (#519)', () => {
   }) => {
     test.skip(!HAS_DB, 'needs DATABASE_URL to render attributed contract diagram page');
 
+    // The SVG endpoint belongs to the standalone export (#797). Serve a known SVG for it, so
+    // this test covers what #519 owns (button -> canvas -> 2x PNG) and asserts against a viewBox
+    // it controls.
+    const viewBoxW = 720;
+    const viewBoxH = 480;
+    const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${viewBoxW} ${viewBoxH}" width="${viewBoxW}" height="${viewBoxH}"><rect width="${viewBoxW}" height="${viewBoxH}" fill="#0a0908"/><text x="24" y="48" fill="#f5f4ee" font-family="monospace" font-size="14">claim(wallet: Address)</text></svg>`;
+    await page.route('**/diagram.svg*', (route) =>
+      route.fulfill({ status: 200, contentType: 'image/svg+xml; charset=utf-8', body: svg }),
+    );
+
     await page.goto(`/p/${REGISTRY_HANDLE}/contract/${REGISTRY}/diagram`);
 
     const pngButton = page.getByRole('button', { name: /Download PNG/i });
@@ -155,21 +165,8 @@ test.describe('diagram PNG export (#519)', () => {
     }
     const buffer = Buffer.concat(chunks);
 
-    const width = buffer.readUInt32BE(16);
-    const height = buffer.readUInt32BE(20);
-
-    const svgRes = await page.request.get(
-      `/p/${REGISTRY_HANDLE}/contract/${REGISTRY}/diagram.svg?theme=auto`,
-    );
-    const svgText = await svgRes.text();
-    const match = svgText.match(
-      /viewBox\s*=\s*["']\s*([-\d.]+)\s+([-\d.]+)\s+([-\d.]+)\s+([-\d.]+)\s*["']/,
-    );
-    expect(match).not.toBeNull();
-    const viewBoxW = parseFloat(match?.[3] ?? '0');
-    const viewBoxH = parseFloat(match?.[4] ?? '0');
-
-    expect(width).toBe(Math.round(viewBoxW * 2));
-    expect(height).toBe(Math.round(viewBoxH * 2));
+    // PNG IHDR chunk stores width at bytes 16..20 and height at 20..24 as big-endian uint32.
+    expect(buffer.readUInt32BE(16)).toBe(viewBoxW * 2);
+    expect(buffer.readUInt32BE(20)).toBe(viewBoxH * 2);
   });
 });
