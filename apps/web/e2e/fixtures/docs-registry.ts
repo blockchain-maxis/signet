@@ -1,6 +1,5 @@
 import { readFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { join } from 'node:path';
 import { StrKey } from '@stellar/stellar-sdk';
 import { parseContractSpec, toSpecJson } from '@signet/spec';
 
@@ -39,10 +38,10 @@ const WALLET_4 = StrKey.encodeEd25519PublicKey(Buffer.alloc(32, 0xe4));
 const REGISTRY_WASM = '33'.repeat(32);
 const UNDOCUMENTED_WASM = '44'.repeat(32);
 
+// Playwright loads this file as CommonJS, so no `import.meta`; the suite always runs with
+// `apps/web` as its working directory (see playwright.config.ts).
 const TYPES_ZOO_WASM_PATH = join(
-  dirname(fileURLToPath(import.meta.url)),
-  '..',
-  '..',
+  process.cwd(),
   '..',
   '..',
   'packages',
