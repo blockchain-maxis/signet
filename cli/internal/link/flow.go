@@ -13,6 +13,7 @@ import (
 	"github.com/blockchain-maxis/signet/cli/internal/loopback"
 	"github.com/blockchain-maxis/signet/cli/internal/pair"
 	"github.com/blockchain-maxis/signet/cli/internal/redact"
+	"github.com/blockchain-maxis/signet/cli/internal/spec"
 )
 
 // TTL is how long a pairing is good for, mirroring PAIRING_TTL_MS in
@@ -269,9 +270,13 @@ func wait(
 // where a CLI-link one is expected, and the reverse (#597). `network` is the
 // name the command resolved (`testnet`, `mainnet`); the server refuses one that
 // does not match the deployment.
-func FetchChallenge(client *http.Client, baseURL, network string) func(context.Context, string) (string, string, error) {
+//
+// `purpose` says what the signed challenge will be used for (#622). The server
+// mints it for that purpose only, so a link challenge that leaks cannot be
+// redeemed at the unlink endpoint, and the reverse.
+func FetchChallenge(client *http.Client, baseURL, network string, purpose spec.CliLinkPurpose) func(context.Context, string) (string, string, error) {
 	return func(ctx context.Context, account string) (string, string, error) {
-		query := url.Values{"account": {account}, "network": {network}}
+		query := url.Values{"account": {account}, "network": {network}, "purpose": {string(purpose)}}
 		target := strings.TrimRight(baseURL, "/") + "/api/cli-link?" + query.Encode()
 		req, err := http.NewRequestWithContext(ctx, http.MethodGet, target, nil)
 		if err != nil {

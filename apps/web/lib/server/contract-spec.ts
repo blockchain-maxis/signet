@@ -148,3 +148,6 @@ export async function loadContractSpec(
     return { ok: false, failure: classifySpecError(error, request.network) };
   }
 }
+
+export { loadContractSpec as getContractSpec };
+

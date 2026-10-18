@@ -75,10 +75,15 @@ test('build provenance is shown only when contractmetav0 supplied it', () => {
 });
 
 test('withFlattenedViews fills empty views from entriesXdr and leaves populated ones alone', () => {
-  const json = toSpecJson(
-    parseContractSpec(readFileSync(join(FIXTURES, 'identity-registry.wasm'))),
-  );
-  assert.equal(json.functions.length, 0, 'the RPC reader leaves the views empty');
+  // The RPC reader's `decodeWasm` returns empty views with `entriesXdr` set;
+  // `parseContractSpec` now fills them (#441), so empty them to match.
+  const json = {
+    ...toSpecJson(parseContractSpec(readFileSync(join(FIXTURES, 'identity-registry.wasm')))),
+    functions: [],
+    types: [],
+    errors: [],
+  };
+  assert.ok(json.entriesXdr.length > 0);
   const filled = withFlattenedViews(json);
   assert.equal(filled.functions.length, 8);
   assert.equal(withFlattenedViews(filled), filled, 'already populated: returned as is');

@@ -87,6 +87,12 @@ func fakeDeployment(t *testing.T, identity pair.Identity) (*httptest.Server, *re
 	log := &requestLog{byPath: map[string]int{}}
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		log.record(r.URL.Path)
+		if r.URL.Path == "/api/cli-link" {
+			log.recordPurpose(r.URL.Query().Get("purpose"))
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"transaction":"AAAAchallenge","network_passphrase":"Test SDF Network ; September 2015"}`))
+			return
+		}
 		if r.URL.Path == "/api/cli/whoami" {
 			w.Header().Set("Content-Type", "application/json")
 			_ = json.NewEncoder(w).Encode(identity)
@@ -99,9 +105,22 @@ func fakeDeployment(t *testing.T, identity pair.Identity) (*httptest.Server, *re
 }
 
 type requestLog struct {
-	mu     sync.Mutex
-	byPath map[string]int
-	total  int
+	mu       sync.Mutex
+	byPath   map[string]int
+	total    int
+	purposes []string
+}
+
+func (l *requestLog) recordPurpose(purpose string) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	l.purposes = append(l.purposes, purpose)
+}
+
+func (l *requestLog) challengePurposes() []string {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return append([]string(nil), l.purposes...)
 }
 
 func (l *requestLog) record(path string) {
@@ -184,6 +203,20 @@ func TestUnlink_NotLinkedExits0WithoutSigning(t *testing.T) {
 	byPath, total := log.snapshot()
 	if total != 1 || byPath["/api/cli/whoami"] != 1 {
 		t.Fatalf("requests = %v, want only one whoami (no challenge fetched)", byPath)
+	}
+}
+
+func TestUnlink_AsksForAnUnlinkPurposeChallenge(t *testing.T) {
+	// #622: a link challenge must not be usable to unlink, so unlink has to ask
+	// for the challenge minted for it. The fake stellar cannot sign, so the run
+	// ends right after the challenge was fetched.
+	isolateConfigDir(t)
+	buildFakeStellarOnPath(t)
+	srv, log := fakeDeployment(t, pair.Identity{PublicKey: aliceKey, Handle: "alice", Linked: true})
+
+	_, _ = runUnlink(t, srv, "", "--yes")
+	if got := log.challengePurposes(); len(got) != 1 || got[0] != "unlink" {
+		t.Fatalf("challenge purposes requested = %v, want [unlink]", got)
 	}
 }
 

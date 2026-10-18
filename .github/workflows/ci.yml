@@ -118,6 +118,12 @@ jobs:
       - name: Build
         run: pnpm build
 
+      # The page equivalent of the wasm size budget below: fails when the
+      # contract page's first-load JS grows past its declared budget. Reads the
+      # build's per-route stats, so it must run after Build.
+      - name: Check route JS budgets
+        run: node scripts/check-route-budgets.mjs
+
   # Tests run on every OS the CLI ships for, because several packages behave
   # differently per OS in ways a cross-compile cannot catch: internal/browser
   # (open / xdg-open / rundll32), internal/config (os.UserConfigDir is

@@ -140,7 +140,7 @@ function fakeStore(): {
 
 /** Build and sign a fresh CLI-link challenge for `client`, as `signet link` would. */
 function signedChallenge(client: Keypair): string {
-  const challenge = buildCliLinkChallenge(client.publicKey(), 'testnet');
+  const challenge = buildCliLinkChallenge(client.publicKey(), 'testnet', 'link');
   const tx = TransactionBuilder.fromXDR(challenge, getNetworkPassphrase());
   tx.sign(client);
   return tx.toEnvelope().toXDR('base64');
@@ -260,7 +260,7 @@ test('completePairing reports bad-challenge for an unsigned challenge', async ()
   const { store, wallets } = fakeStore();
   const state = await approvedPairing(store, wallets);
   const client = Keypair.random();
-  const unsigned = buildCliLinkChallenge(client.publicKey(), 'testnet'); // server-signed only
+  const unsigned = buildCliLinkChallenge(client.publicKey(), 'testnet', 'link'); // server-signed only
 
   const result = await completePairing(state, unsigned, store);
   assert.deepEqual(result, { ok: false, reason: 'bad-challenge' });
@@ -286,12 +286,31 @@ test('completePairing rejects a signed web sign-in challenge (wrong domain)', as
   assert.equal(wallets.size, walletsBefore, 'nothing may be attached');
 });
 
+test('completePairing rejects a signed unlink challenge (wrong purpose)', async (t) => {
+  __resetNonceStore();
+  t.after(() => __resetNonceStore());
+  const { store, wallets } = fakeStore();
+  const state = await approvedPairing(store, wallets);
+  const client = Keypair.random();
+  const walletsBefore = wallets.size;
+  // Correctly signed by the client and valid for unlinking, so worthless here.
+  const unlink = TransactionBuilder.fromXDR(
+    buildCliLinkChallenge(client.publicKey(), 'testnet', 'unlink'),
+    getNetworkPassphrase(),
+  );
+  unlink.sign(client);
+
+  const result = await completePairing(state, unlink.toEnvelope().toXDR('base64'), store);
+  assert.deepEqual(result, { ok: false, reason: 'bad-challenge' });
+  assert.equal(wallets.size, walletsBefore, 'nothing may be attached');
+});
+
 test('completePairing reports bad-challenge for a challenge signed by the wrong key', async () => {
   const { store, wallets } = fakeStore();
   const state = await approvedPairing(store, wallets);
   const client = Keypair.random();
   const impostor = Keypair.random();
-  const challenge = buildCliLinkChallenge(client.publicKey(), 'testnet');
+  const challenge = buildCliLinkChallenge(client.publicKey(), 'testnet', 'link');
   const tx = TransactionBuilder.fromXDR(challenge, getNetworkPassphrase());
   tx.sign(impostor);
 

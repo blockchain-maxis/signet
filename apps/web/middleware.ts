@@ -14,7 +14,7 @@ import { resolveRewriteTarget } from './lib/routing';
  *   profile     →  /p/{handle}, /p/{handle}/contract/{address}[/{tab}]
  *                  (reachable as {handle}.signet.dev/…, /@{handle}/…, and
  *                  the legacy /profile/{handle} paths)
- *   trpc api    →  /api/trpc/*
+ *   trpc api    →  /api/trpc/* (internal; public reads use /api/v1)
  *   handles     →  /handles (the public directory)
  *
  * Resolution order:

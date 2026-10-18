@@ -78,10 +78,11 @@ signet link
    showing a different one is somebody else's link. Then approve or reject.
    *Proves you own the handle*, via your signed-in session.
 4. **Prove the key.** signet fetches a CLI-link challenge for the deploy account
-   with `GET /api/cli-link?account=<key>&network=<name>` (passing the network the
-   command resolved) and signs it with `stellar tx sign`. *Proves you control
-   the deploy key.* This challenge has its own home domain (`cli.<root domain>`),
-   so a signed web sign-in challenge is refused here and a signed CLI-link
+   with `GET /api/cli-link?account=<key>&network=<name>&purpose=link` (passing the
+   network the command resolved) and signs it with `stellar tx sign`. *Proves you
+   control the deploy key.* This challenge has its own home domain
+   (`link.cli.<root domain>`), so a signed web sign-in challenge is refused here,
+   and so is a signed `unlink` challenge. A signed CLI-link
    challenge is worthless for signing in. The response also carries the
    deployment's `network_passphrase`.
 5. **Complete.** `POST /api/cli/pair/complete` checks both proofs and writes the
@@ -124,8 +125,9 @@ signet unlink --yes      # required when stdin is not a terminal (CI, pipes)
 ```
 
 Unlinking needs only the key proof — no browser step. The proof is the same
-CLI-link challenge `signet link` uses (`GET /api/cli-link`); a web sign-in
-challenge cannot unlink a wallet. Attaching a wallet makes
+CLI-link challenge `signet link` uses (`GET /api/cli-link`), but minted with
+`purpose=unlink`; neither a web sign-in challenge nor a signed `link` challenge
+can unlink a wallet. Attaching a wallet makes
 a claim about a profile; detaching withdraws one, and the person holding the key
 is the one whose attestation the profile was showing. Requiring the handle
 owner's consent too would mean a developer who left a team could not stop their
@@ -264,6 +266,8 @@ Stable, so scripts can branch on the code rather than on message text.
 
 ## Protocol
 
+The `/api/cli/*` endpoints serve the `signet` CLI only and change with it. Integrators use `/api/v1`.
+
 This section is the contract between the Go CLI (`cli/internal/pair`,
 `cli/internal/link`) and the route handlers under `apps/web/app/api/cli/**`
 and `apps/web/app/api/cli-link/route.ts`. A change to either side updates it
@@ -375,6 +379,7 @@ A **passphrase** appears only where Stellar's own signing needs it.
 | `PairingState.network` (stored, not on the wire) | Name | The canonical name that `start` resolved |
 | `whoami` response `network` | Name | The deployment's configured network |
 | `signet link --json` output `network` | Name | The `--network` flag's value (default `testnet`) |
+| `GET /api/cli-link` query `purpose` | `link` or `unlink` | What the challenge is for. Defaults to `link` when omitted; any other value is a `400`. |
 | `GET /api/cli-link` query `network` | Name | Compared against the deployment's network by mainnet or not mainnet. An unrecognized value is treated as not mainnet rather than rejected. |
 | `sep10` / `cli-link` challenge response `network_passphrase` | Passphrase | For example `Test SDF Network ; September 2015` |
 | The signed challenge XDR | Passphrase | Included in the hash that is signed, as the network ID. It is not a readable field. |
@@ -512,10 +517,9 @@ is required. Success `200`: `{ "ok": true }`. The CLI's next poll sees
 
 #### `GET /api/auth/sep10?account=G…` (the challenge)
 
-Both `signet link` and `signet unlink` use this route today. It is the web
-sign-in endpoint. **(#597** moves both commands to `GET /api/cli-link`, so that
-a sign-in challenge can no longer complete a pairing or an unlink. **#622**
-then adds `purpose=link|unlink`.**)**
+This is the web sign-in endpoint. `signet link` and `signet unlink` no longer use
+it: they call `GET /api/cli-link` (#597) with `purpose=link|unlink` (#622), so a
+sign-in challenge cannot complete a pairing or an unlink.
 
 Success `200`: `{ "transaction": "<unsigned XDR>", "network_passphrase": "…" }`.
 
@@ -559,7 +563,7 @@ the write transaction.
 | 409 | `not-approved` | `This pairing has not been approved in the browser yet` | `6` |
 | 409 | `already-completed` | `This pairing has already been completed` | `9` (rule 3) |
 | 400 | `network-mismatch` | `This pairing's network does not match the deployment's configured network` | `6` |
-| 401 | `bad-challenge` | `Invalid or unsigned challenge transaction` **(#597:** a sign-in challenge lands here; **#622:** so does an `unlink`-purpose one**)** | `6` |
+| 401 | `bad-challenge` | `Invalid or unsigned challenge transaction` (a web sign-in challenge lands here, and so does an `unlink`-purpose one) | `6` |
 | 403 | `key-mismatch` | `This challenge was signed by a different account than the one approved in the browser` **(#596:** a pairing with no declared key lands here too**)** | `6` |
 | 403 | `bad-handoff` | `That confirmation code does not match the one shown in the browser` | `6` |
 | 401 | `replayed` | `This signed challenge has already been used` | `6` |
@@ -582,7 +586,7 @@ exit `9`.
 | 400 | — | `transaction is required` | `6` |
 | 429 | — | `Too many requests` | `6` |
 | 503 | `unavailable` | `CLI wallet unlinking requires a database, …` | `3` |
-| 401 | `bad-challenge` | `Invalid or unsigned challenge transaction` **(#597, #622:** only an `unlink`-purpose CLI-link challenge will pass**)** | `6` |
+| 401 | `bad-challenge` | `Invalid or unsigned challenge transaction` (only an `unlink`-purpose CLI-link challenge passes; a `link` one is refused) | `6` |
 | 401 | `replayed` | `This signed challenge has already been used` | `6` |
 | 404 | `not-linked` | `That wallet is not linked to any profile` | `6` |
 | 409 | `primary-wallet` | `That wallet is the profile’s primary wallet — releasing it is an on-chain registry operation, not an unlink` | `6` |
@@ -607,25 +611,33 @@ returns `503`.
 #### `GET` / `POST /api/cli-link`
 
 This is the CLI-specific SEP-10 exchange. Its challenges use the home domain
-`cli.<root domain>`, so a signature made for one context is never valid in the
-other. **The current CLI does not call it. (#597** switches `link` and `unlink`
-to the `GET` side, and `complete` and `unlink` to verifying its domain. **#622**
-adds `purpose`.**)** Both methods send `Access-Control-Allow-Origin: *`.
-`OPTIONS` returns `200` with the allowed methods and headers.
+`<purpose>.cli.<root domain>` (`link.cli.…` or `unlink.cli.…`), so a signature
+made for one context is never valid in another: not for web sign-in, and not
+for the other purpose either. A challenge signed intending to link therefore
+cannot be sent to `/api/cli/unlink` to detach the wallet, and the reverse. The
+purpose lives in the domain, rather than in an extra operation, because the
+SEP-10 reader already checks the domain and nothing else has to remember to.
+The old purpose-less `cli.<root domain>` challenge verifies for neither. `link`
+and `unlink` request the matching purpose, and `complete` and `unlink` verify it.
+Both methods send `Access-Control-Allow-Origin: *`. `OPTIONS` returns `200` with
+the allowed methods and headers.
 
-`GET ?account=G…&network=<name>` succeeds with
-`{ "transaction": "<unsigned XDR>", "network_passphrase": "…" }`.
+`GET ?account=G…&network=<name>&purpose=link|unlink` succeeds with
+`{ "transaction": "<unsigned XDR>", "network_passphrase": "…" }`. `purpose`
+defaults to `link`, which is what a CLI released before purposes asks for.
 
 | Status | Message | Exit (after #597, under rule 2) |
 | --- | --- | --- |
 | 400 | `account is required and must be a valid Stellar address` | `6` |
 | 400 | `network is required (e.g. "testnet" or "mainnet")` | `6` |
+| 400 | `purpose must be "link" or "unlink"` | `6` |
 | 400 | `Network mismatch: the CLI requested "<value>" but this deployment is configured for "<name>".` | `6` |
 | 400 | `Could not build challenge` | `6` |
 | 429 | `Too many requests` | `6` |
 | 503 | The signing-key configuration error | `6` |
 
-`POST {"transaction": "<signed XDR>"}` succeeds with
+`POST {"transaction": "<signed XDR>", "purpose": "link"}` (`purpose` optional,
+default `link`) succeeds with
 `{ "verified": true, "publicKey": "G…" }`. It only verifies. It attaches
 nothing.
 
@@ -646,8 +658,9 @@ nothing.
 
 ## Challenge endpoint
 
-`GET /api/cli-link?account=<G…>&network=<name>` issues the CLI-link challenge
-used by both `signet link` and `signet unlink`. `POST /api/cli-link` (verify
+`GET /api/cli-link?account=<G…>&network=<name>&purpose=<link|unlink>` issues the
+CLI-link challenge used by `signet link` (`purpose=link`) and `signet unlink`
+(`purpose=unlink`). `POST /api/cli-link` (verify
 only; it links nothing) is **deprecated**: nothing in the CLI or the web app
 calls it now that pairing completion and unlink verify the challenge
 themselves. It is kept for callers of released versions and will be removed in a

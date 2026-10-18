@@ -168,6 +168,9 @@ export interface WhoamiResponse {
   network: string;
 }
 
+/** What a CLI-link challenge is for; a challenge verifies only for its own purpose. */
+export type CliLinkPurpose = 'link' | 'unlink';
+
 /** `GET /api/cli-link` and `GET /api/auth/sep10`. */
 export interface ChallengeResponse {
   transaction: string;
@@ -176,6 +179,8 @@ export interface ChallengeResponse {
 
 export interface CliLinkVerifyRequest {
   transaction: string;
+  /** Defaults to `link` when omitted. */
+  purpose?: CliLinkPurpose;
 }
 
 export interface CliLinkVerifyResponse {

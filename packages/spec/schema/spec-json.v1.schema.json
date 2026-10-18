@@ -57,6 +57,13 @@
       "type": "array",
       "items": { "type": "string" },
       "description": "Non-fatal extraction notes (e.g. future XDR arms surfaced as unknown)."
+    },
+    "functionSchemas": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "object"
+      },
+      "description": "Optional JSON Schema per function arguments (B-15)."
     }
   },
   "definitions": {

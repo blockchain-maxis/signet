@@ -13,10 +13,9 @@ import { consumeNonce } from '../nonce-store.ts';
  * first.
  *
  * This is single-use, not operation binding: it stops a challenge being
- * replayed, but a challenge the developer signed intending to link can still
- * be redeemed to unlink by whoever holds it. Binding the challenge to the
- * operation it was minted for is #269, tracked in #343, and needs the
- * challenge itself to carry the purpose — it cannot be retrofitted here.
+ * replayed, not redeemed for the wrong operation. That is the challenge's own
+ * job — it carries its purpose in its home domain (`cli-link.ts`, #622), so a
+ * challenge signed intending to link is refused by unlink before it is spent.
  */
 
 /** Must outlive the SEP-10 challenge's own timebounds. */

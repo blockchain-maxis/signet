@@ -161,6 +161,10 @@ model ContractSpec {
   /// provenance, in one deterministic JSON document.
   specJson      Json
   extractedAt   DateTime @default(now())
+  /// Cached diagram layout model (PositionedDiagramModel, #497)
+  layout        Json?
+  /// Version of the layout algorithm that computed `layout` (#497)
+  layoutVersion Int?
 }
 
 /// Version history of executable WASM hashes observed for a contract instance.

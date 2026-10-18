@@ -15,6 +15,7 @@ import (
 	"github.com/blockchain-maxis/signet/cli/internal/keys"
 	"github.com/blockchain-maxis/signet/cli/internal/link"
 	"github.com/blockchain-maxis/signet/cli/internal/redact"
+	"github.com/blockchain-maxis/signet/cli/internal/spec"
 )
 
 func init() { register(groupIdentity, newUnlinkCmd) }
@@ -110,7 +111,7 @@ stellar CLI.`,
 
 			network := deps.Config.Network
 			unsigned, passphrase, err := link.FetchChallenge(
-				&http.Client{Timeout: 15 * time.Second}, resolved.BaseURL, network,
+				&http.Client{Timeout: 15 * time.Second}, resolved.BaseURL, network, spec.CliLinkPurposeUnlink,
 			)(cmd.Context(), publicKey)
 			if err != nil {
 				return err

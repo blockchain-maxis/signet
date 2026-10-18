@@ -14,6 +14,7 @@ import { contract, hash, type xdr } from '@stellar/stellar-sdk';
 import { readContractMeta } from './meta.ts';
 import { InterfaceUnreadable, NoInterface } from './errors.ts';
 import { STELLAR_SDK_VERSION } from './sdk-version.ts';
+import { buildSpecViews } from './views.ts';
 import type { ContractSpec } from './types.ts';
 import { readCustomSections } from './wasm-sections.ts';
 
@@ -29,8 +30,9 @@ export const CONTRACT_SPEC_SECTION = 'contractspecv0';
  * entirely consumed". `contract.Spec` reads it as a stream instead, one entry
  * after another until the buffer is exhausted.
  *
- * `functions`, `types`, `errors` and `events` are empty until their flattened
- * views land (#430, #431). `entries` and `spec` are complete now.
+ * `functions`, `types` and `errors` are derived from the decoded spec entries.
+ * `events` are populated separately. `entries` and `spec` preserve the
+ * complete decoded interface.
  *
  * `build` and `env` come from `contractmetav0` and `contractenvmetav0`, which
  * are independent of the spec: each is undefined when its section is missing
@@ -58,6 +60,7 @@ export function parseContractSpec(wasm: Uint8Array): ContractSpec {
   }
 
   const { build, env, warnings } = readContractMeta(sections);
+  const views = buildSpecViews(spec.entries as readonly xdr.ScSpecEntry[]);
 
   return {
     // The SDK's hash() is SHA-256, synchronous and isomorphic — unlike
@@ -65,9 +68,9 @@ export function parseContractSpec(wasm: Uint8Array): ContractSpec {
     wasmHash: hash(Buffer.from(wasm)).toString('hex'),
     entries: spec.entries as readonly xdr.ScSpecEntry[],
     spec,
-    functions: [],
-    types: [],
-    errors: [],
+    functions: views.functions,
+    types: views.types,
+    errors: views.errors,
     events: [],
     ...(build !== undefined ? { build } : {}),
     ...(env !== undefined ? { env } : {}),

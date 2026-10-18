@@ -29,6 +29,7 @@ export type {
   ChallengeResponse,
   CliFailureCode,
   CliLinkFailure,
+  CliLinkPurpose,
   CliLinkVerifyRequest,
   CliLinkVerifyResponse,
   CompleteFailure,

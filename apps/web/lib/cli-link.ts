@@ -1,4 +1,5 @@
 import { WebAuth } from '@stellar/stellar-sdk';
+import type { CliLinkPurpose } from '@signet/types';
 import { isMainnetNetwork } from './network-guard.ts';
 import {
   getHomeDomain,
@@ -36,9 +37,18 @@ const CLI_LINK_TIMEOUT_SECONDS = 5 * 60;
  * different from `sep10.ts`'s `getHomeDomain()`/`getWebAuthDomain()`, which
  * back web sign-in. Not expected to resolve in DNS; SEP-10's domain check
  * here is a string match, not a lookup.
+ *
+ * There is one domain per purpose (`link.cli.<home>`, `unlink.cli.<home>`).
+ * A signed challenge is a bearer proof of key control, and nothing else in it
+ * says what it was minted for, so without this a link challenge intercepted in
+ * transit could be sent to `/api/cli/unlink` first and detach the wallet
+ * (#622). Encoding the purpose in the domain reuses the check the SDK already
+ * makes in `readChallengeTx`, rather than adding a second operation to parse
+ * and a second place to forget to check it. The old purpose-less
+ * `cli.<home>` domain is verified by neither.
  */
-export function getCliLinkDomain(): string {
-  return `cli.${getHomeDomain()}`;
+export function getCliLinkDomain(purpose: CliLinkPurpose): string {
+  return `${purpose}.cli.${getHomeDomain()}`;
 }
 
 /** The Stellar network this deployment is configured for (e.g. `"testnet"`). */
@@ -65,11 +75,15 @@ export function assertNetworkMatches(requestedNetwork: string): void {
 /**
  * Build a CLI-link challenge transaction for `clientAccountId` (the deploy
  * wallet's public key), after checking `requestedNetwork` against this
- * deployment's configured network.
+ * deployment's configured network. The challenge verifies only for `purpose`.
  */
-export function buildCliLinkChallenge(clientAccountId: string, requestedNetwork: string): string {
+export function buildCliLinkChallenge(
+  clientAccountId: string,
+  requestedNetwork: string,
+  purpose: CliLinkPurpose,
+): string {
   assertNetworkMatches(requestedNetwork);
-  const domain = getCliLinkDomain();
+  const domain = getCliLinkDomain(purpose);
   return WebAuth.buildChallengeTx(
     getServerKeypair(),
     clientAccountId,
@@ -81,14 +95,15 @@ export function buildCliLinkChallenge(clientAccountId: string, requestedNetwork:
 }
 
 /**
- * Verify a signed CLI-link challenge transaction and return the authenticated
- * client account id (the deploy wallet). Throws `Sep10Error` (or a
- * `WebAuth.InvalidChallengeError`) on any failure — including a challenge
- * built for web sign-in instead of CLI linking, since its home domain won't
- * match `getCliLinkDomain()`.
+ * Verify a signed CLI-link challenge transaction minted for `purpose` and
+ * return the authenticated client account id (the deploy wallet). Throws
+ * `Sep10Error` (or a `WebAuth.InvalidChallengeError`) on any failure —
+ * including a challenge built for web sign-in, a challenge minted for the other
+ * purpose, or one with no purpose at all, since its home domain won't match
+ * `getCliLinkDomain(purpose)`.
  */
-export function verifyCliLinkChallenge(transactionXdr: string): string {
-  const domain = getCliLinkDomain();
+export function verifyCliLinkChallenge(transactionXdr: string, purpose: CliLinkPurpose): string {
+  const domain = getCliLinkDomain(purpose);
   const serverAccountId = getServerKeypair().publicKey();
   const { clientAccountID } = WebAuth.readChallengeTx(
     transactionXdr,
