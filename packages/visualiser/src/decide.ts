@@ -58,7 +58,12 @@ export const MIN_EDGES = 0;
  * future use (e.g. measuring actual rendered size) but is not consulted
  * by the current logic.
  */
-export function diagramDecision(graph: DecidableGraph, _model: DiagramModel): DiagramDecision {
+export function diagramDecision(graph: DecidableGraph, model: DiagramModel): DiagramDecision {
+  const positioned = model as { status?: string; tooLarge?: boolean; rawNodeCount?: number } | undefined;
+  if (positioned?.tooLarge || positioned?.status === 'too-large') {
+    return { kind: 'too-large', nodeCount: positioned.rawNodeCount ?? graph.nodes.length };
+  }
+
   // Too simple: no spec-derived edges. The registry has 8 functions, 0 types,
   // 0 edges — the docs already say everything.
   if (graph.edges.length <= MIN_EDGES) {
