@@ -1,6 +1,6 @@
 import { normalizeNetwork } from '@signet/types';
 import type { AttributedContract } from '@/lib/contract-attribution';
-import { buildHeaderModel } from '@/lib/contract-header';
+import { buildHeaderModel, truncateMiddle } from '@/lib/contract-header';
 import { describeUpgrades } from '@/lib/contract-upgrades';
 import { STELLAR_NETWORK } from '@/lib/chain';
 import { loadIndexedAsOf, loadLiveInstance } from '@/lib/server/contract-header-source';
@@ -15,7 +15,7 @@ const LINK =
 
 function Row({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div className="grid gap-x-8 gap-y-1 py-3 sm:grid-cols-[9rem_1fr]">
+    <div className="grid gap-x-8 gap-y-1 py-3 md:grid-cols-[9rem_1fr]">
       <dt className="text-[10px] uppercase tracking-[0.22em] text-[#8a8779]">{label}</dt>
       <dd className="min-w-0 text-[13px] leading-[1.7] text-[#b8b5a8]">{children}</dd>
     </div>
@@ -57,7 +57,11 @@ export async function ContractHeader({
         <Row label="Address">
           <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
             <span className="break-all">
-              <CopyAddress address={m.address} display={m.address} />
+              <CopyAddress
+                address={m.address}
+                display={m.address}
+                shortDisplay={truncateMiddle(m.address, 8, 6)}
+              />
             </span>
             <ExternalLink
               href={m.addressUrl}
@@ -99,9 +103,15 @@ export async function ContractHeader({
 
         <Row label="WASM hash">
           {m.wasm.hash ? (
-            <p className="break-all text-[#f5f4ee]" data-testid="contract-wasm-hash">
-              {m.wasm.hash}
-            </p>
+            <div className="break-all text-[#f5f4ee]" data-testid="contract-wasm-hash">
+              <CopyAddress
+                address={m.wasm.hash}
+                display={m.wasm.hash}
+                shortDisplay={truncateMiddle(m.wasm.hash, 8, 8)}
+                label="WASM hash"
+                copiedLabel="WASM hash copied"
+              />
+            </div>
           ) : null}
           <p className={m.wasm.hash ? 'text-[#8a8779]' : 'text-[#f5f4ee]'} data-testid="contract-wasm-source">
             {m.wasm.label}
@@ -115,9 +125,24 @@ export async function ContractHeader({
         </Row>
 
         <Row label="Deploy tx">
-          <ExternalLink href={m.deployTx.url} className={`break-all ${LINK}`}>
-            {m.deployTx.hash}
-          </ExternalLink>
+          <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+            <ExternalLink
+              href={m.deployTx.url}
+              title={m.deployTx.hash}
+              className={`break-all ${LINK}`}
+            >
+              <span className="md:hidden" aria-hidden="true">
+                {truncateMiddle(m.deployTx.hash, 8, 8)}
+              </span>
+              <span className="sr-only md:not-sr-only">{m.deployTx.hash}</span>
+            </ExternalLink>
+            <CopyAddress
+              address={m.deployTx.hash}
+              display=""
+              label="deploy transaction hash"
+              copiedLabel="Transaction hash copied"
+            />
+          </div>
         </Row>
 
         <Row label="Deployed">

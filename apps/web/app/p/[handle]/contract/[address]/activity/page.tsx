@@ -24,10 +24,13 @@ function SnapshotStats({ snapshot }: { snapshot: ContractActivitySnapshot }) {
 
   return (
     <div>
-      <div className="grid grid-cols-1 gap-px border border-[#1f1d19] bg-[#1f1d19] sm:grid-cols-3">
-        <div className="flex flex-col justify-center bg-[#0a0908] px-6 py-6">
+      <div
+        className="grid grid-cols-2 gap-px border border-[#1f1d19] bg-[#1f1d19] md:grid-cols-3"
+        data-testid="activity-snapshot-stats"
+      >
+        <div className="flex flex-col justify-center bg-[#0a0908] px-4 py-5 sm:px-6 sm:py-6">
           <span
-            className="text-[32px] font-bold leading-none tracking-[-0.025em] text-[#f5f4ee]"
+            className="break-words text-[24px] font-bold leading-none tracking-[-0.025em] text-[#f5f4ee] sm:text-[32px]"
             style={DISPLAY}
           >
             {snapshot.txCount24h}
@@ -40,9 +43,9 @@ function SnapshotStats({ snapshot }: { snapshot: ContractActivitySnapshot }) {
           </span>
         </div>
 
-        <div className="flex flex-col justify-center bg-[#0a0908] px-6 py-6">
+        <div className="flex flex-col justify-center bg-[#0a0908] px-4 py-5 sm:px-6 sm:py-6">
           <span
-            className="text-[20px] font-bold leading-none tracking-[-0.025em] text-[#f5f4ee]"
+            className="break-words text-[18px] font-bold leading-snug tracking-[-0.025em] text-[#f5f4ee] sm:text-[20px] sm:leading-none"
             style={DISPLAY}
           >
             {totalDisplay}
@@ -55,9 +58,9 @@ function SnapshotStats({ snapshot }: { snapshot: ContractActivitySnapshot }) {
           </span>
         </div>
 
-        <div className="flex flex-col justify-center bg-[#0a0908] px-6 py-6">
+        <div className="col-span-2 flex flex-col justify-center bg-[#0a0908] px-4 py-5 sm:px-6 sm:py-6 md:col-span-1">
           <span
-            className="text-[32px] font-bold leading-none tracking-[-0.025em] text-[#f5f4ee]"
+            className="break-words text-[24px] font-bold leading-none tracking-[-0.025em] text-[#f5f4ee] sm:text-[32px]"
             style={DISPLAY}
           >
             {snapshot.lastActivity ? formatDate(snapshot.lastActivity.toISOString()) : '—'}

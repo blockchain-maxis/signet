@@ -6,7 +6,7 @@ const MONO = { fontFamily: 'var(--font-mono)' } as const;
 // and the deployer each carry a second line.
 function Row({ label, lines = 1 }: { label: string; lines?: number }) {
   return (
-    <div className="grid gap-x-8 gap-y-1 py-3 sm:grid-cols-[9rem_1fr]">
+    <div className="grid gap-x-8 gap-y-1 py-3 md:grid-cols-[9rem_1fr]">
       <dt className="text-[10px] uppercase tracking-[0.22em] text-[#8a8779]">{label}</dt>
       <dd className="min-w-0" aria-hidden="true">
         {Array.from({ length: lines }, (_, i) => (

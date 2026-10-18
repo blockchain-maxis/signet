@@ -52,7 +52,7 @@ export async function Provenance({
         </div>
       )}
       <dl className="divide-y divide-[#1f1d19] border-y border-[#1f1d19] text-[13px] leading-[1.7]">
-        <div className="grid gap-x-8 gap-y-1 py-3 sm:grid-cols-[9rem_1fr]">
+        <div className="grid gap-x-8 gap-y-1 py-3 md:grid-cols-[9rem_1fr]">
           <dt className="text-[10px] uppercase tracking-[0.22em] text-[#8a8779]">WASM hash</dt>
           <dd className="min-w-0 text-[#f5f4ee]">
             <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
@@ -75,7 +75,7 @@ export async function Provenance({
         </div>
 
         {(m.built || m.protocol || m.reader) && (
-          <div className="grid gap-x-8 gap-y-1 py-3 sm:grid-cols-[9rem_1fr]">
+          <div className="grid gap-x-8 gap-y-1 py-3 md:grid-cols-[9rem_1fr]">
             <dt className="text-[10px] uppercase tracking-[0.22em] text-[#8a8779]">Built and read</dt>
             <dd className="min-w-0 space-y-1 text-[#b8b5a8]">
               {m.built && <p data-testid="provenance-built">{m.built}</p>}

@@ -55,7 +55,7 @@ export function EmbedButton({ handle, address }: { handle: string; address: stri
         <div
           role="dialog"
           aria-label="Embed diagram code"
-          className="absolute left-0 top-full z-40 mt-2 w-80 sm:w-96 rounded border border-[#1f1d19] bg-[#14120f] p-4 shadow-xl"
+          className="absolute left-0 top-full z-40 mt-2 w-80 max-w-[calc(100vw-4rem)] sm:w-96 rounded border border-[#1f1d19] bg-[#14120f] p-4 shadow-xl"
         >
           <div className="flex items-center justify-between pb-3 border-b border-[#1f1d19]">
             <h3
@@ -103,7 +103,7 @@ export function EmbedButton({ handle, address }: { handle: string; address: stri
               <button
                 type="button"
                 onClick={handleCopy}
-                className="inline-flex items-center gap-1.5 rounded bg-[#e05a4b] px-3 py-1.5 text-[11px] font-medium uppercase tracking-[0.15em] text-white transition-colors hover:bg-[#f0806f] focus-visible:outline focus-visible:outline-2"
+                className="inline-flex min-h-11 min-w-11 items-center justify-center gap-1.5 rounded bg-[#e05a4b] px-3 py-1.5 text-[11px] font-medium uppercase tracking-[0.15em] text-white transition-colors hover:bg-[#f0806f] focus-visible:outline focus-visible:outline-2"
                 style={{ fontFamily: 'var(--font-mono)' }}
               >
                 {copied ? 'Copied!' : 'Copy Code'}

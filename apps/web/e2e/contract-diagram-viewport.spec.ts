@@ -6,9 +6,7 @@ import {
 
 const HAS_DB = Boolean(process.env.DATABASE_URL);
 const base = (handle: string, address: string) => `/p/${handle}/contract/${address}`;
-// The tabs the viewport work renders on (#504). /run and /activity are not touched by it,
-// so their phone-width layout is not asserted here.
-const TABS = ['', '/functions', '/types', '/diagram'] as const;
+const TABS = ['', '/functions', '/types', '/diagram', '/run', '/activity'] as const;
 
 test.describe('bounded viewport and zoom steps (#504)', () => {
   test.use({ viewport: { width: 375, height: 667 } });
