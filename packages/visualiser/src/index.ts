@@ -156,3 +156,14 @@ export {
   type VizThemeTokens,
   type VizTokenName,
 } from './tokens.ts';
+
+// Error surface, declared events and build provenance panels (E-16)
+export {
+  diagramPanels,
+  renderPanelsHtml,
+  type DiagramPanels,
+  type PanelBuild,
+  type PanelError,
+  type PanelEvent,
+} from './panels.ts';
+

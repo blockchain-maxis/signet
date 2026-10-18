@@ -4,6 +4,7 @@ import {
   getContractActivity,
   getContractInvocations,
   getContractOperationsPage,
+  formatSnapshotTotal,
   parsePaging,
   type ContractActivityDb,
   type InvocationRow,
@@ -286,3 +287,38 @@ test('route: without a database the list is empty with source none', async () =>
   assert.equal(res.body.meta.total, 0);
   assert.equal(res.body.meta.source, 'none');
 });
+
+test('formatSnapshotTotal: renders "{n}+ since {countedSince}" when totalIsFloor is true (#453)', () => {
+  const s = {
+    txCount24h: 5,
+    txCountTotal: 42,
+    totalIsFloor: true,
+    countedSince: new Date('2026-02-01T00:00:00Z'),
+    lastActivity: new Date('2026-03-01T00:00:00Z'),
+    capturedAt: new Date('2026-03-02T00:00:00Z'),
+  };
+  const rendered = formatSnapshotTotal(s);
+  assert.match(rendered, /^42\+ since /);
+});
+
+test('formatSnapshotTotal: renders "{n} since {countedSince}" when totalIsFloor is false (#453)', () => {
+  const s = {
+    txCount24h: 5,
+    txCountTotal: 42,
+    totalIsFloor: false,
+    countedSince: new Date('2026-02-01T00:00:00Z'),
+    lastActivity: new Date('2026-03-01T00:00:00Z'),
+    capturedAt: new Date('2026-03-02T00:00:00Z'),
+  };
+  const rendered = formatSnapshotTotal(s);
+  assert.match(rendered, /^42 since /);
+});
+
+test('formatSnapshotTotal: pre-#429 snapshot (null countedSince) renders "Not measured yet" (#453)', () => {
+  assert.equal(formatSnapshotTotal(null), 'Not measured yet');
+  assert.equal(
+    formatSnapshotTotal({ txCountTotal: 0, countedSince: null } as unknown as Parameters<typeof formatSnapshotTotal>[0]),
+    'Not measured yet',
+  );
+});
+

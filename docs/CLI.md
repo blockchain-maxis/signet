@@ -89,6 +89,22 @@ signet link
    binding. It refuses if the challenge was signed by any key other than the one
    the browser was shown — so what you approved is what gets linked.
 
+Manual code entry. When stdin is a terminal and `--json` is not set, `signet link`
+offers a prompt ("Paste the code shown in the browser, or wait for it to
+finish") if the loopback listener could not be started, or if polling has
+reported the pairing approved and no callback has arrived 10 seconds later. The
+code is sent to `complete` as `handoffCode`, upper-cased, with spaces and hyphens
+removed. Whichever finishes first wins: the callback, or the pasted code. With
+`--json`, or when stdin is not a terminal, there is no prompt.
+
+Ctrl-C while waiting prints `pairing abandoned; the link expires at <time>` to
+stderr and exits `130`. The pairing is not cancelled server-side; it expires on
+its own.
+
+Linking a wallet that is already bound to the same profile succeeds and reports
+`status: "already-linked"` (in `--json` output and in the text, `Already linked: …`)
+instead of `linked`.
+
 Two things race in step 3, and whichever answers first wins:
 
 - a **loopback callback** — signet listens on `127.0.0.1` and the approval page
@@ -241,6 +257,7 @@ Stable, so scripts can branch on the code rather than on message text.
 | `11` | Host unsupported — the simulator can't serve this network |
 | `12` | Build failed — the contract under test failed to build |
 | `13` | Simulator failure — the simulator itself failed, not the contract call it was running |
+| `130` | Interrupted — Ctrl-C while the command was waiting; `link` abandons the pairing |
 
 ## Troubleshooting
 
@@ -259,6 +276,7 @@ Stable, so scripts can branch on the code rather than on message text.
 | `This challenge was signed by a different account than the one approved in the browser` | The identity changed between approving and signing | Re-run `signet link` so the key shown and the key signed are the same |
 | `CLI linking requires a database, and this deployment has none configured` (exit `3`) | The deployment has no `DATABASE_URL`; a link would have nowhere to be written | The operator provisions one (tracked in #191). Not something you can fix from the terminal — and `/link` says so before you approve |
 | `That confirmation code does not match the one shown in the browser` | The pasted handoff code is wrong or from another attempt | Copy it again from the approval page, or re-run `signet link` |
+| `pairing abandoned; the link expires at …` (exit `130`) | You pressed Ctrl-C while `signet link` was waiting | Nothing was linked. Run `signet link` again, or finish approving the printed link before it expires |
 | A sandbox run exits `10` with no error text | A comparison found a diff — that is the result, not a failure | Read the printed diff; in CI, branch on `$? -eq 10` to treat "changed" differently from "broken" |
 | `host unsupported` (exit `11`) | The simulator does not model this network's protocol version or host functions | Run against a network the simulator supports, or upgrade the CLI for a newer simulator |
 | `contract build failed` (exit `12`) | The contract under test did not compile, so nothing ran | Fix the build first — the same errors appear building it directly |
@@ -478,8 +496,8 @@ Called from `/link` with the session cookie. Request: `{ "state": "<pairing id>"
 
 Success `200`: `{ "ok": true, "handoffCode": "<8 chars>" }`. The handoff code
 is minted at approval time and returned only to the session that approved. It
-exists for a manual path where the developer pastes it into the terminal, but
-the current CLI never sends it (see `complete`).
+exists for the manual path where the developer pastes it into the terminal
+(see `complete`).
 
 The route checks, in order: same origin, the rate limit, the session, the body,
 and then the pairing.
@@ -539,13 +557,15 @@ Request:
 { "state": "<pairing id>", "transaction": "<signed XDR>", "handoffCode": "<optional>" }
 ```
 
-`handoffCode` is checked only when it is present. `signet link` always sends an
-empty one, which is omitted from the body, so `bad-handoff` cannot currently be
-reached from the CLI.
+`handoffCode` is checked only when it is present. `signet link` sends one only
+when the developer pasted it at the prompt (see "Manual code entry" above);
+otherwise it is omitted from the body.
 
-Success `200`: `{ "ok": true, "wallet": "G…", "handle": "alice" }`. `handle` is
-`null` if the profile has no handle. Completing again for a wallet already bound
-to the *same* profile succeeds and is idempotent.
+Success `200`: `{ "ok": true, "wallet": "G…", "handle": "alice",
+"indexingPending": false, "status": "linked" }`. `handle` is `null` if the
+profile has no handle. Completing again for a wallet already bound to the
+*same* profile succeeds and is idempotent; `status` is then `already-linked`
+instead of `linked`, and the CLI reports it as such.
 
 The `CompleteFailure` reasons come from `apps/web/lib/server/pairing.ts`. The
 checks run in this order: `not-found`, `already-completed`, `not-approved`,

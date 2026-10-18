@@ -67,7 +67,9 @@ func baseDeps(status pair.Status) Deps {
 		Poll:      func(context.Context, string) (pair.Status, error) { return status, nil },
 		Challenge: func(context.Context, string) (string, string, error) { return "UNSIGNED", testPassphrase, nil },
 		Sign:      func(string, string) (string, error) { return "SIGNED", nil },
-		Complete:  func(context.Context, string, string, string) (string, bool, error) { return "alice", false, nil },
+		Complete: func(context.Context, string, string, string) (pair.Completed, error) {
+			return pair.Completed{Handle: "alice"}, nil
+		},
 		// Keep the suite fast: the real defaults are five minutes and two
 		// seconds, and nothing here is testing wall-clock behaviour.
 		TTL:          30 * time.Millisecond,
@@ -78,7 +80,7 @@ func baseDeps(status pair.Status) Deps {
 func TestRun_LinksViaPollingWhenThereIsNoLoopback(t *testing.T) {
 	deps := baseDeps(pair.StatusApproved)
 	var signed string
-	deps.Complete = func(_ context.Context, state, xdr, handoff string) (string, bool, error) {
+	deps.Complete = func(_ context.Context, state, xdr, handoff string) (pair.Completed, error) {
 		signed = xdr
 		if state != "p_1" {
 			t.Errorf("completed the wrong pairing: %q", state)
@@ -86,7 +88,7 @@ func TestRun_LinksViaPollingWhenThereIsNoLoopback(t *testing.T) {
 		if handoff != "" {
 			t.Errorf("sent a handoff code on the automatic path: %q", handoff)
 		}
-		return "alice", false, nil
+		return pair.Completed{Handle: "alice"}, nil
 	}
 
 	result, err := Run(context.Background(), "https://signet.example", "testnet", "src", "GABC", deps)
@@ -238,9 +240,9 @@ func TestRun_CallbackWithTheWrongStateDoesNotFinishTheLink(t *testing.T) {
 
 	deps := baseDeps(pair.StatusExpired)
 	deps.Listen = func(string) (Callbacks, error) { return cb, nil }
-	deps.Complete = func(context.Context, string, string, string) (string, bool, error) {
+	deps.Complete = func(context.Context, string, string, string) (pair.Completed, error) {
 		t.Fatal("completed on a callback with a mismatched state")
-		return "", false, nil
+		return pair.Completed{}, nil
 	}
 
 	_, err := Run(context.Background(), "https://signet.example", "testnet", "src", "GABC", deps)
@@ -255,9 +257,9 @@ func TestRun_RejectedApprovalExitsWithoutSigning(t *testing.T) {
 		t.Fatal("signed after the approval was refused")
 		return "", nil
 	}
-	deps.Complete = func(context.Context, string, string, string) (string, bool, error) {
+	deps.Complete = func(context.Context, string, string, string) (pair.Completed, error) {
 		t.Fatal("completed after the approval was refused")
-		return "", false, nil
+		return pair.Completed{}, nil
 	}
 
 	_, err := Run(context.Background(), "https://signet.example", "testnet", "src", "GABC", deps)
@@ -287,8 +289,8 @@ func TestRun_AlreadyLinkedIsItsOwnFailureMode(t *testing.T) {
 	// pair.Client classifies the refusal by its code (see pair_test.go); Run
 	// must pass that classification through rather than re-deriving it from
 	// the message, which is free to change.
-	deps.Complete = func(context.Context, string, string, string) (string, bool, error) {
-		return "", false, fmt.Errorf("%w: reworded, and still already linked", exitcode.ErrAlreadyLinked)
+	deps.Complete = func(context.Context, string, string, string) (pair.Completed, error) {
+		return pair.Completed{}, fmt.Errorf("%w: reworded, and still already linked", exitcode.ErrAlreadyLinked)
 	}
 
 	_, err := Run(context.Background(), "https://signet.example", "testnet", "src", "GABC", deps)
@@ -325,9 +327,9 @@ func TestRun_SigningFailureStopsBeforeComplete(t *testing.T) {
 	deps.Sign = func(string, string) (string, error) {
 		return "", errors.New("signing failed: identity not found")
 	}
-	deps.Complete = func(context.Context, string, string, string) (string, bool, error) {
+	deps.Complete = func(context.Context, string, string, string) (pair.Completed, error) {
 		t.Fatal("completed without a signature")
-		return "", false, nil
+		return pair.Completed{}, nil
 	}
 
 	if _, err := Run(context.Background(), "https://signet.example", "testnet", "src", "GABC", deps); err == nil {
@@ -365,8 +367,8 @@ func TestRun_RedactsSecretsFromApprovalOutputTimeoutAndResult(t *testing.T) {
 
 	t.Run("result fields", func(t *testing.T) {
 		deps := baseDeps(pair.StatusApproved)
-		deps.Complete = func(context.Context, string, string, string) (string, bool, error) {
-			return seed, false, nil
+		deps.Complete = func(context.Context, string, string, string) (pair.Completed, error) {
+			return pair.Completed{Handle: seed}, nil
 		}
 		result, err := Run(context.Background(), "https://signet.example", seed, "src", "GABC", deps)
 		if err != nil {

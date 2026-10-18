@@ -1,0 +1,4 @@
+{"version":1,"id":"hello","type":"hello","client_protocol_version":1}
+{"commit":"<commit>","id":"hello","lanes":[{"env_host":"28.0.2","ledger_protocol":28,"simulation":"28.0.2"}],"server_protocol_version":1,"simulator_version":"<version>","type":"hello_ack","version":1}
+{"version":1,"id":"bye","type":"shutdown"}
+{"id":"bye","type":"result","version":1}

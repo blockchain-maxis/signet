@@ -260,6 +260,20 @@ var CliFailureCodes = []CliFailureCode{
 	CliFailureCodePrimaryWallet,
 }
 
+// PairCompleteStatus mirrors the PairCompleteStatus union in packages/types/src/cli-api.ts.
+type PairCompleteStatus string
+
+const (
+	PairCompleteStatusLinked        PairCompleteStatus = "linked"
+	PairCompleteStatusAlreadyLinked PairCompleteStatus = "already-linked"
+)
+
+// PairCompleteStatuses lists every PairCompleteStatus value, in declaration order.
+var PairCompleteStatuses = []PairCompleteStatus{
+	PairCompleteStatusLinked,
+	PairCompleteStatusAlreadyLinked,
+}
+
 // PollStatus mirrors the PollStatus union in packages/types/src/cli-api.ts.
 type PollStatus string
 
@@ -335,10 +349,11 @@ type PairCompleteRequest struct {
 
 // PairCompleteResponse mirrors the PairCompleteResponse interface in packages/types/src/cli-api.ts.
 type PairCompleteResponse struct {
-	OK              bool   `json:"ok"`
-	Wallet          string `json:"wallet"`
-	Handle          string `json:"handle"`
-	IndexingPending bool   `json:"indexingPending"`
+	OK              bool               `json:"ok"`
+	Wallet          string             `json:"wallet"`
+	Handle          string             `json:"handle"`
+	IndexingPending bool               `json:"indexingPending"`
+	Status          PairCompleteStatus `json:"status"`
 }
 
 // UnlinkRequest mirrors the UnlinkRequest interface in packages/types/src/cli-api.ts.

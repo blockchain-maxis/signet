@@ -7,9 +7,10 @@
  *
  * Landed:
  * - `enhanceDetails` — hover/focus detail card (#500).
+ * - `enhanceKeyboard` — keyboard navigation and roving tabindex (#501).
  *
- * Still to come (#501–#505): keyboard navigation, group collapse/expand,
- * search/filter, bounded viewport with zoom and pan, and node permalinks.
+ * Still to come (#502–#505): group collapse/expand, search/filter,
+ * bounded viewport with zoom and pan, and node permalinks.
  */
 
 export type { DetailsData, EnhanceDetailsOptions, NodeDetails } from './details.ts';
@@ -21,6 +22,20 @@ export {
   placeCard,
   relatedTo,
 } from './details.ts';
+
+export type {
+  EdgeRef,
+  EnhanceKeyboardOptions,
+  NodePosition,
+} from './keyboard.ts';
+export {
+  KEYBOARD_CLASSES,
+  KEYBOARD_HINT_TEXT,
+  buildNavigationMaps,
+  enhanceKeyboard,
+  getNodePosition,
+  groupNodesIntoColumns,
+} from './keyboard.ts';
 
 /**
  * Placeholder for the pan/zoom/selection enhancer that lands in #501–#505.

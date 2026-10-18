@@ -1,10 +1,14 @@
 package cmd
 
 import (
+	"bufio"
+	"context"
 	"fmt"
 	"io"
 	"net/http"
 	"net/url"
+	"os"
+	"os/signal"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -67,7 +71,12 @@ signing goes through the stellar CLI.`,
 			network := deps.Config.Network
 			client := deps.NewClient(resolved.BaseURL)
 
-			result, err := link.Run(cmd.Context(), resolved.BaseURL, network, source, publicKey, link.Deps{
+			// Ctrl-C ends the wait cleanly: link.Run reports the abandoned
+			// pairing (exit 130) instead of the process dying mid-line.
+			ctx, stop := signal.NotifyContext(cmd.Context(), os.Interrupt)
+			defer stop()
+
+			result, err := link.Run(ctx, resolved.BaseURL, network, source, publicKey, link.Deps{
 				Start:     client.Start,
 				Poll:      client.Poll,
 				Complete:  client.Complete,
@@ -83,6 +92,7 @@ signing goes through the stellar CLI.`,
 				OpenBrowser: func(target string) error {
 					return browser.OpenOrPrint(io.Discard, target, noBrowser)
 				},
+				Prompt: manualCodePrompt(printer.JSON, cmd.InOrStdin()),
 				Listen: func(path string) (link.Callbacks, error) {
 					s, err := loopback.New(path)
 					if err != nil {
@@ -112,7 +122,11 @@ signing goes through the stellar CLI.`,
 				} else {
 					handle = "@" + handle
 				}
-				_, err := fmt.Fprintf(w, "Linked %s to %s on %s.\n", result.PublicKey, handle, result.Network)
+				verb := "Linked"
+				if result.Status == "already-linked" {
+					verb = "Already linked:"
+				}
+				_, err := fmt.Fprintf(w, "%s %s to %s on %s.\n", verb, result.PublicKey, handle, result.Network)
 				return err
 			})
 		},
@@ -132,4 +146,41 @@ func originOf(raw string) string {
 		return ""
 	}
 	return parsed.Scheme + "://" + parsed.Host
+}
+
+// manualCodePrompt is the prompt link offers for pasting the browser's handoff
+// code, or nil when it must stay silent. It needs a person at a terminal: with
+// --json the caller was promised one object on stdout and nothing else, and a
+// non-terminal stdin has nobody to type.
+func manualCodePrompt(json bool, in io.Reader) func(context.Context) (string, error) {
+	if json || !stdinIsTerminal(in) {
+		return nil
+	}
+	return readLine(bufio.NewReader(in))
+}
+
+// readLine returns a prompt that reads one line from r. The read runs on its
+// own goroutine so a cancelled ctx (Ctrl-C, or another path finishing the
+// link) is honoured immediately instead of waiting for the next keypress.
+func readLine(r *bufio.Reader) func(context.Context) (string, error) {
+	return func(ctx context.Context) (string, error) {
+		type line struct {
+			text string
+			err  error
+		}
+		got := make(chan line, 1)
+		go func() {
+			text, err := r.ReadString('\n')
+			got <- line{text, err}
+		}()
+		select {
+		case <-ctx.Done():
+			return "", ctx.Err()
+		case l := <-got:
+			if l.err != nil && l.text == "" {
+				return "", l.err
+			}
+			return l.text, nil
+		}
+	}
 }

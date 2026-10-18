@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"bytes"
+	"io"
 	"strings"
 	"testing"
 )
@@ -52,5 +53,23 @@ func TestLinkFlags(t *testing.T) {
 	// signed and what gets linked cannot disagree.
 	if cmd.Flags().Lookup("public-key") != nil {
 		t.Fatal("--public-key came back")
+	}
+}
+
+func TestLinkOffersTheManualCodePromptOnlyToAPerson(t *testing.T) {
+	prev := stdinIsTerminal
+	t.Cleanup(func() { stdinIsTerminal = prev })
+
+	stdinIsTerminal = func(io.Reader) bool { return true }
+	if manualCodePrompt(false, strings.NewReader("")) == nil {
+		t.Fatal("no prompt for a person at a terminal")
+	}
+	if manualCodePrompt(true, strings.NewReader("")) != nil {
+		t.Fatal("--json must never prompt: stdout is promised to be one object")
+	}
+
+	stdinIsTerminal = func(io.Reader) bool { return false }
+	if manualCodePrompt(false, strings.NewReader("")) != nil {
+		t.Fatal("prompted although stdin is not a terminal")
 	}
 }

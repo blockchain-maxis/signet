@@ -15,9 +15,30 @@ killing the process.
 | Path         | What                                                                 |
 | ------------ | -------------------------------------------------------------------- |
 | `simulator/` | The `signet-simulator` binary                                        |
+| `protocol/`  | Golden NDJSON transcripts replayed by `simulator/tests/transcripts.rs` |
 | `fuzz/`      | Fuzz target stub; excluded from default members, so plain `cargo` skips it |
 
-Only `--version` exists so far. The message protocol arrives with #524.
+## Message loop
+
+With no arguments the binary reads NDJSON from stdin and writes NDJSON to
+stdout (docs/CLI_RUST_BRIDGE.md §1-§3):
+
+- `simulator/src/framing.rs` reads lines up to 64 MiB. A longer line gets a
+  `bad_request` error (`detail.kind: "line_too_long"`) and the reader resumes
+  at the next newline.
+- `simulator/src/dispatch.rs` parses the envelope, echoes `id`, and checks
+  `version` on every message (`unsupported_version` on a mismatch). The first
+  message must be `hello`, answered with `hello_ack`; `shutdown` answers and
+  exits 0. Anything else is a `bad_request` with the reason in `detail`.
+- The loop runs inside `catch_unwind`. On a panic it makes a best-effort write
+  of an `internal_panic` error and exits 101 without handling further input.
+- Stdout is written only through one serialised writer. Logs go to stderr via
+  `tracing`; set `SIGNET_SIMULATOR_LOG` (for example `debug`) to change the
+  level (default `warn`).
+
+```bash
+echo '{"version":1,"id":"hello","type":"hello","client_protocol_version":1}'   | sandbox/target/release/signet-simulator
+```
 
 ## Build and test
 

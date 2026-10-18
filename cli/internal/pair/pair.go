@@ -82,16 +82,31 @@ func (c *Client) Poll(ctx context.Context, pollToken string) (Status, error) {
 	return out.Status, nil
 }
 
+// Completed is what `POST /api/cli/pair/complete` reports back.
+type Completed = spec.PairCompleteResponse
+
+// StatusLinked and StatusAlreadyLinked say what complete did for the wallet:
+// attached it, or found it already bound to this same profile.
+const (
+	StatusLinked        = spec.PairCompleteStatusLinked
+	StatusAlreadyLinked = spec.PairCompleteStatusAlreadyLinked
+)
+
 // Complete submits the signed SEP-10 challenge that attaches the wallet.
 // handoffCode is the code the browser showed, and is sent only on the manual
 // path — empty means "not applicable", not "empty code".
-func (c *Client) Complete(ctx context.Context, state, challengeXDR, handoffCode string) (string, bool, error) {
+//
+// An older server sends no status; that is reported as a plain link.
+func (c *Client) Complete(ctx context.Context, state, challengeXDR, handoffCode string) (Completed, error) {
 	body := spec.PairCompleteRequest{State: state, Transaction: challengeXDR, HandoffCode: handoffCode}
-	var out spec.PairCompleteResponse
+	var out Completed
 	if err := c.do(ctx, http.MethodPost, "/api/cli/pair/complete", body, &out); err != nil {
-		return "", false, err
+		return Completed{}, err
 	}
-	return out.Handle, out.IndexingPending, nil
+	if out.Status == "" {
+		out.Status = StatusLinked
+	}
+	return out, nil
 }
 
 // Unlinked is what `POST /api/cli/unlink` reports back.

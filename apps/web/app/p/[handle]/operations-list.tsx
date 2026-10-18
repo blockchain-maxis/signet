@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useEffect } from 'react';
 import type { Operation } from '@/lib/profiles';
 import { stellarExpertTxUrl } from '@/lib/network';
 import { formatDate } from '@/lib/format-date';
@@ -23,6 +23,16 @@ interface OperationsListProps {
   truncated?: boolean;
   /** The cap behind `truncated`, named in the end-of-list notice. */
   cap?: number | null;
+  /**
+   * Endpoint URL to fetch more operations from. Defaults to
+   * `/api/p/${encodeURIComponent(handle)}/operations`.
+   */
+  endpoint?: string;
+  /**
+   * Custom empty state component when `operations.length === 0`.
+   * When omitted, renders the default profile empty state.
+   */
+  emptyState?: React.ReactNode;
 }
 
 export default function OperationsList({
@@ -31,6 +41,8 @@ export default function OperationsList({
   total,
   truncated = false,
   cap = null,
+  endpoint,
+  emptyState,
 }: OperationsListProps) {
   const [operations, setOperations] = useState<Operation[]>(initialOperations);
   const [offset, setOffset] = useState(initialOperations.length);
@@ -38,11 +50,19 @@ export default function OperationsList({
   const [hasMore, setHasMore] = useState(offset < total);
   const [error, setError] = useState<string | null>(null);
 
+  useEffect(() => {
+    setOperations(initialOperations);
+    setOffset(initialOperations.length);
+    setHasMore(initialOperations.length < total);
+  }, [initialOperations, total, endpoint]);
+
   const loadMore = useCallback(async () => {
     setLoading(true);
     setError(null);
     try {
-      const res = await fetch(`/api/p/${encodeURIComponent(handle)}/operations?offset=${offset}&limit=25`);
+      const base = endpoint ?? `/api/p/${encodeURIComponent(handle)}/operations`;
+      const sep = base.includes('?') ? '&' : '?';
+      const res = await fetch(`${base}${sep}offset=${offset}&limit=25`);
       if (!res.ok) throw new Error(`Failed to load: ${res.status}`);
       const json = await res.json();
       setOperations((prev) => [...prev, ...json.data]);
@@ -53,7 +73,7 @@ export default function OperationsList({
     } finally {
       setLoading(false);
     }
-  }, [handle, offset]);
+  }, [handle, offset, endpoint]);
 
   return (
     <div className="mt-6 border border-[#1f1d19]">
@@ -68,27 +88,29 @@ export default function OperationsList({
       </div>
 
       {operations.length === 0 ? (
-        <div className="bg-[#0e0d0b] px-5 py-6">
-          <p
-            className="text-[13px] leading-[1.7] text-[#b8b5a8]"
-            style={{ fontFamily: 'var(--font-mono)' }}
-          >
-            No Soroban invocations are recorded for this profile yet.
-          </p>
-          <p
-            className="mt-2 text-[12px] leading-[1.6] text-[#5e5b51]"
-            style={{ fontFamily: 'var(--font-mono)' }}
-          >
-            The wallet that claimed this handle is rarely the key used with{' '}
-            <code className="text-[#8a8779]">stellar contract deploy</code>. Link your deploy wallet from the CLI to attribute its contract activity:
-          </p>
-          <code
-            className="mt-4 block max-w-fit bg-[#0a0908] px-4 py-2.5 text-[12px] text-[#f5f4ee] border border-[#1f1d19]"
-            style={{ fontFamily: 'var(--font-mono)' }}
-          >
-            npx @signet/cli link
-          </code>
-        </div>
+        emptyState ?? (
+          <div className="bg-[#0e0d0b] px-5 py-6">
+            <p
+              className="text-[13px] leading-[1.7] text-[#b8b5a8]"
+              style={{ fontFamily: 'var(--font-mono)' }}
+            >
+              No Soroban invocations are recorded for this profile yet.
+            </p>
+            <p
+              className="mt-2 text-[12px] leading-[1.6] text-[#5e5b51]"
+              style={{ fontFamily: 'var(--font-mono)' }}
+            >
+              The wallet that claimed this handle is rarely the key used with{' '}
+              <code className="text-[#8a8779]">stellar contract deploy</code>. Link your deploy wallet from the CLI to attribute its contract activity:
+            </p>
+            <code
+              className="mt-4 block max-w-fit bg-[#0a0908] px-4 py-2.5 text-[12px] text-[#f5f4ee] border border-[#1f1d19]"
+              style={{ fontFamily: 'var(--font-mono)' }}
+            >
+              npx @signet/cli link
+            </code>
+          </div>
+        )
       ) : (
         <>
           {operations.map((op, i) => {

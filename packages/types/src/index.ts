@@ -38,6 +38,7 @@ export type {
   PairApproveResponse,
   PairCompleteRequest,
   PairCompleteResponse,
+  PairCompleteStatus,
   PairRejectRequest,
   PairRejectResponse,
   PairStartRequest,
