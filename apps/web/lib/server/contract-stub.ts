@@ -5,6 +5,7 @@ import { attributeContract, type Attribution } from '../contract-attribution.ts'
 import { loadContractSpec, type ContractSpecResult } from './contract-spec.ts';
 import { LIMITS, rateLimitDecision, type RateLimitRefusal } from '../rate-limit-policy.ts';
 import { logger } from '../logger.ts';
+import { GO_SDK_VERSION, generateGoStub } from '../docs/go-stub.ts';
 
 export interface ZipFileEntry {
   path: string;
@@ -265,6 +266,171 @@ const defaultDeps: Required<ContractStubDeps> = {
   rateLimiter: (headers, bucket, max) => rateLimitDecision(headers, bucket, max),
 };
 
+type ResolvedStub =
+  | { ok: false; response: Response }
+  | {
+      ok: true;
+      spec: SpecJson;
+      network: string;
+      wasmHash: string;
+    };
+
+/**
+ * The checks every stub route shares, in order: method, rate limit,
+ * attribution, spec lookup, and the 404/503 rules. Either a finished error
+ * response or the spec to generate from.
+ */
+async function resolveStub(
+  req: Request,
+  params: { handle: string; address: string },
+  deps: ContractStubDeps,
+  bucket: 'stubTs' | 'stubGo',
+): Promise<ResolvedStub> {
+  const method = req.method.toUpperCase();
+  if (method !== 'GET' && method !== 'HEAD') {
+    return {
+      ok: false,
+      response: Response.json(
+        { error: 'Method not allowed' },
+        {
+          status: 405,
+          headers: {
+            Allow: 'GET, HEAD',
+            'Cache-Control': 'no-store',
+          },
+        },
+      ),
+    };
+  }
+
+  const rateLimiter = deps.rateLimiter ?? defaultDeps.rateLimiter;
+  const refusal = await rateLimiter(req.headers, bucket, LIMITS[bucket]);
+  if (refusal) {
+    return {
+      ok: false,
+      response: Response.json(
+        { error: 'Too many requests', code: 'rate-limited' },
+        {
+          status: 429,
+          headers: {
+            'Retry-After': String(refusal.retryAfter),
+            'Cache-Control': 'no-store',
+          },
+        },
+      ),
+    };
+  }
+
+  const { handle, address } = params;
+  const attribute = deps.attribute ?? defaultDeps.attribute;
+  const attribution = await attribute(handle, address);
+
+  if (attribution.status === 'not-attributed' || attribution.status === 'invalid') {
+    return {
+      ok: false,
+      response: Response.json(
+        { error: 'Contract not found', reason: 'not_attributed' },
+        {
+          status: 404,
+          headers: { 'Cache-Control': 'no-store' },
+        },
+      ),
+    };
+  }
+
+  if (attribution.status === 'unavailable') {
+    return {
+      ok: false,
+      response: Response.json(
+        { error: 'Attribution unavailable', reason: 'attribution_unavailable' },
+        {
+          status: 503,
+          headers: { 'Cache-Control': 'no-store' },
+        },
+      ),
+    };
+  }
+
+  const loadSpec = deps.loadSpec ?? defaultDeps.loadSpec;
+  const specResult = await loadSpec({
+    address: attribution.contract.address,
+    network: attribution.contract.network,
+    wasmHash: attribution.contract.wasmHash,
+  });
+
+  if (!specResult.ok) {
+    const status = specResult.failure.kind === 'unavailable' ? 503 : 404;
+    return {
+      ok: false,
+      response: Response.json(
+        {
+          error: status === 503 ? 'Spec lookup unavailable' : 'Contract has no interface',
+          reason: specResult.failure.kind,
+        },
+        {
+          status,
+          headers: { 'Cache-Control': 'no-store' },
+        },
+      ),
+    };
+  }
+
+  if (!specResult.spec.entriesXdr || specResult.spec.entriesXdr.length === 0) {
+    return {
+      ok: false,
+      response: Response.json(
+        { error: 'Contract has no interface', reason: 'no_interface' },
+        {
+          status: 404,
+          headers: { 'Cache-Control': 'no-store' },
+        },
+      ),
+    };
+  }
+
+  return {
+    ok: true,
+    spec: specResult.spec,
+    network: attribution.contract.network,
+    wasmHash: specResult.wasmHash || attribution.contract.wasmHash || specResult.spec.wasmHash,
+  };
+}
+
+/** `contractName` (or `name`) from the query string, else `contract`. */
+function requestedContractName(req: Request): string {
+  try {
+    const url = new URL(req.url);
+    const candidate = url.searchParams.get('contractName') || url.searchParams.get('name');
+    if (candidate && candidate.trim().length > 0) return candidate.trim();
+  } catch {
+    // Malformed URL, keep default
+  }
+  return 'contract';
+}
+
+/** A 304 when the client already holds this exact stub, else null. */
+function notModified(req: Request, etag: string): Response | null {
+  if (req.headers.get('if-none-match') !== etag) return null;
+  return new Response(null, {
+    status: 304,
+    headers: {
+      ETag: etag,
+      'Cache-Control': 'public, max-age=31536000, immutable',
+    },
+  });
+}
+
+function generationFailed(error: unknown, handle: string, address: string): Response {
+  logger.error({ error: String(error), handle, address }, 'stub.generateFailed');
+  return Response.json(
+    { error: 'Failed to generate client stub', reason: 'generation_failed' },
+    {
+      status: 500,
+      headers: { 'Cache-Control': 'no-store' },
+    },
+  );
+}
+
 /**
  * Route logic for GET /p/[handle]/contract/[address]/stub/ts
  *
@@ -277,125 +443,28 @@ export async function handleContractStubTs(
   params: { handle: string; address: string },
   deps: ContractStubDeps = {},
 ): Promise<Response> {
-  const method = req.method.toUpperCase();
-  if (method !== 'GET' && method !== 'HEAD') {
-    return Response.json(
-      { error: 'Method not allowed' },
-      {
-        status: 405,
-        headers: {
-          Allow: 'GET, HEAD',
-          'Cache-Control': 'no-store',
-        },
-      },
-    );
-  }
-
-  const rateLimiter = deps.rateLimiter ?? defaultDeps.rateLimiter;
-  const refusal = await rateLimiter(req.headers, 'stubTs', LIMITS.stubTs);
-  if (refusal) {
-    return Response.json(
-      { error: 'Too many requests', code: 'rate-limited' },
-      {
-        status: 429,
-        headers: {
-          'Retry-After': String(refusal.retryAfter),
-          'Cache-Control': 'no-store',
-        },
-      },
-    );
-  }
+  const resolved = await resolveStub(req, params, deps, 'stubTs');
+  if (!resolved.ok) return resolved.response;
 
   const { handle, address } = params;
-  const attribute = deps.attribute ?? defaultDeps.attribute;
-  const attribution = await attribute(handle, address);
-
-  if (attribution.status === 'not-attributed' || attribution.status === 'invalid') {
-    return Response.json(
-      { error: 'Contract not found', reason: 'not_attributed' },
-      {
-        status: 404,
-        headers: { 'Cache-Control': 'no-store' },
-      },
-    );
-  }
-
-  if (attribution.status === 'unavailable') {
-    return Response.json(
-      { error: 'Attribution unavailable', reason: 'attribution_unavailable' },
-      {
-        status: 503,
-        headers: { 'Cache-Control': 'no-store' },
-      },
-    );
-  }
-
-  const loadSpec = deps.loadSpec ?? defaultDeps.loadSpec;
-  const specResult = await loadSpec({
-    address: attribution.contract.address,
-    network: attribution.contract.network,
-    wasmHash: attribution.contract.wasmHash,
-  });
-
-  if (!specResult.ok) {
-    const status = specResult.failure.kind === 'unavailable' ? 503 : 404;
-    return Response.json(
-      {
-        error: status === 503 ? 'Spec lookup unavailable' : 'Contract has no interface',
-        reason: specResult.failure.kind,
-      },
-      {
-        status,
-        headers: { 'Cache-Control': 'no-store' },
-      },
-    );
-  }
-
-  if (!specResult.spec.entriesXdr || specResult.spec.entriesXdr.length === 0) {
-    return Response.json(
-      { error: 'Contract has no interface', reason: 'no_interface' },
-      {
-        status: 404,
-        headers: { 'Cache-Control': 'no-store' },
-      },
-    );
-  }
-
-  const wasmHash = specResult.wasmHash || attribution.contract.wasmHash || specResult.spec.wasmHash;
-  const generatorVersion = specResult.spec.sdkVersion || STELLAR_SDK_VERSION;
+  const { wasmHash } = resolved;
+  const generatorVersion = resolved.spec.sdkVersion || STELLAR_SDK_VERSION;
   const etag = `"${wasmHash}-${generatorVersion}"`;
+  const cached = notModified(req, etag);
+  if (cached) return cached;
 
-  const ifNoneMatch = req.headers.get('if-none-match');
-  if (ifNoneMatch === etag) {
-    return new Response(null, {
-      status: 304,
-      headers: {
-        ETag: etag,
-        'Cache-Control': 'public, max-age=31536000, immutable',
-      },
-    });
-  }
-
-  let contractName = 'contract';
-  try {
-    const url = new URL(req.url);
-    const candidate = url.searchParams.get('contractName') || url.searchParams.get('name');
-    if (candidate && candidate.trim().length > 0) {
-      contractName = candidate.trim();
-    }
-  } catch {
-    // Malformed URL, keep default
-  }
+  const contractName = requestedContractName(req);
 
   try {
-    const { zipBuffer } = generateTsClientStub(specResult.spec, {
+    const { zipBuffer } = generateTsClientStub(resolved.spec, {
       contractName,
       address,
-      network: attribution.contract.network,
+      network: resolved.network,
       wasmHash,
     });
 
-    const responseBody = method === 'HEAD' ? null : (zipBuffer as unknown as BodyInit);
+    const responseBody =
+      req.method.toUpperCase() === 'HEAD' ? null : (zipBuffer as unknown as BodyInit);
 
     return new Response(responseBody, {
       status: 200,
@@ -407,13 +476,51 @@ export async function handleContractStubTs(
       },
     });
   } catch (error) {
-    logger.error({ error: String(error), handle, address }, 'stub.generateFailed');
-    return Response.json(
-      { error: 'Failed to generate client stub', reason: 'generation_failed' },
-      {
-        status: 500,
-        headers: { 'Cache-Control': 'no-store' },
+    return generationFailed(error, handle, address);
+  }
+}
+
+/**
+ * Route logic for GET /p/[handle]/contract/[address]/stub/go
+ *
+ * The same checks, caching and rate limiting as the TypeScript stub; the body
+ * is the single thin `.go` file from `generateGoStub`.
+ */
+export async function handleContractStubGo(
+  req: Request,
+  params: { handle: string; address: string },
+  deps: ContractStubDeps = {},
+): Promise<Response> {
+  const resolved = await resolveStub(req, params, deps, 'stubGo');
+  if (!resolved.ok) return resolved.response;
+
+  const { handle, address } = params;
+  const { wasmHash } = resolved;
+  const etag = `"go-${wasmHash}-${GO_SDK_VERSION}"`;
+  const cached = notModified(req, etag);
+  if (cached) return cached;
+
+  const contractName = requestedContractName(req);
+
+  try {
+    const source = generateGoStub(resolved.spec, {
+      contractName,
+      address,
+      network: resolved.network,
+      wasmHash,
+    });
+    const responseBody = req.method.toUpperCase() === 'HEAD' ? null : source;
+
+    return new Response(responseBody, {
+      status: 200,
+      headers: {
+        'Content-Type': 'text/x-go; charset=utf-8',
+        'Content-Disposition': `attachment; filename="${contractName}-client.go"`,
+        ETag: etag,
+        'Cache-Control': 'public, max-age=31536000, immutable',
       },
-    );
+    });
+  } catch (error) {
+    return generationFailed(error, handle, address);
   }
 }

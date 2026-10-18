@@ -8,7 +8,7 @@ import {
   type FailureCopy,
   type InterfaceSummary,
 } from '@/lib/contract-overview';
-import { contractTabSegmentHref } from '@/lib/contract-tabs';
+import { contractStubHref, contractTabSegmentHref } from '@/lib/contract-tabs';
 import { describeUpgrades, type UpgradesDescription } from '@/lib/contract-upgrades';
 import {
   loadLatestSnapshot,
@@ -246,6 +246,27 @@ export default async function ContractOverviewPage({
           Open run locally
         </Link>
       </div>
+
+      {overview.status === 'ok' && (
+        <div>
+          <SectionLabel>Client stubs</SectionLabel>
+          <ul className="mt-4 space-y-3 text-[13px] leading-[1.7] text-[#b8b5a8]" style={MONO}>
+            <li>
+              <a href={contractStubHref(handle, address, 'ts')} download className={TEXT_LINK}>
+                Download TypeScript client
+              </a>{' '}
+              — a full generated client (ZIP), built with the Stellar SDK&apos;s binding generator.
+            </li>
+            <li>
+              <a href={contractStubHref(handle, address, 'go')} download className={TEXT_LINK}>
+                Download Go stub
+              </a>{' '}
+              — a thin .go file: typed argument structs and functions that build the
+              InvokeHostFunction operation. No simulation, signing or submission.
+            </li>
+          </ul>
+        </div>
+      )}
     </section>
   );
 }

@@ -7,6 +7,7 @@ import { parseContractSpec, toSpecJson, type SpecJson } from '@signet/spec';
 import {
   buildStubReadme,
   createZipArchive,
+  handleContractStubGo,
   handleContractStubTs,
   readZipEntries,
   type ContractStubDeps,
@@ -316,4 +317,76 @@ test('handleContractStubTs: returns 200 with null body on HEAD requests', async 
   assert.equal(res.headers.get('content-type'), 'application/zip');
   const text = await res.text();
   assert.equal(text, '');
+});
+
+// ─── Go stub (#480) ───────────────────────────────────────────────────────────
+
+const goUrl = `https://signet.local/p/${TEST_HANDLE}/contract/${TEST_ADDRESS}/stub/go`;
+
+test('handleContractStubGo: 200 with one .go file for the registry fixture', async () => {
+  const res = await handleContractStubGo(
+    new Request(`${goUrl}?contractName=registry`),
+    { handle: TEST_HANDLE, address: TEST_ADDRESS },
+    mockDeps(),
+  );
+
+  assert.equal(res.status, 200);
+  assert.equal(res.headers.get('content-type'), 'text/x-go; charset=utf-8');
+  assert.equal(res.headers.get('content-disposition'), 'attachment; filename="registry-client.go"');
+  assert.match(res.headers.get('etag') ?? '', new RegExp(`^"go-${TEST_WASM_HASH}-`));
+  const body = await res.text();
+  assert.match(body, /^\/\/ Package registry is a THIN client stub/);
+  assert.ok(body.includes(`const ContractID = "${TEST_ADDRESS}"`));
+});
+
+test('handleContractStubGo: 304 on a matching If-None-Match', async () => {
+  const first = await handleContractStubGo(
+    new Request(goUrl),
+    { handle: TEST_HANDLE, address: TEST_ADDRESS },
+    mockDeps(),
+  );
+  const etag = first.headers.get('etag')!;
+
+  const res = await handleContractStubGo(
+    new Request(goUrl, { headers: { 'if-none-match': etag } }),
+    { handle: TEST_HANDLE, address: TEST_ADDRESS },
+    mockDeps(),
+  );
+  assert.equal(res.status, 304);
+  assert.equal(await res.text(), '');
+});
+
+test('handleContractStubGo: uses its own rate-limit bucket', async () => {
+  const buckets: string[] = [];
+  const res = await handleContractStubGo(
+    new Request(goUrl),
+    { handle: TEST_HANDLE, address: TEST_ADDRESS },
+    mockDeps({
+      rateLimiter: async (_headers, bucket) => {
+        buckets.push(bucket);
+        return { retryAfter: 30 } as never;
+      },
+    }),
+  );
+  assert.deepEqual(buckets, ['stubGo']);
+  assert.equal(res.status, 429);
+});
+
+test('handleContractStubGo: 404 for a contract not attributed to the handle', async () => {
+  const res = await handleContractStubGo(
+    new Request(`https://signet.local/p/bob/contract/${TEST_ADDRESS}/stub/go`),
+    { handle: 'bob', address: TEST_ADDRESS },
+    mockDeps(),
+  );
+  assert.equal(res.status, 404);
+});
+
+test('handleContractStubGo: HEAD answers 200 with no body', async () => {
+  const res = await handleContractStubGo(
+    new Request(goUrl, { method: 'HEAD' }),
+    { handle: TEST_HANDLE, address: TEST_ADDRESS },
+    mockDeps(),
+  );
+  assert.equal(res.status, 200);
+  assert.equal(await res.text(), '');
 });

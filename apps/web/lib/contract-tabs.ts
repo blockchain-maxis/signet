@@ -35,6 +35,14 @@ export function contractTabHref(handle: string, address: string, tab: ContractTa
 }
 
 /**
+ * Absolute href for a contract's downloadable client stub (#478, #480). Not a
+ * tab: the routes under `stub/` return a file, not a page.
+ */
+export function contractStubHref(handle: string, address: string, lang: 'ts' | 'go'): string {
+  return `/p/${handle}/contract/${address}/stub/${lang}`;
+}
+
+/**
  * Absolute href for a tab addressed by its child segment, for callers that
  * carry a segment string rather than a `ContractTab` (the Functions tab for
  * #475's per-function permalink, for one). Reading the segment off

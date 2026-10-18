@@ -172,6 +172,29 @@ jobs:
             go test ./...
           fi
 
+      # The downloadable Go client stub (#480) must compile against the real Go
+      # SDK: generate it for the registry and types_zoo fixtures and `go vet` it
+      # in a throwaway module. Ubuntu only, because the generator is TypeScript
+      # and its output does not depend on the OS.
+      - uses: pnpm/action-setup@v6.1.0
+        if: matrix.os == 'ubuntu-latest'
+
+      - uses: actions/setup-node@v7
+        if: matrix.os == 'ubuntu-latest'
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies (Go stub check)
+        if: matrix.os == 'ubuntu-latest'
+        working-directory: .
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate and vet the Go client stub
+        if: matrix.os == 'ubuntu-latest'
+        working-directory: apps/web
+        run: node --experimental-strip-types scripts/vet-go-stub.mts
+
       # Lint and the cross-compile smoke build run on Ubuntu only. The CLI has
       # no OS-specific source files or build tags, so every OS compiles the
       # same code and a lint pass on one of them sees all of it; the smoke

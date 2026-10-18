@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {
   CONTRACT_TABS,
   contractTabHref,
+  contractStubHref,
   contractTabSegmentHref,
   SIGNET_DEV_RELEASED,
 } from './contract-tabs.ts';
@@ -53,4 +54,9 @@ test('an unknown segment throws rather than building a URL nothing links to', ()
 
 test('SIGNET_DEV_RELEASED is false by default (gates signet dev command)', () => {
   assert.equal(SIGNET_DEV_RELEASED, false);
+});
+
+test('stub hrefs point at the download routes, not at a tab', () => {
+  assert.equal(contractStubHref('alice', 'CABC', 'ts'), '/p/alice/contract/CABC/stub/ts');
+  assert.equal(contractStubHref('alice', 'CABC', 'go'), '/p/alice/contract/CABC/stub/go');
 });

@@ -76,6 +76,11 @@ export const LIMITS = {
    */
   stubTs: 15,
   /**
+   * Generates the downloadable Go client stub (one .go file). Cheaper than the
+   * TypeScript ZIP but the same anonymous per-IP exposure, so the same budget.
+   */
+  stubGo: 15,
+  /**
    * Reads a page of contract operations. A plain database read, generous but bounded per IP.
    */
   contractOperations: 60,
