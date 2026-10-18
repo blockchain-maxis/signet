@@ -202,3 +202,39 @@ test('generateNonce returns a fresh value each call', () => {
   assert.notEqual(a, b);
   assert.ok(a.length > 0);
 });
+
+test('the embed path gets relaxed frame-ancestors while profile and app stay none', () => {
+  const embedCsp = buildCsp('n', {
+    path: '/p/aquawolf/contract/CASFJHI5PQSRWS7JV25CF7FOMRKIVBP3RXRP3E2GH2CV4BCAG7FUJRCN/embed',
+  });
+  assert.equal(directive(embedCsp, 'frame-ancestors'), 'frame-ancestors *');
+
+  const profileCsp = buildCsp('n', { path: '/p/aquawolf' });
+  assert.equal(directive(profileCsp, 'frame-ancestors'), "frame-ancestors 'none'");
+
+  const appCsp = buildCsp('n', { path: '/app' });
+  assert.equal(directive(appCsp, 'frame-ancestors'), "frame-ancestors 'none'");
+
+  const rootCsp = buildCsp('n', { path: '/' });
+  assert.equal(directive(rootCsp, 'frame-ancestors'), "frame-ancestors 'none'");
+});
+
+test('frame-ancestors respects custom allowlist env var when set for embed', () => {
+  const prev = process.env.FRAME_ANCESTORS_ALLOWLIST;
+  try {
+    process.env.FRAME_ANCESTORS_ALLOWLIST = 'https://portal.example.com https://grants.example.org';
+    const embedCsp = buildCsp('n', {
+      path: '/p/aquawolf/contract/CASFJHI5PQSRWS7JV25CF7FOMRKIVBP3RXRP3E2GH2CV4BCAG7FUJRCN/embed',
+    });
+    assert.equal(
+      directive(embedCsp, 'frame-ancestors'),
+      'frame-ancestors https://portal.example.com https://grants.example.org',
+    );
+  } finally {
+    if (prev === undefined) {
+      delete process.env.FRAME_ANCESTORS_ALLOWLIST;
+    } else {
+      process.env.FRAME_ANCESTORS_ALLOWLIST = prev;
+    }
+  }
+});

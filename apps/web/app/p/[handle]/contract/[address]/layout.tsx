@@ -1,4 +1,5 @@
 import { Suspense } from 'react';
+import { headers } from 'next/headers';
 import { notFound } from 'next/navigation';
 import { attributeContract } from '@/lib/contract-attribution';
 import { SiteFooter } from '../../_components/site-footer';
@@ -53,64 +54,70 @@ export default async function ContractLayout({
     throw new Error('contract attribution unavailable: indexer and Horizon unreachable');
   }
 
+  const headerList = await headers();
+  const pathname = headerList.get('x-pathname') || '';
+  if (/^\/p\/[^/]+\/contract\/[^/]+\/embed(?:\/|$)/.test(pathname)) {
+    return <>{children}</>;
+  }
+
   return (
     <AnnounceProvider>
-    <div className="relative min-h-screen bg-[#0a0908] text-[#f5f4ee]">
-      {/* Skip link (#461): first tab stop, visible only while focused. */}
-      <a
-        href="#contract-content"
-        className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50 focus:bg-[#0a0908] focus:px-3 focus:py-2 focus:text-[11px] focus:uppercase focus:tracking-[0.22em] focus:text-[#f5f4ee] focus:outline focus:outline-2 focus:outline-[#e05a4b]"
-        style={{ fontFamily: 'var(--font-mono)' }}
-      >
-        Skip to contract content
-      </a>
-      {/* Grain */}
-      <div
-        className="pointer-events-none fixed inset-0 z-30 opacity-[0.07] mix-blend-overlay"
-        style={{
-          backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='240' viewBox='0 0 240 240'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")`,
-        }}
-        aria-hidden="true"
-      />
-
-      <SiteNav />
-
-      {/* Identity strip: the contract is shown as part of this
-          developer's record, and the route says so. */}
-      <div className="relative z-10 border-b border-[#1f1d19] px-8 py-4 md:px-14">
-        {/* The page's single h1 (#461): short address, by the handle. */}
-        <h1
-          className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] font-normal uppercase tracking-[0.22em]"
+      <div className="relative min-h-screen bg-[#0a0908] text-[#f5f4ee]">
+        {/* Skip link (#461): first tab stop, visible only while focused. */}
+        <a
+          href="#contract-content"
+          className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50 focus:bg-[#0a0908] focus:px-3 focus:py-2 focus:text-[11px] focus:uppercase focus:tracking-[0.22em] focus:text-[#f5f4ee] focus:outline focus:outline-2 focus:outline-[#e05a4b]"
           style={{ fontFamily: 'var(--font-mono)' }}
         >
-          <span className="text-[#8a8779]" title={address}>
-            {truncate(address, 8, 6)}
-          </span>{' '}
-          <span className="text-[#8a8779]">by</span>{' '}
-          <a
-            href={`/p/${handle}`}
-            className="text-[#e05a4b] transition-colors hover:text-[#f0806f] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#e05a4b] focus-visible:ring-offset-2 focus-visible:ring-offset-[#0a0908]"
+          Skip to contract content
+        </a>
+        {/* Grain */}
+        <div
+          className="pointer-events-none fixed inset-0 z-30 opacity-[0.07] mix-blend-overlay"
+          style={{
+            backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='240' viewBox='0 0 240 240'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")`,
+          }}
+          aria-hidden="true"
+        />
+
+        <SiteNav />
+
+        {/* Identity strip: the contract is shown as part of this
+          developer's record, and the route says so. */}
+        <div className="relative z-10 border-b border-[#1f1d19] px-8 py-4 md:px-14">
+          {/* The page's single h1 (#461): short address, by the handle. */}
+          <h1
+            className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] font-normal uppercase tracking-[0.22em]"
+            style={{ fontFamily: 'var(--font-mono)' }}
           >
-            @{handle}
-          </a>
-        </h1>
+            <span className="text-[#8a8779]" title={address}>
+              {truncate(address, 8, 6)}
+            </span>{' '}
+            <span className="text-[#8a8779]">by</span>{' '}
+            <a
+              href={`/p/${handle}`}
+              className="text-[#e05a4b] transition-colors hover:text-[#f0806f] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#e05a4b] focus-visible:ring-offset-2 focus-visible:ring-offset-[#0a0908]"
+            >
+              @{handle}
+            </a>
+          </h1>
+        </div>
+
+        {/* Header slot (#448): on every tab, from the same attribution. */}
+        <div className="relative z-10 px-8 pt-10 md:px-14" data-slot="contract-header">
+          <Suspense fallback={<ContractHeaderSkeleton />}>
+            <ContractHeader handle={handle} contract={attribution.contract} />
+          </Suspense>
+        </div>
+
+        <ContractTabsNav handle={handle} address={address} />
+
+        <main id="contract-content" className="relative z-10 mx-auto max-w-5xl px-8 py-16 md:px-14">
+          <TabFocus>{children}</TabFocus>
+        </main>
+
+        <SiteFooter />
       </div>
-
-      {/* Header slot (#448): on every tab, from the same attribution. */}
-      <div className="relative z-10 px-8 pt-10 md:px-14" data-slot="contract-header">
-        <Suspense fallback={<ContractHeaderSkeleton />}>
-          <ContractHeader handle={handle} contract={attribution.contract} />
-        </Suspense>
-      </div>
-
-      <ContractTabsNav handle={handle} address={address} />
-
-      <main id="contract-content" className="relative z-10 mx-auto max-w-5xl px-8 py-16 md:px-14">
-        <TabFocus>{children}</TabFocus>
-      </main>
-
-      <SiteFooter />
-    </div>
     </AnnounceProvider>
   );
 }
