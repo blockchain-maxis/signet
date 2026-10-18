@@ -5,7 +5,9 @@ import {
   IBM_PLEX_MONO_BASE64,
   PNG_EXPORT_ERROR_MESSAGE,
 } from '@signet/visualiser/interactive/png';
-import { CONTRACT_A, FIXTURE_HANDLE } from './fixtures/contracts';
+// The registry fixture has a decodable spec; the `contracts.ts` fixtures carry views only,
+// so their standalone SVG (and therefore the PNG) cannot be built.
+import { REGISTRY, REGISTRY_HANDLE } from './fixtures/docs-registry';
 
 const HAS_DB = Boolean(process.env.DATABASE_URL);
 
@@ -137,7 +139,7 @@ test.describe('diagram PNG export (#519)', () => {
   }) => {
     test.skip(!HAS_DB, 'needs DATABASE_URL to render attributed contract diagram page');
 
-    await page.goto(`/p/${FIXTURE_HANDLE}/contract/${CONTRACT_A}/diagram`);
+    await page.goto(`/p/${REGISTRY_HANDLE}/contract/${REGISTRY}/diagram`);
 
     const pngButton = page.getByRole('button', { name: /Download PNG/i });
     await expect(pngButton).toBeVisible();
@@ -157,7 +159,7 @@ test.describe('diagram PNG export (#519)', () => {
     const height = buffer.readUInt32BE(20);
 
     const svgRes = await page.request.get(
-      `/p/${FIXTURE_HANDLE}/contract/${CONTRACT_A}/diagram.svg?theme=auto`,
+      `/p/${REGISTRY_HANDLE}/contract/${REGISTRY}/diagram.svg?theme=auto`,
     );
     const svgText = await svgRes.text();
     const match = svgText.match(
