@@ -342,8 +342,12 @@ test.describe('contract docs accessibility and layout @db', () => {
 
     // `/` focuses the filter input
     const input = page.getByTestId('docs-search-input');
-    await page.keyboard.press('/');
-    await expect(input).toBeFocused();
+    // The server-rendered input is visible before hydration attaches the `/` shortcut, so
+    // retry the keypress until the page has hydrated.
+    await expect(async () => {
+      await page.keyboard.press('/');
+      await expect(input).toBeFocused({ timeout: 2_000 });
+    }).toPass();
 
     // Typing an argument name (`lasts`, taken only by `when`) leaves only that function
     await page.keyboard.type('lasts');

@@ -27,7 +27,9 @@ const BUDGETS = new Map([
   ['/p/[handle]', 157225],
   ['/p/[handle]/contract/[address]', 167318],
   ['/p/[handle]/contract/[address]/activity', 167318],
-  ['/p/[handle]/contract/[address]/diagram', 167318],
+  // Bumped by 2 KiB (#479): with the docs search in the build this route measures 163.8 KiB,
+  // about 400 B over the shared 167318 ceiling.
+  ['/p/[handle]/contract/[address]/diagram', 169366],
   ['/p/[handle]/contract/[address]/functions', 167318],
   ['/p/[handle]/contract/[address]/functions/[name]', 168282],
   ['/p/[handle]/contract/[address]/run', 169576],
