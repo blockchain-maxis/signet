@@ -118,3 +118,12 @@ test('archived: false and omitted behave the same', () => {
   assert.equal(buildHeaderModel(contract(OLD), NEW, { ...opts, archived: false }).archived, null);
   assert.equal(buildHeaderModel(contract(OLD), NEW, opts).archived, null);
 });
+
+test('upgradedNote: included on wasm field when provided', () => {
+  const m = buildHeaderModel(contract(OLD), NEW, {
+    ...opts,
+    upgradedNote: 'upgraded 1 time since 1 Mar 2026',
+  });
+  assert.equal(m.wasm.upgradedNote, 'upgraded 1 time since 1 Mar 2026');
+});
+
