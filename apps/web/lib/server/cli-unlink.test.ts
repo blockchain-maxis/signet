@@ -38,7 +38,7 @@ function fakeStore(seed: Record<string, Row> = {}) {
 
 /** Build and sign a fresh CLI-link challenge for `client`, as the CLI would. */
 function signedChallenge(client: Keypair): string {
-  const challenge = buildCliLinkChallenge(client.publicKey(), 'testnet');
+  const challenge = buildCliLinkChallenge(client.publicKey(), 'testnet', 'unlink');
   const tx = TransactionBuilder.fromXDR(challenge, getNetworkPassphrase());
   tx.sign(client);
   return tx.toEnvelope().toXDR('base64');
@@ -70,9 +70,29 @@ test('unlinkByChallenge refuses an unsigned challenge and removes nothing', asyn
   });
 
   const result = await unlinkByChallenge(
-    buildCliLinkChallenge(client.publicKey(), 'testnet'),
+    buildCliLinkChallenge(client.publicKey(), 'testnet', 'unlink'),
     store,
   );
+  assert.deepEqual(result, { ok: false, reason: 'bad-challenge' });
+  assert.equal(wallets.has(client.publicKey()), true);
+});
+
+test('unlinkByChallenge rejects a signed link challenge and the wallet stays linked', async (t) => {
+  __resetNonceStore();
+  t.after(() => __resetNonceStore());
+  const client = Keypair.random();
+  const { store, wallets } = fakeStore({
+    [client.publicKey()]: { profileId: 'profile_1', isPrimary: false },
+  });
+  // The attack in #622: a link challenge the developer signed, captured in
+  // transit or from logs, sent to unlink before the developer's link lands.
+  const link = TransactionBuilder.fromXDR(
+    buildCliLinkChallenge(client.publicKey(), 'testnet', 'link'),
+    getNetworkPassphrase(),
+  );
+  link.sign(client);
+
+  const result = await unlinkByChallenge(link.toEnvelope().toXDR('base64'), store);
   assert.deepEqual(result, { ok: false, reason: 'bad-challenge' });
   assert.equal(wallets.has(client.publicKey()), true);
 });
@@ -161,7 +181,7 @@ test('a failed signature does not spend the challenge', async (t) => {
   });
 
   // Anyone who merely sees the challenge could otherwise burn it.
-  await unlinkByChallenge(buildCliLinkChallenge(client.publicKey(), 'testnet'), store);
+  await unlinkByChallenge(buildCliLinkChallenge(client.publicKey(), 'testnet', 'unlink'), store);
   assert.equal((await unlinkByChallenge(signedChallenge(client), store)).ok, true);
 });
 

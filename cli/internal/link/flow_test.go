@@ -15,6 +15,7 @@ import (
 	"github.com/blockchain-maxis/signet/cli/internal/loopback"
 	"github.com/blockchain-maxis/signet/cli/internal/pair"
 	"github.com/blockchain-maxis/signet/cli/internal/redact"
+	"github.com/blockchain-maxis/signet/cli/internal/spec"
 )
 
 // fakeCallbacks stands in for the loopback server without binding a port.
@@ -386,7 +387,7 @@ func TestFetchChallenge_RedactsTheServersError(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	_, _, err := FetchChallenge(srv.Client(), srv.URL, "testnet")(context.Background(), "GABC")
+	_, _, err := FetchChallenge(srv.Client(), srv.URL, "testnet", spec.CliLinkPurposeLink)(context.Background(), "GABC")
 	if !errors.Is(err, exitcode.ErrNetwork) {
 		t.Fatalf("err = %v, want ErrNetwork", err)
 	}
@@ -409,7 +410,7 @@ func TestFetchChallenge_RequestsTheCLILinkChallengeForTheResolvedNetwork(t *test
 	}))
 	defer server.Close()
 
-	got, passphrase, err := FetchChallenge(server.Client(), server.URL+"/", "mainnet")(context.Background(), "GABC")
+	got, passphrase, err := FetchChallenge(server.Client(), server.URL+"/", "mainnet", spec.CliLinkPurposeLink)(context.Background(), "GABC")
 	if err != nil {
 		t.Fatalf("FetchChallenge: %v", err)
 	}
@@ -437,8 +438,27 @@ func TestFetchChallenge_SurfacesAServerRefusal(t *testing.T) {
 	}))
 	defer server.Close()
 
-	_, _, err := FetchChallenge(server.Client(), server.URL, "mainnet")(context.Background(), "GABC")
+	_, _, err := FetchChallenge(server.Client(), server.URL, "mainnet", spec.CliLinkPurposeLink)(context.Background(), "GABC")
 	if !errors.Is(err, exitcode.ErrNetwork) || !strings.Contains(err.Error(), "Network mismatch") {
 		t.Fatalf("err = %v, want a network error carrying the server's message", err)
+	}
+}
+
+func TestFetchChallenge_AsksForTheChallengeOfTheGivenPurpose(t *testing.T) {
+	// #622: a challenge is minted for one purpose only, so link and unlink must
+	// each say which they are.
+	for _, purpose := range []spec.CliLinkPurpose{spec.CliLinkPurposeLink, spec.CliLinkPurposeUnlink} {
+		var got string
+		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			got = r.URL.Query().Get("purpose")
+			_, _ = w.Write([]byte(`{"transaction":"AAAAchallenge","network_passphrase":"` + testPassphrase + `"}`))
+		}))
+		if _, _, err := FetchChallenge(server.Client(), server.URL, "testnet", purpose)(context.Background(), "GABC"); err != nil {
+			t.Fatalf("FetchChallenge(%s): %v", purpose, err)
+		}
+		server.Close()
+		if got != string(purpose) {
+			t.Errorf("purpose = %q, want %q", got, purpose)
+		}
 	}
 }

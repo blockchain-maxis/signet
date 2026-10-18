@@ -361,6 +361,20 @@ type WhoamiResponse struct {
 	Network   string `json:"network"`
 }
 
+// CliLinkPurpose mirrors the CliLinkPurpose union in packages/types/src/cli-api.ts.
+type CliLinkPurpose string
+
+const (
+	CliLinkPurposeLink   CliLinkPurpose = "link"
+	CliLinkPurposeUnlink CliLinkPurpose = "unlink"
+)
+
+// CliLinkPurposes lists every CliLinkPurpose value, in declaration order.
+var CliLinkPurposes = []CliLinkPurpose{
+	CliLinkPurposeLink,
+	CliLinkPurposeUnlink,
+}
+
 // ChallengeResponse mirrors the ChallengeResponse interface in packages/types/src/cli-api.ts.
 type ChallengeResponse struct {
 	Transaction       string `json:"transaction"`
@@ -369,7 +383,8 @@ type ChallengeResponse struct {
 
 // CliLinkVerifyRequest mirrors the CliLinkVerifyRequest interface in packages/types/src/cli-api.ts.
 type CliLinkVerifyRequest struct {
-	Transaction string `json:"transaction"`
+	Transaction string         `json:"transaction"`
+	Purpose     CliLinkPurpose `json:"purpose,omitempty"`
 }
 
 // CliLinkVerifyResponse mirrors the CliLinkVerifyResponse interface in packages/types/src/cli-api.ts.

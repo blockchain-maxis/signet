@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { WebAuth } from '@stellar/stellar-sdk';
 import type {
   ChallengeResponse,
+  CliLinkPurpose,
   CliLinkVerifyRequest,
   CliLinkVerifyResponse,
   ErrorBody,
@@ -45,6 +46,16 @@ export const runtime = 'nodejs';
  */
 const CORS_HEADERS = { 'Access-Control-Allow-Origin': '*' };
 
+/**
+ * `purpose` says what the challenge is for (#622). A request that names none
+ * gets a `link` challenge, which is what every CLI released before purposes
+ * asked for; an unrecognised value is refused rather than guessed at.
+ */
+function parsePurpose(value: unknown): CliLinkPurpose | null {
+  if (value === undefined || value === null || value === '') return 'link';
+  return value === 'link' || value === 'unlink' ? value : null;
+}
+
 function withCors(res: NextResponse): NextResponse {
   for (const [key, value] of Object.entries(CORS_HEADERS)) res.headers.set(key, value);
   return res;
@@ -59,6 +70,7 @@ export async function GET(req: Request) {
   const { searchParams } = new URL(req.url);
   const account = searchParams.get('account');
   const network = searchParams.get('network');
+  const purpose = parsePurpose(searchParams.get('purpose'));
 
   if (!account || !isValidStellarAddress(account)) {
     return NextResponse.json(
@@ -79,8 +91,15 @@ export async function GET(req: Request) {
     );
   }
 
+  if (!purpose) {
+    return NextResponse.json(
+      { error: 'purpose must be "link" or "unlink"', code: 'bad-request' } satisfies ErrorBody,
+      { status: 400, headers: CORS_HEADERS },
+    );
+  }
+
   try {
-    const transaction = buildCliLinkChallenge(account, network);
+    const transaction = buildCliLinkChallenge(account, network, purpose);
     return NextResponse.json(
       { transaction, network_passphrase: getNetworkPassphrase() } satisfies ChallengeResponse,
       { headers: { ...CORS_HEADERS, 'cache-control': 'no-store' } },
@@ -116,17 +135,26 @@ export async function POST(req: Request) {
   const limited = await enforceRateLimit(req, 'cli-link:verify', LIMITS.cliLink);
   if (limited) return withCors(limited);
 
-  const { transaction } = (await req.json().catch(() => ({}))) as Partial<CliLinkVerifyRequest>;
+  const { transaction, purpose: requestedPurpose } = (await req
+    .json()
+    .catch(() => ({}))) as Partial<CliLinkVerifyRequest>;
   if (!transaction) {
     return NextResponse.json(
       { error: 'transaction is required', code: 'bad-request' } satisfies ErrorBody,
       { status: 400, headers: CORS_HEADERS },
     );
   }
+  const purpose = parsePurpose(requestedPurpose);
+  if (!purpose) {
+    return NextResponse.json(
+      { error: 'purpose must be "link" or "unlink"', code: 'bad-request' } satisfies ErrorBody,
+      { status: 400, headers: CORS_HEADERS },
+    );
+  }
 
   let clientAccountId: string;
   try {
-    clientAccountId = verifyCliLinkChallenge(transaction);
+    clientAccountId = verifyCliLinkChallenge(transaction, purpose);
   } catch (err) {
     if (err instanceof CliLinkConfigError) {
       logger.error({ err: err.message }, 'cliLink.misconfigured');

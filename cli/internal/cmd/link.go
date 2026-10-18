@@ -14,6 +14,7 @@ import (
 	"github.com/blockchain-maxis/signet/cli/internal/link"
 	"github.com/blockchain-maxis/signet/cli/internal/loopback"
 	"github.com/blockchain-maxis/signet/cli/internal/redact"
+	"github.com/blockchain-maxis/signet/cli/internal/spec"
 )
 
 func init() { register(groupIdentity, newLinkCmd) }
@@ -70,7 +71,7 @@ signing goes through the stellar CLI.`,
 				Start:     client.Start,
 				Poll:      client.Poll,
 				Complete:  client.Complete,
-				Challenge: link.FetchChallenge(&http.Client{Timeout: 15 * time.Second}, resolved.BaseURL, network),
+				Challenge: link.FetchChallenge(&http.Client{Timeout: 15 * time.Second}, resolved.BaseURL, network, spec.CliLinkPurposeLink),
 				Sign: func(unsigned, passphrase string) (string, error) {
 					return keys.SignChallenge(deps.KeysBinary, source, unsigned, passphrase)
 				},

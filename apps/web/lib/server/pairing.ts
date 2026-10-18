@@ -512,9 +512,9 @@ export async function completePairing(
 
   let clientAccountId: string;
   try {
-    // The CLI-link domain, not the web sign-in one: a signed sign-in challenge
-    // must not be able to complete a pairing (#597).
-    clientAccountId = verifyCliLinkChallenge(challengeXdr);
+    // The CLI-link `link` domain, not the web sign-in one or the `unlink` one:
+    // a signed sign-in or unlink challenge must not complete a pairing (#597, #622).
+    clientAccountId = verifyCliLinkChallenge(challengeXdr, 'link');
   } catch (err) {
     logger.warn(
       { state, error: err instanceof Sep10Error ? err.message : String(err) },

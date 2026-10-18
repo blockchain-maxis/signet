@@ -33,6 +33,9 @@ import type {
   TypeRef,
 } from './types.ts';
 
+import type { JSONSchema7 } from './json-schema.ts';
+import { allFunctionSchemas } from './json-schema.ts';
+
 /** Current `SpecJson` schema version. See `schemaVersion` below for the bump policy. */
 export const SPEC_JSON_SCHEMA_VERSION = 1;
 
@@ -60,11 +63,14 @@ export interface SpecJson {
   build?: ContractBuild;
   env?: ContractEnvMeta;
   warnings: string[];
+  /** Optional JSON Schema per function arguments (B-15). */
+  functionSchemas?: Record<string, JSONSchema7>;
 }
 
 /** Extra extraction notes appended to the spec's own `warnings` at serialisation time. */
 export interface ToSpecJsonOptions {
   warnings?: readonly string[];
+  includeFunctionSchemas?: boolean;
 }
 
 function copyTypeRef(type: TypeRef): TypeRef {
@@ -178,6 +184,11 @@ export function toSpecJson(spec: ContractSpec, options: ToSpecJsonOptions = {}):
       : {}),
     ...(spec.env !== undefined ? { env: { ...spec.env } } : {}),
     warnings: [...spec.warnings, ...(options.warnings ?? [])],
+    ...(options.includeFunctionSchemas
+      ? { functionSchemas: allFunctionSchemas(spec) }
+      : (spec as { functionSchemas?: Record<string, JSONSchema7> }).functionSchemas !== undefined
+        ? { functionSchemas: (spec as { functionSchemas?: Record<string, JSONSchema7> }).functionSchemas }
+        : {}),
   };
 }
 

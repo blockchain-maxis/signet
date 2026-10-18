@@ -78,8 +78,9 @@ export async function unlinkByChallenge(
 
   let pubkey: string;
   try {
-    // CLI-link domain only: a web sign-in challenge must not unlink a wallet (#597).
-    pubkey = verifyCliLinkChallenge(challengeXdr);
+    // CLI-link `unlink` domain only: neither a web sign-in challenge nor a signed
+    // `link` challenge may unlink a wallet (#597, #622).
+    pubkey = verifyCliLinkChallenge(challengeXdr, 'unlink');
   } catch (err) {
     logger.warn(
       { error: err instanceof Sep10Error ? err.message : String(err) },
