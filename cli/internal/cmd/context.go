@@ -103,9 +103,10 @@ type contextShowResult struct {
 
 func newContextShowCmd() *cobra.Command {
 	return &cobra.Command{
-		Use:   "show [name]",
-		Short: "Show details for a deployment context",
-		Args:  cobra.MaximumNArgs(1),
+		Use:               "show [name]",
+		Short:             "Show details for a deployment context",
+		Args:              cobra.MaximumNArgs(1),
+		ValidArgsFunction: completeContextsFunc,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			f, err := config.Load()
 			if err != nil {
@@ -149,9 +150,10 @@ func newContextShowCmd() *cobra.Command {
 
 func newContextUseCmd() *cobra.Command {
 	return &cobra.Command{
-		Use:   "use <name>",
-		Short: "Switch the active deployment context",
-		Args:  cobra.ExactArgs(1),
+		Use:               "use <name>",
+		Short:             "Switch the active deployment context",
+		Args:              cobra.ExactArgs(1),
+		ValidArgsFunction: completeContextsFunc,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			name := args[0]
 			f, err := config.Load()
@@ -217,15 +219,18 @@ func newContextAddCmd() *cobra.Command {
 	cmd.Flags().StringVar(&urlFlag, "url", "", "Signet deployment URL (required)")
 	cmd.Flags().StringVar(&networkFlag, "network", "", "Stellar network (required, e.g. testnet, mainnet)")
 	cmd.Flags().StringVar(&sourceFlag, "source", "", "Default identity for this context (optional)")
+	_ = cmd.RegisterFlagCompletionFunc("network", completeNetworksFunc)
+	_ = cmd.RegisterFlagCompletionFunc("source", completeIdentitiesFunc(defaultDeps()))
 
 	return cmd
 }
 
 func newContextRemoveCmd() *cobra.Command {
 	return &cobra.Command{
-		Use:   "remove <name>",
-		Short: "Remove a deployment context",
-		Args:  cobra.ExactArgs(1),
+		Use:               "remove <name>",
+		Short:             "Remove a deployment context",
+		Args:              cobra.ExactArgs(1),
+		ValidArgsFunction: completeContextsFunc,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			name := args[0]
 			f, err := config.Load()
