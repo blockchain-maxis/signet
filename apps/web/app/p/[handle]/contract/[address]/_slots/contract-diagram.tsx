@@ -1,4 +1,4 @@
-import { fromSpecJson, type SpecJson } from '@signet/spec';
+import { fromSpecJson, type ContractSpec, type SpecJson } from '@signet/spec';
 import {
   buildContractGraph,
   buildDiagramOutline,
@@ -8,9 +8,27 @@ import {
   renderOutlineHtml,
   typeAnchor,
 } from '@signet/visualiser';
+import { logger } from '@/lib/logger';
 import { SectionLabel } from '../../../_components/section-label';
 import { SlotPlaceholder } from './slot-placeholder';
 import type { ContractSlotProps } from './slot-props';
+
+/**
+ * The decoded spec to draw from. The graph reads the flattened views, plus the raw
+ * entries only to find error enums with no cases, so when the entries cannot be
+ * decoded the views alone still give the diagram; this tab never throws (design §2.4).
+ */
+function specForGraph(json: SpecJson, { address, network }: ContractSlotProps): ContractSpec {
+  try {
+    return fromSpecJson(json);
+  } catch (err) {
+    logger.warn(
+      { address, network, errorMessage: err instanceof Error ? err.message : String(err) },
+      'diagram: spec entries not decodable, using flattened views',
+    );
+    return { ...json, entries: [] } as unknown as ContractSpec;
+  }
+}
 
 /**
  * Diagram slot (#450, #499).
@@ -24,7 +42,7 @@ function DiagramBody(props: ContractSlotProps) {
     return <SlotPlaceholder slot="diagram" props={props} />;
   }
 
-  const spec = fromSpecJson(props.spec.spec as SpecJson);
+  const spec = specForGraph(props.spec.spec as SpecJson, props);
   const graph = buildContractGraph(spec);
   const model = layoutContractGraph(graph);
   const decision = diagramDecision(graph, model);
