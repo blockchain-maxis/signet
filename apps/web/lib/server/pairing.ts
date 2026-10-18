@@ -7,6 +7,7 @@ import {
   type ApproveOutcome,
   type CompleteFailure,
   type Network,
+  type PairCompleteStatus,
   type PollFailure,
   type PollStatus,
   type RejectOutcome,
@@ -459,7 +460,7 @@ export async function rejectPairing(state: string, store?: PairingStore): Promis
 // ── complete ─────────────────────────────────────────────────────────────
 
 export type CompleteResult =
-  | { ok: true; wallet: LinkedWallet; handle: string | null }
+  | { ok: true; wallet: LinkedWallet; handle: string | null; status: PairCompleteStatus }
   | { ok: false; reason: CompleteFailure };
 
 /** Thrown inside the transaction to short-circuit to a specific `CompleteFailure`. */
@@ -562,7 +563,7 @@ export async function completePairing(
 
   const profileId = pairing.profileId;
   try {
-    const wallet = await db.$transaction(async (tx) => {
+    const { linked: wallet, status } = await db.$transaction(async (tx) => {
       // Conditioned on still being 'approved': a second completion attempt
       // (replayed request, or a distinct signed challenge for the same
       // pairing) sees 0 rows updated and aborts here, before touching Wallet.
@@ -573,12 +574,13 @@ export async function completePairing(
       if (flipped.count !== 1) throw new PairingConflict('already-completed');
 
       try {
-        return await linkDeployWallet(
-          profileId,
-          clientAccountId,
-          'cli',
-          tx as unknown as LinkWalletStore,
-        );
+        const walletStore = tx as unknown as LinkWalletStore;
+        // Read before linking: a wallet already bound to this same profile is
+        // refreshed rather than created, and the CLI reports that as
+        // `already-linked` instead of claiming a first link.
+        const existing = await walletStore.wallet.findUnique({ where: { pubkey: clientAccountId } });
+        const linked = await linkDeployWallet(profileId, clientAccountId, 'cli', walletStore);
+        return { linked, status: (existing ? 'already-linked' : 'linked') as PairCompleteStatus };
       } catch (err) {
         if (err instanceof WalletAlreadyLinkedError) {
           throw new PairingConflict('wallet-bound-elsewhere');
@@ -595,7 +597,7 @@ export async function completePairing(
       { source: 'cli-pairing', handle: profile?.handle, wallet: clientAccountId },
       { state, profileId },
     );
-    return { ok: true, wallet, handle: profile?.handle ?? null };
+    return { ok: true, wallet, handle: profile?.handle ?? null, status };
   } catch (err) {
     if (err instanceof PairingConflict) return fail(state, err.reason, clientAccountId);
     throw err;

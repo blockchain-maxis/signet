@@ -103,7 +103,7 @@ func TestComplete_OmitsHandoffCodeOnTheLoopbackPath(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	if _, _, err := New(srv.URL).Complete(context.Background(), "p_1", "xdr", ""); err != nil {
+	if _, err := New(srv.URL).Complete(context.Background(), "p_1", "xdr", ""); err != nil {
 		t.Fatalf("Complete: %v", err)
 	}
 	if _, present := got["handoffCode"]; present {
@@ -118,7 +118,7 @@ func TestDo_SurfacesTheServersOwnMessage(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	_, _, err := New(srv.URL).Complete(context.Background(), "p_1", "xdr", "")
+	_, err := New(srv.URL).Complete(context.Background(), "p_1", "xdr", "")
 	if err == nil {
 		t.Fatal("expected an error")
 	}
@@ -141,7 +141,7 @@ func TestDo_MapsByCodeNotMessage(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	_, _, err := New(srv.URL).Complete(context.Background(), "p_1", "xdr", "")
+	_, err := New(srv.URL).Complete(context.Background(), "p_1", "xdr", "")
 	if got, _ := exitcode.CodeFor(err); got != exitcode.AlreadyLinked {
 		t.Fatalf("exit code = %d, want %d (err: %v)", got, exitcode.AlreadyLinked, err)
 	}
@@ -192,7 +192,7 @@ func TestDo_RedactsSecretsInServerAndRequestErrors(t *testing.T) {
 		}))
 		defer srv.Close()
 
-		_, _, err := New(srv.URL).Complete(context.Background(), "p_1", "xdr", "")
+		_, err := New(srv.URL).Complete(context.Background(), "p_1", "xdr", "")
 		if !errors.Is(err, exitcode.ErrNetwork) {
 			t.Fatalf("err = %v, want ErrNetwork", err)
 		}

@@ -329,6 +329,7 @@ test('completePairing succeeds and writes a cli, non-primary wallet', async (t) 
   assert.equal(result.ok, true);
   if (!result.ok) return;
   assert.equal(result.wallet.pubkey, client.publicKey());
+  assert.equal(result.status, 'linked');
   const written = wallets.get(client.publicKey());
   assert.ok(written);
   assert.equal(written.profileId, 'profile_1');
@@ -402,6 +403,7 @@ test('completePairing is idempotent when the deploy account is already bound to 
     assert.equal(result.wallet.source, 'cli');
     assert.equal(result.wallet.indexingPending, true);
     assert.equal(result.handle, 'handle-for-profile_1');
+    assert.equal(result.status, 'already-linked');
   }
 });
 

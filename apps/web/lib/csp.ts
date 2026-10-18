@@ -56,6 +56,27 @@ export interface CspOptions {
    * WalletConnect, or testing).
    */
   connectSrc?: string[] | string;
+  /**
+   * Path of the current request. Used to relax `frame-ancestors` on embed routes.
+   */
+  path?: string;
+  /**
+   * Explicit override for `frame-ancestors` directive value.
+   */
+  frameAncestors?: string;
+}
+
+/** Matches paths of the shape /p/[handle]/contract/[address]/embed */
+export function isEmbedPath(pathname: string): boolean {
+  return /^\/p\/[^/]+\/contract\/[^/]+\/embed(?:\/.*)?$/.test(pathname);
+}
+
+export function resolveFrameAncestors(path?: string, explicit?: string): string {
+  if (explicit) return explicit;
+  if (path && isEmbedPath(path)) {
+    return process.env.FRAME_ANCESTORS_ALLOWLIST || process.env.EMBED_FRAME_ANCESTORS || '*';
+  }
+  return "'none'";
 }
 
 /**
@@ -122,7 +143,7 @@ export function resolveConnectSources(customSources?: string[] | string): string
 /** Build the CSP header value for a request, binding `script-src` to `nonce`. */
 export function buildCsp(
   nonce: string,
-  { dev = false, reportUri = CSP_REPORT_PATH, connectSrc }: CspOptions = {},
+  { dev = false, reportUri = CSP_REPORT_PATH, connectSrc, path, frameAncestors }: CspOptions = {},
 ): string {
   const scriptSrc = [
     "'self'",
@@ -133,6 +154,7 @@ export function buildCsp(
   ].join(' ');
 
   const connectSources = resolveConnectSources(connectSrc).join(' ');
+  const frameAncestorsValue = resolveFrameAncestors(path, frameAncestors);
 
   return [
     "default-src 'self'",
@@ -151,7 +173,7 @@ export function buildCsp(
     //                    wss://*.walletconnect.com wss://*.walletconnect.org
     //   • LOBSTR:        https://*.lobstr.co
     `connect-src ${connectSources}`,
-    "frame-ancestors 'none'",
+    `frame-ancestors ${frameAncestorsValue}`,
     "base-uri 'self'",
     "form-action 'self'",
     // See file header: both directives, same collector, so every engine reports.

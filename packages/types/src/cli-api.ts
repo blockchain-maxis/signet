@@ -92,6 +92,9 @@ export type CliFailureCode =
   | UnlinkFailure
   | CliLinkFailure;
 
+/** What `POST /api/cli/pair/complete` did for the wallet. */
+export type PairCompleteStatus = 'linked' | 'already-linked';
+
 /** What a pairing's progress reads as, from `GET /api/cli/pair/status`. */
 export type PollStatus = 'pending' | 'approved' | 'rejected' | 'completed' | 'expired';
 
@@ -148,6 +151,8 @@ export interface PairCompleteResponse {
   wallet: string;
   handle: string | null;
   indexingPending: boolean;
+  /** `already-linked` when the wallet was already bound to this same profile. */
+  status: PairCompleteStatus;
 }
 
 export interface UnlinkRequest {

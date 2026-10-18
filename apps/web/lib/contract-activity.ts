@@ -26,6 +26,7 @@ import { cache } from 'react';
 import { isValidHandle, type Network } from '@signet/types';
 import { STELLAR_NETWORK } from './chain.ts';
 import { attributeContract, type Attribution } from './contract-attribution.ts';
+import { formatDate } from './format-date.ts';
 import type { Operation } from './profiles.ts';
 
 /** Where an activity read was answered: the database, or nothing could. */
@@ -327,3 +328,19 @@ export async function getContractOperationsPage(
     },
   };
 }
+
+/**
+ * Formats the total transaction count for a snapshot (#453).
+ *
+ * Renders "{n}+ since {countedSince}" when totalIsFloor is true,
+ * "{n} since {countedSince}" when totalIsFloor is false, and
+ * "Not measured yet" when snapshot is null or pre-#429 (null countedSince).
+ */
+export function formatSnapshotTotal(snapshot: ContractActivitySnapshot | null): string {
+  if (!snapshot || !snapshot.countedSince) {
+    return 'Not measured yet';
+  }
+  const dateStr = formatDate(snapshot.countedSince.toISOString());
+  return `${snapshot.txCountTotal}${snapshot.totalIsFloor ? '+' : ''} since ${dateStr}`;
+}
+

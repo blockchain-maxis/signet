@@ -1,11 +1,22 @@
 //! `signet-simulator`: the native contract simulator driven by the `signet`
-//! CLI as a subprocess (docs/CLI_RUST_BRIDGE.md). This scaffold only answers
-//! `--version`; the message protocol lands in #524 onward.
+//! CLI as a subprocess (docs/CLI_RUST_BRIDGE.md). With no arguments it runs the
+//! NDJSON message loop on stdin/stdout; `--version` prints the build identity.
+
+mod dispatch;
+mod framing;
+
+use std::io;
+
+use tracing_subscriber::EnvFilter;
 
 /// Wire protocol version the CLI handshake compares against.
-const PROTOCOL_VERSION: u32 = 1;
+pub(crate) const PROTOCOL_VERSION: u32 = 1;
 /// Soroban lane count this build is pinned to.
-const LANES: u32 = 28;
+pub(crate) const LANES: u32 = 28;
+/// Pinned `soroban-env-host` and `soroban-simulation` versions (sandbox/Cargo.toml);
+/// bump with them.
+pub(crate) const ENV_HOST_VERSION: &str = "28.0.2";
+pub(crate) const SIMULATION_VERSION: &str = "28.0.2";
 
 /// `signet-simulator <semver> (commit <sha>) protocol 1 lanes 28`
 fn version_string() -> String {
@@ -26,11 +37,32 @@ fn main() {
             eprintln!("signet-simulator: unknown argument `{other}` (try --version)");
             std::process::exit(2);
         }
-        None => {
-            eprintln!("signet-simulator: no message loop yet; try --version");
-            std::process::exit(2);
-        }
+        None => std::process::exit(run_message_loop()),
     }
+}
+
+/// Logs go to stderr only (stdout is protocol data), at the level in
+/// `SIGNET_SIMULATOR_LOG` (default `warn`).
+fn init_logging() {
+    let filter =
+        EnvFilter::try_from_env("SIGNET_SIMULATOR_LOG").unwrap_or_else(|_| EnvFilter::new("warn"));
+    tracing_subscriber::fmt()
+        .with_env_filter(filter)
+        .with_writer(io::stderr)
+        .with_ansi(false)
+        .init();
+}
+
+fn run_message_loop() -> i32 {
+    init_logging();
+    let output = dispatch::Output::new(io::stdout());
+    let mut dispatcher = dispatch::Dispatcher::new();
+    dispatch::serve(
+        io::stdin().lock(),
+        &output,
+        framing::MAX_LINE_BYTES,
+        |line| dispatcher.handle(line),
+    )
 }
 
 #[cfg(test)]

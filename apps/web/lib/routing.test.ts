@@ -36,7 +36,10 @@ test('app./docs. subdomains prefix the pathname', () => {
   assert.equal(resolveRewriteTarget('app.signet.dev', '/'), '/app');
   assert.equal(resolveRewriteTarget('app.signet.dev', '/wallets'), '/app/wallets');
   assert.equal(resolveRewriteTarget('docs.signet.dev', '/'), '/docs');
-  assert.equal(resolveRewriteTarget('docs.signet.dev', '/getting-started'), '/docs/getting-started');
+  assert.equal(
+    resolveRewriteTarget('docs.signet.dev', '/getting-started'),
+    '/docs/getting-started',
+  );
 });
 
 test('api. and reserved/infra subdomains pass through unchanged', () => {
@@ -65,8 +68,8 @@ test('{handle}.signet.dev/contract/{address} rewrites into the profile (#446)', 
   );
 });
 
-test('{handle}.signet.dev/contract/{address}/{tab} rewrites for every real tab', () => {
-  for (const tab of ['functions', 'types', 'diagram', 'run', 'activity']) {
+test('{handle}.signet.dev/contract/{address}/{tab} rewrites for every real tab and embed', () => {
+  for (const tab of ['functions', 'types', 'diagram', 'run', 'activity', 'embed']) {
     assert.equal(
       resolveRewriteTarget('alice.signet.dev', `/contract/${CONTRACT}/${tab}`),
       `/p/alice/contract/${CONTRACT}/${tab}`,
