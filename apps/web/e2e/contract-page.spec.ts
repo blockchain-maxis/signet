@@ -198,15 +198,15 @@ test.describe('contract page @db', () => {
     await expectNoSeriousA11yViolations(page, 'Types tab');
   });
 
-  test('Diagram shows an honest placeholder that links back to the Overview (#450)', async ({
+  test('Diagram tab renders its slot with the outline as text (#450, #499)', async ({
     page,
   }) => {
     const root = base(FIXTURE_HANDLE, CONTRACT_A);
     await page.goto(`${root}/diagram`);
     const slot = page.getByTestId('slot-diagram');
     await expect(slot.getByRole('heading', { level: 2, name: 'Diagram' })).toBeVisible();
-    await expect(slot).toContainText('not built yet');
-    await expect(slot.getByRole('link', { name: 'Back to the Overview' })).toHaveAttribute('href', root);
+    // Every state (drawn, too simple, too large) offers the outline.
+    await expect(slot.locator('summary', { hasText: 'Diagram as text' })).toBeVisible();
 
     await expectNoSeriousA11yViolations(page, 'Diagram tab');
   });
