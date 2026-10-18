@@ -50,8 +50,8 @@ export const DEPLOY_TX_A = 'a1'.repeat(32);
 export const CONFIGURED_NETWORK = 'testnet';
 export const OTHER_NETWORK = 'mainnet';
 
-const WASM_HASH_1 = '11'.repeat(32);
-const WASM_HASH_2 = '22'.repeat(32);
+export const WASM_HASH_1 = '11'.repeat(32);
+export const WASM_HASH_2 = '22'.repeat(32);
 
 /** Fixed timestamps keep the fixture byte-identical between runs. */
 const at = (iso: string) => new Date(iso);

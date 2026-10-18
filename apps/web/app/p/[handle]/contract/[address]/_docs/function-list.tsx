@@ -11,6 +11,7 @@ import {
 import { SectionLabel } from '../../../_components/section-label';
 import { DocComment } from './doc-comment';
 import { NoDocCommentsNote } from './no-doc-comments-note';
+import { HeadingAnchor } from './heading-anchor';
 
 export interface FunctionListProps {
   spec: FunctionReferenceSpec;
@@ -111,10 +112,12 @@ function FunctionBlock({
     >
       <h3
         id={`${section.id}-name`}
-        className="text-[20px] font-bold tracking-[-0.015em] text-[#f5f4ee] [overflow-wrap:anywhere]"
+        data-anchor={section.id}
+        className="group flex items-baseline text-[20px] font-bold tracking-[-0.015em] text-[#f5f4ee] [overflow-wrap:anywhere]"
         style={DISPLAY}
       >
-        {section.name}
+        <span>{section.name}</span>
+        <HeadingAnchor id={section.id} title={section.name} />
       </h3>
       <p
         className="mt-3 text-[13px] leading-[1.7] text-[#f5f4ee] [overflow-wrap:anywhere]"

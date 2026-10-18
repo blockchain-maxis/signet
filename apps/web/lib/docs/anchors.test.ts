@@ -10,8 +10,9 @@ test('a type anchor is the name behind the type- prefix', () => {
   assert.equal(typeAnchor('Config'), 'type-Config');
 });
 
-test('an error anchor carries the enum and the case', () => {
+test('an error anchor carries the enum and the case, or enum alone', () => {
   assert.equal(errorAnchor('Error', 'HandleTaken'), 'error-Error-HandleTaken');
+  assert.equal(errorAnchor('Error'), 'error-Error');
 });
 
 test('a function and a type with the same name get distinct anchors', () => {

@@ -46,6 +46,8 @@ export interface HeaderModel {
     label: string;
     /** Set only when the live hash differs from the indexed one. */
     note: string | null;
+    /** Note about previous upgrades (#454), e.g. "upgraded 1 time since 1 Mar 2026". */
+    upgradedNote?: string | null;
   };
   deployTx: { hash: string; url: string };
   /** Formatted deployment date, e.g. "1 Mar 2026". */
@@ -102,7 +104,13 @@ function wasmField(
 export function buildHeaderModel(
   attributed: AttributedContract,
   liveWasmHash: string | null,
-  opts: { handle: string; configuredNetwork: string; indexedAsOf?: string | null; archived?: boolean },
+  opts: {
+    handle: string;
+    configuredNetwork: string;
+    indexedAsOf?: string | null;
+    archived?: boolean;
+    upgradedNote?: string | null;
+  },
 ): HeaderModel {
   const explorer = explorerFor(attributed.network);
   const mismatch = attributed.network !== opts.configuredNetwork;
@@ -122,7 +130,10 @@ export function buildHeaderModel(
           note: `This contract's instance has expired on ${attributed.network}. It has to be restored before it can be invoked; what is shown here is what was last recorded.`,
         }
       : null,
-    wasm: wasmField(attributed.wasmHash, liveWasmHash, opts.indexedAsOf ?? null, opts.archived === true),
+    wasm: {
+      ...wasmField(attributed.wasmHash, liveWasmHash, opts.indexedAsOf ?? null, opts.archived === true),
+      ...(opts.upgradedNote !== undefined ? { upgradedNote: opts.upgradedNote } : {}),
+    },
     deployTx: {
       hash: attributed.deployTxHash,
       url: stellarExpertTxUrl(attributed.deployTxHash, explorer),
