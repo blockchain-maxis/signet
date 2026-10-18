@@ -1,8 +1,10 @@
 import { docRefsFromSpec } from '@/lib/contract-docs';
 import { buildErrorReference } from '@/lib/docs/error-reference';
 import { typesTabHref, type FunctionReferenceSpec } from '@/lib/docs/function-reference';
+import { errorAnchor } from '@/lib/docs/anchors';
 import { SectionLabel } from '../../../_components/section-label';
 import { DocComment } from './doc-comment';
+import { HeadingAnchor } from './heading-anchor';
 
 export interface ErrorListProps {
   spec: FunctionReferenceSpec;
@@ -42,15 +44,20 @@ export function ErrorList({ spec, handle, address, className }: ErrorListProps) 
         {reference.sharedNote && <p data-testid="error-shared-code-note">{reference.sharedNote}</p>}
       </div>
 
-      {reference.tables.map((table) => (
-        <div key={table.enumName} className="mt-8" data-testid="error-table">
-          <h3
-            className="text-[20px] font-bold tracking-[-0.015em] text-[#f5f4ee] [overflow-wrap:anywhere]"
-            style={DISPLAY}
-          >
-            {table.enumName}
-          </h3>
-          <table className="mt-4 w-full max-w-[720px] border border-[#1f1d19] text-left [overflow-wrap:anywhere]">
+      {reference.tables.map((table) => {
+        const enumAnchor = errorAnchor(table.enumName);
+        return (
+          <div key={table.enumName} className="mt-8" data-testid="error-table">
+            <h3
+              id={enumAnchor}
+              data-anchor={enumAnchor}
+              className="group flex items-baseline text-[20px] font-bold tracking-[-0.015em] text-[#f5f4ee] [overflow-wrap:anywhere]"
+              style={DISPLAY}
+            >
+              <span>{table.enumName}</span>
+              <HeadingAnchor id={enumAnchor} title={table.enumName} />
+            </h3>
+            <table className="mt-4 w-full max-w-[720px] border border-[#1f1d19] text-left [overflow-wrap:anywhere]">
             <caption className="sr-only">Error codes of {table.enumName}</caption>
             <thead>
               <tr className="border-b border-[#1f1d19]">
@@ -96,7 +103,8 @@ export function ErrorList({ spec, handle, address, className }: ErrorListProps) 
             </tbody>
           </table>
         </div>
-      ))}
+      );
+    })}
     </section>
   );
 }

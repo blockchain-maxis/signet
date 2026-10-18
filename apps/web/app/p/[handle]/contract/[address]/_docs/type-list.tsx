@@ -9,6 +9,7 @@ import {
   type TypeReferenceSpec,
 } from '@/lib/docs/type-reference';
 import { DocComment } from './doc-comment';
+import { HeadingAnchor } from './heading-anchor';
 
 export interface TypeListProps {
   spec: TypeReferenceSpec;
@@ -193,16 +194,18 @@ function TypeBlock({ entry, refs }: { entry: TypeEntry; refs: Refs }) {
     >
       <h3
         id={`${entry.id}-name`}
-        className="flex flex-wrap items-baseline gap-x-3 text-[20px] font-bold tracking-[-0.015em] text-[#f5f4ee] [overflow-wrap:anywhere]"
+        data-anchor={entry.id}
+        className="group flex flex-wrap items-baseline gap-x-3 text-[20px] font-bold tracking-[-0.015em] text-[#f5f4ee] [overflow-wrap:anywhere]"
         style={DISPLAY}
       >
-        {entry.name}
+        <span>{entry.name}</span>
         <span
           className="text-[11px] font-normal tracking-[0.12em] text-[#8a8779]"
           style={MONO}
         >
           {KIND_LABEL[entry.kind]}
         </span>
+        <HeadingAnchor id={entry.id} title={entry.name} />
       </h3>
       {entry.doc && (
         <div className="mt-4 max-w-[65ch] space-y-3">

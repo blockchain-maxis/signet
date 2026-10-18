@@ -19,7 +19,7 @@ import type { ContractSlotProps } from './slot-props';
  * Following #499 (E-19), the outline sits after the SVG in a `<details>` labelled
  * "Diagram as text", and the SVG gets `aria-describedby="diagram-outline"`.
  */
-export function ContractDiagram(props: ContractSlotProps) {
+function DiagramBody(props: ContractSlotProps) {
   if (props.spec.kind !== 'spec') {
     return <SlotPlaceholder slot="diagram" props={props} />;
   }
@@ -95,5 +95,22 @@ export function ContractDiagram(props: ContractSlotProps) {
       />
       {outlineDetails}
     </section>
+  );
+}
+
+/**
+ * Bounded viewport container (#504): overflow: auto, max-height: 70vh, a
+ * focusable `role="region"` so keyboard users can scroll a large diagram.
+ */
+export function ContractDiagram(props: ContractSlotProps) {
+  return (
+    <div
+      role="region"
+      aria-label="Contract diagram viewport"
+      tabIndex={0}
+      className="viz-viewport max-h-[70vh] max-w-full overflow-auto outline-none focus-visible:ring-2 focus-visible:ring-[#60a5fa]"
+    >
+      <DiagramBody {...props} />
+    </div>
   );
 }

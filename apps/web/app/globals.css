@@ -1,4 +1,5 @@
 @import '@signet/visualiser/tokens.css';
+@import '@signet/visualiser/interactive/viewport.css';
 
 @tailwind base;
 @tailwind components;
