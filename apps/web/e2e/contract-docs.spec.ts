@@ -151,6 +151,23 @@ test.describe('contract docs accessibility and layout @db', () => {
     expect(await page.evaluate(() => window.scrollY)).toBeGreaterThan(0);
   });
 
+  test('table of contents is sticky on wide screens and a details on mobile', async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await page.goto(`${registryBase}/functions`);
+    await expect(page.getByTestId('toc-sticky')).toBeVisible();
+    await expect(page.getByTestId('toc-details')).toBeHidden();
+
+    await page.setViewportSize({ width: 360, height: 740 });
+    await expect(page.getByTestId('toc-sticky')).toBeHidden();
+    await expect(page.getByTestId('toc-details')).toBeVisible();
+  });
+
+  test('heading link icon carries the anchor id', async ({ page }) => {
+    await page.goto(`${registryBase}/functions`);
+    const link = page.locator('#fn-claim [data-heading-anchor="fn-claim"]');
+    await expect(link).toHaveAttribute('href', '#fn-claim');
+  });
+
   test('headings run h1, then h2 per section, then h3 per item, on every tab', async ({ page }) => {
     for (const tab of TABS) {
       await page.goto(`${registryBase}${tab.segment}`);

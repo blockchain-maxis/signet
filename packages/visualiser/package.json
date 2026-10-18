@@ -13,6 +13,8 @@
     "./interactive/details.css": "./src/interactive/details.css",
     "./interactive/keyboard": "./src/interactive/keyboard.ts",
     "./interactive/keyboard.css": "./src/interactive/keyboard.css",
+    "./interactive/viewport": "./src/interactive/viewport.ts",
+    "./interactive/viewport.css": "./src/interactive/viewport.css",
     "./tokens": "./src/tokens.ts",
     "./tokens.css": "./src/tokens.css"
   },

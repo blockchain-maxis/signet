@@ -1,0 +1,88 @@
+/*
+ * Viewport and zoom controls styles (#504).
+ *
+ * All colours use --viz-* tokens from tokens.css.
+ * No animated transitions (design §2.3: no motion).
+ */
+
+.viz-viewport {
+  position: relative;
+  overflow: auto;
+  max-height: 70vh;
+  max-width: 100%;
+  box-sizing: border-box;
+  scroll-behavior: auto !important;
+  cursor: grab;
+  outline: none;
+}
+
+.viz-viewport:focus-visible {
+  outline: 2px solid var(--viz-focus, #60a5fa);
+  outline-offset: -2px;
+}
+
+.viz-viewport-controls {
+  position: sticky;
+  top: 8px;
+  right: 8px;
+  float: right;
+  z-index: 20;
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 4px;
+  background: var(--viz-node, #181614);
+  border: 1px solid var(--viz-edge, #736e62);
+  border-radius: 6px;
+  box-shadow: 0 4px 12px rgb(0 0 0 / 30%);
+}
+
+.viz-viewport-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 28px;
+  height: 28px;
+  padding: 0 6px;
+  border: 1px solid transparent;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--viz-node-text, #f5f4ee);
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 12px;
+  line-height: 1;
+  cursor: pointer;
+  user-select: none;
+  transition: none !important;
+}
+
+.viz-viewport-btn:hover:not(:disabled) {
+  border-color: var(--viz-edge, #736e62);
+  background: var(--viz-ground, #0a0908);
+}
+
+.viz-viewport-btn:focus-visible {
+  outline: 2px solid var(--viz-focus, #60a5fa);
+  outline-offset: 1px;
+}
+
+.viz-viewport-btn:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+}
+
+.viz-viewport--dragging {
+  cursor: grabbing !important;
+  user-select: none;
+}
+
+.viz-viewport--dragging * {
+  cursor: grabbing !important;
+  user-select: none;
+}
+
+.contract-diagram text,
+.diagram-node-label {
+  font-family: var(--font-mono, ui-monospace, monospace);
+  font-size: 14px;
+}
