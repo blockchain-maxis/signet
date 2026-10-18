@@ -141,7 +141,7 @@ export function buildCsp(
     // for style-src only. This is the documented, accepted exception.
     "style-src 'self' 'unsafe-inline'",
     "font-src 'self'",
-    "img-src 'self' data: https:",
+    "img-src 'self' data: blob: https:",
     // connect-src covers the Stellar RPC / Horizon / Expert endpoints the client
     // calls, derived dynamically from configured environment variables.
     // The wallet modules registered today (Freighter, xBull, Albedo,

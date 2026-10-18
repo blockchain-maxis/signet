@@ -1,4 +1,5 @@
 import { ContractDiagram, loadSlotProps } from '../_slots';
+import { ExportPngButton } from './export-png-button';
 
 /** Diagram tab (#445): mounts the `ContractDiagram` slot (#450). */
 export default async function DiagramPage({
@@ -12,13 +13,16 @@ export default async function DiagramPage({
   return (
     <>
       {props.spec.kind === 'spec' && (
-        <a
-          href={`/p/${encodeURIComponent(handle)}/contract/${encodeURIComponent(address)}/diagram.svg?theme=auto`}
-          className="mb-6 inline-block text-sm underline underline-offset-4 focus-visible:outline focus-visible:outline-2"
-          download
-        >
-          Download SVG
-        </a>
+        <div className="mb-6 flex flex-wrap items-center gap-6">
+          <a
+            href={`/p/${encodeURIComponent(handle)}/contract/${encodeURIComponent(address)}/diagram.svg?theme=auto`}
+            className="inline-block text-sm underline underline-offset-4 focus-visible:outline focus-visible:outline-2"
+            download
+          >
+            Download SVG
+          </a>
+          <ExportPngButton handle={handle} address={address} />
+        </div>
       )}
       <ContractDiagram {...props} />
     </>
