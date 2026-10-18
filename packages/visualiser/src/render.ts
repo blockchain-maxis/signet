@@ -19,6 +19,8 @@ export interface RenderOptions {
   hrefForNode: (nodeId: string) => string | null;
   /** Title for the <title> element (contract name/address). */
   title: string;
+  /** Optional ID of an element that describes this SVG (e.g. outline details for a11y, issue 499). */
+  ariaDescribedBy?: string;
 }
 
 /**
@@ -71,11 +73,12 @@ export function renderDiagramSvg(model: DiagramModel, opts: RenderOptions): stri
 
   const desc = `${functionNodes.length} functions in ${groupCount} groups, ${typeNodes.length} types, ${model.edges.length} references`;
 
+  const describedByAttr = opts.ariaDescribedBy ? ` aria-describedby="${escapeXml(opts.ariaDescribedBy)}"` : '';
   const svgParts: string[] = [];
   svgParts.push('<svg');
   svgParts.push('  xmlns="http://www.w3.org/2000/svg"');
   svgParts.push('  role="img"');
-  svgParts.push(`  aria-labelledby="${escapeXml(idPrefix)}title ${escapeXml(idPrefix)}desc"`);
+  svgParts.push(`  aria-labelledby="${escapeXml(idPrefix)}title ${escapeXml(idPrefix)}desc"${describedByAttr}`);
   svgParts.push('  class="contract-diagram"');
   svgParts.push('>');
   svgParts.push(`  <title id="${escapeXml(idPrefix)}title">${escapeXml(title)}</title>`);

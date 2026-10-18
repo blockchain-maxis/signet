@@ -50,6 +50,10 @@ export default defineConfig({
       // actually reach Postgres — without it the server would run dbless and
       // linking would correctly fail closed, failing the spec for the wrong
       // reason.
+      // The whole suite reaches the server from one shared `unknown` IP, so the
+      // per-IP contract page budget (#462) would throttle the contract-page specs.
+      // The limit itself is covered by rate-limit.spec.ts and its unit test.
+      SIGNET_CONTRACT_PAGE_RATE_LIMIT_PER_MIN: '100000',
       ...(process.env.DATABASE_URL ? { DATABASE_URL: process.env.DATABASE_URL } : {}),
       // With a database the contract pages resolve interfaces over RPC. Point
       // them at the mock `globalSetup` starts (#470) so the docs failure

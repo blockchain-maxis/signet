@@ -91,6 +91,8 @@ func TestExistingCommandsLandInTheirGroups(t *testing.T) {
 		"version":    groupOther.id,
 		"help":       groupOther.id,
 		"completion": groupOther.id,
+		"doctor":     groupOther.id,
+		"bug-report": groupOther.id,
 	}
 	got := map[string]string{}
 	for _, c := range topLevelCommands(t) {
@@ -187,7 +189,15 @@ var failing = map[string][]string{
 	"config":   {"config", "get", "nonexistent-key-xyz", "--json"},
 }
 
-var cannotFail = map[string]bool{"version": true, "help": true, "completion": true}
+var cannotFail = map[string]bool{
+	"version":    true,
+	"help":       true,
+	"completion": true,
+	// doctor reports findings rather than failing on them, and bug-report only
+	// reads local state, so neither fails on normal use.
+	"doctor":     true,
+	"bug-report": true,
+}
 
 func TestEveryCommandIsCoveredByTheJSONErrorRule(t *testing.T) {
 	for _, c := range topLevelCommands(t) {

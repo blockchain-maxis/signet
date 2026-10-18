@@ -9,6 +9,7 @@
 import { cache } from 'react';
 import type { Network } from '@signet/types';
 import type { ActivitySnapshotInput, SpecInput } from '../contract-overview.ts';
+import type { WasmVersionRow } from '../contract-upgrades.ts';
 import { logger } from '../logger.ts';
 import { loadContractSpec } from './contract-spec.ts';
 import { PrismaSpecCache } from './spec-store.ts';
@@ -79,3 +80,29 @@ export const loadSpecExtractedAt = cache(async (wasmHash: string): Promise<Date 
     return null;
   }
 });
+
+/**
+ * All recorded WASM versions for a contract, newest first (#454).
+ * Returns empty array when there is no database or no rows.
+ */
+export const loadWasmVersions = cache(
+  async (address: string, network: string): Promise<WasmVersionRow[]> => {
+    if (!process.env.DATABASE_URL) return [];
+    try {
+      const { prisma } = await import('@signet/db');
+      const rows = await prisma.contractWasmVersion.findMany({
+        where: { contract: { address, network } },
+        orderBy: { observedAt: 'desc' },
+      });
+      return rows.map((r) => ({
+        wasmHash: r.wasmHash,
+        observedAt: r.observedAt,
+        observedLedger: r.observedLedger,
+      }));
+    } catch (error) {
+      logger.warn({ address, error: String(error) }, 'contract wasm versions lookup failed');
+      return [];
+    }
+  },
+);
+

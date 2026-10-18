@@ -2,13 +2,14 @@
 // `lib/csp.ts`) so `script-src` can carry a fresh nonce instead of
 // `'unsafe-inline'`. The static, non-nonce headers below apply to every route,
 // including static assets the middleware matcher skips.
-const securityHeaders = [
+const commonSecurityHeaders = [
   { key: 'Strict-Transport-Security', value: 'max-age=63072000; includeSubDomains; preload' },
-  { key: 'X-Frame-Options', value: 'DENY' },
   { key: 'X-Content-Type-Options', value: 'nosniff' },
   { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
   { key: 'Permissions-Policy', value: 'camera=(), microphone=(), geolocation=()' },
 ];
+
+const xFrameOptionsHeader = { key: 'X-Frame-Options', value: 'DENY' };
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
@@ -18,7 +19,13 @@ const nextConfig = {
   // transpile them.
   transpilePackages: ['@signet/types', '@signet/sdk', '@signet/db', '@signet/spec'],
   async headers() {
-    return [{ source: '/:path*', headers: securityHeaders }];
+    return [
+      { source: '/:path*', headers: commonSecurityHeaders },
+      {
+        source: '/((?!p/[^/]+/contract/[^/]+/embed(?:/|$)).*)',
+        headers: [xFrameOptionsHeader],
+      },
+    ];
   },
 };
 

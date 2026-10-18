@@ -1,4 +1,5 @@
 import { test, expect, type APIRequestContext } from '@playwright/test';
+import { LIMITS } from '../lib/rate-limit-policy.ts';
 
 /**
  * End-to-end coverage for the API rate limiter (issue #212).
@@ -115,5 +116,18 @@ test.describe('API rate limiting', () => {
       headers: { 'x-vercel-forwarded-for': ip(4, testInfo.retry) },
     });
     expect(attributed.status()).toBe(200);
+  });
+
+  test('the contract operations route enforces its bucket (contractOperations)', async ({
+    request,
+  }, testInfo) => {
+    const mine = { 'x-vercel-forwarded-for': ip(5, testInfo.retry) };
+    const path = '/api/p/rate-limit-probe/contract/CDEMOCONTRACT/operations';
+    const statuses = await flood(request, path, LIMITS.contractOperations, mine);
+    expect(statuses.every((s) => s === 200 || s === 404)).toBeTruthy();
+
+    const limited = await request.get(path, { headers: mine });
+    expect(limited.status()).toBe(429);
+    expect(limited.headers()['retry-after']).toBeTruthy();
   });
 });

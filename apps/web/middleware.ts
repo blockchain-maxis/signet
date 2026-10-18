@@ -14,7 +14,7 @@ import { resolveRewriteTarget } from './lib/routing';
  *   profile     →  /p/{handle}, /p/{handle}/contract/{address}[/{tab}]
  *                  (reachable as {handle}.signet.dev/…, /@{handle}/…, and
  *                  the legacy /profile/{handle} paths)
- *   trpc api    →  /api/trpc/*
+ *   trpc api    →  /api/trpc/* (internal; public reads use /api/v1)
  *   handles     →  /handles (the public directory)
  *
  * Resolution order:
@@ -39,13 +39,19 @@ export function middleware(req: NextRequest): NextResponse {
   // from — a root-relative report target is resolved per document, which on the
   // handle subdomains would scatter reports across origins.
   const reportUri = new URL(CSP_REPORT_PATH, req.nextUrl.origin).toString();
-  const csp = buildCsp(nonce, { dev: process.env.NODE_ENV !== 'production', reportUri });
+  const target = resolveRewriteTarget(req.headers.get('host') ?? '', req.nextUrl.pathname);
+  const activePath = target ?? req.nextUrl.pathname;
+  const csp = buildCsp(nonce, {
+    dev: process.env.NODE_ENV !== 'production',
+    reportUri,
+    path: activePath,
+  });
 
   const requestHeaders = new Headers(req.headers);
   requestHeaders.set('x-nonce', nonce);
+  requestHeaders.set('x-pathname', activePath);
   requestHeaders.set('content-security-policy', csp);
 
-  const target = resolveRewriteTarget(req.headers.get('host') ?? '', req.nextUrl.pathname);
   let response: NextResponse;
   if (target) {
     const url = req.nextUrl.clone();

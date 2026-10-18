@@ -49,6 +49,13 @@ func TestExitCodeConsultsTheSentinelTaxonomy(t *testing.T) {
 	}
 }
 
+func TestExitCodeMapsAnInterruptToTheShellConvention(t *testing.T) {
+	wrapped := fmt.Errorf("%w: pairing abandoned", exitcode.ErrInterrupted)
+	if got := ExitCode(wrapped); got != 130 {
+		t.Fatalf("ExitCode(wrapped ErrInterrupted) = %d, want 130", got)
+	}
+}
+
 func TestExitCodeRootConfigErrorsCarryTheConfigurationCode(t *testing.T) {
 	// A real caller, not a synthetic error: root's PersistentPreRunE wraps
 	// exitcode.ErrConfiguration when the config file can't be read, since a

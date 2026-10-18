@@ -37,6 +37,10 @@ const (
 	HostUnsupported  = 11
 	BuildFailed      = 12
 	SimulatorFailure = 13
+
+	// Interrupted is the shell convention for a process ended by Ctrl-C
+	// (128 + SIGINT).
+	Interrupted = 130
 )
 
 // Sentinel errors for each documented failure class beyond invalid input.
@@ -99,6 +103,10 @@ var (
 	// "the call I'm testing failed" and "the sandbox is broken"
 	// indistinguishable from a script.
 	ErrSimulator = errors.New("simulator failure")
+
+	// ErrInterrupted: the developer cancelled the command (Ctrl-C) while it
+	// was waiting. Nothing failed; whatever was in flight was abandoned.
+	ErrInterrupted = errors.New("interrupted")
 )
 
 // sentinelCodes pairs each sentinel above with its exit code, in the same
@@ -119,6 +127,7 @@ var sentinelCodes = []struct {
 	{ErrHostUnsupported, HostUnsupported},
 	{ErrBuildFailed, BuildFailed},
 	{ErrSimulator, SimulatorFailure},
+	{ErrInterrupted, Interrupted},
 }
 
 // CodeFor returns the exit code for the first sentinel err matches via

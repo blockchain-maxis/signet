@@ -1,8 +1,10 @@
 import { normalizeNetwork } from '@signet/types';
 import type { AttributedContract } from '@/lib/contract-attribution';
 import { buildHeaderModel } from '@/lib/contract-header';
+import { describeUpgrades } from '@/lib/contract-upgrades';
 import { STELLAR_NETWORK } from '@/lib/chain';
 import { loadIndexedAsOf, loadLiveInstance } from '@/lib/server/contract-header-source';
+import { loadWasmVersions } from '@/lib/server/contract-overview-source';
 import { CopyAddress } from '../../../copy-address';
 import { ExternalLink } from '../external-link';
 
@@ -32,15 +34,18 @@ export async function ContractHeader({
   handle: string;
   contract: AttributedContract;
 }) {
-  const [live, indexedAsOf] = await Promise.all([
+  const [live, indexedAsOf, wasmVersions] = await Promise.all([
     loadLiveInstance(contract.address, normalizeNetwork(contract.network)),
     contract.wasmHash ? loadIndexedAsOf(contract.address) : Promise.resolve(null),
+    loadWasmVersions(contract.address, contract.network),
   ]);
+  const upgrades = describeUpgrades(wasmVersions);
   const m = buildHeaderModel(contract, live.wasmHash, {
     handle,
     configuredNetwork: STELLAR_NETWORK,
     indexedAsOf,
     archived: live.archived,
+    upgradedNote: upgrades.headerNote,
   });
 
   return (
@@ -102,6 +107,11 @@ export async function ContractHeader({
             {m.wasm.label}
           </p>
           {m.wasm.note && <p className="mt-1 text-[#b8b5a8]">{m.wasm.note}</p>}
+          {m.wasm.upgradedNote && (
+            <p className="mt-1 text-[#b8b5a8]" data-testid="contract-wasm-upgrades">
+              {m.wasm.upgradedNote}
+            </p>
+          )}
         </Row>
 
         <Row label="Deploy tx">

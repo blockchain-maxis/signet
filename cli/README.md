@@ -84,6 +84,16 @@ signet link --json
 `--no-browser` prints the approval URL instead of trying to open one.
 `--network` defaults to `testnet`; pass `--network mainnet` for mainnet.
 
+If the browser cannot reach the CLI's local callback and stdin is a terminal,
+`link` asks you to paste the code the approval page shows (it appears straight
+away if the callback port could not be opened, otherwise 10 seconds after the
+approval is seen). Whichever finishes first wins. With `--json`, or when stdin
+is not a terminal, it never prompts.
+
+Ctrl-C while waiting prints `pairing abandoned; the link expires at …` to stderr
+and exits `130`. Linking a wallet that is already bound to your handle reports
+`status: "already-linked"` instead of `"linked"`.
+
 ### `signet whoami`
 
 ```bash
@@ -234,6 +244,7 @@ releases.
 | `11` | Host unsupported — the simulator can't serve this network (protocol version, host functions, or network id it doesn't model) |
 | `12` | Build failed — the contract under test failed to build, so there was nothing to run |
 | `13` | Simulator failure — the simulator itself failed, as opposed to a contract call failing inside a working simulator (the distinction `docs/CLI_RUST_BRIDGE.md` §3 keeps) |
+| `130` | Interrupted — the developer pressed Ctrl-C while the command was waiting (for example `link` abandoning a pairing) |
 
 Every code has a real caller now: `link` and `unlink` raise `3`–`9` between
 them (configuration, identity resolution, `stellar tx sign`, reaching the

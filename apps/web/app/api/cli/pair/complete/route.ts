@@ -82,6 +82,7 @@ export async function POST(req: Request) {
       wallet: result.wallet.pubkey,
       handle: result.handle,
       indexingPending: result.wallet.indexingPending,
+      status: result.status,
     } satisfies PairCompleteResponse,
     { headers: { 'cache-control': 'no-store' } },
   );

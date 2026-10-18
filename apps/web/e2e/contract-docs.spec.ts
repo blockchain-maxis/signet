@@ -151,6 +151,23 @@ test.describe('contract docs accessibility and layout @db', () => {
     expect(await page.evaluate(() => window.scrollY)).toBeGreaterThan(0);
   });
 
+  test('table of contents is sticky on wide screens and a details on mobile', async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await page.goto(`${registryBase}/functions`);
+    await expect(page.getByTestId('toc-sticky')).toBeVisible();
+    await expect(page.getByTestId('toc-details')).toBeHidden();
+
+    await page.setViewportSize({ width: 360, height: 740 });
+    await expect(page.getByTestId('toc-sticky')).toBeHidden();
+    await expect(page.getByTestId('toc-details')).toBeVisible();
+  });
+
+  test('heading link icon carries the anchor id', async ({ page }) => {
+    await page.goto(`${registryBase}/functions`);
+    const link = page.locator('#fn-claim [data-heading-anchor="fn-claim"]');
+    await expect(link).toHaveAttribute('href', '#fn-claim');
+  });
+
   test('headings run h1, then h2 per section, then h3 per item, on every tab', async ({ page }) => {
     for (const tab of TABS) {
       await page.goto(`${registryBase}${tab.segment}`);
@@ -224,6 +241,8 @@ test.describe('contract docs accessibility and layout @db', () => {
     test.setTimeout(120_000);
     const linksIn = (p: Page) => p.getByTestId('slot-functions').locator('a[href*="#type-"]:visible');
     await page.goto(`${registryBase}/functions`);
+    // The page streams in behind its loading state; count only once links are there.
+    await expect(linksIn(page).first()).toBeVisible();
     const count = await linksIn(page).count();
     expect(count).toBeGreaterThan(0);
     for (let i = 0; i < count; i++) {
@@ -237,6 +256,8 @@ test.describe('contract docs accessibility and layout @db', () => {
     test.setTimeout(120_000);
     const linksIn = (p: Page) => p.getByTestId('slot-types').locator('a[href*="#type-"]:visible');
     await page.goto(`${registryBase}/types`);
+    // The page streams in behind its loading state; count only once links are there.
+    await expect(linksIn(page).first()).toBeVisible();
     const count = await linksIn(page).count();
     expect(count).toBeGreaterThan(0);
     for (let i = 0; i < count; i++) {
@@ -259,6 +280,7 @@ test.describe('contract docs accessibility and layout @db', () => {
     const signature = page
       .locator('#fn-record_observation_with_a_deliberately_long_function_name')
       .getByTestId('function-signature');
+    await expect(signature).toBeVisible();
     const box = await signature.boundingBox();
     expect(box).not.toBeNull();
     expect(box!.width).toBeLessThanOrEqual(360);

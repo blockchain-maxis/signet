@@ -104,7 +104,7 @@ function contractSuffix(segments: string[]): string | null {
   if (!address || !CONTRACT_ADDRESS_SHAPE.test(address)) return null;
   if (segments.length === 2) return `/contract/${address}`;
   const tab = segments[2];
-  if (segments.length === 3 && tab && CONTRACT_TAB_SEGMENTS.has(tab)) {
+  if (segments.length === 3 && tab && (tab === 'embed' || CONTRACT_TAB_SEGMENTS.has(tab))) {
     return `/contract/${address}/${tab}`;
   }
   // `/contract/{address}/functions/{name}` — the per-function permalink (#475).

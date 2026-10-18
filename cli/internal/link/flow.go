@@ -3,6 +3,7 @@ package link
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/url"
@@ -25,6 +26,11 @@ const TTL = 5 * time.Minute
 // PollInterval is how often the fallback path asks the server for progress.
 const PollInterval = 2 * time.Second
 
+// ManualDelay is how long the flow waits for the loopback callback after
+// polling reports the pairing approved, before it offers the manual code
+// prompt. A callback that is going to arrive does so in well under this.
+const ManualDelay = 10 * time.Second
+
 // Deps are the seams a Flow needs. Every one of them is injected so the whole
 // flow is testable against fakes: no browser opens, no port is bound, no
 // `stellar` is executed, and no network call leaves the test.
@@ -34,7 +40,8 @@ type Deps struct {
 	// Poll reads pairing progress with the poll token.
 	Poll func(ctx context.Context, pollToken string) (pair.Status, error)
 	// Complete submits the signed challenge and reports what was linked.
-	Complete func(ctx context.Context, state, signedXDR, handoffCode string) (string, bool, error)
+	// handoffCode is empty unless the developer typed one.
+	Complete func(ctx context.Context, state, signedXDR, handoffCode string) (pair.Completed, error)
 	// Challenge fetches an unsigned SEP-10 challenge for an account, and the
 	// network passphrase the deployment says it was built for.
 	Challenge func(ctx context.Context, account string) (unsignedXDR, networkPassphrase string, err error)
@@ -48,13 +55,18 @@ type Deps struct {
 	// error) drops the flow to the polling path rather than failing — that is
 	// the whole point of #273.
 	Listen func(path string) (Callbacks, error)
+	// Prompt reads one line the developer types, returning when it has one or
+	// ctx ends. Nil means the flow must not prompt: stdin is not a terminal, or
+	// --json promised a script nothing but the result.
+	Prompt func(ctx context.Context) (string, error)
 	// Report prints progress to the developer.
 	Report func(string)
-	// TTL and PollInterval override the package defaults. Zero means "use the
-	// default"; tests set them small so the suite does not spend real seconds
-	// sleeping.
+	// TTL, PollInterval and ManualDelay override the package defaults. Zero
+	// means "use the default"; tests set them small so the suite does not
+	// spend real seconds sleeping.
 	TTL          time.Duration
 	PollInterval time.Duration
+	ManualDelay  time.Duration
 }
 
 // ttl and pollInterval apply the defaults for a zero value.
@@ -72,6 +84,13 @@ func (d Deps) pollInterval() time.Duration {
 	return PollInterval
 }
 
+func (d Deps) manualDelay() time.Duration {
+	if d.ManualDelay > 0 {
+		return d.ManualDelay
+	}
+	return ManualDelay
+}
+
 // Callbacks is the slice of loopback.Server the flow uses, as an interface so
 // a test can supply one that never binds a port.
 type Callbacks interface {
@@ -82,9 +101,11 @@ type Callbacks interface {
 
 // Result is what a completed link reports.
 type Result struct {
-	Handle          string `json:"handle"`
-	PublicKey       string `json:"publicKey"`
-	Network         string `json:"network"`
+	Handle    string `json:"handle"`
+	PublicKey string `json:"publicKey"`
+	Network   string `json:"network"`
+	// Status is "linked", or "already-linked" when the wallet was already
+	// bound to this same profile and the link only refreshed it.
 	Status          string `json:"status"`
 	IndexingPending bool   `json:"indexingPending"`
 }
@@ -137,8 +158,11 @@ func Run(ctx context.Context, baseURL, network, source, publicKey string, deps D
 		}
 	}
 
-	outcome, err := wait(ctx, started, callbackState, server, deps, report)
+	outcome, handoffCode, err := wait(ctx, started, callbackState, server, deps, report)
 	if err != nil {
+		if errors.Is(ctx.Err(), context.Canceled) {
+			return Result{}, abandoned(started, deps)
+		}
 		return Result{}, err
 	}
 	switch outcome {
@@ -167,18 +191,41 @@ func Run(ctx context.Context, baseURL, network, source, publicKey string, deps D
 	// Already classified: pair.Client maps the refusal's code to its exit code
 	// (internal/spec/errors.go), so an already-linked wallet exits 9 however
 	// the server words it — #258 asks for that failure mode by name.
-	handle, indexingPending, err := deps.Complete(ctx, started.State, signed, "")
+	completed, err := deps.Complete(ctx, started.State, signed, handoffCode)
 	if err != nil {
 		return Result{}, err
 	}
+	status := string(completed.Status)
+	if status == "" {
+		status = string(pair.StatusLinked)
+	}
 
 	return Result{
-		Handle:          redact.Secrets(handle),
+		Handle:          redact.Secrets(completed.Handle),
 		PublicKey:       redact.Secrets(publicKey),
 		Network:         redact.Secrets(network),
-		Status:          "linked",
-		IndexingPending: indexingPending,
+		Status:          status,
+		IndexingPending: completed.IndexingPending,
 	}, nil
+}
+
+// abandoned is the error for a developer who pressed Ctrl-C while the flow was
+// waiting. The pairing is not cancelled server-side; it simply expires, and
+// the message says when so a half-finished approval is not a mystery.
+func abandoned(started pair.Started, deps Deps) error {
+	expiry := started.ExpiresAt
+	if expiry == "" {
+		expiry = time.Now().Add(deps.ttl()).UTC().Format(time.RFC3339)
+	}
+	return fmt.Errorf("%w: pairing abandoned; the link expires at %s", exitcode.ErrInterrupted, expiry)
+}
+
+// normalizeHandoffCode puts a typed code in the form the server hashed: the
+// alphabet is upper case, and people type spaces or hyphens when they read a
+// code off a screen.
+func normalizeHandoffCode(typed string) string {
+	typed = strings.ToUpper(strings.TrimSpace(typed))
+	return strings.NewReplacer(" ", "", "-", "").Replace(typed)
 }
 
 // prepare builds the approval URL, attaching the loopback callback when one
@@ -208,8 +255,17 @@ func prepare(baseURL string, started pair.Started, callbackState string, deps De
 	return strings.TrimRight(baseURL, "/") + "/link?" + query.Encode(), server
 }
 
-// wait races the loopback callback against polling, returning whichever
-// resolves first.
+// wait races the loopback callback, polling and — when the developer can type —
+// a pasted handoff code, returning whichever resolves first. The returned code
+// is non-empty only when the developer typed it.
+//
+// The prompt appears in two situations, both only when deps.Prompt is set:
+// straight away if the loopback could not be started, and once polling has
+// reported the pairing approved but no callback has arrived within
+// deps.manualDelay(). In the second case the poll answer no longer completes
+// the flow by itself: the callback or the typed code does, because a callback
+// that is ten seconds late is not coming and the browser page has already told
+// the developer to paste the code.
 func wait(
 	ctx context.Context,
 	started pair.Started,
@@ -217,9 +273,32 @@ func wait(
 	server Callbacks,
 	deps Deps,
 	report func(string),
-) (pair.Outcome, error) {
-	pollOnly := func() (pair.Outcome, error) {
-		return pair.WaitForApproval(ctx, pair.WaitOptions{
+) (pair.Outcome, string, error) {
+	parent := ctx
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	type answer struct {
+		outcome pair.Outcome
+		code    string
+		err     error
+		polled  bool
+	}
+	results := make(chan answer, 4)
+
+	if server != nil {
+		go func() {
+			_, err := server.WaitFor(ctx, deps.ttl(), loopback.MatchState(callbackState))
+			if err != nil {
+				// The callback never arrived. That is not a failure on its own —
+				// the polling half is still running and is the authority here.
+				return
+			}
+			results <- answer{outcome: pair.OutcomeApproved}
+		}()
+	}
+	go func() {
+		outcome, err := pair.WaitForApproval(ctx, pair.WaitOptions{
 			TTL:          deps.ttl(),
 			PollInterval: deps.pollInterval(),
 			GetStatus:    func(c context.Context) (pair.Status, error) { return deps.Poll(c, started.PollToken) },
@@ -227,37 +306,56 @@ func wait(
 				report(fmt.Sprintf("Waiting for approval… %s remaining", p.Remaining.Round(time.Second)))
 			},
 		})
-	}
+		results <- answer{outcome: outcome, err: err, polled: true}
+	}()
 
-	if server == nil {
-		return pollOnly()
-	}
-
-	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
-
-	type answer struct {
-		outcome pair.Outcome
-		err     error
-	}
-	results := make(chan answer, 2)
-
-	go func() {
-		_, err := server.WaitFor(ctx, deps.ttl(), loopback.MatchState(callbackState))
-		if err != nil {
-			// The callback never arrived. That is not a failure on its own —
-			// the polling half is still running and is the authority here.
+	prompting := false
+	startPrompt := func() {
+		if prompting || deps.Prompt == nil {
 			return
 		}
-		results <- answer{outcome: pair.OutcomeApproved}
-	}()
-	go func() {
-		outcome, err := pollOnly()
-		results <- answer{outcome: outcome, err: err}
-	}()
+		prompting = true
+		report("Paste the code shown in the browser, or wait for it to finish:")
+		go func() {
+			for {
+				typed, err := deps.Prompt(ctx)
+				if err != nil {
+					return
+				}
+				if code := normalizeHandoffCode(typed); code != "" {
+					results <- answer{outcome: pair.OutcomeApproved, code: code}
+					return
+				}
+			}
+		}()
+	}
+	if server == nil {
+		startPrompt()
+	}
 
-	got := <-results
-	return got.outcome, got.err
+	// Armed only once polling has answered "approved": until then the poll
+	// loop owns the TTL and reports why it ran out.
+	var grace, deadline <-chan time.Time
+	for {
+		select {
+		case a := <-results:
+			if a.polled && a.err == nil && a.outcome == pair.OutcomeApproved &&
+				server != nil && deps.Prompt != nil && !prompting {
+				// Approved in the browser, but the callback has not shown up.
+				grace = time.After(deps.manualDelay())
+				deadline = time.After(deps.ttl())
+				continue
+			}
+			return a.outcome, a.code, a.err
+		case <-grace:
+			grace = nil
+			startPrompt()
+		case <-deadline:
+			return pair.OutcomeTimeout, "", nil
+		case <-parent.Done():
+			return pair.OutcomeTimeout, "", parent.Err()
+		}
+	}
 }
 
 // FetchChallenge asks a deployment for an unsigned CLI-link challenge for

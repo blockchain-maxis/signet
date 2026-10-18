@@ -116,9 +116,19 @@ CI also enforces a **wasm size budget** (20 KB for `identity_registry`). If a
 size increase is expected and justified, bump `BUDGET_BYTES` in
 `.github/workflows/ci.yml` in the same PR and explain why.
 
+CI enforces a matching **first-load JS budget** on the contract page via
+`scripts/check-route-budgets.mjs`. A route's budget is its measured gzip
+first-load JS plus 10%; if a route legitimately grows, bump its byte budget in
+that script in the same PR and explain why. Prefer splitting the heavy client
+code so each tab only loads what it renders.
+
 > A repo-wide `pnpm format` (Prettier) is available for convenience, but
 > formatting is **not** a CI gate — don't reformat files you didn't otherwise
 > change, as it adds noise to reviews.
+
+## API surfaces
+
+New public reads go into `/api/v1` (see [`docs/API_V1.md`](docs/API_V1.md)) — not tRPC and not `/api/cli/*`, which are internal and change with the app.
 
 ## Commit style
 

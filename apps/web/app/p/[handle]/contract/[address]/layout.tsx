@@ -1,6 +1,8 @@
 import { Suspense } from 'react';
+import { headers } from 'next/headers';
 import { notFound } from 'next/navigation';
 import { attributeContract } from '@/lib/contract-attribution';
+import { LIMITS, rateLimitDecision } from '@/lib/rate-limit-policy';
 import { SiteFooter } from '../../_components/site-footer';
 import { SiteNav } from '../../_components/site-nav';
 import { AnnounceProvider } from './announcer';
@@ -8,6 +10,9 @@ import { ContractHeader } from './_components/contract-header';
 import { ContractHeaderSkeleton } from './_components/contract-header-skeleton';
 import { ContractTabsNav } from './tabs-nav';
 import { TabFocus } from './tab-focus';
+
+import type { Metadata } from 'next';
+import { formatDate } from '@/lib/format-date';
 
 // Rendered per request. The root layout reads request headers for the CSP
 // nonce, so no route can be statically pre-rendered anyway, and attribution
@@ -23,6 +28,41 @@ function truncate(str: string, head: number, tail: number): string {
   return `${str.slice(0, head)}...${str.slice(-tail)}`;
 }
 
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ handle: string; address: string }>;
+}): Promise<Metadata> {
+  const { handle, address } = await params;
+  const attribution = await attributeContract(handle, address);
+
+  if (attribution.status !== 'attributed') {
+    return {
+      title: 'Contract Not Found · Signet',
+      description:
+        'The requested contract could not be found or is not attributed to this developer.',
+    };
+  }
+
+  const { contract } = attribution;
+  const shortAddress = truncate(contract.address, 8, 6);
+  const deployDate = formatDate(contract.deployedAt);
+  const description = `Soroban smart contract deployed on ${contract.network} on ${deployDate}.`;
+
+  return {
+    title: `${shortAddress} · @${handle} · Signet`,
+    description,
+    alternates: {
+      canonical: `/p/${handle}/contract/${address}`,
+    },
+    openGraph: {
+      title: `${shortAddress} · @${handle} · Signet`,
+      description,
+      url: `/p/${handle}/contract/${address}`,
+    },
+  };
+}
+
 /**
  * Shell for the per-contract documentation route (#445, design §2.1):
  * attribution gate, profile identity strip, header slot, tab bar. Every
@@ -35,6 +75,35 @@ export default async function ContractLayout({
   params: Promise<{ handle: string; address: string }>;
   children: React.ReactNode;
 }) {
+  const refusal = await rateLimitDecision(await headers(), 'contract:page', LIMITS.contractPage);
+  if (refusal) {
+    // Next.js cannot set an HTTP 429 status code from a server component layout.
+    // We render an honest rate-limited state without making any upstream calls.
+    // Note that the attribution cache (#458) is what actually protects upstream services.
+    return (
+      <div className="relative min-h-screen bg-[#0a0908] text-[#f5f4ee]">
+        <SiteNav />
+        <main className="relative z-10 mx-auto max-w-5xl px-8 py-24 md:px-14">
+          <div className="border-l-2 border-[#8b1a1a] pl-5" role="status" data-testid="contract-page-rate-limited">
+            <h1
+              className="text-[20px] font-bold tracking-[-0.015em] text-[#f5f4ee]"
+              style={{ fontFamily: 'var(--font-display)' }}
+            >
+              Too many requests
+            </h1>
+            <p
+              className="mt-3 text-[13px] leading-[1.7] text-[#b8b5a8]"
+              style={{ fontFamily: 'var(--font-mono)' }}
+            >
+              Too many requests, retry in {refusal.retryAfter}s.
+            </p>
+          </div>
+        </main>
+        <SiteFooter />
+      </div>
+    );
+  }
+
   const { handle, address } = await params;
 
   // One attribution check for the whole route: the contract renders as part
@@ -53,64 +122,70 @@ export default async function ContractLayout({
     throw new Error('contract attribution unavailable: indexer and Horizon unreachable');
   }
 
+  const headerList = await headers();
+  const pathname = headerList.get('x-pathname') || '';
+  if (/^\/p\/[^/]+\/contract\/[^/]+\/embed(?:\/|$)/.test(pathname)) {
+    return <>{children}</>;
+  }
+
   return (
     <AnnounceProvider>
-    <div className="relative min-h-screen bg-[#0a0908] text-[#f5f4ee]">
-      {/* Skip link (#461): first tab stop, visible only while focused. */}
-      <a
-        href="#contract-content"
-        className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50 focus:bg-[#0a0908] focus:px-3 focus:py-2 focus:text-[11px] focus:uppercase focus:tracking-[0.22em] focus:text-[#f5f4ee] focus:outline focus:outline-2 focus:outline-[#e05a4b]"
-        style={{ fontFamily: 'var(--font-mono)' }}
-      >
-        Skip to contract content
-      </a>
-      {/* Grain */}
-      <div
-        className="pointer-events-none fixed inset-0 z-30 opacity-[0.07] mix-blend-overlay"
-        style={{
-          backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='240' viewBox='0 0 240 240'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")`,
-        }}
-        aria-hidden="true"
-      />
-
-      <SiteNav />
-
-      {/* Identity strip: the contract is shown as part of this
-          developer's record, and the route says so. */}
-      <div className="relative z-10 border-b border-[#1f1d19] px-8 py-4 md:px-14">
-        {/* The page's single h1 (#461): short address, by the handle. */}
-        <h1
-          className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] font-normal uppercase tracking-[0.22em]"
+      <div className="relative min-h-screen bg-[#0a0908] text-[#f5f4ee]">
+        {/* Skip link (#461): first tab stop, visible only while focused. */}
+        <a
+          href="#contract-content"
+          className="sr-only focus:not-sr-only focus:absolute focus:left-4 focus:top-4 focus:z-50 focus:bg-[#0a0908] focus:px-3 focus:py-2 focus:text-[11px] focus:uppercase focus:tracking-[0.22em] focus:text-[#f5f4ee] focus:outline focus:outline-2 focus:outline-[#e05a4b]"
           style={{ fontFamily: 'var(--font-mono)' }}
         >
-          <span className="text-[#8a8779]" title={address}>
-            {truncate(address, 8, 6)}
-          </span>{' '}
-          <span className="text-[#8a8779]">by</span>{' '}
-          <a
-            href={`/p/${handle}`}
-            className="text-[#e05a4b] transition-colors hover:text-[#f0806f] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#e05a4b] focus-visible:ring-offset-2 focus-visible:ring-offset-[#0a0908]"
+          Skip to contract content
+        </a>
+        {/* Grain */}
+        <div
+          className="pointer-events-none fixed inset-0 z-30 opacity-[0.07] mix-blend-overlay"
+          style={{
+            backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='240' height='240' viewBox='0 0 240 240'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E")`,
+          }}
+          aria-hidden="true"
+        />
+
+        <SiteNav />
+
+        {/* Identity strip: the contract is shown as part of this
+          developer's record, and the route says so. */}
+        <div className="relative z-10 border-b border-[#1f1d19] px-8 py-4 md:px-14">
+          {/* The page's single h1 (#461): short address, by the handle. */}
+          <h1
+            className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] font-normal uppercase tracking-[0.22em]"
+            style={{ fontFamily: 'var(--font-mono)' }}
           >
-            @{handle}
-          </a>
-        </h1>
+            <span className="text-[#8a8779]" title={address}>
+              {truncate(address, 8, 6)}
+            </span>{' '}
+            <span className="text-[#8a8779]">by</span>{' '}
+            <a
+              href={`/p/${handle}`}
+              className="text-[#e05a4b] transition-colors hover:text-[#f0806f] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#e05a4b] focus-visible:ring-offset-2 focus-visible:ring-offset-[#0a0908]"
+            >
+              @{handle}
+            </a>
+          </h1>
+        </div>
+
+        {/* Header slot (#448): on every tab, from the same attribution. */}
+        <div className="relative z-10 px-8 pt-10 md:px-14" data-slot="contract-header">
+          <Suspense fallback={<ContractHeaderSkeleton />}>
+            <ContractHeader handle={handle} contract={attribution.contract} />
+          </Suspense>
+        </div>
+
+        <ContractTabsNav handle={handle} address={address} />
+
+        <main id="contract-content" className="relative z-10 mx-auto max-w-5xl px-8 py-16 md:px-14">
+          <TabFocus>{children}</TabFocus>
+        </main>
+
+        <SiteFooter />
       </div>
-
-      {/* Header slot (#448): on every tab, from the same attribution. */}
-      <div className="relative z-10 px-8 pt-10 md:px-14" data-slot="contract-header">
-        <Suspense fallback={<ContractHeaderSkeleton />}>
-          <ContractHeader handle={handle} contract={attribution.contract} />
-        </Suspense>
-      </div>
-
-      <ContractTabsNav handle={handle} address={address} />
-
-      <main id="contract-content" className="relative z-10 mx-auto max-w-5xl px-8 py-16 md:px-14">
-        <TabFocus>{children}</TabFocus>
-      </main>
-
-      <SiteFooter />
-    </div>
     </AnnounceProvider>
   );
 }
