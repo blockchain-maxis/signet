@@ -62,9 +62,9 @@ export function RunPageClient({ address, network }: { address: string; network: 
       )}
 
       <div className="mb-8">
-        <div className="flex items-center gap-4 mb-2">
+        <div className="flex items-center gap-3 mb-2">
           <code
-            className="flex-1 text-[13px] text-[#e8e6dc] bg-[#141310] px-3 py-2 rounded border border-[#2a2823]"
+            className="min-w-0 flex-1 break-all text-[13px] text-[#e8e6dc] bg-[#141310] px-3 py-2 rounded border border-[#2a2823]"
             style={{ fontFamily: 'var(--font-mono)' }}
           >
             {command}
@@ -74,7 +74,7 @@ export function RunPageClient({ address, network }: { address: string; network: 
             onClick={handleCopy}
             title={command}
             aria-label="Copy signet dev command"
-            className="flex h-9 w-9 items-center justify-center rounded border border-[#2a2823] bg-[#141310] text-[#8a8779] hover:text-[#f5f4ee] hover:border-[#3d3a33] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#e05a4b] focus-visible:ring-offset-2 focus-visible:ring-offset-[#0a0908]"
+            className="flex h-11 w-11 min-h-11 min-w-11 shrink-0 items-center justify-center rounded border border-[#2a2823] bg-[#141310] text-[#8a8779] hover:text-[#f5f4ee] hover:border-[#3d3a33] transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#e05a4b] focus-visible:ring-offset-2 focus-visible:ring-offset-[#0a0908]"
           >
             {copied ? (
               <svg width="14" height="14" viewBox="0 0 12 12" fill="none" aria-hidden="true">
@@ -89,13 +89,15 @@ export function RunPageClient({ address, network }: { address: string; network: 
           </button>
           {/* Visual confirmation only: the announcement goes through the
               page's shared live region (useAnnounce). */}
-          <span
-            aria-hidden="true"
-            className="text-[11px] text-[#4ade80]"
-            style={{ fontFamily: 'var(--font-mono)' }}
-          >
-            {copied ? 'Copied' : ''}
-          </span>
+          {copied && (
+            <span
+              aria-hidden="true"
+              className="text-[11px] text-[#4ade80]"
+              style={{ fontFamily: 'var(--font-mono)' }}
+            >
+              Copied
+            </span>
+          )}
         </div>
       </div>
 

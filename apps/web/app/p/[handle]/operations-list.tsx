@@ -79,7 +79,7 @@ export default function OperationsList({
     <div className="mt-6 border border-[#1f1d19]">
       {/* Header */}
       <div
-        className="grid grid-cols-[1fr_auto_auto] gap-4 border-b border-[#1f1d19] px-5 py-3 text-[9px] uppercase tracking-[0.22em] text-[#5e5b51]"
+        className="flex items-center justify-between gap-4 border-b border-[#1f1d19] px-5 py-3 text-[9px] uppercase tracking-[0.22em] text-[#5e5b51] md:grid md:grid-cols-[1fr_auto_auto]"
         style={{ fontFamily: 'var(--font-mono)' }}
       >
         <span>Function</span>
@@ -104,7 +104,7 @@ export default function OperationsList({
               <code className="text-[#8a8779]">stellar contract deploy</code>. Link your deploy wallet from the CLI to attribute its contract activity:
             </p>
             <code
-              className="mt-4 block max-w-fit bg-[#0a0908] px-4 py-2.5 text-[12px] text-[#f5f4ee] border border-[#1f1d19]"
+              className="mt-4 block max-w-full overflow-x-auto bg-[#0a0908] px-4 py-2.5 text-[12px] text-[#f5f4ee] border border-[#1f1d19]"
               style={{ fontFamily: 'var(--font-mono)' }}
             >
               npx @signet/cli link
@@ -119,24 +119,25 @@ export default function OperationsList({
             return (
               <div
                 key={op.id}
-                className={`group grid grid-cols-[1fr_auto_auto] items-start gap-4 px-5 py-4 transition-colors hover:bg-[#0e0d0b] ${
+                data-testid="operation-row"
+                className={`group flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1 px-5 py-4 transition-colors hover:bg-[#0e0d0b] md:grid md:grid-cols-[1fr_auto_auto] md:items-start ${
                   i < operations.length - 1 ? 'border-b border-[#1f1d19]' : ''
                 }`}
               >
                 <div className="min-w-0">
                   <span
-                    className="block font-medium text-[13px] text-[#b8b5a8]"
+                    className="block break-words [overflow-wrap:anywhere] font-medium text-[13px] text-[#b8b5a8]"
                     style={{ fontFamily: 'var(--font-mono)' }}
                   >
                     {fn}
                   </span>
                   {balChanges.length > 0 && (
                     <span
-                      className="block text-[11px] text-[#5e5b51] mt-1"
+                      className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-[#5e5b51]"
                       style={{ fontFamily: 'var(--font-mono)' }}
                     >
                       {balChanges.map((bc, j) => (
-                        <span key={j} className="mr-3">
+                        <span key={j}>
                           {bc.type === 'transfer' ? '↔' : '·'}{' '}
                           {bc.amount} {bc.asset_code ?? 'XLM'}
                         </span>
@@ -145,7 +146,7 @@ export default function OperationsList({
                   )}
                 </div>
                 <span
-                  className="hidden text-[11px] text-[#5e5b51] md:block whitespace-nowrap"
+                  className="text-[11px] text-[#5e5b51] whitespace-nowrap"
                   style={{ fontFamily: 'var(--font-mono)' }}
                 >
                   {formatDate(op.created_at)}
@@ -159,6 +160,7 @@ export default function OperationsList({
                     style={{ fontFamily: 'var(--font-mono)' }}
                   >
                     Verify ↗
+                    <span className="sr-only"> (opens in a new tab)</span>
                   </a>
                 ) : (
                   <span className="text-[10px] text-[#3d3a33]" style={{ fontFamily: 'var(--font-mono)' }}>—</span>

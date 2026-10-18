@@ -352,4 +352,100 @@ test.describe('contract page @db', () => {
     const ogImage = page.locator('meta[property="og:image"]');
     await expect(ogImage).toHaveAttribute('content', /opengraph-image/);
   });
+
+  test('at 360×740 no tab overflows horizontally, active tab is scrolled into view, and touch targets are >= 44×44 (#460)', async ({
+    page,
+  }) => {
+    test.setTimeout(120_000);
+    await page.setViewportSize({ width: 360, height: 740 });
+
+    const root = base(FIXTURE_HANDLE, CONTRACT_A);
+    const tabEntries = [
+      { segment: '', label: 'Overview' },
+      { segment: '/functions', label: 'Functions' },
+      { segment: '/types', label: 'Types' },
+      { segment: '/diagram', label: 'Diagram' },
+      { segment: '/run', label: 'Run locally' },
+      { segment: '/activity', label: 'Activity' },
+    ] as const;
+
+    for (const tab of tabEntries) {
+      await page.goto(`${root}${tab.segment}`);
+
+      const { scrollWidth, innerWidth } = await page.evaluate(() => ({
+        scrollWidth: document.documentElement.scrollWidth,
+        innerWidth: window.innerWidth,
+      }));
+      expect(
+        scrollWidth,
+        `tab "${tab.label}" must not overflow horizontally at 360×740`,
+      ).toBeLessThanOrEqual(innerWidth);
+
+      const nav = page.getByRole('navigation', { name: 'Contract sections' });
+      const activeTab = nav.getByRole('link', { name: tab.label });
+      await expect(activeTab).toHaveAttribute('aria-current', 'page');
+
+      // Active tab is scrolled into the horizontal viewport on first load without scrolling the page.
+      await expect
+        .poll(
+          async () => {
+            const box = await activeTab.boundingBox();
+            if (!box) return false;
+            return box.x >= 0 && box.x + box.width <= 360;
+          },
+          { message: `active tab "${tab.label}" should be horizontally in view on load at 360px` },
+        )
+        .toBe(true);
+
+      // Every tab link has at least a 44×44 px touch target.
+      const tabLinks = nav.getByRole('link');
+      const tabCount = await tabLinks.count();
+      expect(tabCount).toBe(6);
+      for (let i = 0; i < tabCount; i++) {
+        const box = await tabLinks.nth(i).boundingBox();
+        expect(box, `tab link ${i} bounding box`).not.toBeNull();
+        expect(Math.round(box!.width), `tab link ${i} width`).toBeGreaterThanOrEqual(44);
+        expect(Math.round(box!.height), `tab link ${i} height`).toBeGreaterThanOrEqual(44);
+      }
+
+      // Every visible copy button on the tab has at least a 44×44 px touch target.
+      const copyButtons = page.locator('button[aria-label^="Copy "]:visible');
+      const copyCount = await copyButtons.count();
+      expect(copyCount).toBeGreaterThan(0);
+      for (let i = 0; i < copyCount; i++) {
+        const box = await copyButtons.nth(i).boundingBox();
+        expect(box, `copy button ${i} on ${tab.label}`).not.toBeNull();
+        expect(Math.round(box!.width), `copy button ${i} width on ${tab.label}`).toBeGreaterThanOrEqual(44);
+        expect(Math.round(box!.height), `copy button ${i} height on ${tab.label}`).toBeGreaterThanOrEqual(44);
+      }
+    }
+
+    // Header fields stack into one column below md, and addresses/hashes are truncated visually
+    // with the full value available on title and accessible name.
+    const header = page.getByTestId('contract-header');
+    const firstDt = header.locator('dt').first();
+    const firstDd = header.locator('dd').first();
+    const dtBox = await firstDt.boundingBox();
+    const ddBox = await firstDd.boundingBox();
+    expect(dtBox).not.toBeNull();
+    expect(ddBox).not.toBeNull();
+    expect(ddBox!.y).toBeGreaterThanOrEqual(dtBox!.y + dtBox!.height - 1);
+
+    const addressCopyBtn = header.getByRole('button', { name: new RegExp(CONTRACT_A) });
+    await expect(addressCopyBtn).toHaveAttribute('title', CONTRACT_A);
+    const visibleAddressText = await addressCopyBtn.evaluate((el) => (el as HTMLElement).innerText.trim());
+    expect(visibleAddressText).toContain('...');
+
+    const wasmCopyBtn = header.getByRole('button', { name: new RegExp(`Copy WASM hash ${WASM_HASH_2}`) });
+    await expect(wasmCopyBtn).toHaveAttribute('title', WASM_HASH_2);
+    const visibleWasmText = await wasmCopyBtn.evaluate((el) => (el as HTMLElement).innerText.trim());
+    expect(visibleWasmText).toContain('...');
+
+    const deployTxLink = header.getByRole('link', { name: DEPLOY_TX_A });
+    await expect(deployTxLink).toHaveAttribute('title', DEPLOY_TX_A);
+    const deployTxCopyBtn = header.getByRole('button', {
+      name: new RegExp(`Copy deploy transaction hash ${DEPLOY_TX_A}`),
+    });
+    await expect(deployTxCopyBtn).toHaveAttribute('title', DEPLOY_TX_A);
+  });
 });

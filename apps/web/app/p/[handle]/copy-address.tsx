@@ -5,6 +5,8 @@ import { useState, useCallback, useEffect, useRef } from 'react';
 interface CopyAddressProps {
   address: string;
   display: string;
+  /** Optional shorter display string shown below `md` while `display` is shown at `md` and above. */
+  shortDisplay?: string;
   /** What is being copied, for the button's name. Defaults to a wallet address. */
   label?: string;
   /** Name announced once copied. */
@@ -14,6 +16,7 @@ interface CopyAddressProps {
 export function CopyAddress({
   address,
   display,
+  shortDisplay,
   label = 'wallet address',
   copiedLabel = 'Address copied',
 }: CopyAddressProps) {
@@ -52,23 +55,36 @@ export function CopyAddress({
     }
   }, [address, confirm]);
 
+  const hasText = Boolean(display || shortDisplay);
+
   return (
     <button
       type="button"
       onClick={handleCopy}
       title={address}
       aria-label={copied ? copiedLabel : `Copy ${label} ${address}`}
-      className="group flex items-center gap-2 text-left"
+      className={`group inline-flex min-h-11 min-w-11 items-center gap-2 text-left ${
+        hasText ? '' : 'justify-center'
+      }`}
     >
-      <span
-        className="text-[13px] text-[#b8b5a8]"
-        style={{ fontFamily: 'var(--font-mono)' }}
-      >
-        {display}
-      </span>
+      {hasText && (
+        <span
+          className="text-[13px] text-[#b8b5a8]"
+          style={{ fontFamily: 'var(--font-mono)' }}
+        >
+          {shortDisplay ? (
+            <>
+              <span className="md:hidden">{shortDisplay}</span>
+              <span className="sr-only md:not-sr-only">{display}</span>
+            </>
+          ) : (
+            display
+          )}
+        </span>
+      )}
       <span
         aria-hidden="true"
-        className={`flex h-5 w-5 items-center justify-center rounded transition-colors ${
+        className={`flex h-5 w-5 shrink-0 items-center justify-center rounded transition-colors ${
           copied
             ? 'text-[#4ade80]'
             : 'text-[#4a4740] group-hover:text-[#b8b5a8]'

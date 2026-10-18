@@ -5,15 +5,17 @@
  */
 export function ExternalLink({
   href,
+  title,
   className,
   children,
 }: {
   href: string;
+  title?: string;
   className?: string;
   children: React.ReactNode;
 }) {
   return (
-    <a href={href} target="_blank" rel="noopener noreferrer" className={className}>
+    <a href={href} title={title} target="_blank" rel="noopener noreferrer" className={className}>
       {children}
       <span className="sr-only"> (opens in a new tab)</span>
     </a>
