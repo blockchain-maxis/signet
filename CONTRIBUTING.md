@@ -126,7 +126,7 @@ stellar contract build
 
 - **Wasm size budget**: CI enforces a wasm size budget (20 KB for `identity_registry`). If a size increase is expected and justified, bump `BUDGET_BYTES` in `.github/workflows/ci.yml` in the same PR and explain why.
 - **Route JS budget**: CI enforces a first-load JS budget on the contract page via `scripts/check-route-budgets.mjs` (#661). A route's budget is its measured gzip first-load JS plus 10%; if a route legitimately grows, bump its byte budget in `scripts/check-route-budgets.mjs` in the same PR and explain why. Prefer splitting heavy client code so each tab only loads what it renders.
-- **Accessibility budget / violations**: Automated accessibility checks (#659) run via Playwright in `apps/web/e2e/a11y.spec.ts`. Accepted exceptions must be listed by rule id in `KNOWN_VIOLATIONS` (see `apps/web/e2e/a11y.ts`), each citing the issue tracking its fix. That list must not grow without review.
+- **Accessibility budget / violations**: Automated accessibility checks (#659) run via Playwright in `apps/web/e2e/a11y.spec.ts`. Accepted exceptions must be listed by rule id in the known-violations allowlist in `apps/web/e2e/a11y.ts`, each citing the issue tracking its fix. That list must not grow without review.
 
 ### Adding a spec fixture
 
