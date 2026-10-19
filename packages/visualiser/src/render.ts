@@ -171,7 +171,13 @@ export function renderDiagramSvg(model: DiagramModel, opts: RenderOptions): stri
       }
     }
 
-    const containerClass = focusClass ? ` class="${focusClass.trim()}"` : '';
+    const cleanQuery = opts.query?.trim().toLowerCase();
+    const isMatch = cleanQuery
+      ? node.id.toLowerCase().includes(cleanQuery) || node.label.toLowerCase().includes(cleanQuery)
+      : true;
+    const filterClass = cleanQuery && !isMatch ? ' viz-dimmed' : cleanQuery && isMatch ? ' viz-match' : '';
+    const stateClass = focusClass + filterClass;
+    const containerClass = stateClass ? ` class="${stateClass.trim()}"` : '';
 
     if (href) {
       svgParts.push(`  <a id="${anchorId}" href="${escapeXml(href)}" data-node-id="${escapeXml(node.id)}"${containerClass}${autofocusAttr}>`);
@@ -183,8 +189,8 @@ export function renderDiagramSvg(model: DiagramModel, opts: RenderOptions): stri
     let nodeClass = isFunction
       ? 'diagram-node diagram-node--function'
       : 'diagram-node diagram-node--type';
-    if (focusClass) {
-      nodeClass += focusClass;
+    if (stateClass) {
+      nodeClass += stateClass;
     }
 
     svgParts.push(`    <rect`);

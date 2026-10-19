@@ -64,6 +64,19 @@
         "type": "object"
       },
       "description": "Optional JSON Schema per function arguments (B-15)."
+    },
+    "provenance": {
+      "type": "string",
+      "enum": ["embedded", "orbital_registry"],
+      "description": "Where this specification was obtained from."
+    },
+    "attestationPointer": {
+      "type": "string",
+      "description": "Pointer or URI of the attestation in the registry."
+    },
+    "attestationHash": {
+      "type": "string",
+      "description": "Hash of the registry attestation record."
     }
   },
   "definitions": {

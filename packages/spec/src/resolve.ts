@@ -15,7 +15,10 @@ import { fetchContractSpec, fetchWasmHash } from './fetch.ts';
 import type { FetchOptions } from './fetch.ts';
 import { toSpecJson } from './json.ts';
 import type { SpecJson } from './json.ts';
+import type { SpecProvenance } from './types.ts';
 import type { SpecCache } from './cache/types.ts';
+import type { SpecFallback } from './fallback/types.ts';
+import { orbitalFallback } from './fallback/orbital.ts';
 
 /** Minimal structured logger the resolver reports through; `console` fits. */
 export interface ResolveLogger {
@@ -44,6 +47,11 @@ export interface GetContractSpecOptions extends FetchOptions {
   readonly knownWasmHash?: string;
   /** Receives the `InterfaceUnreadable` warning (§1.5). */
   readonly logger?: ResolveLogger;
+  /**
+   * Optional fallback when a contract embeds no spec section (`NoInterface{no_section}`).
+   * When omitted and `SIGNET_SPEC_ORBITAL_FALLBACK=1`, uses `orbitalFallback`.
+   */
+  readonly fallback?: SpecFallback;
 }
 
 /** Result of {@link getContractSpec}. */
@@ -52,6 +60,9 @@ export interface ResolvedContractSpec {
   readonly source: SpecSource;
   /** Lowercase hex WASM hash the spec was resolved for. */
   readonly wasmHash: string;
+  readonly provenance?: SpecProvenance;
+  readonly attestationPointer?: string;
+  readonly attestationHash?: string;
 }
 
 /**
@@ -90,7 +101,14 @@ export async function getContractSpec(
     const hit = await readCache(cache, wasmHash, opts);
     if (hit === undefined) continue;
     await Promise.all(opts.caches.slice(0, index).map((c) => writeCache(c, wasmHash, hit, opts)));
-    return { spec: hit, source: index === 0 ? 'memory' : 'store', wasmHash };
+    return {
+      spec: hit,
+      source: index === 0 ? 'memory' : 'store',
+      wasmHash,
+      provenance: hit.provenance ?? 'embedded',
+      ...(hit.attestationPointer ? { attestationPointer: hit.attestationPointer } : {}),
+      ...(hit.attestationHash ? { attestationHash: hit.attestationHash } : {}),
+    };
   }
 
   let pending = inFlight.get(wasmHash);
@@ -100,7 +118,15 @@ export async function getContractSpec(
     });
     inFlight.set(wasmHash, pending);
   }
-  return { spec: await pending, source: 'rpc', wasmHash };
+  const spec = await pending;
+  return {
+    spec,
+    source: 'rpc',
+    wasmHash,
+    provenance: spec.provenance ?? 'embedded',
+    ...(spec.attestationPointer ? { attestationPointer: spec.attestationPointer } : {}),
+    ...(spec.attestationHash ? { attestationHash: spec.attestationHash } : {}),
+  };
 }
 
 async function currentWasmHash(address: string, opts: GetContractSpecOptions): Promise<string> {
@@ -118,7 +144,34 @@ async function fetchAndStore(
   let json: SpecJson;
   try {
     json = toSpecJson(await fetchContractSpec(address, opts));
+    json.provenance = 'embedded';
   } catch (error) {
+    if (error instanceof NoInterface && error.reason === 'no_section') {
+      const fallback =
+        opts.fallback ??
+        (typeof process !== 'undefined' && process.env?.SIGNET_SPEC_ORBITAL_FALLBACK === '1'
+          ? orbitalFallback
+          : undefined);
+
+      if (fallback) {
+        const fallbackResult = await fallback.resolve(address, wasmHash, {
+          signal: opts.signal,
+          logger: opts.logger,
+        });
+
+        if (fallbackResult) {
+          json = {
+            ...fallbackResult.spec,
+            provenance: 'orbital_registry',
+            attestationPointer: fallbackResult.attestationPointer,
+            attestationHash: fallbackResult.attestationHash,
+          };
+          await Promise.all(opts.caches.map((cache) => writeCache(cache, wasmHash, json, opts)));
+          return json;
+        }
+      }
+    }
+
     if (error instanceof InterfaceUnreadable) {
       opts.logger?.warn('contract interface could not be read', {
         wasmHash,
