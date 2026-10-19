@@ -4,6 +4,10 @@ on:
   push:
     branches: [main]
   pull_request:
+  schedule:
+    # Weekly long fuzz run (F-05). Monday 04:17 UTC — off the hour so it does
+    # not pile onto the top-of-hour cron traffic GitHub sees.
+    - cron: '17 4 * * 1'
 
 # One in-flight run per branch. Superseding only cancels on pull_request:
 # a run on `main` is the record of whether that merged commit is green, and
@@ -637,3 +641,105 @@ jobs:
           (cd packages/contracts && cargo audit) || true
           (cd sandbox && cargo audit) || true
           (cd sandbox/fixtures && cargo audit) || true
+
+  # Fuzz smoke (F-05): runs each cargo-fuzz target for 60s on PRs that touch
+  # sandbox/. Short enough to gate a PR, long enough to catch a shallow parser
+  # bug. The long run lives in `fuzz-weekly` below.
+  fuzz-smoke:
+    name: fuzz smoke (60s per target)
+    needs: changes
+    if: needs.changes.outputs.sandbox == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: sandbox
+    steps:
+      - uses: actions/checkout@v7
+
+      # cargo-fuzz needs nightly: it drives `-Z sanitizer=address` and the
+      # libfuzzer runtime, neither of which is available on stable.
+      - uses: dtolnay/rust-toolchain@nightly
+
+      - name: Cache cargo
+        uses: actions/cache@v6
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            sandbox/target
+          key: cargo-sandbox-fuzz-${{ hashFiles('sandbox/Cargo.lock', 'sandbox/fuzz/Cargo.lock') }}
+
+      - name: Install cargo-fuzz
+        run: cargo install cargo-fuzz --locked
+
+      # Each target gets its own 60s budget. `-max_total_time` is the
+      # libfuzzer flag; the trailing `--` separates cargo-fuzz's own args from
+      # the libfuzzer ones. A crash exits non-zero and fails the step.
+      - name: Fuzz framing
+        run: cargo +nightly fuzz run framing -- -max_total_time=60
+
+      - name: Fuzz dispatch
+        run: cargo +nightly fuzz run dispatch -- -max_total_time=60
+
+      - name: Fuzz xdr_params
+        run: cargo +nightly fuzz run xdr_params -- -max_total_time=60
+
+      # A crash writes an artifact under fuzz/artifacts/<target>/. Upload it
+      # even on success (empty) so a flaky-then-passing crash is still visible.
+      - name: Upload fuzz artifacts
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: fuzz-smoke-artifacts
+          path: sandbox/fuzz/artifacts
+          retention-days: 7
+          if-no-files-found: ignore
+
+  # Weekly long fuzz run (F-05): 30 minutes per target, scheduled only. Not
+  # gated on `changes` — the point is to keep fuzzing the current main even
+  # when nothing has touched sandbox/ that week.
+  fuzz-weekly:
+    name: fuzz weekly (30m per target)
+    if: github.event_name == 'schedule'
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    defaults:
+      run:
+        working-directory: sandbox
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: dtolnay/rust-toolchain@nightly
+
+      - name: Cache cargo
+        uses: actions/cache@v6
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            sandbox/target
+          key: cargo-sandbox-fuzz-${{ hashFiles('sandbox/Cargo.lock', 'sandbox/fuzz/Cargo.lock') }}
+
+      - name: Install cargo-fuzz
+        run: cargo install cargo-fuzz --locked
+
+      - name: Fuzz framing
+        run: cargo +nightly fuzz run framing -- -max_total_time=1800
+
+      - name: Fuzz dispatch
+        run: cargo +nightly fuzz run dispatch -- -max_total_time=1800
+
+      - name: Fuzz xdr_params
+        run: cargo +nightly fuzz run xdr_params -- -max_total_time=1800
+
+      # Crash artifacts are the whole point of the weekly run: keep them
+      # longer than the smoke job's 7 days so a triager has time to look.
+      - name: Upload fuzz artifacts
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: fuzz-weekly-artifacts
+          path: sandbox/fuzz/artifacts
+          retention-days: 30
+          if-no-files-found: ignore

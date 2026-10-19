@@ -2,7 +2,7 @@
   "name": "signet",
   "private": true,
   "version": "0.0.0",
-  "description": "Signet — a verifiable developer career record built on Stellar/Soroban.",
+  "description": "Signet \u2014 a verifiable developer career record built on Stellar/Soroban.",
   "license": "Apache-2.0",
   "packageManager": "pnpm@9.12.0",
   "engines": {
@@ -10,8 +10,8 @@
     "pnpm": ">=9"
   },
   "scripts": {
-    "dev": "turbo run dev",
-    "build": "turbo run build",
+    "dev": "node api.js && turbo run dev",
+    "build": "node api.js && turbo run build",
     "lint": "turbo run lint",
     "typecheck": "turbo run typecheck",
     "test": "turbo run test",

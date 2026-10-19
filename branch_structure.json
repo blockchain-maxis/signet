@@ -1,0 +1,18 @@
+{
+  "default_branch": "main",
+  "branches": [
+    "fix/issue-525-fuzz-the-host-s-framing-dispatcher-and-xdr",
+    "main",
+    "origin"
+  ],
+  "parent": {
+    "fix/issue-525-fuzz-the-host-s-framing-dispatcher-and-xdr": "main",
+    "main": null,
+    "origin": "main"
+  },
+  "order": [
+    "main",
+    "fix/issue-525-fuzz-the-host-s-framing-dispatcher-and-xdr",
+    "origin"
+  ]
+}
