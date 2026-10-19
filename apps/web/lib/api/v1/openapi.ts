@@ -302,9 +302,10 @@ export const schemas: Record<string, OpenApiSchema> = {
         description: 'Avatar image URL.',
       },
       primaryWallet: {
-        type: 'string',
+        type: ['string', 'null'],
         pattern: '^[GC][A-Z2-7]{55}$',
-        description: 'Primary Stellar address bound to this handle.',
+        description:
+          'Primary Stellar address bound to this handle, or null when the handle exists but no primary wallet is readable (e.g. an archived registry entry).',
       },
       wallets: {
         type: 'array',
@@ -320,7 +321,7 @@ export const schemas: Record<string, OpenApiSchema> = {
       },
       network: {
         type: 'string',
-        enum: ['testnet', 'mainnet'],
+        enum: ['testnet', 'mainnet', 'futurenet', 'local'],
         description: 'Network context.',
       },
       archived: {
@@ -401,6 +402,85 @@ export const paths: Record<string, OpenApiPathItem> = {
               schema: {
                 $ref: '#/components/schemas/ErrorEnvelope',
               },
+            },
+          },
+        },
+      },
+    },
+  },
+  '/profiles/{handle}': {
+    get: {
+      operationId: 'getProfile',
+      summary: 'Profile for a handle',
+      description:
+        'Whether the handle exists on this deployment, the wallet it is bound to, and aggregate activity counts. Operations are served by their own paginated endpoint; no reputation score is exposed. `countsAreLowerBounds` is true when a retention window or read cap bounded the counts.',
+      tags: ['Profiles'],
+      parameters: [
+        {
+          name: 'handle',
+          in: 'path',
+          required: true,
+          description: 'Handle to look up (case-insensitive).',
+          schema: { type: 'string', pattern: '^[a-z0-9_-]{1,32}$' },
+        },
+      ],
+      responses: {
+        '200': {
+          description: 'The profile.',
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                required: ['data', 'meta'],
+                properties: {
+                  data: { $ref: '#/components/schemas/Profile' },
+                  meta: {
+                    type: 'object',
+                    required: ['network', 'source'],
+                    properties: {
+                      network: { type: 'string' },
+                      source: {
+                        type: 'string',
+                        description: "Layer that answered ('database' or 'chain').",
+                      },
+                    },
+                    additionalProperties: false,
+                  },
+                },
+                additionalProperties: false,
+              },
+            },
+          },
+        },
+        '400': {
+          description: 'Invalid handle.',
+          content: {
+            'application/json': {
+              schema: { $ref: '#/components/schemas/ErrorEnvelope' },
+            },
+          },
+        },
+        '404': {
+          description: 'No profile for this handle.',
+          content: {
+            'application/json': {
+              schema: { $ref: '#/components/schemas/ErrorEnvelope' },
+            },
+          },
+        },
+        '429': {
+          description: 'Rate limit exceeded.',
+          content: {
+            'application/json': {
+              schema: { $ref: '#/components/schemas/ErrorEnvelope' },
+            },
+          },
+        },
+        '500': {
+          description: 'Internal server error.',
+          content: {
+            'application/json': {
+              schema: { $ref: '#/components/schemas/ErrorEnvelope' },
             },
           },
         },
