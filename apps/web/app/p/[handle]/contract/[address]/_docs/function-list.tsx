@@ -12,12 +12,15 @@ import { functionSearchText } from '@/lib/docs/search';
 import { SectionLabel } from '../../../_components/section-label';
 import { DocComment } from './doc-comment';
 import { NoDocCommentsNote } from './no-doc-comments-note';
+import { functionArgsSchema, type SpecInput, type JSONSchema7 } from '@signet/spec';
 import { HeadingAnchor } from './heading-anchor';
+import { CallShapeDisclosure } from './call-shape-disclosure';
 
 export interface FunctionListProps {
   spec: FunctionReferenceSpec;
   handle: string;
   address: string;
+  network?: string;
   className?: string;
 }
 
@@ -99,9 +102,15 @@ function CanFail({ section }: { section: FunctionSection }) {
 function FunctionBlock({
   section,
   refs,
+  schema,
+  address,
+  network,
 }: {
   section: FunctionSection;
   refs: ReturnType<typeof docRefsFromSpec>;
+  schema?: JSONSchema7;
+  address?: string;
+  network?: string;
 }) {
   return (
     <section
@@ -182,6 +191,15 @@ function FunctionBlock({
       )}
 
       <CanFail section={section} />
+
+      {!section.isConstructor && (
+        <CallShapeDisclosure
+          fnName={section.name}
+          schema={schema}
+          address={address}
+          network={network}
+        />
+      )}
     </section>
   );
 }
@@ -196,11 +214,25 @@ function FunctionBlock({
  * The no-doc-comments note (#469) shows once, at the top, only when nothing in
  * the contract is documented.
  */
-export function FunctionList({ spec, handle, address, className }: FunctionListProps) {
+export function FunctionList({ spec, handle, address, network, className }: FunctionListProps) {
   const typesHref = typesTabHref(handle, address);
   const reference = buildFunctionReference(spec, typesHref);
   const refs = docRefsFromSpec(spec, typesHref);
   const showNoDocNote = !hasAnyDocComments(spec);
+
+  const getSchema = (fnName: string): JSONSchema7 | undefined => {
+    // If specJson carries functionSchemas directly, use it
+    const schemas = (spec as { functionSchemas?: Record<string, JSONSchema7> }).functionSchemas;
+    if (schemas && schemas[fnName]) {
+      return schemas[fnName];
+    }
+    // Otherwise try deriving via functionArgsSchema
+    try {
+      return functionArgsSchema(spec as unknown as SpecInput, fnName);
+    } catch {
+      return undefined;
+    }
+  };
 
   return (
     <div className={className}>
@@ -216,7 +248,13 @@ export function FunctionList({ spec, handle, address, className }: FunctionListP
           <p className="mb-6 mt-3 text-[12px] leading-[1.7] text-[#8a8779]" style={MONO}>
             {CONSTRUCTOR_NOTE}
           </p>
-          <FunctionBlock section={reference.ctor} refs={refs} />
+          <FunctionBlock
+            section={reference.ctor}
+            refs={refs}
+            schema={getSchema(reference.ctor.name)}
+            address={address}
+            network={network}
+          />
         </div>
       )}
 
@@ -227,7 +265,14 @@ export function FunctionList({ spec, handle, address, className }: FunctionListP
           </div>
         )}
         {reference.functions.map((section) => (
-          <FunctionBlock key={section.id} section={section} refs={refs} />
+          <FunctionBlock
+            key={section.id}
+            section={section}
+            refs={refs}
+            schema={getSchema(section.name)}
+            address={address}
+            network={network}
+          />
         ))}
       </div>
     </div>

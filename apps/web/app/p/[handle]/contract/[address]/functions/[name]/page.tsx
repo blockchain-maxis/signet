@@ -16,6 +16,8 @@ import {
 import { SectionLabel } from '../../../../_components/section-label';
 import { CopyLink } from './copy-link';
 import { loadContractSpec } from './function-source';
+import { CallShapeDisclosure } from '../../_docs';
+import { functionArgsSchema, type SpecInput, type JSONSchema7 } from '@signet/spec';
 
 interface RouteParams {
   handle: string;
@@ -44,17 +46,21 @@ async function readFunctionPage(
   handle: string,
   address: string,
   name: string,
-): Promise<FunctionPageState> {
+): Promise<{ state: FunctionPageState; network: string; source: any }> {
   const attribution = await attributeContract(handle, address);
   if (attribution.status !== 'attributed') notFound();
   const source = await loadContractSpec({ address, wasmHash: attribution.contract.wasmHash });
-  return resolveFunctionPage(source, name);
+  return {
+    state: resolveFunctionPage(source, name),
+    network: attribution.contract.network,
+    source,
+  };
 }
 
 export async function generateMetadata({ params }: { params: Promise<RouteParams> }) {
   const { handle, address, name } = await params;
   const title = functionPermalinkTitle({ name, address, handle });
-  const state = await readFunctionPage(handle, address, name);
+  const { state } = await readFunctionPage(handle, address, name);
   // A description is only ever the contract's own words or its own signature.
   // A page whose interface could not be read gets the title alone, because
   // there is nothing on the deployed WASM to describe it with.
@@ -94,7 +100,7 @@ function Prose({ doc }: { doc: string | undefined }) {
 
 export default async function ContractFunctionPage({ params }: { params: Promise<RouteParams> }) {
   const { handle, address, name } = await params;
-  const state = await readFunctionPage(handle, address, name);
+  const { state, network, source } = await readFunctionPage(handle, address, name);
 
   // The interface was read and does not export this name, so the URL is wrong.
   if (state.kind === 'unknown-function') notFound();
@@ -131,6 +137,20 @@ export default async function ContractFunctionPage({ params }: { params: Promise
 
   const { fn, referencedTypes, errors } = state;
   const args = functionArguments(fn);
+
+  let schema: JSONSchema7 | undefined;
+  if (source.ok && source.spec) {
+    const rawSchemas = (source.spec as { functionSchemas?: Record<string, JSONSchema7> }).functionSchemas;
+    if (rawSchemas && rawSchemas[fn.name]) {
+      schema = rawSchemas[fn.name];
+    } else {
+      try {
+        schema = functionArgsSchema(source.spec as unknown as SpecInput, fn.name);
+      } catch {
+        // Spec may not have valid entries or sdk Spec yet
+      }
+    }
+  }
 
   return (
     <section>
@@ -223,6 +243,14 @@ export default async function ContractFunctionPage({ params }: { params: Promise
           {functionReturnType(fn)}
         </p>
       </div>
+
+      <CallShapeDisclosure
+        fnName={fn.name}
+        schema={schema}
+        address={address}
+        network={network}
+        className="mt-10"
+      />
 
       {/*
         A reader following an argument type has to land somewhere (design

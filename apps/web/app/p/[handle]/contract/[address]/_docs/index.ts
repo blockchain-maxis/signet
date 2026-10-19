@@ -6,3 +6,4 @@ export * from './type-list';
 export * from './heading-anchor';
 export * from './table-of-contents';
 export * from './docs-search';
+export * from './call-shape-disclosure';

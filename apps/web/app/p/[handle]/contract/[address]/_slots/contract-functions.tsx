@@ -40,7 +40,7 @@ export function ContractFunctions({ handle, address, network, spec }: ContractSl
         <TableOfContentsDetails items={tocItems} className="lg:hidden" />
         <div className="lg:flex lg:gap-12 lg:items-start">
           <div className="min-w-0 flex-1">
-            <FunctionList spec={specJson} handle={handle} address={address} />
+            <FunctionList spec={specJson} handle={handle} address={address} network={network} />
           </div>
           <TableOfContentsSticky items={tocItems} />
         </div>
