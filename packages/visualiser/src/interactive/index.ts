@@ -56,6 +56,16 @@ export {
 } from './png.ts';
 export { IBM_PLEX_MONO_BASE64 } from './font.ts';
 
+export type {
+  EnhanceFilterOptions,
+  FilterController,
+  FilterResult,
+} from './filter.ts';
+export {
+  FILTER_CLASSES,
+  enhanceFilter,
+  formatFilterAnnouncement,
+} from './filter.ts';
 export type { PermalinkOptions } from './permalink.ts';
 export {
   attachPermalinkButton,

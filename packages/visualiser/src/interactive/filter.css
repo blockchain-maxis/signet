@@ -1,0 +1,25 @@
+/* @signet/visualiser search and filter styles (#503) */
+
+.contract-diagram .viz-dimmed,
+[data-node-id].viz-dimmed {
+  opacity: 0.35;
+  color: var(--viz-muted);
+  font-weight: normal;
+}
+
+.contract-diagram .viz-dimmed text,
+[data-node-id].viz-dimmed text {
+  fill: var(--viz-muted);
+  font-weight: normal;
+}
+
+.contract-diagram .viz-match,
+[data-node-id].viz-match {
+  opacity: 1;
+}
+
+.contract-diagram .viz-match rect,
+[data-node-id].viz-match rect {
+  stroke: var(--viz-accent);
+  stroke-width: 2px;
+}
