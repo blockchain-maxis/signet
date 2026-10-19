@@ -64,44 +64,54 @@ Synthetic demo profiles are not seeded into fresh databases. To seed a real on-c
    ```
 This reads the real on-chain claim binding from testnet, persists the profile and wallet in your local database with `indexRequestedAt` set, and triggers the running indexer to scan it promptly.
 
-### End-to-end specs that need a database
+### Running e2e with the fixture database
 
-The default `e2e` run is hermetic (no database). Specs that need Postgres put `@db` in their `describe` title: CI runs them in `e2e-linked` (`playwright test --grep @db`) and skips them in `e2e` (`--grep-invert @db`), so each spec runs in one lane. `e2e/fixtures/contracts.ts` (test-only data, loaded by Playwright's `globalSetup` when `DATABASE_URL` is set) provides the contract-page fixture. Locally:
+The default `e2e` run is hermetic (no database). Specs that need Postgres put `@db` in their `describe` title: CI runs them in the `e2e-linked` CI job (`playwright test --grep @db`) and skips them in `e2e` (`--grep-invert @db`), so each spec runs in one lane. `apps/web/e2e/fixtures/contracts.ts` provides the contract-page fixture (this is test-only data, loaded by Playwright's `globalSetup` when `DATABASE_URL` is set). Locally:
 
 ```bash
-pnpm db:up && pnpm db:migrate
-DATABASE_URL=postgresql://… pnpm --filter @signet/web exec playwright test --grep @db
+pnpm db:up
+pnpm db:migrate
+DATABASE_URL=postgresql://... pnpm --filter @signet/web test:e2e
 ```
 
-Without `DATABASE_URL` these specs are skipped, not failed.
+Without `DATABASE_URL` these specs are skipped, not failed. State that the fixture is test-only data.
 
 ## The gates
 
 CI runs the same commands you can run locally. **Every one must pass before a PR
 is merged.** Prefer scoping to the package you changed for a faster loop.
 
-| Gate | Whole repo | Just the web app |
-|------|-----------|------------------|
-| Lint | `pnpm lint` | `pnpm --filter @signet/web lint` |
-| Typecheck | `pnpm typecheck` | `pnpm --filter @signet/web typecheck` |
-| Test | `pnpm test` | `pnpm --filter @signet/web test` |
-| Build | `pnpm build` | `pnpm --filter @signet/web build` |
+| Gate | Whole repo | Just the web app | Sandbox crate |
+|------|-----------|------------------|---------------|
+| Lint | `pnpm lint` | `pnpm --filter @signet/web lint` | `cargo clippy --locked --manifest-path sandbox/Cargo.toml -- -D warnings` |
+| Typecheck | `pnpm typecheck` | `pnpm --filter @signet/web typecheck` | — |
+| Test | `pnpm test` | `pnpm --filter @signet/web test` | `cargo test --locked --manifest-path sandbox/Cargo.toml` |
+| Build | `pnpm build` | `pnpm --filter @signet/web build` | `cargo build --release --locked --manifest-path sandbox/Cargo.toml` |
+| Format check | `make check-fmt` | — | `cargo fmt --all --check --manifest-path sandbox/Cargo.toml` |
 
 Those `pnpm` commands only cover the TypeScript workspace. **The CLI (`cli/`,
-Go) has its own CI job and is not part of `pnpm lint`/`pnpm test`.** The root
-`Makefile` is the one entrypoint that covers both, so a contributor who runs it
+Go) and the sandbox simulator (`sandbox/`, Rust) have their own CI jobs.** The root
+`Makefile` is the one entrypoint that covers them, so a contributor who runs it
 cannot skip a toolchain by not knowing about it:
 
 ```bash
-make build       # ts-build + go-build
-make test        # ts-test + go-test
-make lint        # ts-lint + go-lint (needs golangci-lint on PATH)
+make build       # ts-build + go-build + sandbox-build
+make test        # ts-test + go-test + sandbox-test
+make lint        # ts-lint + go-lint (needs golangci-lint on PATH) + sandbox-lint
 make fmt         # gofmt -w cli/
-make check-fmt   # fails if cli/ isn't gofmt'd, without rewriting anything
+make check-fmt   # fails if cli/ or sandbox/ isn't formatted, without rewriting anything
 ```
 
 `pnpm build:all` / `test:all` / `lint:all` / `fmt` / `check-fmt` delegate to the
 same targets, so existing muscle memory still works.
+
+**Sandbox crate** (`sandbox/`) can also be checked directly with cargo:
+
+```bash
+cargo fmt --all --check --manifest-path sandbox/Cargo.toml
+cargo clippy --locked --manifest-path sandbox/Cargo.toml -- -D warnings
+cargo test --locked --manifest-path sandbox/Cargo.toml
+```
 
 **Soroban contracts** (`packages/contracts`) have a separate CI job — run it
 locally when you touch Rust:
@@ -112,19 +122,36 @@ cargo test
 stellar contract build
 ```
 
-CI also enforces a **wasm size budget** (20 KB for `identity_registry`). If a
-size increase is expected and justified, bump `BUDGET_BYTES` in
-`.github/workflows/ci.yml` in the same PR and explain why.
+### Bumping a budget
 
-CI enforces a matching **first-load JS budget** on the contract page via
-`scripts/check-route-budgets.mjs`. A route's budget is its measured gzip
-first-load JS plus 10%; if a route legitimately grows, bump its byte budget in
-that script in the same PR and explain why. Prefer splitting the heavy client
-code so each tab only loads what it renders.
+- **Wasm size budget**: CI enforces a wasm size budget (20 KB for `identity_registry`). If a size increase is expected and justified, bump `BUDGET_BYTES` in `.github/workflows/ci.yml` in the same PR and explain why.
+- **Route JS budget**: CI enforces a first-load JS budget on the contract page via `scripts/check-route-budgets.mjs` (#661). A route's budget is its measured gzip first-load JS plus 10%; if a route legitimately grows, bump its byte budget in `scripts/check-route-budgets.mjs` in the same PR and explain why. Prefer splitting heavy client code so each tab only loads what it renders.
+- **Accessibility budget / violations**: Automated accessibility checks (#659) run via Playwright in `apps/web/e2e/a11y.spec.ts`. Accepted exceptions must be listed by rule id in `knownViolations` (see `apps/web/e2e/a11y.ts`), each citing the issue tracking its fix. That list must not grow without review.
+
+### Adding a spec fixture
+
+Spec reader fixture WASMs live under `packages/spec/fixtures/`. Network captures are fetched from testnet using `packages/spec/scripts/fetch-fixture.ts` and recorded in `packages/spec/fixtures/manifest.json`. Locally-built fixtures are built from source under `packages/spec/fixture-contracts/`. To regenerate and verify them:
+
+```bash
+# Rebuild the committed fixture WASMs in place:
+bash packages/spec/fixture-contracts/build-fixtures.sh
+
+# Verify without writing (what the spec-fixtures CI job runs):
+bash packages/spec/fixture-contracts/build-fixtures.sh --check
+```
 
 > A repo-wide `pnpm format` (Prettier) is available for convenience, but
 > formatting is **not** a CI gate — don't reformat files you didn't otherwise
 > change, as it adds noise to reviews.
+
+## Area labels
+
+When opening or categorising issues and PRs, use the appropriate `area:` label:
+
+- `area: sandbox`: Local sandbox simulator (`sandbox/`), native host runtime, and CLI simulation.
+- `area: visualiser`: Contract diagram package (`packages/visualiser`) and interactive diagram components.
+- `area: api`: Public REST API `/api/v1` (`apps/web/app/api/v1`) and its OpenAPI 3.1 specification.
+- `area: docs-gen`: Shared spec reader (`packages/spec`) and generated contract documentation/client stubs.
 
 ## API surfaces
 
@@ -140,7 +167,7 @@ Signet uses [Conventional Commits](https://www.conventionalcommits.org/) with an
 ```
 
 - **type** — `feat`, `fix`, `docs`, `refactor`, `test`, `chore`, `perf`, `ci`
-- **scope** — `web`, `indexer`, `contract`, `sdk`, `infra` (omit for repo-wide
+- **scope** — `web`, `indexer`, `contract`, `sdk`, `infra`, `cli`, `sandbox`, `visualiser`, `api`, `spec` (omit for repo-wide
   changes)
 
 Examples:
@@ -163,16 +190,6 @@ PR body with `Closes #<n>`.
    `Closes #<n>`.
 5. If your issue was assigned to you, confirm it's still assigned to you before
    opening the PR.
-
-## Issue points
-
-Issues carry a `points:` label that reflects their scope and reward:
-
-| Label | Points | Rough scope |
-|-------|-------:|-------------|
-| `points: trivial` | 100 | Docs, small config, a self-contained helper |
-| `points: medium` | 150 | A feature or fix spanning a few files, with tests |
-| `points: high` | 200 | Cross-cutting or security-sensitive work |
 
 Look for **`good first issue`** if you're new. Comment to get assigned before
 starting, so work isn't duplicated.
