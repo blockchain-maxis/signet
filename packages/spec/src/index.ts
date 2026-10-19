@@ -34,6 +34,8 @@ export * from './json-schema.ts';
 export { CONTRACT_META_SECTION, CONTRACT_ENV_META_SECTION } from './meta.ts';
 export * from './diff.ts';
 export * from './orbital.ts';
+export * from './fallback/types.ts';
+export * from './fallback/orbital.ts';
 
 // Observed executions (#509): the one shape transaction captures (#417) and
 // sandbox runs (#542) normalise into, and the key cleaning the mutability

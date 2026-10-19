@@ -40,6 +40,9 @@ export type PrimitiveType =
   | 'duration'
   | 'error';
 
+/** Where a contract specification originated from. */
+export type SpecProvenance = 'embedded' | 'orbital_registry';
+
 /**
  * Fixed-length byte buffer reference (`bytes_n<N>`).
  * Corresponds to `xdr.ScSpecTypeBytesN` from `xdr.ScSpecTypeDef`.
@@ -345,4 +348,8 @@ export interface ContractSpec {
   readonly warnings: readonly string[];
   /** Version of @stellar/stellar-sdk used to decode this spec. */
   readonly sdkVersion: string;
+  /** Where this spec was obtained from ('embedded' or 'orbital_registry'). */
+  readonly provenance?: SpecProvenance;
+  readonly attestationPointer?: string;
+  readonly attestationHash?: string;
 }
