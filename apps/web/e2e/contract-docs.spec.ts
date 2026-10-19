@@ -211,6 +211,8 @@ test.describe('contract docs accessibility and layout @db', () => {
   test('type links are underlined, so colour is not the only cue', async ({ page }) => {
     await page.goto(`${registryBase}/functions`);
     const links = page.getByTestId('slot-functions').locator('a[href*="#type-"]:visible');
+    // The page streams in behind its loading state; count only once links are there.
+    await expect(links.first()).toBeVisible();
     expect(await links.count()).toBeGreaterThan(0);
     const decorations = await links.evaluateAll((els) =>
       els.map((el) => getComputedStyle(el).textDecorationLine),
