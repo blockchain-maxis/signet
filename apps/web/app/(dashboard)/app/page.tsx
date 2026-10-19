@@ -42,7 +42,7 @@ export default async function DashboardPage() {
       <div className="mt-8 max-w-[640px] border border-[#1f1d19]">
         <div className="flex items-center justify-between px-6 py-5">
           <div>
-            <div className="text-[10px] uppercase tracking-[0.22em] text-[#5e5b51]" style={mono}>
+            <div className="text-[10px] uppercase tracking-[0.22em] text-[var(--text-muted)]" style={mono}>
               Signed-in wallet
             </div>
             <div className="mt-1 text-[14px] text-[#b8b5a8]" style={mono} title={address ?? ''}>
@@ -52,7 +52,7 @@ export default async function DashboardPage() {
           {account?.handle ? (
             <Link
               href={`/p/${account.handle}`}
-              className="text-[11px] uppercase tracking-[0.18em] text-[#8b1a1a] transition-colors hover:text-[#c2410c]"
+              className="text-[11px] uppercase tracking-[0.18em] text-[var(--text-accent)] transition-colors hover:text-[var(--text-accent)]"
               style={mono}
             >
               View profile ↗
@@ -68,7 +68,7 @@ export default async function DashboardPage() {
           ) : (
             <p className="text-[13px] leading-[1.7] text-[#8a8779]" style={mono}>
               No handle is bound to this wallet yet.{' '}
-              <Link href="/#claim" className="text-[#8b1a1a] hover:text-[#c2410c]">
+              <Link href="/#claim" className="text-[var(--text-accent)] hover:text-[var(--text-accent)]">
                 Claim your handle
               </Link>{' '}
               to start your verifiable career record.
@@ -102,7 +102,7 @@ export default async function DashboardPage() {
               <span className="text-[28px] font-bold leading-none text-[#f5f4ee]" style={display}>
                 {value}
               </span>
-              <span className="mt-2 text-[9px] uppercase tracking-[0.22em] text-[#5e5b51]" style={mono}>
+              <span className="mt-2 text-[9px] uppercase tracking-[0.22em] text-[var(--text-muted)]" style={mono}>
                 {label}
               </span>
             </div>

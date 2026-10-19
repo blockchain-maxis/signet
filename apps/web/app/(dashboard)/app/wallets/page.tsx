@@ -51,7 +51,7 @@ export default async function WalletsPage() {
 
       <div className="mt-8 max-w-[640px] border border-[#1f1d19]">
         {wallets.length === 0 ? (
-          <p className="px-6 py-6 text-[13px] leading-[1.7] text-[#5e5b51]" style={mono}>
+          <p className="px-6 py-6 text-[13px] leading-[1.7] text-[var(--text-muted)]" style={mono}>
             {registryConfigured
               ? 'No wallets are linked yet. Claim a handle on-chain and the signing wallet is attributed here automatically.'
               : 'The Identity Registry is not deployed on this network yet, so on-chain wallet bindings can’t be read.'}
@@ -85,7 +85,7 @@ export default async function WalletsPage() {
                 </span>
                 {w.indexingPending && (
                   <span
-                    className="text-[9px] uppercase tracking-[0.18em] text-[#c2410c]"
+                    className="text-[9px] uppercase tracking-[0.18em] text-[var(--text-accent)]"
                     style={mono}
                     title="The indexer hasn't scanned this wallet's on-chain activity yet"
                   >
@@ -98,7 +98,7 @@ export default async function WalletsPage() {
                   href={stellarExpertAccountUrl(w.pubkey)}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-[10px] uppercase tracking-[0.2em] text-[#8b1a1a] transition-colors hover:text-[#c2410c]"
+                  className="text-[10px] uppercase tracking-[0.2em] text-[var(--text-accent)] transition-colors hover:text-[var(--text-accent)]"
                   style={mono}
                 >
                   Explorer ↗
@@ -117,7 +117,7 @@ export default async function WalletsPage() {
           the profile has nothing to attribute — say so before the standing note. */}
       {wallets.length > 0 && !wallets.some((w) => !w.isPrimary) && <LinkDeployWalletPrompt />}
 
-      <p className="mt-4 max-w-[640px] text-[12px] leading-[1.7] text-[#5e5b51]" style={mono}>
+      <p className="mt-4 max-w-[640px] text-[12px] leading-[1.7] text-[var(--text-muted)]" style={mono}>
         Your handle is bound to one primary wallet on-chain — claiming again from another wallet
         creates a separate, unrelated profile rather than adding to this one. To attach an
         additional deploy wallet to this profile, run{' '}

@@ -188,7 +188,7 @@ export function Profile() {
               </h3>
               <div ref={headerMetaRef} className="mt-3 flex flex-wrap items-center gap-4">
                 <span
-                  className="text-[11px] uppercase tracking-[0.22em] text-[#5e5b51]"
+                  className="text-[11px] uppercase tracking-[0.22em] text-[var(--text-muted)]"
                   style={{ fontFamily: "var(--font-mono)" }}
                 >
                   Signet member since March 2024
@@ -200,7 +200,7 @@ export function Profile() {
                   Verified · On-chain
                 </span>
                 <span
-                  className="border border-[#8b1a1a] px-2.5 py-1 text-[10px] uppercase tracking-[0.2em] text-[#c2410c]"
+                  className="border border-[#8b1a1a] px-2.5 py-1 text-[10px] uppercase tracking-[0.2em] text-[var(--text-accent)]"
                   style={{ fontFamily: "var(--font-mono)" }}
                 >
                   Signet score: 82
@@ -213,7 +213,7 @@ export function Profile() {
         {/* Linked wallets */}
         <div className="border-b border-[#1f1d19] p-6 md:p-8">
           <div
-            className="mb-4 text-[10px] uppercase tracking-[0.24em] text-[#5e5b51]"
+            className="mb-4 text-[10px] uppercase tracking-[0.24em] text-[var(--text-muted)]"
             style={{ fontFamily: "var(--font-mono)" }}
           >
             Linked wallets
@@ -232,13 +232,13 @@ export function Profile() {
                 </span>
                 <div className="flex items-center gap-4">
                   <span
-                    className="text-[10px] text-[#5e5b51]"
+                    className="text-[10px] text-[var(--text-muted)]"
                     style={{ fontFamily: "var(--font-mono)" }}
                   >
                     {w.ts}
                   </span>
                   <span
-                    className="text-[10px] uppercase tracking-[0.2em] text-[#8b1a1a]"
+                    className="text-[10px] uppercase tracking-[0.2em] text-[var(--text-accent)]"
                     style={{ fontFamily: "var(--font-mono)" }}
                   >
                     Verified
@@ -252,7 +252,7 @@ export function Profile() {
         {/* Career timeline */}
         <div className="border-b border-[#1f1d19] p-6 md:p-8">
           <div
-            className="mb-5 text-[10px] uppercase tracking-[0.24em] text-[#5e5b51]"
+            className="mb-5 text-[10px] uppercase tracking-[0.24em] text-[var(--text-muted)]"
             style={{ fontFamily: "var(--font-mono)" }}
           >
             Career timeline · 2024–2026
@@ -281,7 +281,7 @@ export function Profile() {
                     style={{ left: `${node.x}%`, bottom: 0 }}
                   >
                     <span
-                      className="text-[8px] text-[#5e5b51]"
+                      className="text-[8px] text-[var(--text-muted)]"
                       style={{ fontFamily: "var(--font-mono)" }}
                     >
                       {node.label}
@@ -299,13 +299,13 @@ export function Profile() {
             </div>
             <div className="mt-1 flex justify-between">
               <span
-                className="text-[9px] text-[#3d3a33]"
+                className="text-[9px] text-[var(--text-faint)]"
                 style={{ fontFamily: "var(--font-mono)" }}
               >
                 Q1 2024
               </span>
               <span
-                className="text-[9px] text-[#3d3a33]"
+                className="text-[9px] text-[var(--text-faint)]"
                 style={{ fontFamily: "var(--font-mono)" }}
               >
                 Q2 2026
@@ -317,7 +317,7 @@ export function Profile() {
         {/* Featured contracts */}
         <div className="border-b border-[#1f1d19] p-6 md:p-8">
           <div
-            className="mb-4 text-[10px] uppercase tracking-[0.24em] text-[#5e5b51]"
+            className="mb-4 text-[10px] uppercase tracking-[0.24em] text-[var(--text-muted)]"
             style={{ fontFamily: "var(--font-mono)" }}
           >
             Featured contracts
@@ -329,7 +329,7 @@ export function Profile() {
                 className="border border-[#1f1d19] bg-[#0a0908] p-4"
               >
                 <div
-                  className="text-[10px] text-[#8b1a1a]"
+                  className="text-[10px] text-[var(--text-accent)]"
                   style={{ fontFamily: "var(--font-mono)" }}
                 >
                   {c.id}
@@ -351,7 +351,7 @@ export function Profile() {
           {/* Attestations */}
           <div className="border-b border-[#1f1d19] p-6 md:border-b-0 md:border-r md:p-8">
             <div
-              className="mb-4 text-[10px] uppercase tracking-[0.24em] text-[#5e5b51]"
+              className="mb-4 text-[10px] uppercase tracking-[0.24em] text-[var(--text-muted)]"
               style={{ fontFamily: "var(--font-mono)" }}
             >
               Peer attestations
@@ -373,7 +373,7 @@ export function Profile() {
             </div>
             <div
               ref={trustedRef}
-              className="mt-4 border border-[#8b1a1a] bg-[#0a0908] px-3 py-2 text-[11px] text-[#c2410c]"
+              className="mt-4 border border-[#8b1a1a] bg-[#0a0908] px-3 py-2 text-[11px] text-[var(--text-accent)]"
               style={{ fontFamily: "var(--font-mono)" }}
             >
               Trusted by @nimbus
@@ -400,7 +400,7 @@ export function Profile() {
                   {stat.val}
                 </span>
                 <span
-                  className="mt-1.5 text-[9px] uppercase tracking-[0.22em] text-[#5e5b51]"
+                  className="mt-1.5 text-[9px] uppercase tracking-[0.22em] text-[var(--text-muted)]"
                   style={{ fontFamily: "var(--font-mono)" }}
                 >
                   {stat.label}

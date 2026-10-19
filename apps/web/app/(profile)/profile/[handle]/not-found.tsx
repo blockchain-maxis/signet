@@ -77,7 +77,7 @@ export default function HandleNotFound() {
 
       <p
         className="mb-2 text-xs font-mono uppercase tracking-[0.2em]"
-        style={{ color: "#8b1a1a" }}
+        style={{ color: "var(--text-accent)" }}
       >
         Handle not found
       </p>
@@ -105,7 +105,7 @@ export default function HandleNotFound() {
         <Link
           href="/"
           className="text-xs font-mono uppercase tracking-widest"
-          style={{ color: "#5e5b51" }}
+          style={{ color: "var(--text-muted)" }}
         >
           ← Back to Signet
         </Link>

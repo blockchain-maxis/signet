@@ -46,7 +46,7 @@ export function CopyLink({ href, label }: { href: string; label: string }) {
     <button
       type="button"
       onClick={handleCopy}
-      className="inline-flex min-h-11 min-w-11 items-center gap-2 text-[10px] uppercase tracking-[0.2em] text-[#8b1a1a] transition-colors hover:text-[#c2410c]"
+      className="inline-flex min-h-11 min-w-11 items-center gap-2 text-[10px] uppercase tracking-[0.2em] text-[var(--text-accent)] transition-colors hover:text-[var(--text-accent)]"
       style={{ fontFamily: 'var(--font-mono)' }}
     >
       <span aria-hidden="true" className="flex h-4 w-4 items-center justify-center">

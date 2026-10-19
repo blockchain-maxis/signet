@@ -1,8 +1,11 @@
 import { test, expect } from '@playwright/test';
 import { Keypair } from '@stellar/stellar-sdk';
-import { expectNoSeriousA11yViolations } from './a11y';
+import { DECORATIVE_FOOTER_WORDMARK, expectNoSeriousA11yViolations } from './a11y';
 import { apiSignIn } from './support';
 import { CONTRACT_A, FIXTURE_HANDLE } from './fixtures/contracts';
+
+// Keep entrance animations at their visible resting state before axe scans.
+test.use({ contextOptions: { reducedMotion: 'reduce' } });
 
 /**
  * Automated accessibility checks (#659).
@@ -32,7 +35,55 @@ const PUBLIC_ROUTES = [
 test.describe('public route accessibility', () => {
   for (const route of PUBLIC_ROUTES) {
     test(`${route.label} has no serious axe violations`, async ({ page }) => {
+      test.setTimeout(90_000);
       await page.goto(route.path);
+      if (route.path === '/') {
+        // The marketing sections are lazy-loaded; some text starts at opacity
+        // zero until scrolled into view. Axe ignores that text while hidden.
+        await page.waitForLoadState('networkidle');
+        const entrances = page.locator('section [style*="opacity"]');
+        for (const entry of await entrances.all()) {
+          const readable = await entry.evaluate((el) => {
+            const text = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+            for (let node = text.nextNode(); node; node = text.nextNode()) {
+              if (
+                node.textContent?.trim() &&
+                !node.parentElement?.closest('[aria-hidden="true"]')
+              ) {
+                return true;
+              }
+            }
+            return false;
+          });
+          if (readable) {
+            await entry.scrollIntoViewIfNeeded();
+            await expect
+              .poll(() => entry.evaluate((el) => Number(getComputedStyle(el).opacity)))
+              .toBeGreaterThanOrEqual(0.99);
+          }
+        }
+        // The hero intentionally fades as it leaves the viewport. Return to
+        // its resting position rather than measuring that transient fade.
+        await page.evaluate(() => window.scrollTo(0, 0));
+        await expect
+          .poll(() =>
+            page.getByRole('heading', { level: 1 }).evaluate((el) => {
+              for (let node: Element | null = el; node; node = node.parentElement) {
+                if (Number(getComputedStyle(node).opacity) < 0.99) return false;
+              }
+              return true;
+            }),
+          )
+          .toBe(true);
+        const wordmark = page.locator(DECORATIVE_FOOTER_WORDMARK);
+        await expect(wordmark).toHaveCount(1);
+        await expect(wordmark).toHaveText('SIGNET');
+        const decoration = wordmark.locator('..');
+        await expect(decoration).toHaveAttribute('aria-hidden', 'true');
+        await expect(
+          decoration.locator('a, button, input, select, textarea, [tabindex], [contenteditable]'),
+        ).toHaveCount(0);
+      }
       await expectNoSeriousA11yViolations(page, route.label);
     });
   }
@@ -53,6 +104,48 @@ test.describe('database-backed route accessibility @db', () => {
   test('the profile page has no serious axe violations', async ({ page }) => {
     await page.goto(`/p/${FIXTURE_HANDLE}`);
     await expectNoSeriousA11yViolations(page, `profile ${FIXTURE_HANDLE}`);
+  });
+
+  test('signed-in dashboard pages and muted wallet badges have no serious axe violations', async ({
+    page,
+  }) => {
+    test.setTimeout(120_000);
+    const { prisma } = await import('@signet/db');
+    // These are local-only test identities. No wallet extension, registry call
+    // or chain submission is involved in the existing SEP-10 sign-in helper.
+    const owner = Keypair.random();
+    const profile = await prisma.profile.create({
+      data: {
+        handle: `contrast${Date.now().toString(36)}`.slice(0, 32),
+        wallets: {
+          create: [
+            { pubkey: owner.publicKey(), source: 'curated', isPrimary: true },
+            { pubkey: Keypair.random().publicKey(), source: 'legacy-import' },
+          ],
+        },
+      },
+    });
+    try {
+      await apiSignIn(page, owner);
+      for (const path of ['/app', '/app/profile', '/app/wallets', '/app/settings']) {
+        await page.goto(path);
+        await expect(page.getByRole('heading', { level: 1 })).toBeVisible();
+        if (path === '/app/profile') {
+          await expect(page.getByRole('textbox', { name: 'Display name' })).toBeVisible({
+            timeout: 30_000,
+          });
+        }
+        if (path === '/app/wallets') {
+          await expect(page.getByText('○ curated', { exact: true })).toBeVisible();
+          await expect(page.getByText('◌ unrecognised', { exact: true })).toBeVisible();
+        }
+        await expectNoSeriousA11yViolations(page, `signed-in ${path}`);
+      }
+    } finally {
+      await prisma.wallet.deleteMany({ where: { profileId: profile.id } });
+      await prisma.profile.delete({ where: { id: profile.id } });
+      await prisma.$disconnect();
+    }
   });
 
   test('every contract tab has no serious axe violations', async ({ page }) => {

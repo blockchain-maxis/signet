@@ -19,7 +19,7 @@ export function LinkDeployWalletPrompt() {
         key you deploy contracts with — until a deploy wallet is linked, there&apos;s nothing here to
         attribute to you.
       </p>
-      <p className="mt-4 text-[10px] uppercase tracking-[0.2em] text-[#5e5b51]" style={mono}>
+      <p className="mt-4 text-[10px] uppercase tracking-[0.2em] text-[var(--text-muted)]" style={mono}>
         Link one from the terminal
       </p>
       <code className="mt-2 block bg-[#0a0908] px-4 py-3 text-[13px] text-[#f5f4ee]" style={mono}>

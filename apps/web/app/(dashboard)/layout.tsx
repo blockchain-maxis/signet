@@ -45,7 +45,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
           </div>
         )}
         <span
-          className="text-[10px] uppercase tracking-[0.22em] text-[#5e5b51]"
+          className="text-[10px] uppercase tracking-[0.22em] text-[var(--text-muted)]"
           style={{ fontFamily: 'var(--font-mono)' }}
         >
           {address ? `● ${truncate(address)}` : 'Not signed in'}

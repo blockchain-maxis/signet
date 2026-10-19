@@ -10,7 +10,7 @@ function H({ id, children }: { id?: string; children: React.ReactNode }) {
   return (
     <h2
       id={id}
-      className="mt-14 text-[11px] uppercase tracking-[0.26em] text-[#8b1a1a]"
+      className="mt-14 text-[11px] uppercase tracking-[0.26em] text-[var(--text-accent)]"
       style={{ fontFamily: 'var(--font-mono)' }}
     >
       {children}
@@ -242,7 +242,7 @@ const profile = await signet.getProfile('yourhandle');
         <div className="mt-16 border-t border-[#1f1d19] pt-6">
           <Link
             href="/how-it-works"
-            className="text-[11px] uppercase tracking-[0.22em] text-[#8b1a1a] transition-colors hover:text-[#c2410c]"
+            className="text-[11px] uppercase tracking-[0.22em] text-[var(--text-accent)] transition-colors hover:text-[var(--text-accent)]"
             style={{ fontFamily: 'var(--font-mono)' }}
           >
             How Signet works ↗

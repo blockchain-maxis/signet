@@ -112,7 +112,7 @@ export default async function ContractFunctionPage({ params }: { params: Promise
           {name}
         </h1>
         <p
-          className="mt-4 text-[13px] leading-[1.7] text-[#5e5b51]"
+          className="mt-4 text-[13px] leading-[1.7] text-[var(--text-muted)]"
           style={{ fontFamily: 'var(--font-mono)' }}
         >
           This contract&apos;s interface could not be read, so nothing is shown here rather
@@ -120,7 +120,7 @@ export default async function ContractFunctionPage({ params }: { params: Promise
         </p>
         <a
           href={functionBacklinkHref(handle, address, name)}
-          className="mt-6 inline-block text-[10px] uppercase tracking-[0.2em] text-[#8b1a1a] transition-colors hover:text-[#c2410c]"
+          className="mt-6 inline-block text-[10px] uppercase tracking-[0.2em] text-[var(--text-accent)] transition-colors hover:text-[var(--text-accent)]"
           style={{ fontFamily: 'var(--font-mono)' }}
         >
           All functions
@@ -137,7 +137,7 @@ export default async function ContractFunctionPage({ params }: { params: Promise
       <div className="flex flex-wrap items-center justify-between gap-4">
         <a
           href={functionBacklinkHref(handle, address, fn.name)}
-          className="text-[10px] uppercase tracking-[0.2em] text-[#5e5b51] transition-colors hover:text-[#c2410c]"
+          className="text-[10px] uppercase tracking-[0.2em] text-[var(--text-muted)] transition-colors hover:text-[var(--text-accent)]"
           style={{ fontFamily: 'var(--font-mono)' }}
         >
           All functions
@@ -172,14 +172,14 @@ export default async function ContractFunctionPage({ params }: { params: Promise
               <tr className="border-b border-[#1f1d19]">
                 <th
                   scope="col"
-                  className="px-5 py-3 text-[10px] uppercase tracking-[0.22em] text-[#5e5b51]"
+                  className="px-5 py-3 text-[10px] uppercase tracking-[0.22em] text-[var(--text-muted)]"
                   style={{ fontFamily: 'var(--font-mono)' }}
                 >
                   Name
                 </th>
                 <th
                   scope="col"
-                  className="px-5 py-3 text-[10px] uppercase tracking-[0.22em] text-[#5e5b51]"
+                  className="px-5 py-3 text-[10px] uppercase tracking-[0.22em] text-[var(--text-muted)]"
                   style={{ fontFamily: 'var(--font-mono)' }}
                 >
                   Type
@@ -196,7 +196,7 @@ export default async function ContractFunctionPage({ params }: { params: Promise
                   >
                     {arg.name}
                     {arg.doc ? (
-                      <span className="mt-1 block text-[12px] leading-[1.6] text-[#5e5b51]">
+                      <span className="mt-1 block text-[12px] leading-[1.6] text-[var(--text-muted)]">
                         {arg.doc}
                       </span>
                     ) : null}
@@ -281,7 +281,7 @@ export default async function ContractFunctionPage({ params }: { params: Promise
                 {error.name}
                 {typeof error.value === 'number' ? ` = ${error.value}` : null}
                 {error.doc ? (
-                  <span className="mt-1 block text-[12px] leading-[1.6] text-[#5e5b51]">
+                  <span className="mt-1 block text-[12px] leading-[1.6] text-[var(--text-muted)]">
                     {error.doc}
                   </span>
                 ) : null}
@@ -289,7 +289,7 @@ export default async function ContractFunctionPage({ params }: { params: Promise
             ))}
           </ul>
           <p
-            className="mt-4 text-[12px] leading-[1.7] text-[#5e5b51]"
+            className="mt-4 text-[12px] leading-[1.7] text-[var(--text-muted)]"
             style={{ fontFamily: 'var(--font-mono)' }}
           >
             {ERROR_SCOPE_NOTE}

@@ -85,7 +85,7 @@ export default async function ProfilePage({ params }: { params: Promise<{ handle
       <header className="relative z-10 border-b border-[#1f1d19] px-8 py-16 md:px-14 md:py-20">
         <div className="max-w-5xl">
           <div
-            className="text-[11px] uppercase tracking-[0.26em] text-[#5e5b51]"
+            className="text-[11px] uppercase tracking-[0.26em] text-[var(--text-muted)]"
             style={{ fontFamily: 'var(--font-mono)' }}
           >
             {`Profile · Stellar ${STELLAR_NETWORK_NAME}`}
@@ -99,7 +99,7 @@ export default async function ProfilePage({ params }: { params: Promise<{ handle
           </h1>
 
           <div
-            className="mt-3 text-[14px] uppercase tracking-[0.18em] text-[#5e5b51]"
+            className="mt-3 text-[14px] uppercase tracking-[0.18em] text-[var(--text-muted)]"
             style={{ fontFamily: 'var(--font-mono)' }}
           >
             @{handle}
@@ -141,7 +141,7 @@ export default async function ProfilePage({ params }: { params: Promise<{ handle
                   href={`https://stellar.expert/explorer/${STELLAR_EXPLORER}/account/${profile.wallet}`}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="text-[10px] uppercase tracking-[0.2em] text-[#8b1a1a] transition-colors hover:text-[#c2410c]"
+                  className="text-[10px] uppercase tracking-[0.2em] text-[var(--text-accent)] transition-colors hover:text-[var(--text-accent)]"
                   style={{ fontFamily: 'var(--font-mono)' }}
                 >
                   Stellar Expert ↗
@@ -155,7 +155,7 @@ export default async function ProfilePage({ params }: { params: Promise<{ handle
         <section className="mb-16">
           <SectionLabel>
             Deployed contracts
-            <span className="ml-1 text-[#5e5b51]">
+            <span className="ml-1 text-[var(--text-muted)]">
               {contracts.length === 0
                 ? '· none found'
                 : contractsTruncated
@@ -173,7 +173,7 @@ export default async function ProfilePage({ params }: { params: Promise<{ handle
                 No contracts are recorded for this profile&apos;s wallets yet.
               </p>
               <p
-                className="mt-2 text-[12px] leading-[1.6] text-[#5e5b51]"
+                className="mt-2 text-[12px] leading-[1.6] text-[var(--text-muted)]"
                 style={{ fontFamily: 'var(--font-mono)' }}
               >
                 The wallet that claimed this handle is rarely the key used with{' '}
@@ -190,7 +190,7 @@ export default async function ProfilePage({ params }: { params: Promise<{ handle
           ) : (
             <div className="mt-6 border border-[#1f1d19]">
               <div
-                className="grid grid-cols-[1fr_auto] gap-4 border-b border-[#1f1d19] px-5 py-3 text-[9px] uppercase tracking-[0.22em] text-[#5e5b51]"
+                className="grid grid-cols-[1fr_auto] gap-4 border-b border-[#1f1d19] px-5 py-3 text-[9px] uppercase tracking-[0.22em] text-[var(--text-muted)]"
                 style={{ fontFamily: 'var(--font-mono)' }}
               >
                 <span>Contract</span>
@@ -213,7 +213,7 @@ export default async function ProfilePage({ params }: { params: Promise<{ handle
                     </span>
                     {multiWallet && (
                       <span
-                        className="block text-[11px] text-[#5e5b51] mt-1"
+                        className="block text-[11px] text-[var(--text-muted)] mt-1"
                         style={{ fontFamily: 'var(--font-mono)' }}
                       >
                         by {truncate(c.deployerPubkey, 8, 6)}
@@ -221,7 +221,7 @@ export default async function ProfilePage({ params }: { params: Promise<{ handle
                     )}
                   </div>
                   <span
-                    className="text-[11px] text-[#5e5b51] whitespace-nowrap"
+                    className="text-[11px] text-[var(--text-muted)] whitespace-nowrap"
                     style={{ fontFamily: 'var(--font-mono)' }}
                   >
                     {formatDate(c.deployedAt)}
@@ -250,7 +250,7 @@ export default async function ProfilePage({ params }: { params: Promise<{ handle
 
           <SectionLabel>
             On-chain activity
-            {statsWindow ? <span className="text-[#5e5b51]">· {statsWindow}</span> : null}
+            {statsWindow ? <span className="text-[var(--text-muted)]">· {statsWindow}</span> : null}
           </SectionLabel>
           <div className="mt-6 grid grid-cols-2 gap-px border border-[#1f1d19] bg-[#1f1d19] md:grid-cols-5">
             {[
@@ -282,7 +282,7 @@ export default async function ProfilePage({ params }: { params: Promise<{ handle
                   {value}
                 </span>
                 <span
-                  className="mt-2 text-[9px] uppercase tracking-[0.22em] text-[#5e5b51]"
+                  className="mt-2 text-[9px] uppercase tracking-[0.22em] text-[var(--text-muted)]"
                   style={{ fontFamily: 'var(--font-mono)' }}
                 >
                   {label}
@@ -292,7 +292,7 @@ export default async function ProfilePage({ params }: { params: Promise<{ handle
           </div>
           {statsWindow && (
             <p
-              className="mt-3 text-[11px] leading-[1.7] text-[#5e5b51]"
+              className="mt-3 text-[11px] leading-[1.7] text-[var(--text-muted)]"
               style={{ fontFamily: 'var(--font-mono)' }}
             >
               Statistics above cover the {statsWindow} retained by the indexer. Older operations
@@ -305,7 +305,7 @@ export default async function ProfilePage({ params }: { params: Promise<{ handle
         <section className="mb-16">
           <SectionLabel>
             Soroban invocations
-            <span className="ml-1 text-[#5e5b51]">
+            <span className="ml-1 text-[var(--text-muted)]">
               {truncated
                 ? `· ${operations.length} shown · partial record`
                 : `· ${operations.length} indexed`}
@@ -354,7 +354,7 @@ export default async function ProfilePage({ params }: { params: Promise<{ handle
           <SectionLabel>Verification</SectionLabel>
           <div className="mt-6 border border-[#1f1d19] px-6 py-6">
             <p
-              className="max-w-[680px] text-[13px] leading-[1.7] text-[#5e5b51]"
+              className="max-w-[680px] text-[13px] leading-[1.7] text-[var(--text-muted)]"
               style={{ fontFamily: 'var(--font-mono)' }}
             >
               This handle is{' '}
@@ -378,7 +378,7 @@ export default async function ProfilePage({ params }: { params: Promise<{ handle
             </p>
             <a
               href="/how-it-works"
-              className="mt-4 inline-block text-[10px] uppercase tracking-[0.22em] text-[#8b1a1a] transition-colors hover:text-[#c2410c]"
+              className="mt-4 inline-block text-[10px] uppercase tracking-[0.22em] text-[var(--text-accent)] transition-colors hover:text-[var(--text-accent)]"
               style={{ fontFamily: 'var(--font-mono)' }}
             >
               How Signet works ↗

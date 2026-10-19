@@ -17,13 +17,15 @@ export interface KnownViolation {
  * adding one needs the same scrutiny as the code that caused it. Each entry
  * names the issue tracking its removal.
  */
-export const KNOWN_VIOLATIONS: readonly KnownViolation[] = [
-  {
-    id: 'color-contrast',
-    reason:
-      'Muted text runs below WCAG AA on the dark background across the public pages; the palette fix is tracked in #660.',
-  },
-];
+export const KNOWN_VIOLATIONS: readonly KnownViolation[] = [];
+
+// The existing footer wordmark is non-interactive, aria-hidden background
+// texture, duplicated by the accessible Signet link above it. WCAG 1.4.3
+// exempts pure decoration. The landing spec guards this exact exception so
+// content or controls cannot silently enter the excluded layer.
+// https://www.w3.org/WAI/WCAG22/Understanding/contrast-minimum.html
+export const DECORATIVE_FOOTER_WORDMARK =
+  'footer > [aria-hidden="true"].pointer-events-none > .whitespace-nowrap';
 
 /**
  * Shared axe helper for the e2e specs (#461; #659 asks for the same thing).
@@ -36,6 +38,7 @@ export const KNOWN_VIOLATIONS: readonly KnownViolation[] = [
  */
 export async function expectNoSeriousA11yViolations(page: Page, label: string): Promise<void> {
   const { violations } = await new AxeBuilder({ page })
+    .exclude(DECORATIVE_FOOTER_WORDMARK)
     .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa'])
     .analyze();
   const accepted = new Set(KNOWN_VIOLATIONS.map((v) => v.id));

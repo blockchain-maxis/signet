@@ -244,7 +244,7 @@ export function ConnectWallet({
         </span>
       )}
       {!isRegistryConfigured() && variant === 'nav' && address && (
-        <span className="text-[9px] text-[#5e5b51]" style={{ fontFamily: 'var(--font-mono)' }}>
+        <span className="text-[9px] text-[var(--text-muted)]" style={{ fontFamily: 'var(--font-mono)' }}>
           connected · {STELLAR_NETWORK}
         </span>
       )}

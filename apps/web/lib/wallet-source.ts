@@ -16,8 +16,8 @@ export interface WalletSourceBadge extends WalletSourceDescriptor {
 const TONE: Record<WalletSourceDescriptor['source'], string> = {
   onchain: 'text-emerald-500',
   cli: 'text-sky-400',
-  curated: 'text-[#5e5b51]',
-  unknown: 'text-[#5e5b51]',
+  curated: 'text-[var(--text-muted)]',
+  unknown: 'text-[var(--text-muted)]',
 };
 
 export function walletSourceBadge(source: unknown): WalletSourceBadge {

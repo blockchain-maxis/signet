@@ -79,7 +79,7 @@ export default function OperationsList({
     <div className="mt-6 border border-[#1f1d19]">
       {/* Header */}
       <div
-        className="flex items-center justify-between gap-4 border-b border-[#1f1d19] px-5 py-3 text-[9px] uppercase tracking-[0.22em] text-[#5e5b51] md:grid md:grid-cols-[1fr_auto_auto]"
+        className="flex items-center justify-between gap-4 border-b border-[#1f1d19] px-5 py-3 text-[9px] uppercase tracking-[0.22em] text-[var(--text-muted)] md:grid md:grid-cols-[1fr_auto_auto]"
         style={{ fontFamily: 'var(--font-mono)' }}
       >
         <span>Function</span>
@@ -97,7 +97,7 @@ export default function OperationsList({
               No Soroban invocations are recorded for this profile yet.
             </p>
             <p
-              className="mt-2 text-[12px] leading-[1.6] text-[#5e5b51]"
+              className="mt-2 text-[12px] leading-[1.6] text-[var(--text-muted)]"
               style={{ fontFamily: 'var(--font-mono)' }}
             >
               The wallet that claimed this handle is rarely the key used with{' '}
@@ -133,7 +133,7 @@ export default function OperationsList({
                   </span>
                   {balChanges.length > 0 && (
                     <span
-                      className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-[#5e5b51]"
+                      className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-[var(--text-muted)]"
                       style={{ fontFamily: 'var(--font-mono)' }}
                     >
                       {balChanges.map((bc, j) => (
@@ -146,7 +146,7 @@ export default function OperationsList({
                   )}
                 </div>
                 <span
-                  className="text-[11px] text-[#5e5b51] whitespace-nowrap"
+                  className="text-[11px] text-[var(--text-muted)] whitespace-nowrap"
                   style={{ fontFamily: 'var(--font-mono)' }}
                 >
                   {formatDate(op.created_at)}
@@ -156,14 +156,14 @@ export default function OperationsList({
                     href={stellarExpertTxUrl(op.transaction_hash)}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="whitespace-nowrap text-[10px] uppercase tracking-[0.18em] text-[#8b1a1a] transition-colors hover:text-[#c2410c]"
+                    className="whitespace-nowrap text-[10px] uppercase tracking-[0.18em] text-[var(--text-accent)] transition-colors hover:text-[var(--text-accent)]"
                     style={{ fontFamily: 'var(--font-mono)' }}
                   >
                     Verify ↗
                     <span className="sr-only"> (opens in a new tab)</span>
                   </a>
                 ) : (
-                  <span className="text-[10px] text-[#3d3a33]" style={{ fontFamily: 'var(--font-mono)' }}>—</span>
+                  <span className="text-[10px] text-[var(--text-faint)]" style={{ fontFamily: 'var(--font-mono)' }}>—</span>
                 )}
               </div>
             );
@@ -180,7 +180,7 @@ export default function OperationsList({
               <button
                 onClick={loadMore}
                 disabled={loading}
-                className="inline-flex items-center gap-2 text-[10px] uppercase tracking-[0.22em] text-[#8b1a1a] transition-colors hover:text-[#c2410c] disabled:opacity-40 disabled:cursor-not-allowed"
+                className="inline-flex items-center gap-2 text-[10px] uppercase tracking-[0.22em] text-[var(--text-accent)] transition-colors hover:text-[var(--text-accent)] disabled:opacity-40 disabled:cursor-not-allowed"
                 style={{ fontFamily: 'var(--font-mono)' }}
               >
                 {loading ? (

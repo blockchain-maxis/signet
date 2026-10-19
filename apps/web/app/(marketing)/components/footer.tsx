@@ -73,14 +73,14 @@ export function Footer() {
               style={{ fontFamily: 'var(--font-mono)' }}
             >
               <span className="border-b border-[#8b1a1a] pb-1">Claim yours</span>
-              <span className="ml-1.5 inline-block text-[#8b1a1a] transition-transform duration-300 group-hover:translate-x-1">
+              <span className="ml-1.5 inline-block text-[var(--text-accent)] transition-transform duration-300 group-hover:translate-x-1">
                 →
               </span>
             </a>
           </div>
         </div>
 
-        <div className="mt-10 flex flex-wrap items-center justify-between gap-3 border-t border-[#1f1d19] py-4 text-[10px] uppercase tracking-[0.22em] text-[#3d3a33]">
+        <div className="mt-10 flex flex-wrap items-center justify-between gap-3 border-t border-[#1f1d19] py-4 text-[10px] uppercase tracking-[0.22em] text-[var(--text-faint)]">
           <span>Stellar Community Fund · 2026</span>
           <span>Stellar {STELLAR_NETWORK_NAME.toLowerCase()}</span>
         </div>

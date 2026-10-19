@@ -16,7 +16,7 @@ export default function NotFound() {
   return (
     <main className="flex min-h-screen flex-col items-center justify-center bg-[#0a0908] px-6 text-center text-[#f5f4ee]">
       <p
-        className="mb-3 text-[11px] uppercase tracking-[0.26em] text-[#8b1a1a]"
+        className="mb-3 text-[11px] uppercase tracking-[0.26em] text-[var(--text-accent)]"
         style={{ fontFamily: 'var(--font-mono)' }}
       >
         404
@@ -46,7 +46,7 @@ export default function NotFound() {
       )}
       <Link
         href="/"
-        className="mt-8 text-[11px] uppercase tracking-[0.22em] text-[#8b1a1a] transition-colors hover:text-[#c2410c]"
+        className="mt-8 text-[11px] uppercase tracking-[0.22em] text-[var(--text-accent)] transition-colors hover:text-[var(--text-accent)]"
         style={{ fontFamily: 'var(--font-mono)' }}
       >
         ← Back to Signet

@@ -17,7 +17,7 @@ export default function Error({
   return (
     <main className="flex min-h-screen flex-col items-center justify-center bg-[#0a0908] px-6 text-center text-[#f5f4ee]">
       <p
-        className="mb-3 text-[11px] uppercase tracking-[0.26em] text-[#8b1a1a]"
+        className="mb-3 text-[11px] uppercase tracking-[0.26em] text-[var(--text-accent)]"
         style={{ fontFamily: 'var(--font-mono)' }}
       >
         Something went wrong
@@ -26,7 +26,7 @@ export default function Error({
         Unexpected error
       </h1>
       {error.digest && (
-        <p className="mt-3 text-[11px] text-[#5e5b51]" style={{ fontFamily: 'var(--font-mono)' }}>
+        <p className="mt-3 text-[11px] text-[var(--text-muted)]" style={{ fontFamily: 'var(--font-mono)' }}>
           ref {error.digest}
         </p>
       )}

@@ -138,7 +138,7 @@ export function Compound() {
               />
               <div className="min-w-0">
                 <div className="text-[13px] text-[#f5f4ee]">{node.label}</div>
-                <div className="text-[11px] text-[#5e5b51]" style={{ fontFamily: "var(--font-mono)" }}>
+                <div className="text-[11px] text-[var(--text-muted)]" style={{ fontFamily: "var(--font-mono)" }}>
                   {node.quarter} · {fmtTVL(node.tvl)}
                 </div>
               </div>
@@ -178,11 +178,11 @@ export function Compound() {
           className="text-right"
           style={{ fontFamily: "var(--font-mono)" }}
         >
-          <div className="text-[10px] uppercase tracking-[0.22em] text-[#5e5b51]">Contracts</div>
+          <div className="text-[10px] uppercase tracking-[0.22em] text-[var(--text-muted)]">Contracts</div>
           <div className="mt-1 text-[32px] font-bold tracking-[-0.02em] text-[#f5f4ee]" style={{ fontFamily: "var(--font-display)" }}>
             <span ref={cntRef}>0</span>
           </div>
-          <div className="mt-3 text-[10px] uppercase tracking-[0.22em] text-[#5e5b51]">Cum. TVL</div>
+          <div className="mt-3 text-[10px] uppercase tracking-[0.22em] text-[var(--text-muted)]">Cum. TVL</div>
           <div className="mt-1 text-[32px] font-bold tracking-[-0.02em] text-[#f5f4ee]" style={{ fontFamily: "var(--font-display)" }}>
             <span ref={tvlRef}>$0.0M</span>
           </div>
@@ -248,11 +248,11 @@ export function Compound() {
                 style={{ fontFamily: "var(--font-mono)" }}
               >
                 <div
-                  className={`text-[9px] uppercase tracking-[0.18em] ${node.featured ? "text-[#c2410c]" : "text-[#5e5b51]"}`}
+                  className={`text-[9px] uppercase tracking-[0.18em] ${node.featured ? "text-[var(--text-accent)]" : "text-[var(--text-muted)]"}`}
                 >
                   {node.label}
                 </div>
-                <div className="text-[8px] text-[#3d3a33]">{node.quarter}</div>
+                <div className="text-[8px] text-[var(--text-faint)]">{node.quarter}</div>
               </div>
             </div>
           );

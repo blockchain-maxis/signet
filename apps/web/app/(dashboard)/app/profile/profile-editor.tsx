@@ -138,7 +138,7 @@ export function ProfileEditor() {
           onChange={(e) => setBio(e.target.value)}
           className={`${field} resize-none`}
         />
-        <p className="mt-1 text-[11px] text-[#5e5b51]">{bio.length}/280</p>
+        <p className="mt-1 text-[11px] text-[var(--text-muted)]">{bio.length}/280</p>
       </div>
 
       <div className="flex items-center gap-4">

@@ -144,7 +144,7 @@ export function ApprovePanel({
         )}
         {ui.handoffCode && (
           <div className="mt-6 border border-[#1f1d19] px-6 py-5">
-            <p className="text-[10px] uppercase tracking-[0.2em] text-[#5e5b51]" style={mono}>
+            <p className="text-[10px] uppercase tracking-[0.2em] text-[var(--text-muted)]" style={mono}>
               If the terminal is still waiting
             </p>
             <p className="mt-3 text-[13px] leading-[1.7] text-[#8a8779]" style={mono}>
@@ -178,7 +178,7 @@ export function ApprovePanel({
         </button>
         {/* aria-live so the moment of expiry is announced without a refresh;
             the steady countdown itself is polite background text. */}
-        <p aria-live="assertive" className="text-[12px] text-[#5e5b51]" style={mono}>
+        <p aria-live="assertive" className="text-[12px] text-[var(--text-muted)]" style={mono}>
           {expired
             ? 'This pairing has expired. Run `signet link` again to get a new one.'
             : `Expires in ${countdown}`}
@@ -199,7 +199,7 @@ export function ApprovePanel({
           type="button"
           onClick={() => send('reject')}
           disabled={busy || expired}
-          className="text-[12px] uppercase tracking-[0.18em] text-[#8a8779] transition-colors hover:text-[#8b1a1a] disabled:opacity-60"
+          className="text-[12px] uppercase tracking-[0.18em] text-[#8a8779] transition-colors hover:text-[var(--text-accent)] disabled:opacity-60"
           style={mono}
         >
           {busy && ui.action === 'reject' ? 'Rejecting…' : 'Reject'}
@@ -209,7 +209,7 @@ export function ApprovePanel({
         <p
           ref={resultRef as React.RefObject<HTMLParagraphElement | null>}
           tabIndex={-1}
-          className="mt-4 text-[12px] text-[#c2410c] outline-none"
+          className="mt-4 text-[12px] text-[var(--text-accent)] outline-none"
           style={mono}
         >
           {ui.message}

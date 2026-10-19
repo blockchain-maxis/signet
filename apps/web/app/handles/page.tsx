@@ -100,7 +100,7 @@ export default async function HandlesPage({
       <header className="border-b border-[#1f1d19] px-8 py-16 md:px-14 md:py-20">
         <div className="max-w-5xl">
           <div
-            className="text-[11px] uppercase tracking-[0.26em] text-[#5e5b51]"
+            className="text-[11px] uppercase tracking-[0.26em] text-[var(--text-muted)]"
             style={{ fontFamily: 'var(--font-mono)' }}
           >
             Directory
@@ -124,7 +124,7 @@ export default async function HandlesPage({
             {emptyState.invite && (
               <a
                 href="/#claim"
-                className="mt-4 inline-block text-[10px] uppercase tracking-[0.22em] text-[#8b1a1a] transition-colors hover:text-[#c2410c]"
+                className="mt-4 inline-block text-[10px] uppercase tracking-[0.22em] text-[var(--text-accent)] transition-colors hover:text-[var(--text-accent)]"
                 style={{ fontFamily: 'var(--font-mono)' }}
               >
                 Be the first ↗
@@ -148,7 +148,7 @@ export default async function HandlesPage({
                   </span>
                   {wallet && (
                     <span
-                      className="text-[11px] text-[#5e5b51]"
+                      className="text-[11px] text-[var(--text-muted)]"
                       style={{ fontFamily: 'var(--font-mono)' }}
                       title={wallet}
                     >
@@ -160,7 +160,7 @@ export default async function HandlesPage({
             </div>
 
             {unlisted > 0 && (
-              <p className="mt-4 text-[12px] leading-[1.7] text-[#5e5b51]">
+              <p className="mt-4 text-[12px] leading-[1.7] text-[var(--text-muted)]">
                 The registry&apos;s counter records {unlisted} further binding
                 {unlisted === 1 ? '' : 's'} not verifiable here — {shortfallReason}. Resolve a
                 handle directly to confirm {unlisted === 1 ? 'it' : 'one'}.
@@ -177,7 +177,7 @@ export default async function HandlesPage({
                     ← Previous
                   </a>
                 ) : (
-                  <span className="text-[#3d3a33]">← Previous</span>
+                  <span className="text-[var(--text-faint)]">← Previous</span>
                 )}
                 <span>
                   Page {currentPage} of {totalPages}
@@ -187,7 +187,7 @@ export default async function HandlesPage({
                     Next →
                   </a>
                 ) : (
-                  <span className="text-[#3d3a33]">Next →</span>
+                  <span className="text-[var(--text-faint)]">Next →</span>
                 )}
               </div>
             )}
@@ -198,7 +198,7 @@ export default async function HandlesPage({
 
       <footer className="flex flex-wrap items-center justify-between gap-3 border-t border-[#1f1d19] px-8 py-4 md:px-14">
         <div
-          className="text-[10px] uppercase tracking-[0.22em] text-[#3d3a33]"
+          className="text-[10px] uppercase tracking-[0.22em] text-[var(--text-faint)]"
           style={{ fontFamily: 'var(--font-mono)' }}
         >
           Stellar Community Fund · 2026

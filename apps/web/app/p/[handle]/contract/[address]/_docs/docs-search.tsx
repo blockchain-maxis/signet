@@ -189,7 +189,7 @@ export function DocsSearch({
             placeholder={placeholder}
             aria-label={label}
             data-testid="docs-search-input"
-            className="w-full min-h-11 rounded border border-[#1f1d19] bg-[#0e0d0b] px-3.5 py-2 pr-10 text-[13px] text-[#f5f4ee] placeholder-[#5e5b51] transition-colors focus:border-[#e05a4b] focus:outline-none focus:ring-1 focus:ring-[#e05a4b] [&::-webkit-search-cancel-button]:hidden"
+            className="w-full min-h-11 rounded border border-[#1f1d19] bg-[#0e0d0b] px-3.5 py-2 pr-10 text-[13px] text-[#f5f4ee] placeholder-[var(--text-faint)] transition-colors focus:border-[#e05a4b] focus:outline-none focus:ring-1 focus:ring-[#e05a4b] [&::-webkit-search-cancel-button]:hidden"
             style={MONO}
           />
           {isFiltering ? (

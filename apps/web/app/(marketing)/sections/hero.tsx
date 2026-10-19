@@ -74,10 +74,10 @@ export function Hero() {
               <span className="relative inline-flex h-1.5 w-1.5 rounded-full bg-[#8b1a1a]" />
             </span>
             Stellar
-            <span className="text-[#3d3a33]">/</span>
+            <span className="text-[var(--text-faint)]">/</span>
             Soroban
-            <span className="text-[#3d3a33]">/</span>
-            <span className="text-[#5e5b51]">{STELLAR_NETWORK_NAME}</span>
+            <span className="text-[var(--text-faint)]">/</span>
+            <span className="text-[var(--text-muted)]">{STELLAR_NETWORK_NAME}</span>
           </motion.div>
 
           <h1
@@ -151,7 +151,7 @@ export function Hero() {
               <span className="border-b border-[#3d3a33] pb-1 transition-colors group-hover:border-[#f5f4ee]">
                 Browse the registry
               </span>
-              <span className="text-[#5e5b51]">↗</span>
+              <span className="text-[var(--text-muted)]">↗</span>
             </a>
           </motion.div>
 
@@ -159,7 +159,7 @@ export function Hero() {
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}
             transition={{ duration: 1, delay: 1.4 }}
-            className="mt-16 flex items-center gap-5 text-[10px] uppercase tracking-[0.24em] text-[#5e5b51]"
+            className="mt-16 flex items-center gap-5 text-[10px] uppercase tracking-[0.24em] text-[var(--text-muted)]"
             style={{ fontFamily: 'var(--font-mono)' }}
           >
             <span className="h-px w-10 bg-[#3d3a33]" />

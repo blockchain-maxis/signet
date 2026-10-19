@@ -132,7 +132,7 @@ export function Mechanism() {
           {steps.map((step) => (
             <div key={step.num} className="border-l-2 border-[#1f1d19] pl-8">
               <div
-                className="mb-3 text-[10px] uppercase tracking-[0.26em] text-[#8b1a1a]"
+                className="mb-3 text-[10px] uppercase tracking-[0.26em] text-[var(--text-accent)]"
                 style={{ fontFamily: "var(--font-mono)" }}
               >
                 {step.num}
@@ -146,14 +146,14 @@ export function Mechanism() {
               <p className="mt-4 text-[15px] leading-[1.65] text-[#8a8779]">{step.body}</p>
               {step.code && (
                 <pre
-                  className="mt-5 overflow-x-auto border border-[#1f1d19] bg-[#0e0d0b] p-4 text-[12px] leading-[1.7] text-[#5e5b51]"
+                  className="mt-5 overflow-x-auto border border-[#1f1d19] bg-[#0e0d0b] p-4 text-[12px] leading-[1.7] text-[var(--text-muted)]"
                   style={{ fontFamily: "var(--font-mono)" }}
                 >
                   {step.code}
                 </pre>
               )}
               {step.num === "03" && (
-                <div className="mt-5 flex items-center gap-3 text-[11px] text-[#5e5b51]" style={{ fontFamily: "var(--font-mono)" }}>
+                <div className="mt-5 flex items-center gap-3 text-[11px] text-[var(--text-muted)]" style={{ fontFamily: "var(--font-mono)" }}>
                   <span className="text-[#8a8779]">Wallet</span>
                   <span className="h-px w-6 bg-[#3d3a33]" />
                   <span>Stellar RPC</span>

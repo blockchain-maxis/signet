@@ -23,7 +23,7 @@ export default async function SettingsPage() {
       </div>
 
       <div className="mt-8">
-        <div className="text-[10px] uppercase tracking-[0.22em] text-[#5e5b51]" style={mono}>
+        <div className="text-[10px] uppercase tracking-[0.22em] text-[var(--text-muted)]" style={mono}>
           End session
         </div>
         <p className="mt-2 max-w-[560px] text-[13px] leading-[1.7] text-[#8a8779]" style={mono}>
@@ -36,7 +36,7 @@ export default async function SettingsPage() {
       </div>
 
       <div className="mt-10">
-        <div className="text-[10px] uppercase tracking-[0.22em] text-[#5e5b51]" style={mono}>
+        <div className="text-[10px] uppercase tracking-[0.22em] text-[var(--text-muted)]" style={mono}>
           Other devices
         </div>
         <p className="mt-2 max-w-[560px] text-[13px] leading-[1.7] text-[#8a8779]" style={mono}>
@@ -55,7 +55,7 @@ export default async function SettingsPage() {
 function Row({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex flex-wrap items-center justify-between gap-3 px-6 py-4">
-      <span className="text-[10px] uppercase tracking-[0.22em] text-[#5e5b51]">{label}</span>
+      <span className="text-[10px] uppercase tracking-[0.22em] text-[var(--text-muted)]">{label}</span>
       <span className="break-all text-[13px] text-[#b8b5a8]">{value}</span>
     </div>
   );

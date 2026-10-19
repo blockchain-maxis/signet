@@ -35,12 +35,17 @@ const REFUSAL: Record<string, string> = {
 
 function Shell({ children }: { children: React.ReactNode }) {
   return (
-    <main className="mx-auto max-w-[720px] px-6 py-20 md:py-28">
-      <p className="text-[10px] uppercase tracking-[0.28em] text-[#5e5b51]" style={mono}>
-        Signet CLI
-      </p>
-      {children}
-    </main>
+    <div className="min-h-screen bg-[#0a0908] text-[#f5f4ee]">
+      <main className="mx-auto max-w-[720px] px-6 py-20 md:py-28">
+        <p
+          className="text-[10px] uppercase tracking-[0.28em] text-[var(--text-muted)]"
+          style={mono}
+        >
+          Signet CLI
+        </p>
+        {children}
+      </main>
+    </div>
   );
 }
 
@@ -89,12 +94,7 @@ export default async function LinkApprovalPage({
     callback_state?: string;
   }>;
 }) {
-  const {
-    code,
-    user_code: userCode,
-    callback,
-    callback_state: callbackState,
-  } = await searchParams;
+  const { code, user_code: userCode, callback, callback_state: callbackState } = await searchParams;
 
   if (!code) {
     return (
@@ -161,7 +161,10 @@ export default async function LinkApprovalPage({
 
       <dl className="mt-10 max-w-[640px] border border-[#1f1d19]">
         <div className="border-b border-[#1f1d19] px-6 py-5">
-          <dt className="text-[10px] uppercase tracking-[0.2em] text-[#5e5b51]" style={mono}>
+          <dt
+            className="text-[10px] uppercase tracking-[0.2em] text-[var(--text-muted)]"
+            style={mono}
+          >
             Deploy wallet
           </dt>
           <dd className="mt-2 break-all text-[13px] text-[#b8b5a8]" style={mono}>
@@ -169,7 +172,10 @@ export default async function LinkApprovalPage({
           </dd>
         </div>
         <div className="border-b border-[#1f1d19] px-6 py-5">
-          <dt className="text-[10px] uppercase tracking-[0.2em] text-[#5e5b51]" style={mono}>
+          <dt
+            className="text-[10px] uppercase tracking-[0.2em] text-[var(--text-muted)]"
+            style={mono}
+          >
             Handle
           </dt>
           <dd className="mt-2 text-[13px] text-[#b8b5a8]" style={mono}>
@@ -180,32 +186,35 @@ export default async function LinkApprovalPage({
           className={`border-b px-6 py-5 ${isMainnet ? 'border-[#8b1a1a] bg-[#1a0d0a]' : 'border-[#1f1d19]'}`}
         >
           <dt
-            className={`text-[10px] uppercase tracking-[0.2em] ${isMainnet ? 'text-[#c2410c]' : 'text-[#5e5b51]'}`}
+            className={`text-[10px] uppercase tracking-[0.2em] ${isMainnet ? 'text-[var(--text-accent)]' : 'text-[var(--text-muted)]'}`}
             style={mono}
           >
             Network
           </dt>
           <dd
-            className={`mt-2 text-[13px] uppercase tracking-[0.1em] ${isMainnet ? 'text-[#c2410c]' : 'text-[#b8b5a8]'}`}
+            className={`mt-2 text-[13px] uppercase tracking-[0.1em] ${isMainnet ? 'text-[var(--text-accent)]' : 'text-[#b8b5a8]'}`}
             style={mono}
           >
             {pairing.network}
           </dd>
           {isMainnet && (
-            <dd className="mt-2 text-[12px] leading-[1.7] text-[#c2410c]" style={mono}>
+            <dd className="mt-2 text-[12px] leading-[1.7] text-[var(--text-accent)]" style={mono}>
               This is mainnet. Contracts attributed through this wallet are real deployments with
               real funds behind them — read the key above before approving.
             </dd>
           )}
         </div>
         <div className="px-6 py-5">
-          <dt className="text-[10px] uppercase tracking-[0.2em] text-[#5e5b51]" style={mono}>
+          <dt
+            className="text-[10px] uppercase tracking-[0.2em] text-[var(--text-muted)]"
+            style={mono}
+          >
             Does your terminal show this code?
           </dt>
           <dd className="mt-2 text-[20px] tracking-[0.3em] text-[#b8b5a8]" style={mono}>
             {userCode}
           </dd>
-          <dd className="mt-2 text-[12px] leading-[1.7] text-[#5e5b51]" style={mono}>
+          <dd className="mt-2 text-[12px] leading-[1.7] text-[var(--text-muted)]" style={mono}>
             `signet link` printed this code next to the URL. If your terminal shows a different one,
             close this page — you are not looking at your own link.
           </dd>
@@ -220,7 +229,10 @@ export default async function LinkApprovalPage({
         callbackState={callbackState ?? null}
       />
 
-      <p className="mt-10 max-w-[560px] text-[12px] leading-[1.7] text-[#5e5b51]" style={mono}>
+      <p
+        className="mt-10 max-w-[560px] text-[12px] leading-[1.7] text-[var(--text-muted)]"
+        style={mono}
+      >
         This code expires shortly after it was issued. If it runs out, run `signet link` again.
       </p>
     </Shell>

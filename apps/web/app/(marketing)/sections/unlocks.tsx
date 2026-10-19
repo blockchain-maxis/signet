@@ -13,7 +13,7 @@ function GrantMockup() {
     <div className="border border-[#3d3a33] bg-[#0e0d0b]">
       <div className="border-b border-[#1f1d19] px-6 py-4">
         <div
-          className="text-[10px] uppercase tracking-[0.22em] text-[#5e5b51]"
+          className="text-[10px] uppercase tracking-[0.22em] text-[var(--text-muted)]"
           style={{ fontFamily: "var(--font-mono)" }}
         >
           SCF Application #2849
@@ -24,7 +24,7 @@ function GrantMockup() {
       </div>
       <div className="p-6">
         <div
-          className="mb-4 text-[10px] uppercase tracking-[0.22em] text-[#5e5b51]"
+          className="mb-4 text-[10px] uppercase tracking-[0.22em] text-[var(--text-muted)]"
           style={{ fontFamily: "var(--font-mono)" }}
         >
           Signet profile · embedded
@@ -44,7 +44,7 @@ function GrantMockup() {
                 {val}
               </div>
               <div
-                className="mt-1 text-[9px] uppercase tracking-[0.2em] text-[#5e5b51]"
+                className="mt-1 text-[9px] uppercase tracking-[0.2em] text-[var(--text-muted)]"
                 style={{ fontFamily: "var(--font-mono)" }}
               >
                 {label}
@@ -75,7 +75,7 @@ function AuditMockup() {
         {["Tier", "Min. price", "Score required"].map((h) => (
           <div
             key={h}
-            className="text-[10px] uppercase tracking-[0.22em] text-[#5e5b51]"
+            className="text-[10px] uppercase tracking-[0.22em] text-[var(--text-muted)]"
             style={{ fontFamily: "var(--font-mono)" }}
           >
             {h}
@@ -88,7 +88,7 @@ function AuditMockup() {
           className={`grid grid-cols-3 border-b border-[#1f1d19] px-6 py-4 ${i === 2 ? "bg-[#100a0a]" : ""}`}
         >
           <div
-            className={`text-[13px] ${i === 2 ? "text-[#c2410c]" : "text-[#f5f4ee]"}`}
+            className={`text-[13px] ${i === 2 ? "text-[var(--text-accent)]" : "text-[#f5f4ee]"}`}
             style={{ fontFamily: "var(--font-mono)" }}
           >
             {row.tier}
@@ -109,7 +109,7 @@ function AuditMockup() {
       ))}
       <div className="px-6 py-3">
         <span
-          className="border-b border-[#3d3a33] pb-0.5 text-[10px] text-[#5e5b51]"
+          className="border-b border-[#3d3a33] pb-0.5 text-[10px] text-[var(--text-muted)]"
           style={{ fontFamily: "var(--font-mono)" }}
         >
           How is this calculated? ↗
@@ -124,7 +124,7 @@ function CodeMockup() {
     <div className="border border-[#3d3a33] bg-[#0e0d0b]">
       <div className="flex items-center gap-2 border-b border-[#1f1d19] px-5 py-3">
         <span
-          className="text-[10px] uppercase tracking-[0.2em] text-[#5e5b51]"
+          className="text-[10px] uppercase tracking-[0.2em] text-[var(--text-muted)]"
           style={{ fontFamily: "var(--font-mono)" }}
         >
           lending_pool.rs
@@ -137,11 +137,11 @@ function CodeMockup() {
     env: Env,
     contract: Address
 ) {
-    `}<span className="text-[#c2410c]">require_signet_attestation</span>{`(
+    `}<span className="text-[var(--text-accent)]">require_signet_attestation</span>{`(
         &env, &contract,
         "non-pausable"
     );
-    `}<span className="text-[#c2410c]">require_signet_score</span>{`(
+    `}<span className="text-[var(--text-accent)]">require_signet_score</span>{`(
         &env,
         &contract.deployer(),
         70
@@ -218,7 +218,7 @@ export function Unlocks() {
             {/* Copy */}
             <div>
               <div
-                className="mb-3 text-[10px] uppercase tracking-[0.26em] text-[#8b1a1a]"
+                className="mb-3 text-[10px] uppercase tracking-[0.26em] text-[var(--text-accent)]"
                 style={{ fontFamily: "var(--font-mono)" }}
               >
                 {uc.num} · {uc.title}

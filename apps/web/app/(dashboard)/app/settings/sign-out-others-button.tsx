@@ -29,7 +29,7 @@ export function SignOutOthersButton() {
         type="button"
         onClick={go}
         disabled={state.status === 'busy'}
-        className="border border-[#3a3730] px-7 py-3 text-[12px] font-medium uppercase tracking-[0.18em] text-[#f5f4ee] transition-all duration-300 hover:border-[#c2410c] hover:text-[#c2410c] disabled:opacity-60"
+        className="border border-[#3a3730] px-7 py-3 text-[12px] font-medium uppercase tracking-[0.18em] text-[#f5f4ee] transition-all duration-300 hover:border-[#c2410c] hover:text-[var(--text-accent)] disabled:opacity-60"
         style={{ fontFamily: 'var(--font-mono)' }}
       >
         {state.status === 'busy' ? 'Signing out…' : 'Sign out other devices'}
@@ -40,7 +40,7 @@ export function SignOutOthersButton() {
         </p>
       )}
       {state.status === 'error' && (
-        <p className="mt-3 text-[12px] text-[#c2410c]" style={{ fontFamily: 'var(--font-mono)' }}>
+        <p className="mt-3 text-[12px] text-[var(--text-accent)]" style={{ fontFamily: 'var(--font-mono)' }}>
           {state.message}
         </p>
       )}

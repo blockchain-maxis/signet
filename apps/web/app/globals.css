@@ -11,6 +11,11 @@
    single-typeface setup. The fallback stacks below only apply before those
    variables are defined (e.g. if a class ever renders outside the root layout). */
 :root {
+  /* Small text must retain WCAG AA contrast on both the page (#0a0908)
+     and raised cards (#1f1d19). Keep dim decorative borders separate. */
+  --text-muted: #9b978b;
+  --text-faint: #8a8779;
+  --text-accent: #e05a4b;
   --font-display: ui-sans-serif, system-ui, sans-serif;
   --font-body: var(--font-display);
   --font-mono: ui-monospace, 'Cascadia Code', 'Source Code Pro', Menlo, Consolas, monospace;

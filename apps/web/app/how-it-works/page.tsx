@@ -37,7 +37,7 @@ export default function HowItWorksPage() {
       <div className="relative z-10 mx-auto max-w-3xl px-8 py-16 md:px-14 md:py-20">
 
         <div
-          className="text-[11px] uppercase tracking-[0.26em] text-[#5e5b51] mb-6"
+          className="text-[11px] uppercase tracking-[0.26em] text-[var(--text-muted)] mb-6"
           style={{ fontFamily: 'var(--font-mono)' }}
         >
           Signet · How it works
@@ -134,7 +134,7 @@ export default function HowItWorksPage() {
 
         <div className="mt-16 pt-10 border-t border-[#1f1d19]">
           <p
-            className="text-[11px] uppercase tracking-[0.22em] text-[#5e5b51] mb-6"
+            className="text-[11px] uppercase tracking-[0.22em] text-[var(--text-muted)] mb-6"
             style={{ fontFamily: 'var(--font-mono)' }}
           >
             Directory
@@ -150,13 +150,13 @@ export default function HowItWorksPage() {
               /handles
             </p>
             <p
-              className="text-[11px] text-[#5e5b51] mt-1"
+              className="text-[11px] text-[var(--text-muted)] mt-1"
               style={{ fontFamily: 'var(--font-mono)' }}
             >
               Every handle bound on the Identity Registry, confirmed live with resolve
             </p>
             <p
-              className="text-[10px] uppercase tracking-[0.2em] text-[#8b1a1a] mt-3"
+              className="text-[10px] uppercase tracking-[0.2em] text-[var(--text-accent)] mt-3"
               style={{ fontFamily: 'var(--font-mono)' }}
             >
               Browse handles →
@@ -168,7 +168,7 @@ export default function HowItWorksPage() {
       {/* Footer */}
       <footer className="relative z-10 flex flex-wrap items-center justify-between gap-3 border-t border-[#1f1d19] px-8 py-4 md:px-14">
         <div
-          className="text-[10px] uppercase tracking-[0.22em] text-[#5e5b51]"
+          className="text-[10px] uppercase tracking-[0.22em] text-[var(--text-muted)]"
           style={{ fontFamily: 'var(--font-mono)' }}
         >
           Stellar Community Fund · 2026

@@ -36,7 +36,7 @@ function SnapshotStats({ snapshot }: { snapshot: ContractActivitySnapshot }) {
             {snapshot.txCount24h}
           </span>
           <span
-            className="mt-2 text-[9px] uppercase tracking-[0.22em] text-[#5e5b51]"
+            className="mt-2 text-[9px] uppercase tracking-[0.22em] text-[var(--text-muted)]"
             style={MONO}
           >
             24h transactions
@@ -51,7 +51,7 @@ function SnapshotStats({ snapshot }: { snapshot: ContractActivitySnapshot }) {
             {totalDisplay}
           </span>
           <span
-            className="mt-2 text-[9px] uppercase tracking-[0.22em] text-[#5e5b51]"
+            className="mt-2 text-[9px] uppercase tracking-[0.22em] text-[var(--text-muted)]"
             style={MONO}
           >
             Total transactions
@@ -66,7 +66,7 @@ function SnapshotStats({ snapshot }: { snapshot: ContractActivitySnapshot }) {
             {snapshot.lastActivity ? formatDate(snapshot.lastActivity.toISOString()) : '—'}
           </span>
           <span
-            className="mt-2 text-[9px] uppercase tracking-[0.22em] text-[#5e5b51]"
+            className="mt-2 text-[9px] uppercase tracking-[0.22em] text-[var(--text-muted)]"
             style={MONO}
           >
             Last activity
@@ -74,7 +74,7 @@ function SnapshotStats({ snapshot }: { snapshot: ContractActivitySnapshot }) {
         </div>
       </div>
       <p
-        className="mt-3 text-[11px] leading-[1.7] text-[#5e5b51]"
+        className="mt-3 text-[11px] leading-[1.7] text-[var(--text-muted)]"
         style={MONO}
       >
         Snapshot as of {formatDate(snapshot.capturedAt.toISOString())}
@@ -170,7 +170,7 @@ export default async function ActivityPage({ params, searchParams }: ActivityPag
                 No captured calls yet.
               </p>
               <p
-                className="mt-2 text-[12px] leading-[1.6] text-[#5e5b51]"
+                className="mt-2 text-[12px] leading-[1.6] text-[var(--text-muted)]"
                 style={MONO}
               >
                 Capture only covers RPC's retention window since indexing began.

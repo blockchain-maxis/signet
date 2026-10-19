@@ -45,14 +45,14 @@ export function UnlinkWalletButton({ pubkey }: { pubkey: string }) {
         <button
           type="button"
           onClick={confirmUnlink}
-          className="text-[#8b1a1a] transition-colors hover:text-[#c2410c]"
+          className="text-[var(--text-accent)] transition-colors hover:text-[var(--text-accent)]"
         >
           Confirm
         </button>
         <button
           type="button"
           onClick={() => setState({ status: 'idle' })}
-          className="text-[#5e5b51] transition-colors hover:text-[#b8b5a8]"
+          className="text-[var(--text-muted)] transition-colors hover:text-[#b8b5a8]"
         >
           Cancel
         </button>
@@ -63,11 +63,11 @@ export function UnlinkWalletButton({ pubkey }: { pubkey: string }) {
   if (state.status === 'error') {
     return (
       <span className="flex items-center gap-3 text-[10px] uppercase tracking-[0.2em]" style={mono}>
-        <span className="text-[#8b1a1a]">{state.message}</span>
+        <span className="text-[var(--text-accent)]">{state.message}</span>
         <button
           type="button"
           onClick={() => setState({ status: 'idle' })}
-          className="text-[#5e5b51] transition-colors hover:text-[#b8b5a8]"
+          className="text-[var(--text-muted)] transition-colors hover:text-[#b8b5a8]"
         >
           Dismiss
         </button>
@@ -80,7 +80,7 @@ export function UnlinkWalletButton({ pubkey }: { pubkey: string }) {
       type="button"
       onClick={() => setState({ status: 'confirming' })}
       disabled={unlink.isPending}
-      className="text-[10px] uppercase tracking-[0.2em] text-[#5e5b51] transition-colors hover:text-[#8b1a1a] disabled:opacity-60"
+      className="text-[10px] uppercase tracking-[0.2em] text-[var(--text-muted)] transition-colors hover:text-[var(--text-accent)] disabled:opacity-60"
       style={mono}
     >
       {unlink.isPending ? 'Unlinking…' : 'Unlink'}

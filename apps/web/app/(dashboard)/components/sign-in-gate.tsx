@@ -44,7 +44,7 @@ export function SignInGate() {
         <span className="text-[#8b1a1a]">→</span>
       </button>
       {err && (
-        <p className="mt-4 text-[12px] text-[#c2410c]" style={{ fontFamily: 'var(--font-mono)' }}>
+        <p className="mt-4 text-[12px] text-[var(--text-accent)]" style={{ fontFamily: 'var(--font-mono)' }}>
           {err}
         </p>
       )}
