@@ -1,5 +1,6 @@
 import { Provenance } from '../_docs/provenance';
 import { ContractFunctions, loadSlotProps } from '../_slots';
+import { loadVersionSpecs } from '../_slots/load-version-specs';
 
 /**
  * Functions tab (#445): the provenance strip (#471) above the
@@ -13,6 +14,7 @@ export default async function FunctionsPage({
   const { handle, address } = await params;
   const props = await loadSlotProps(handle, address);
   if (!props) return null;
+  const versionSpecs = await loadVersionSpecs(props);
   return (
     <>
       <div className="mb-10">
@@ -23,7 +25,7 @@ export default async function FunctionsPage({
           wasmHash={props.wasmHash}
         />
       </div>
-      <ContractFunctions {...props} />
+      <ContractFunctions {...props} versionSpecs={versionSpecs} />
     </>
   );
 }

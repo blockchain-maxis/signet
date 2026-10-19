@@ -103,19 +103,64 @@ function DiagramBody(props: ContractSlotProps) {
     );
   }
 
+  const query = props.query;
+  const cleanQuery = query?.trim().toLowerCase();
+
   const svg = renderDiagramSvg(model, {
     idPrefix: `diagram-${props.address}-`,
     hrefForNode,
     title: `${props.handle} (${props.address})`,
     ariaDescribedBy: 'diagram-outline',
+    query,
     focus: props.focus,
   });
+
+  const totalFunctions = model.nodes.filter((n) => n.id.startsWith('fn:')).length;
+  const matchingFunctions = cleanQuery
+    ? model.nodes.filter(
+        (n) =>
+          n.id.startsWith('fn:') &&
+          (n.id.toLowerCase().includes(cleanQuery) || n.label.toLowerCase().includes(cleanQuery)),
+      ).length
+    : totalFunctions;
+
+  const totalMatches = cleanQuery
+    ? model.nodes.filter(
+        (n) =>
+          n.id.toLowerCase().includes(cleanQuery) || n.label.toLowerCase().includes(cleanQuery),
+      ).length
+    : model.nodes.length;
+
+  const announcement =
+    cleanQuery && cleanQuery.length > 0
+      ? totalMatches === 0
+        ? 'No functions or types match'
+        : `${matchingFunctions} of ${totalFunctions} functions match`
+      : '';
 
   return (
     <section data-testid="slot-diagram">
       <SectionLabel as="h2">Diagram</SectionLabel>
+      <div className="mt-6 mb-4 flex flex-col gap-2">
+        <form method="GET" className="flex items-center gap-3">
+          <input
+            type="search"
+            name="q"
+            defaultValue={query ?? ''}
+            placeholder="Search functions or types..."
+            className="viz-filter-input bg-[#181614] border border-[#2b2721] rounded px-3 py-1.5 text-xs text-[#f5f4ee] placeholder-[#8a8779] focus:outline-none focus:border-[#e05252] w-64"
+            aria-label="Filter functions and types"
+          />
+        </form>
+        <div aria-live="polite" className="text-xs text-[#8a8779] sr-only">
+          {announcement}
+        </div>
+      </div>
+      {cleanQuery && totalMatches === 0 && (
+        <p className="my-4 text-xs text-[#8a8779]">No functions or types match</p>
+      )}
       <div
-        className="mt-6 overflow-x-auto"
+        className="overflow-x-auto"
         dangerouslySetInnerHTML={{ __html: svg }}
       />
       {outlineDetails}
