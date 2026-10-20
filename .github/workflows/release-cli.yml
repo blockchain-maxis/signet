@@ -134,7 +134,12 @@ jobs:
         working-directory: cli
         run: |
           set -euo pipefail
-          for dir in npm/cli-linux-x64 npm/cli-linux-arm64 npm/cli-darwin-arm64 npm/cli-darwin-x64 npm/cli-windows-x64 npm/cli; do
+          shopt -s nullglob
+          # Every staged platform package, then the shim. Deriving the list from
+          # the staged directories keeps a newly added target from being
+          # forgotten here.
+          for dir in npm/cli-*/ npm/cli; do
+            [[ -f "${dir}package.json" ]] || continue
             npm publish "$dir" --provenance --access public
           done
         env:
