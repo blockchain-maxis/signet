@@ -373,7 +373,7 @@ export const paths: Record<string, OpenApiPathItem> = {
       operationId: 'getHealth',
       summary: 'Deployment health and identity',
       description:
-        "The operator probe's stable v1 form: per-dependency checks (including whether CLI pairing can work on this deployment), plus which network and API version this deployment serves. A degraded dependency still answers 200 with status \"degraded\".",
+        'The operator probe\'s stable v1 form: per-dependency checks (including whether CLI pairing can work on this deployment), plus which network and API version this deployment serves. A degraded dependency still answers 200 with status "degraded".',
       tags: ['Health'],
       responses: {
         '200': {
@@ -521,6 +521,117 @@ export const paths: Record<string, OpenApiPathItem> = {
         },
         '400': {
           description: 'Invalid handle.',
+          content: {
+            'application/json': {
+              schema: { $ref: '#/components/schemas/ErrorEnvelope' },
+            },
+          },
+        },
+        '404': {
+          description: 'No profile for this handle.',
+          content: {
+            'application/json': {
+              schema: { $ref: '#/components/schemas/ErrorEnvelope' },
+            },
+          },
+        },
+        '429': {
+          description: 'Rate limit exceeded.',
+          content: {
+            'application/json': {
+              schema: { $ref: '#/components/schemas/ErrorEnvelope' },
+            },
+          },
+        },
+        '500': {
+          description: 'Internal server error.',
+          content: {
+            'application/json': {
+              schema: { $ref: '#/components/schemas/ErrorEnvelope' },
+            },
+          },
+        },
+      },
+    },
+  },
+  '/profiles/{handle}/operations': {
+    get: {
+      operationId: 'getProfileOperations',
+      summary: 'Operations for a profile',
+      description:
+        'Cursor-paginated operations for a profile with completeness metadata. When database is available, exact total is reported; when fallback answered, total is null and cursor stops at cap.',
+      tags: ['Profiles'],
+      parameters: [
+        {
+          name: 'handle',
+          in: 'path',
+          required: true,
+          description: 'Handle to look up (case-insensitive).',
+          schema: { type: 'string', pattern: '^[a-z0-9_-]{1,32}$' },
+        },
+        {
+          name: 'cursor',
+          in: 'query',
+          required: false,
+          description: 'Opaque pagination cursor from meta.nextCursor.',
+          schema: { type: 'string' },
+        },
+        {
+          name: 'limit',
+          in: 'query',
+          required: false,
+          description: 'Number of operations to return (default 25, max 100).',
+          schema: { type: 'integer', minimum: 1, maximum: 100, default: 25 },
+        },
+      ],
+      responses: {
+        '200': {
+          description: 'Paginated list of operations.',
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                required: ['data', 'meta'],
+                properties: {
+                  data: {
+                    type: 'array',
+                    items: { $ref: '#/components/schemas/Operation' },
+                  },
+                  meta: {
+                    type: 'object',
+                    required: ['nextCursor', 'total', 'truncated', 'cap', 'source'],
+                    properties: {
+                      nextCursor: {
+                        type: ['string', 'null'],
+                        description: 'Opaque cursor for the next page, or null.',
+                      },
+                      total: {
+                        type: ['integer', 'null'],
+                        description: 'Exact total count when database answered, otherwise null.',
+                      },
+                      truncated: {
+                        type: 'boolean',
+                        description: 'Whether records were capped.',
+                      },
+                      cap: {
+                        type: ['integer', 'null'],
+                        description: 'Cap applied to the read, or null.',
+                      },
+                      source: {
+                        type: 'string',
+                        description: "Layer that answered ('database' or 'horizon').",
+                      },
+                    },
+                    additionalProperties: false,
+                  },
+                },
+                additionalProperties: false,
+              },
+            },
+          },
+        },
+        '400': {
+          description: 'Invalid handle or pagination parameters.',
           content: {
             'application/json': {
               schema: { $ref: '#/components/schemas/ErrorEnvelope' },

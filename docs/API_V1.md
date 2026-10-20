@@ -187,6 +187,15 @@ Paging never lifts a cap: the cursor walks the bounded window, and
 `nextCursor: null` with `truncated: true` means "this is all the window holds",
 not "this is everything that exists".
 
+### Operations and pagination
+
+`GET /api/v1/profiles/{handle}/operations` provides cursor-based pagination over a profile's operations:
+
+- `data`: `[{ id, type, function, contract, sourceAccount, createdAt, txHash, successful }]`.
+- `asset_balance_changes` is dropped from v1: it is an internal Horizon representation rather than part of the stable Signet contract.
+- When the database answered, `meta.total` is an exact count integer.
+- On the Horizon fallback, `meta.total` is `null` (never a lower bound presented as an exact total), and the cursor never promises pages beyond the cap.
+
 ## Completeness
 
 `meta.source` says which layer answered, on every read whose answer depends on
