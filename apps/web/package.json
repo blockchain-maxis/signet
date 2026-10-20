@@ -10,6 +10,8 @@
     "typecheck": "tsc --noEmit",
     "lint": "eslint . --config ../../eslint.config.js",
     "docs:generate": "node --experimental-strip-types scripts/generate-api-docs.mts",
+    "openapi:export": "node --experimental-strip-types scripts/export-openapi.mts",
+    "openapi:check": "node --experimental-strip-types scripts/export-openapi.mts --check",
     "revoke:sessions": "node --experimental-strip-types scripts/revoke-sessions.mts",
     "test": "node --experimental-strip-types --test \"lib/**/*.test.ts\"",
     "test:e2e": "playwright test"
