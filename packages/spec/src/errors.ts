@@ -34,6 +34,19 @@ export class ContractNotFound extends SpecReadError {
   }
 }
 
+/** No contract-code ledger entry exists for the requested WASM hash. */
+export class WasmNotFound extends SpecReadError {
+  readonly kind = 'wasm_not_found' as const;
+  readonly wasmHash: string;
+  readonly network: Network;
+
+  constructor(wasmHash: string, network: Network) {
+    super(`WASM ${wasmHash} not found on ${network}`);
+    this.wasmHash = wasmHash;
+    this.network = network;
+  }
+}
+
 /**
  * Reasons why a deployed contract has no interface specification.
  */
@@ -98,6 +111,7 @@ export class InvalidWasm extends SpecReadError {
  */
 export type ConcreteSpecReadError =
   | ContractNotFound
+  | WasmNotFound
   | NoInterface
   | InterfaceUnreadable
   | RpcUnavailable
