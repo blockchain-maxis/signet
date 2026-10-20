@@ -198,6 +198,17 @@ enum: a new layer may be added, so an unknown value means "some other layer".
 A read that has no such dependency (a static spec addressed by WASM hash) omits
 `source`.
 
+### Wallet provenance sources
+
+Endpoints returning wallet records (`GET /api/v1/profiles/{handle}/wallets`) identify how each wallet link was proven via the `source` field:
+
+- `onchain`: The registry's claim. Proven directly on-chain via Identity Registry contract state.
+- `cli`: Browser consent plus key signature, recorded off-chain by this deployment.
+- `curated`: Legacy seed records from Phase 1.
+- `unknown`: An unrecognised provenance value read from storage, logged and surfaced without misattribution.
+
+These represent different strengths of proof: an `onchain` claim is attested by the ledger itself, whereas `cli` is an off-chain cryptographic signature verified and stored by this deployment.
+
 ## CORS
 
 - `Access-Control-Allow-Origin: *` on `GET`, `HEAD` and `OPTIONS` only.

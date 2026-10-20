@@ -181,6 +181,39 @@ export const schemas: Record<string, OpenApiSchema> = {
     },
     additionalProperties: false,
   },
+  HandleWallet: {
+    type: 'object',
+    required: ['address', 'isPrimary', 'source', 'linkedAt', 'indexingPending', 'network'],
+    properties: {
+      address: {
+        type: 'string',
+        pattern: '^[GC][A-Z2-7]{55}$',
+        description: 'Stellar account public key (G...) or contract ID (C...).',
+      },
+      isPrimary: {
+        type: 'boolean',
+        description: 'Whether this is the primary wallet for the handle.',
+      },
+      source: {
+        type: 'string',
+        description: "Provenance of the wallet link ('onchain', 'cli', 'curated', or 'unknown').",
+      },
+      linkedAt: {
+        type: ['string', 'null'],
+        format: 'date-time',
+        description: 'ISO-8601 UTC timestamp when the link was attested, or null.',
+      },
+      indexingPending: {
+        type: 'boolean',
+        description: 'True when the indexer has not yet finished scanning the wallet.',
+      },
+      network: {
+        type: 'string',
+        description: 'Network context.',
+      },
+    },
+    additionalProperties: false,
+  },
 
   Contract: {
     type: 'object',
@@ -373,7 +406,7 @@ export const paths: Record<string, OpenApiPathItem> = {
       operationId: 'getHealth',
       summary: 'Deployment health and identity',
       description:
-        "The operator probe's stable v1 form: per-dependency checks (including whether CLI pairing can work on this deployment), plus which network and API version this deployment serves. A degraded dependency still answers 200 with status \"degraded\".",
+        'The operator probe\'s stable v1 form: per-dependency checks (including whether CLI pairing can work on this deployment), plus which network and API version this deployment serves. A degraded dependency still answers 200 with status "degraded".',
       tags: ['Health'],
       responses: {
         '200': {
@@ -509,6 +542,87 @@ export const paths: Record<string, OpenApiPathItem> = {
                       source: {
                         type: 'string',
                         description: "Layer that answered ('database' or 'chain').",
+                      },
+                    },
+                    additionalProperties: false,
+                  },
+                },
+                additionalProperties: false,
+              },
+            },
+          },
+        },
+        '400': {
+          description: 'Invalid handle.',
+          content: {
+            'application/json': {
+              schema: { $ref: '#/components/schemas/ErrorEnvelope' },
+            },
+          },
+        },
+        '404': {
+          description: 'No profile for this handle.',
+          content: {
+            'application/json': {
+              schema: { $ref: '#/components/schemas/ErrorEnvelope' },
+            },
+          },
+        },
+        '429': {
+          description: 'Rate limit exceeded.',
+          content: {
+            'application/json': {
+              schema: { $ref: '#/components/schemas/ErrorEnvelope' },
+            },
+          },
+        },
+        '500': {
+          description: 'Internal server error.',
+          content: {
+            'application/json': {
+              schema: { $ref: '#/components/schemas/ErrorEnvelope' },
+            },
+          },
+        },
+      },
+    },
+  },
+  '/profiles/{handle}/wallets': {
+    get: {
+      operationId: 'getHandleWallets',
+      summary: 'Wallets linked to a handle',
+      description:
+        'All wallets attributed to a handle with provenance source and indexing status. Primary wallet is returned first.',
+      tags: ['Profiles'],
+      parameters: [
+        {
+          name: 'handle',
+          in: 'path',
+          required: true,
+          description: 'Handle to look up (case-insensitive).',
+          schema: { type: 'string', pattern: '^[a-z0-9_-]{1,32}$' },
+        },
+      ],
+      responses: {
+        '200': {
+          description: 'List of linked wallets.',
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                required: ['data', 'meta'],
+                properties: {
+                  data: {
+                    type: 'array',
+                    items: { $ref: '#/components/schemas/HandleWallet' },
+                  },
+                  meta: {
+                    type: 'object',
+                    required: ['source'],
+                    properties: {
+                      source: {
+                        type: 'string',
+                        description: "Layer that answered ('db' or 'chain').",
                       },
                     },
                     additionalProperties: false,
