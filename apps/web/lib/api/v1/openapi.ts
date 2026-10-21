@@ -573,6 +573,86 @@ export const paths: Record<string, OpenApiPathItem> = {
       },
     },
   },
+  '/registry/stats': {
+    get: {
+      operationId: 'getRegistryStats',
+      summary: 'Public registry and indexer counts',
+      description:
+        'Public counts for dashboards and ecosystem reports. Any count the deployment cannot compute is null, never 0.',
+      tags: ['Registry'],
+      responses: {
+        '200': {
+          description: 'The registry statistics.',
+          headers: {
+            'Cache-Control': {
+              schema: { type: 'string' },
+              description: 'public, s-maxage=300',
+            },
+          },
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                required: ['data'],
+                properties: {
+                  data: {
+                    type: 'object',
+                    required: [
+                      'network',
+                      'registryContract',
+                      'boundHandles',
+                      'indexedWallets',
+                      'indexedContracts',
+                    ],
+                    properties: {
+                      network: {
+                        type: 'string',
+                        description: 'The Stellar network this deployment is configured for.',
+                      },
+                      registryContract: {
+                        type: 'string',
+                        description: 'Configured Identity Registry contract address.',
+                      },
+                      boundHandles: {
+                        type: ['integer', 'null'],
+                        description: 'Total handles currently bound in the registry, or null if unreadable.',
+                      },
+                      indexedWallets: {
+                        type: ['integer', 'null'],
+                        description: 'Total wallets indexed in the database, or null if unavailable.',
+                      },
+                      indexedContracts: {
+                        type: ['integer', 'null'],
+                        description: 'Total contracts indexed in the database, or null if unavailable.',
+                      },
+                    },
+                    additionalProperties: false,
+                  },
+                },
+                additionalProperties: false,
+              },
+            },
+          },
+        },
+        '429': {
+          description: 'Rate limit exceeded.',
+          content: {
+            'application/json': {
+              schema: { $ref: '#/components/schemas/ErrorEnvelope' },
+            },
+          },
+        },
+        '500': {
+          description: 'Internal server error.',
+          content: {
+            'application/json': {
+              schema: { $ref: '#/components/schemas/ErrorEnvelope' },
+            },
+          },
+        },
+      },
+    },
+  },
   '/openapi.json': {
     get: {
       operationId: 'getOpenApiDocument',
