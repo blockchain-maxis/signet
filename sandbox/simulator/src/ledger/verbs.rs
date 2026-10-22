@@ -6,10 +6,9 @@ use base64::engine::general_purpose::STANDARD as BASE64;
 use base64::Engine;
 use serde_json::{json, Map, Value};
 
-use soroban_env_host::xdr::{LedgerEntry, LedgerKey, Limits, ReadXdr};
-
 use crate::dispatch::error_message;
-use crate::{LANES, PROTOCOL_VERSION};
+use crate::lanes::{Lane, LaneRegistry, UnsupportedLedgerProtocol};
+use crate::PROTOCOL_VERSION;
 
 use super::store::{LayeredStore, Lookup};
 
@@ -20,7 +19,9 @@ use super::store::{LayeredStore, Lookup};
 pub struct OpenLedger {
     pub store: LayeredStore,
     pub network_passphrase: String,
-    pub ledger_protocol: u32,
+    /// The lane that runs this ledger's protocol; it alone decodes the XDR
+    /// the store holds (#533).
+    pub lane: &'static dyn Lane,
     pub timestamp: u64,
 }
 
@@ -48,16 +49,37 @@ fn decode_b64(id: &Value, path: &str, value: &str) -> Result<Vec<u8>, Value> {
         .map_err(|_| invalid_field(id, path, "base64"))
 }
 
-fn decode_key(id: &Value, path: &str, value: &str) -> Result<LedgerKey, Value> {
+/// Base64 `LedgerKey` XDR, checked by the ledger's own lane.
+fn decode_key(lane: &dyn Lane, id: &Value, path: &str, value: &str) -> Result<Vec<u8>, Value> {
     let bytes = decode_b64(id, path, value)?;
-    LedgerKey::from_xdr(bytes, Limits::none())
-        .map_err(|_| invalid_field(id, path, "a base64 LedgerKey"))
+    lane.check_ledger_key(&bytes)
+        .map_err(|_| invalid_field(id, path, "a base64 LedgerKey"))?;
+    Ok(bytes)
 }
 
-fn decode_entry(id: &Value, path: &str, value: &str) -> Result<LedgerEntry, Value> {
+/// Base64 `LedgerEntry` XDR, checked by the ledger's own lane.
+fn decode_entry(lane: &dyn Lane, id: &Value, path: &str, value: &str) -> Result<Vec<u8>, Value> {
     let bytes = decode_b64(id, path, value)?;
-    LedgerEntry::from_xdr(bytes, Limits::none())
-        .map_err(|_| invalid_field(id, path, "a base64 LedgerEntry"))
+    lane.check_ledger_entry(&bytes)
+        .map_err(|_| invalid_field(id, path, "a base64 LedgerEntry"))?;
+    Ok(bytes)
+}
+
+/// The catalogue's `unsupported_ledger_protocol` error (schema/v1/error.json):
+/// `requested`/`supported` per the schema, and `networkProtocol` naming the
+/// network's protocol the caller asked to simulate.
+pub fn unsupported_ledger_protocol(id: &Value, unsupported: &UnsupportedLedgerProtocol) -> Value {
+    error_message(
+        id,
+        "unsupported_ledger_protocol",
+        format!("ledger protocol {} is not supported", unsupported.requested),
+        json!({
+            "kind": "ledger_protocol",
+            "requested": unsupported.requested,
+            "networkProtocol": unsupported.requested,
+            "supported": unsupported.supported,
+        }),
+    )
 }
 
 /// `ledger_open`: open (or reset) the ledger. Opening over an existing ledger
@@ -74,21 +96,21 @@ pub fn ledger_open(
     if passphrase.is_empty() {
         return invalid_field(id, "network_passphrase", "a non-empty string");
     }
-    let protocol = match object.get("ledger_protocol") {
-        None => LANES,
+    let registry = LaneRegistry::builtin();
+    let lane = match object.get("ledger_protocol") {
+        None => registry.newest(),
         Some(value) => match value.as_u64() {
-            Some(lane) if lane == u64::from(LANES) => LANES,
-            Some(_) => {
-                return error_message(
-                    id,
-                    "bad_request",
-                    format!("this binary runs ledger protocol {LANES} only"),
-                    json!({ "kind": "unsupported_lane", "supported": [LANES] }),
-                )
+            Some(protocol) => {
+                let protocol = u32::try_from(protocol).unwrap_or(u32::MAX);
+                match registry.for_protocol(protocol) {
+                    Ok(lane) => lane,
+                    Err(unsupported) => return unsupported_ledger_protocol(id, &unsupported),
+                }
             }
             None => return invalid_field(id, "ledger_protocol", "an integer"),
         },
     };
+    let protocol = lane.ledger_protocol();
     let sequence = match object.get("sequence") {
         None => 1,
         Some(value) => match value.as_u64() {
@@ -107,7 +129,7 @@ pub fn ledger_open(
     *ledger = Some(OpenLedger {
         store: LayeredStore::new(sequence),
         network_passphrase: passphrase.to_string(),
-        ledger_protocol: protocol,
+        lane,
         timestamp,
     });
     json!({
@@ -161,11 +183,16 @@ pub fn ledger_put(
                 }
             },
         };
-        let key = match decode_key(id, &format!("entries[{index}].key_xdr"), key_xdr) {
+        let key = match decode_key(open.lane, id, &format!("entries[{index}].key_xdr"), key_xdr) {
             Ok(key) => key,
             Err(error) => return error,
         };
-        let entry = match decode_entry(id, &format!("entries[{index}].entry_xdr"), entry_xdr) {
+        let entry = match decode_entry(
+            open.lane,
+            id,
+            &format!("entries[{index}].entry_xdr"),
+            entry_xdr,
+        ) {
             Ok(entry) => entry,
             Err(error) => return error,
         };
@@ -174,9 +201,7 @@ pub fn ledger_put(
 
     let written = writes.len();
     for (key, entry, live_until) in writes {
-        if open.store.insert_override(&key, entry, live_until).is_err() {
-            return invalid_field(id, "entries", "encodable ledger keys");
-        }
+        open.store.insert_override(&key, entry, live_until);
     }
     json!({
         "version": PROTOCOL_VERSION,
@@ -207,35 +232,25 @@ pub fn ledger_get(ledger: &Option<OpenLedger>, id: &Value, object: &Map<String, 
         let Some(key_xdr) = item.as_str() else {
             return invalid_field(id, &format!("keys_xdr[{index}]"), "a string");
         };
-        let key = match decode_key(id, &format!("keys_xdr[{index}]"), key_xdr) {
+        let key = match decode_key(open.lane, id, &format!("keys_xdr[{index}]"), key_xdr) {
             Ok(key) => key,
             Err(error) => return error,
         };
-        let lookup = match open.store.lookup(&key) {
-            Ok(lookup) => lookup,
-            Err(_) => return invalid_field(id, &format!("keys_xdr[{index}]"), "an encodable key"),
-        };
-        out.push(match lookup {
+        out.push(match open.store.lookup(&key) {
             Lookup::Live {
                 entry,
                 live_until,
                 provenance,
-            } => {
-                use soroban_env_host::xdr::WriteXdr;
-                let Ok(entry_xdr) = entry.to_xdr(Limits::none()) else {
-                    return invalid_field(id, &format!("keys_xdr[{index}]"), "an encodable entry");
-                };
-                json!({
-                    "key_xdr": key_xdr,
-                    "entry_xdr": BASE64.encode(entry_xdr),
-                    "live_until_ledger": live_until,
-                    "provenance": {
-                        "source": provenance.source.as_str(),
-                        "fetchedAtLedger": provenance.fetched_at_ledger,
-                        "lastModifiedLedgerSeq": provenance.last_modified_ledger_seq,
-                    },
-                })
-            }
+            } => json!({
+                "key_xdr": key_xdr,
+                "entry_xdr": BASE64.encode(&entry),
+                "live_until_ledger": live_until,
+                "provenance": {
+                    "source": provenance.source.as_str(),
+                    "fetchedAtLedger": provenance.fetched_at_ledger,
+                    "lastModifiedLedgerSeq": provenance.last_modified_ledger_seq,
+                },
+            }),
             Lookup::Archived {
                 live_until,
                 provenance,
@@ -314,33 +329,14 @@ pub fn ledger_rollback(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use soroban_env_host::xdr::{
-        ContractDataDurability, ContractDataEntry, Hash, LedgerEntryData, LedgerEntryExt,
-        LedgerKeyContractData, ScAddress, ScVal, WriteXdr,
-    };
+    use crate::lanes::p28::fixtures;
 
     fn key_b64(n: u32) -> String {
-        let key = LedgerKey::ContractData(LedgerKeyContractData {
-            contract: ScAddress::Contract(Hash([7u8; 32]).into()),
-            key: ScVal::U32(n),
-            durability: ContractDataDurability::Persistent,
-        });
-        BASE64.encode(key.to_xdr(Limits::none()).unwrap())
+        BASE64.encode(fixtures::data_key_xdr(n))
     }
 
     fn entry_b64(n: u32, v: u32) -> String {
-        let entry = LedgerEntry {
-            last_modified_ledger_seq: 0,
-            data: LedgerEntryData::ContractData(ContractDataEntry {
-                ext: soroban_env_host::xdr::ExtensionPoint::V0,
-                contract: ScAddress::Contract(Hash([7u8; 32]).into()),
-                key: ScVal::U32(n),
-                durability: ContractDataDurability::Persistent,
-                val: ScVal::U32(v),
-            }),
-            ext: LedgerEntryExt::V0,
-        };
-        BASE64.encode(entry.to_xdr(Limits::none()).unwrap())
+        BASE64.encode(fixtures::data_entry_xdr(n, v))
     }
 
     fn obj(raw: Value) -> Map<String, Value> {
@@ -358,7 +354,7 @@ mod tests {
             &obj(json!({ "network_passphrase": "Test SDF Network ; September 2015" })),
         );
         assert_eq!(reply["type"], "result");
-        assert_eq!(reply["ledger_protocol"], LANES);
+        assert_eq!(reply["ledger_protocol"], 28);
         assert_eq!(reply["sequence"], 1);
     }
 
@@ -432,5 +428,56 @@ mod tests {
         // Validation precedes writes: the first entry was not half-applied.
         let got = ledger_get(&ledger, &id(), &obj(json!({ "keys_xdr": [key_b64(1)] })));
         assert_eq!(got["entries"][0]["entry_xdr"], Value::Null);
+    }
+
+    #[test]
+    fn opening_an_unsupported_protocol_names_the_supported_lanes() {
+        let mut ledger = None;
+        let reply = ledger_open(
+            &mut ledger,
+            &id(),
+            &obj(json!({
+                "network_passphrase": "Test SDF Network ; September 2015",
+                "ledger_protocol": 29,
+            })),
+        );
+        assert_eq!(reply["type"], "error");
+        assert_eq!(reply["code"], "unsupported_ledger_protocol");
+        assert_eq!(reply["detail"]["kind"], "ledger_protocol");
+        assert_eq!(reply["detail"]["requested"], 29);
+        assert_eq!(reply["detail"]["networkProtocol"], 29);
+        assert_eq!(reply["detail"]["supported"], json!([28]));
+        assert!(ledger.is_none(), "a refused open leaves no ledger behind");
+    }
+
+    #[test]
+    fn opening_protocol_28_explicitly_selects_the_p28_lane() {
+        let mut ledger = None;
+        let reply = ledger_open(
+            &mut ledger,
+            &id(),
+            &obj(json!({
+                "network_passphrase": "Test SDF Network ; September 2015",
+                "ledger_protocol": 28,
+            })),
+        );
+        assert_eq!(reply["ledger_protocol"], 28);
+        assert_eq!(ledger.unwrap().lane.ledger_protocol(), 28);
+    }
+
+    #[test]
+    fn a_put_whose_key_is_not_a_ledger_key_is_refused_by_the_lane() {
+        let mut ledger = None;
+        open(&mut ledger);
+        let put = ledger_put(
+            &mut ledger,
+            &id(),
+            &obj(json!({ "entries": [
+                // Valid base64 and valid XDR, but an entry where a key belongs.
+                { "key_xdr": entry_b64(1, 1), "entry_xdr": entry_b64(1, 1) },
+            ] })),
+        );
+        assert_eq!(put["type"], "error");
+        assert_eq!(put["detail"]["path"], "entries[0].key_xdr");
     }
 }
