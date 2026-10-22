@@ -4,7 +4,13 @@ import { isRegistryConfigured, lookupWallet } from '@/lib/server/registry-read';
 import { stellarExpertAccountUrl } from '@/lib/network';
 import { walletSourceBadge } from '@/lib/wallet-source';
 import { UnlinkWalletButton } from './unlink-wallet-button';
-import { LinkDeployWalletPrompt } from '../../components/link-deploy-wallet-prompt';
+import { WalletsAutoRefresh } from './auto-refresh';
+import { CopyCommand } from '../../components/copy-command';
+import {
+  LinkDeployWalletPrompt,
+  CLI_LINK_COMMAND,
+  CLI_DOCS_URL,
+} from '../../components/link-deploy-wallet-prompt';
 
 function truncate(a: string): string {
   return a.length > 18 ? `${a.slice(0, 8)}…${a.slice(-6)}` : a;
@@ -30,13 +36,24 @@ export default async function WalletsPage() {
     const handle = await lookupWallet(address);
     if (handle) {
       wallets = [
-        { pubkey: address, isPrimary: true, source: 'onchain', attestedAt: '', indexingPending: false },
+        {
+          pubkey: address,
+          isPrimary: true,
+          source: 'onchain',
+          attestedAt: '',
+          indexingPending: false,
+        },
       ];
     }
   }
 
+  const anyIndexing = wallets.some((w) => w.indexingPending);
+
   return (
     <section>
+      {/* Re-fetches this page while a wallet is still being indexed, so the
+          badge below clears without a manual reload (#607). */}
+      <WalletsAutoRefresh pending={anyIndexing} />
       <h1
         className="text-[40px] font-bold leading-[0.96] tracking-[-0.025em] md:text-[56px]"
         style={display}
@@ -53,7 +70,7 @@ export default async function WalletsPage() {
         {wallets.length === 0 ? (
           <p className="px-6 py-6 text-[13px] leading-[1.7] text-[var(--text-muted)]" style={mono}>
             {registryConfigured
-              ? 'No wallets are linked yet. Claim a handle on-chain and the signing wallet is attributed here automatically.'
+              ? 'No wallets are linked yet. Claim a handle on-chain and the signing wallet is attributed here automatically, or link a deploy wallet from the terminal with npx @signet/cli link.'
               : 'The Identity Registry is not deployed on this network yet, so on-chain wallet bindings can’t be read.'}
           </p>
         ) : (
@@ -83,6 +100,13 @@ export default async function WalletsPage() {
                 >
                   {badgeFor(w.source).text}
                 </span>
+                {/* Primary wallets come from the on-chain claim and carry no
+                    link date; a terminal-linked wallet shows when it was attested. */}
+                {!w.isPrimary && w.attestedAt && (
+                  <time dateTime={w.attestedAt} className="text-[11px] text-[var(--text-muted)]" style={mono}>
+                    Linked {w.attestedAt}
+                  </time>
+                )}
                 {w.indexingPending && (
                   <span
                     className="text-[9px] uppercase tracking-[0.18em] text-[var(--text-accent)]"
@@ -121,7 +145,17 @@ export default async function WalletsPage() {
         Your handle is bound to one primary wallet on-chain — claiming again from another wallet
         creates a separate, unrelated profile rather than adding to this one. To attach an
         additional deploy wallet to this profile, run{' '}
-        <code className="text-[#b8b5a8]">npx @signet/cli link</code> from the terminal.
+        <code className="text-[#b8b5a8]">{CLI_LINK_COMMAND}</code> from the terminal; it takes no
+        handle, because the handle is whoever approves in the browser.{' '}
+        <CopyCommand command={CLI_LINK_COMMAND} />{' '}
+        <a
+          href={CLI_DOCS_URL}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-[var(--text-accent)] underline transition-colors hover:text-[var(--text-accent)]"
+        >
+          CLI docs<span className="sr-only"> (opens in a new tab)</span>
+        </a>
       </p>
     </section>
   );
