@@ -65,7 +65,10 @@ test('address spec: public schema-validated 200 with ETag and short mapping cach
   assert.equal(res.headers.get('etag'), `"${HASH}"`);
   assert.equal(res.headers.get('cache-control'), 'public, max-age=300, s-maxage=3600');
   assert.equal(res.headers.get('access-control-allow-origin'), '*');
-  assert.equal(res.headers.get('access-control-expose-headers'), 'ETag, Cache-Control');
+  assert.equal(
+    res.headers.get('access-control-expose-headers'),
+    'ETag, Cache-Control, RateLimit-Limit, RateLimit-Remaining, RateLimit-Reset, Retry-After, Deprecation, Sunset',
+  );
   assert.equal(res.headers.get('ratelimit-limit'), '60');
   const body = (await expectMatchesSchema(res, 'getContractSpec')) as {
     data: Record<string, unknown>;
@@ -97,7 +100,10 @@ test('conditional GET: exact, weak, list and wildcard matches return bodyless 30
     assert.equal(res.status, 304);
     assert.equal(await res.text(), '');
     assert.equal(res.headers.get('etag'), `"${HASH}"`);
-    assert.equal(res.headers.get('access-control-expose-headers'), 'ETag, Cache-Control');
+    assert.equal(
+      res.headers.get('access-control-expose-headers'),
+      'ETag, Cache-Control, RateLimit-Limit, RateLimit-Remaining, RateLimit-Reset, Retry-After, Deprecation, Sunset',
+    );
     assert.equal(res.headers.get('cache-control'), 'public, max-age=300, s-maxage=3600');
     await expectMatchesSchema(res, 'getContractSpec');
   }
