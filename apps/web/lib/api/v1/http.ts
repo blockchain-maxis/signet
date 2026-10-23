@@ -355,12 +355,28 @@ export function matchIfNoneMatch(ifNoneMatch: string | null, etag: string | null
   return candidates.includes(target);
 }
 
+const EXPOSED_HEADERS = [
+  'ETag',
+  'RateLimit-Limit',
+  'RateLimit-Remaining',
+  'RateLimit-Reset',
+  'Retry-After',
+  'Deprecation',
+  'Sunset',
+];
+
 function applyCorsAndRateHeaders(headers: Headers, rateHeaders: Record<string, string>): void {
   headers.set('Access-Control-Allow-Origin', '*');
-  headers.set(
-    'Access-Control-Expose-Headers',
-    'ETag, RateLimit-Limit, RateLimit-Remaining, RateLimit-Reset, Retry-After, Deprecation, Sunset',
-  );
+  // Keep anything a handler already exposes (e.g. Cache-Control on spec routes).
+  const exposed = (headers.get('Access-Control-Expose-Headers') ?? '')
+    .split(',')
+    .map((name) => name.trim())
+    .filter(Boolean);
+  const seen = new Set(exposed.map((name) => name.toLowerCase()));
+  for (const name of EXPOSED_HEADERS) {
+    if (!seen.has(name.toLowerCase())) exposed.push(name);
+  }
+  headers.set('Access-Control-Expose-Headers', exposed.join(', '));
   for (const [k, v] of Object.entries(rateHeaders)) {
     headers.set(k, v);
   }
