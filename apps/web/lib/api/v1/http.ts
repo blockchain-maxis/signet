@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { isValidHandle } from '@signet/types';
 import { verifyApiKey, type ApiKeyStore } from '../../api-keys.ts';
 import { logger } from '../../logger.ts';
@@ -182,6 +183,8 @@ export function withV1(
             'Access-Control-Allow-Origin': '*',
             'Access-Control-Allow-Methods': 'GET, HEAD, OPTIONS',
             'Access-Control-Allow-Headers': 'Content-Type, Authorization, If-None-Match',
+            'Access-Control-Expose-Headers':
+              'ETag, RateLimit-Limit, RateLimit-Remaining, RateLimit-Reset, Retry-After, Deprecation, Sunset',
             'Access-Control-Max-Age': '86400',
           },
         }),
@@ -272,12 +275,108 @@ export function withV1(
       response.headers.set('Cache-Control', cacheHeader);
     }
 
+    // 6. ETag and conditional request handling (skip on no-store)
+    const cacheControl = response.headers.get('Cache-Control') ?? '';
+    const isNoStore = cacheControl.includes('no-store');
+
+    if (response.status === 200 && !isNoStore) {
+      let etag = response.headers.get('ETag');
+      const isStrongEtag = Boolean(etag && !etag.startsWith('W/') && !etag.startsWith('w/'));
+
+      let bodyText: string | null = null;
+      if (!isStrongEtag) {
+        bodyText = await response.text();
+        const hash = createHash('sha1').update(bodyText).digest('hex');
+        etag = `W/"${hash}"`;
+        response.headers.set('ETag', etag);
+      }
+
+      const ifNoneMatch = req.headers.get('If-None-Match');
+      if (etag && matchIfNoneMatch(ifNoneMatch, etag)) {
+        const notModifiedHeaders = new Headers();
+        if (response.headers.has('Cache-Control')) {
+          notModifiedHeaders.set('Cache-Control', response.headers.get('Cache-Control')!);
+        }
+        notModifiedHeaders.set('ETag', etag);
+        applyCorsAndRateHeaders(notModifiedHeaders, rateLimitHeaders);
+        for (const h of ['Deprecation', 'Sunset']) {
+          const val = response.headers.get(h);
+          if (val) notModifiedHeaders.set(h, val);
+        }
+        return logAndReturn(
+          new Response(null, {
+            status: 304,
+            headers: notModifiedHeaders,
+          }),
+        );
+      }
+
+      if (bodyText !== null) {
+        response = new Response(bodyText, {
+          status: response.status,
+          statusText: response.statusText,
+          headers: response.headers,
+        });
+      }
+    }
+
+    if (method === 'HEAD') {
+      return logAndReturn(
+        new Response(null, {
+          status: response.status,
+          statusText: response.statusText,
+          headers: response.headers,
+        }),
+      );
+    }
+
     return logAndReturn(response);
   };
 }
 
+/**
+ * Checks whether an incoming If-None-Match header matches the response ETag using HTTP weak comparison.
+ */
+export function matchIfNoneMatch(ifNoneMatch: string | null, etag: string | null): boolean {
+  if (!ifNoneMatch || !etag) return false;
+  const trimmed = ifNoneMatch.trim();
+  if (trimmed === '*') return true;
+
+  const normalize = (tag: string) => {
+    let t = tag.trim();
+    if (t.startsWith('W/') || t.startsWith('w/')) {
+      t = t.slice(2);
+    }
+    return t;
+  };
+
+  const target = normalize(etag);
+  const candidates = trimmed.split(',').map(normalize);
+  return candidates.includes(target);
+}
+
+const EXPOSED_HEADERS = [
+  'ETag',
+  'RateLimit-Limit',
+  'RateLimit-Remaining',
+  'RateLimit-Reset',
+  'Retry-After',
+  'Deprecation',
+  'Sunset',
+];
+
 function applyCorsAndRateHeaders(headers: Headers, rateHeaders: Record<string, string>): void {
   headers.set('Access-Control-Allow-Origin', '*');
+  // Keep anything a handler already exposes (e.g. Cache-Control on spec routes).
+  const exposed = (headers.get('Access-Control-Expose-Headers') ?? '')
+    .split(',')
+    .map((name) => name.trim())
+    .filter(Boolean);
+  const seen = new Set(exposed.map((name) => name.toLowerCase()));
+  for (const name of EXPOSED_HEADERS) {
+    if (!seen.has(name.toLowerCase())) exposed.push(name);
+  }
+  headers.set('Access-Control-Expose-Headers', exposed.join(', '));
   for (const [k, v] of Object.entries(rateHeaders)) {
     headers.set(k, v);
   }
@@ -288,7 +387,9 @@ function applyCorsAndRateHeaders(headers: Headers, rateHeaders: Record<string, s
  * Normalizes to lowercase and asserts validity against @signet/types isValidHandle.
  */
 export function parseHandle(raw: unknown): string {
-  const handle = String(raw ?? '').trim().toLowerCase();
+  const handle = String(raw ?? '')
+    .trim()
+    .toLowerCase();
   if (!handle || !isValidHandle(handle)) {
     throw new V1Error('bad_request', `Invalid handle "${handle}".`, { parameter: 'handle' });
   }
@@ -300,9 +401,7 @@ export function parseHandle(raw: unknown): string {
  */
 export function parseAddress(raw: unknown, kind?: 'G' | 'C'): string {
   const address = String(raw ?? '').trim();
-  const valid = kind
-    ? isValidStellarAddress(address, kind)
-    : STELLAR_ADDR_RE.test(address);
+  const valid = kind ? isValidStellarAddress(address, kind) : STELLAR_ADDR_RE.test(address);
 
   if (!valid) {
     const desc =

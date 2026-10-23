@@ -1,3 +1,5 @@
+import specJsonSchema from '../../../../../packages/spec/schema/spec-json.v1.schema.json' with { type: 'json' };
+
 /**
  * OpenAPI 3.1.0 specification and JSON Schema components for API v1.
  *
@@ -83,10 +85,29 @@ export interface OpenApiDocument {
   };
 }
 
+/** Bundle the canonical schema without copying its fields or requiring clients
+ * to fetch an external schema URL. Rebase its local definition references to
+ * the component location; the Draft 7 constructs used here also work in 2020-12.
+ */
+function specJsonComponent(node: unknown): unknown {
+  if (Array.isArray(node)) return node.map(specJsonComponent);
+  if (!node || typeof node !== 'object') return node;
+  return Object.fromEntries(
+    Object.entries(node).flatMap(([key, value]) => {
+      if (key === '$id' || key === '$schema') return [];
+      if (key === '$ref' && typeof value === 'string' && value.startsWith('#/')) {
+        return [[key, `#/components/schemas/SpecJson${value.slice(1)}`]];
+      }
+      return [[key, specJsonComponent(value)]];
+    }),
+  );
+}
+
 /**
  * Standard schemas conforming to JSON Schema 2020-12 / OpenAPI 3.1.
  */
 export const schemas: Record<string, OpenApiSchema> = {
+  SpecJson: specJsonComponent(specJsonSchema) as OpenApiSchema,
   Error: {
     type: 'object',
     required: ['code', 'message'],
@@ -177,6 +198,39 @@ export const schemas: Record<string, OpenApiSchema> = {
       indexingPending: {
         type: 'boolean',
         description: 'True when the indexer has not yet finished scanning the wallet.',
+      },
+    },
+    additionalProperties: false,
+  },
+  HandleWallet: {
+    type: 'object',
+    required: ['address', 'isPrimary', 'source', 'linkedAt', 'indexingPending', 'network'],
+    properties: {
+      address: {
+        type: 'string',
+        pattern: '^[GC][A-Z2-7]{55}$',
+        description: 'Stellar account public key (G...) or contract ID (C...).',
+      },
+      isPrimary: {
+        type: 'boolean',
+        description: 'Whether this is the primary wallet for the handle.',
+      },
+      source: {
+        type: 'string',
+        description: "Provenance of the wallet link ('onchain', 'cli', 'curated', or 'unknown').",
+      },
+      linkedAt: {
+        type: ['string', 'null'],
+        format: 'date-time',
+        description: 'ISO-8601 UTC timestamp when the link was attested, or null.',
+      },
+      indexingPending: {
+        type: 'boolean',
+        description: 'True when the indexer has not yet finished scanning the wallet.',
+      },
+      network: {
+        type: 'string',
+        description: 'Network context.',
       },
     },
     additionalProperties: false,
@@ -364,10 +418,94 @@ export const schemas: Record<string, OpenApiSchema> = {
   },
 };
 
+function specPath(byAddress: boolean): OpenApiPathItem {
+  const name = byAddress ? 'address' : 'wasmHash';
+  const errorResponse: OpenApiResponse = {
+    description:
+      'A standard v1 error. Missing contracts and embedded specs have distinct details.reason.',
+    content: { 'application/json': { schema: { $ref: '#/components/schemas/ErrorEnvelope' } } },
+  };
+  return {
+    get: {
+      operationId: byAddress ? 'getContractSpec' : 'getSpecByHash',
+      summary: byAddress
+        ? 'Embedded contract specification'
+        : 'Embedded specification by WASM hash',
+      description: byAddress
+        ? 'Public chain data, without an attribution gate or registry fallback. The address mapping is short-lived: public, max-age=300, s-maxage=3600. Missing contracts return no_contract; a contract without an embedded interface returns no_embedded_spec.'
+        : 'Read an immutable embedded specification directly by its hash. Public caching for one year with immutable; a missing code entry returns no_wasm.',
+      tags: ['Specifications'],
+      parameters: [
+        {
+          name,
+          in: 'path',
+          required: true,
+          schema: { type: 'string', pattern: byAddress ? '^C[A-Z2-7]{55}$' : '^[0-9a-fA-F]{64}$' },
+        },
+        { name: 'If-None-Match', in: 'header', schema: { type: 'string' } },
+      ],
+      responses: {
+        '200': {
+          description: 'The embedded specification. ETag is the quoted WASM hash.',
+          headers: {
+            ETag: { schema: { type: 'string' } },
+            'Cache-Control': { schema: { type: 'string' } },
+          },
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                required: ['data'],
+                additionalProperties: false,
+                properties: {
+                  data: {
+                    type: 'object',
+                    additionalProperties: false,
+                    required: [
+                      ...(byAddress ? ['address'] : []),
+                      'network',
+                      'wasmHash',
+                      'spec',
+                      'specSource',
+                    ],
+                    properties: {
+                      ...(byAddress
+                        ? { address: { type: 'string', pattern: '^C[A-Z2-7]{55}$' } }
+                        : {}),
+                      network: { type: 'string' },
+                      wasmHash: { type: 'string', pattern: '^[0-9a-f]{64}$' },
+                      spec: { $ref: '#/components/schemas/SpecJson' },
+                      specSource: { type: 'string', const: 'embedded' },
+                    },
+                  },
+                },
+              },
+            },
+          },
+        },
+        '304': {
+          description: 'If-None-Match matched. Empty body; ETag and Cache-Control retained.',
+          headers: {
+            ETag: { schema: { type: 'string' } },
+            'Cache-Control': { schema: { type: 'string' } },
+          },
+        },
+        '400': errorResponse,
+        '404': errorResponse,
+        '429': errorResponse,
+        '500': errorResponse,
+        '503': errorResponse,
+      },
+    },
+  };
+}
+
 /**
  * Modular paths registry. Each endpoint issue (#627 to #646) registers or adds its path.
  */
 export const paths: Record<string, OpenApiPathItem> = {
+  '/contracts/{address}/spec': specPath(true),
+  '/specs/{wasmHash}': specPath(false),
   '/health': {
     get: {
       operationId: 'getHealth',
@@ -632,6 +770,87 @@ export const paths: Record<string, OpenApiPathItem> = {
         },
         '400': {
           description: 'Invalid handle or pagination parameters.',
+          content: {
+            'application/json': {
+              schema: { $ref: '#/components/schemas/ErrorEnvelope' },
+            },
+          },
+        },
+        '404': {
+          description: 'No profile for this handle.',
+          content: {
+            'application/json': {
+              schema: { $ref: '#/components/schemas/ErrorEnvelope' },
+            },
+          },
+        },
+        '429': {
+          description: 'Rate limit exceeded.',
+          content: {
+            'application/json': {
+              schema: { $ref: '#/components/schemas/ErrorEnvelope' },
+            },
+          },
+        },
+        '500': {
+          description: 'Internal server error.',
+          content: {
+            'application/json': {
+              schema: { $ref: '#/components/schemas/ErrorEnvelope' },
+            },
+          },
+        },
+      },
+    },
+  },
+  '/profiles/{handle}/wallets': {
+    get: {
+      operationId: 'getHandleWallets',
+      summary: 'Wallets linked to a handle',
+      description:
+        'All wallets attributed to a handle with provenance source and indexing status. Primary wallet is returned first.',
+      tags: ['Profiles'],
+      parameters: [
+        {
+          name: 'handle',
+          in: 'path',
+          required: true,
+          description: 'Handle to look up (case-insensitive).',
+          schema: { type: 'string', pattern: '^[a-z0-9_-]{1,32}$' },
+        },
+      ],
+      responses: {
+        '200': {
+          description: 'List of linked wallets.',
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                required: ['data', 'meta'],
+                properties: {
+                  data: {
+                    type: 'array',
+                    items: { $ref: '#/components/schemas/HandleWallet' },
+                  },
+                  meta: {
+                    type: 'object',
+                    required: ['source'],
+                    properties: {
+                      source: {
+                        type: 'string',
+                        description: "Layer that answered ('db' or 'chain').",
+                      },
+                    },
+                    additionalProperties: false,
+                  },
+                },
+                additionalProperties: false,
+              },
+            },
+          },
+        },
+        '400': {
+          description: 'Invalid handle.',
           content: {
             'application/json': {
               schema: { $ref: '#/components/schemas/ErrorEnvelope' },

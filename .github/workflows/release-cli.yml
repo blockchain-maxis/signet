@@ -23,6 +23,11 @@ name: Release CLI
 # the PR dry run (release-cli-dry-run.yml), which calls the same
 # build-simulator.yml, so the two cannot drift.
 #
+# Before anything is published, scripts/release/verify-artifacts.sh checks that
+# every platform package and every archive holds both binaries and that
+# checksums.txt verifies. The dry run calls the same script, so the invariant is
+# enforced identically in review and in a real release.
+#
 # glibc floor: the Linux simulators are *-unknown-linux-gnu built on Ubuntu
 # 24.04 runners, so they need glibc >= 2.39. The Go binary is static; only the
 # simulator has this floor.
@@ -106,6 +111,13 @@ jobs:
           SIMULATOR_DIR: simulator-artifacts
         run: scripts/release/build-cli.sh
 
+      # Refuse to publish a release whose archives or platform packages are
+      # missing either binary, or whose checksums.txt does not verify.
+      - name: Verify both binaries in every artifact
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: scripts/release/verify-artifacts.sh
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v3
         with:
@@ -122,7 +134,12 @@ jobs:
         working-directory: cli
         run: |
           set -euo pipefail
-          for dir in npm/cli-linux-x64 npm/cli-linux-arm64 npm/cli-darwin-arm64 npm/cli-darwin-x64 npm/cli-windows-x64 npm/cli; do
+          shopt -s nullglob
+          # Every staged platform package, then the shim. Deriving the list from
+          # the staged directories keeps a newly added target from being
+          # forgotten here.
+          for dir in npm/cli-*/ npm/cli; do
+            [[ -f "${dir}package.json" ]] || continue
             npm publish "$dir" --provenance --access public
           done
         env:
