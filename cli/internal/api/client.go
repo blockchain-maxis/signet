@@ -264,6 +264,16 @@ func (c *Client) once(ctx context.Context, method, path string, encoded []byte, 
 			_, _ = io.Copy(io.Discard, resp.Body)
 			return resp.StatusCode, 0, nil
 		}
+		if text, ok := out.(*rawText); ok {
+			// A plain-text document (stellar.toml), not JSON. Bounded: the
+			// body comes from whatever answers at the configured URL.
+			body, err := io.ReadAll(io.LimitReader(resp.Body, maxTextBytes))
+			if err != nil {
+				return resp.StatusCode, 0, fmt.Errorf("%w: reading response: %s", exitcode.ErrNetwork, redact.Secrets(err.Error()))
+			}
+			*text = rawText(body)
+			return resp.StatusCode, 0, nil
+		}
 		if err := json.NewDecoder(resp.Body).Decode(out); err != nil {
 			return resp.StatusCode, 0, fmt.Errorf("%w: decoding response: %s", exitcode.ErrNetwork, redact.Secrets(err.Error()))
 		}

@@ -60,6 +60,15 @@ secret. Install instructions:
 signet link
 ```
 
+0. **Check the network.** signet reads the deployment's
+   `GET /.well-known/stellar.toml` and compares its `NETWORK_PASSPHRASE` with
+   the network the command resolved (`--network`, `SIGNET_NETWORK`, the
+   context, or the default `testnet`). A deployment serves exactly one
+   network, so a mismatch stops here with exit `3`, naming both networks and
+   the fix — before an identity is resolved or a pairing is opened. A
+   deployment that publishes no `stellar.toml` (a `404`) is not refused: the
+   server still checks the network at `pair/start`. `signet unlink` runs the
+   same check first. See [Network names and passphrases](#network-names-and-passphrases).
 1. **Resolve the deploy identity.** `stellar keys ls` / `stellar keys address`
    turn your chosen identity into a public key. If you have exactly one
    identity it is used; if you have several you are asked which. *Proves
@@ -317,6 +326,7 @@ Stable, so scripts can branch on the code rather than on message text.
 | Symptom | Cause | Fix |
 | --- | --- | --- |
 | Not sure which key you are linked as | Several keystore identities, and the config file remembers one | `signet whoami` — it prints the identity, its public key, the deployment, and the handle |
+| `signet is set to network mainnet, but … serves testnet` (exit `3`) | The deployment is configured for a different network than the one signet resolved (from `--network`, `SIGNET_NETWORK` or the context) | Pass the deployment's network, e.g. `--network testnet`, or switch to a context for that network with `signet context use <name>` |
 | `no identity available` (exit `4`) | No identity in the `stellar` keystore, or the named one does not exist | `stellar keys ls` to see what you have; `stellar keys generate <name>` or `stellar keys add <name> --secret-key …`; then `signet link --source <name>` |
 | `stellar CLI not found on PATH` (exit `3`) | signet cannot sign without it | Install it: <https://developers.stellar.org/docs/tools/cli/install-cli> |
 | `stellar CLI is older than the required minimum version` (exit `3`) | Older than 25.2.0, so `tx sign --sign-with-key` / stdin are missing | Upgrade `stellar` |
@@ -459,6 +469,31 @@ A **passphrase** appears only where Stellar's own signing needs it.
 does this before any row exists, so a mismatch no longer surfaces only after
 the user has approved in the browser. `complete` checks the network again,
 which only matters if the deployment's configuration changed in between.
+
+Since #618 the CLI checks first. `signet link` and `signet unlink` read the
+deployment's `stellar.toml` (`NETWORK_PASSPHRASE`, `SIGNING_KEY` and
+`WEB_AUTH_ENDPOINT` only, once per process) before any other request, and map
+the passphrase back to its name with the table above
+(`packages/types/src/network.ts`). A mismatch is a configuration error,
+exit `3`:
+
+```text
+configuration error: signet is set to network mainnet, but https://signet.example serves testnet ("Test SDF Network ; September 2015"); use --network testnet, or signet context use <name> for a context on testnet
+```
+
+A network name signet does not recognise cannot match any deployment, so it
+fails the same way. A deployment on a custom network is named by its
+passphrase.
+
+**The `stellar` CLI's own default network is not checked.** `stellar` keeps a
+default network of its own (`stellar network use`), and it can differ from
+both `--network` and the deployment. Detecting it would mean parsing
+`stellar env` / `stellar network ls` output, which is not a stable interface
+across the `stellar` versions signet supports, so signet does not read it and
+does not warn about it. It does not need to: signet never relies on that
+default. Every signature passes the deployment's `network_passphrase`
+explicitly (`stellar tx sign --network-passphrase …`, #602), so signing is
+correct whichever network `stellar` defaults to.
 
 ### How a response becomes an exit code
 

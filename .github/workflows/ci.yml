@@ -80,6 +80,19 @@ jobs:
       - name: Check CLI spec Go sync
         run: node scripts/check-cli-spec-go.mjs
 
+      # Fails when docs/api/openapi-v1.json is out of sync with the TypeScript
+      # schema definitions in apps/web/lib/api/v1/openapi.ts.
+      - name: Check OpenAPI snapshot freshness
+        run: node --experimental-strip-types apps/web/scripts/export-openapi.mts --check
+
+      # Fails on breaking changes to OpenAPI v1 compared against main snapshot.
+      - name: Check OpenAPI breaking changes
+        run: node scripts/check-openapi-breaking.mjs
+
+      # Runs fixture unit tests for the breaking change detector.
+      - name: Test OpenAPI breaking change detector
+        run: node --test scripts/check-openapi-breaking.test.mjs
+
   web:
     name: lint • typecheck • test • build
     runs-on: ubuntu-latest

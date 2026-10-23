@@ -122,6 +122,14 @@ simulator and never decodes them, so the CLI does not depend on
 inside Rust. Anything Go needs to look inside (a spec, a value, a transaction,
 a ledger key) is a message that returns JSON.
 
+Inside Rust the same rule holds one level down ([#533](https://github.com/blockchain-maxis/signet/issues/533)):
+the ledger store and the dispatcher keep XDR as bytes, and only
+`sandbox/simulator/src/lanes/` names `soroban-env-host`, `soroban-simulation`
+or `stellar-xdr`. Each `Lane` (today `lanes/p28.rs`) decodes with its own XDR
+crate, and `LaneRegistry::for_protocol` picks the lane for a ledger, so a second
+protocol is a new lane module rather than a change to the store or the verbs. A
+unit test fails the build if a versioned type leaks outside `lanes/`.
+
 | `type`              | What it does                                                                   | Request fields                                                            | `result` fields                                                       |
 | ------------------- | ------------------------------------------------------------------------------ | ------------------------------------------------------------------------- | --------------------------------------------------------------------- |
 | `ledger_open`       | Open or reset the in-memory ledger a session simulates against                 | `network_passphrase`; optional `ledger_protocol`, `sequence`, `timestamp` | `ledger_protocol`, `sequence`                                         |
@@ -211,7 +219,7 @@ cannot be the default way state reaches the simulator.
 | `bad_request`                 | The line or the message is not valid                                                                                                                                | `line_too_long`, `invalid_utf8`, `invalid_json`, `not_an_object`, `invalid_field` (with `path`), `unknown_type`, `handshake_required`, `already_greeted` |
 | `unsupported_version`         | `version` is not the protocol version this binary speaks                                                                                                            | `version_mismatch` (with `expected`, `received`)                                                                                                         |
 | `internal_panic`              | The simulator panicked; the last line before a non-zero exit                                                                                                        | `panic`                                                                                                                                                  |
-| `unsupported_ledger_protocol` | `ledger_open` asked for a lane this binary does not carry ([#533](https://github.com/blockchain-maxis/signet/issues/533))                                           | `ledger_protocol` (with `requested`, `supported`)                                                                                                        |
+| `unsupported_ledger_protocol` | `ledger_open` asked for a lane this binary does not carry ([#533](https://github.com/blockchain-maxis/signet/issues/533))                                           | `ledger_protocol` (with `requested`, `networkProtocol` (same value), `supported`)                                                                         |
 | `fetch_failed`                | Go could not answer a `ledger_fetch` ([#531](https://github.com/blockchain-maxis/signet/issues/531), [#535](https://github.com/blockchain-maxis/signet/issues/535)) | `rpc_unavailable`, `timeout`, `rejected`                                                                                                                 |
 | `resource_limit`              | A request went over a limit the simulator enforces ([#536](https://github.com/blockchain-maxis/signet/issues/536))                                                  | `cpu_budget`, `memory_budget`, `ledger_entries`, `wasm_size`                                                                                             |
 

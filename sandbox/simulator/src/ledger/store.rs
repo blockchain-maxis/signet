@@ -21,12 +21,15 @@
 //! reads as [`Lookup::Archived`], matching the host's refusal to touch an
 //! expired entry rather than pretending it is absent.
 
+//!
+//! Keys and entries are kept as XDR bytes (#533): the store never decodes
+//! them, so it serves every protocol lane alike, and each lane decodes with
+//! its own XDR crate through [`ByteSnapshotSource`].
+
 use std::collections::HashMap;
 use std::rc::Rc;
 
-use soroban_env_host::storage::{EntryWithLiveUntil, SnapshotSource};
-use soroban_env_host::xdr::{LedgerEntry, LedgerKey, Limits, WriteXdr};
-use soroban_env_host::HostError;
+use crate::lanes::ByteSnapshotSource;
 
 /// Which layer an entry came from — the provenance half every consumer of
 /// `ledger_get` sees, so a surprising value can always be traced to the fork,
@@ -67,7 +70,7 @@ pub struct Provenance {
 #[allow(dead_code)] // `Tombstone` is written by `apply_modified` (see `Source`).
 enum Slot {
     Entry {
-        entry: Rc<LedgerEntry>,
+        entry: Rc<[u8]>,
         live_until: Option<u32>,
         provenance: Provenance,
     },
@@ -80,7 +83,7 @@ enum Slot {
 #[derive(Clone, Debug)]
 pub enum Lookup {
     Live {
-        entry: Rc<LedgerEntry>,
+        entry: Rc<[u8]>,
         live_until: Option<u32>,
         provenance: Provenance,
     },
@@ -93,24 +96,16 @@ pub enum Lookup {
 }
 
 /// Key type for the maps: the XDR bytes of the `LedgerKey`, so equality is
-/// exactly the wire's and no `Ord`/`Hash` impl on the XDR type is needed.
+/// exactly the wire's and no `Ord`/`Hash` impl on any XDR type is needed.
 type KeyBytes = Vec<u8>;
-
-fn key_bytes(key: &LedgerKey) -> Result<KeyBytes, HostError> {
-    key.to_xdr(Limits::none()).map_err(|_| {
-        HostError::from(soroban_env_host::Error::from_type_and_code(
-            soroban_env_host::xdr::ScErrorType::Value,
-            soroban_env_host::xdr::ScErrorCode::InvalidInput,
-        ))
-    })
-}
 
 /// An entry written by [`LayeredStore::apply_modified`] or `ledger_put`.
 #[allow(dead_code)] // produced by #534's simulate handler; unit-tested today.
 pub struct Write {
-    pub key: LedgerKey,
-    /// `None` deletes the key (a tombstone in the receiving layer).
-    pub entry: Option<LedgerEntry>,
+    /// `LedgerKey` XDR.
+    pub key: Vec<u8>,
+    /// `LedgerEntry` XDR; `None` deletes the key (a tombstone in the receiving layer).
+    pub entry: Option<Vec<u8>>,
     pub live_until: Option<u32>,
 }
 
@@ -169,14 +164,13 @@ impl LayeredStore {
     #[allow(dead_code)] // consumed by #531/#534; unit-tested today.
     pub fn insert_base(
         &mut self,
-        key: &LedgerKey,
-        entry: LedgerEntry,
+        key: &[u8],
+        entry: Vec<u8>,
         live_until: Option<u32>,
         fetched_at_ledger: u32,
-    ) -> Result<(), HostError> {
-        let bytes = key_bytes(key)?;
+    ) {
         let slot = Slot::Entry {
-            entry: Rc::new(entry),
+            entry: entry.into(),
             live_until,
             provenance: Provenance {
                 source: Source::Fork,
@@ -184,22 +178,15 @@ impl LayeredStore {
                 last_modified_ledger_seq: self.sequence,
             },
         };
-        if self.base.insert(bytes, slot).is_none() {
+        if self.base.insert(key.to_vec(), slot).is_none() {
             self.stored += 1;
         }
-        Ok(())
     }
 
     /// Apply one `--set-storage` override (`ledger_put`).
-    pub fn insert_override(
-        &mut self,
-        key: &LedgerKey,
-        entry: LedgerEntry,
-        live_until: Option<u32>,
-    ) -> Result<(), HostError> {
-        let bytes = key_bytes(key)?;
+    pub fn insert_override(&mut self, key: &[u8], entry: Vec<u8>, live_until: Option<u32>) {
         let slot = Slot::Entry {
-            entry: Rc::new(entry),
+            entry: entry.into(),
             live_until,
             provenance: Provenance {
                 source: Source::Override,
@@ -207,10 +194,9 @@ impl LayeredStore {
                 last_modified_ledger_seq: self.sequence,
             },
         };
-        if self.overrides.insert(bytes, slot).is_none() {
+        if self.overrides.insert(key.to_vec(), slot).is_none() {
             self.stored += 1;
         }
-        Ok(())
     }
 
     /// Apply a `simulate` result's `modified_entries` to the session layer:
@@ -218,12 +204,11 @@ impl LayeredStore {
     /// and deletions (tombstones) all land here, so call 2 sees call 1's
     /// writes while the fork and the overrides stay untouched.
     #[allow(dead_code)] // consumed by #531/#534; unit-tested today.
-    pub fn apply_modified<I>(&mut self, writes: I) -> Result<(), HostError>
+    pub fn apply_modified<I>(&mut self, writes: I)
     where
         I: IntoIterator<Item = Write>,
     {
         for write in writes {
-            let bytes = key_bytes(&write.key)?;
             let provenance = Provenance {
                 source: Source::Session,
                 fetched_at_ledger: None,
@@ -231,17 +216,16 @@ impl LayeredStore {
             };
             let slot = match write.entry {
                 Some(entry) => Slot::Entry {
-                    entry: Rc::new(entry),
+                    entry: entry.into(),
                     live_until: write.live_until,
                     provenance,
                 },
                 None => Slot::Tombstone { provenance },
             };
-            if self.current.insert(bytes, slot).is_none() {
+            if self.current.insert(write.key, slot).is_none() {
                 self.stored += 1;
             }
         }
-        Ok(())
     }
 
     /// Freeze the session's writes so far and return the checkpoint's id.
@@ -282,9 +266,8 @@ impl LayeredStore {
     }
 
     /// Resolve one key with overlay precedence and archival applied.
-    pub fn lookup(&self, key: &LedgerKey) -> Result<Lookup, HostError> {
-        let bytes = key_bytes(key)?;
-        Ok(match self.slot_for(&bytes) {
+    pub fn lookup(&self, key: &[u8]) -> Lookup {
+        match self.slot_for(key) {
             None | Some(Slot::Tombstone { .. }) => Lookup::Absent,
             Some(Slot::Entry {
                 entry,
@@ -301,66 +284,44 @@ impl LayeredStore {
                     provenance: *provenance,
                 },
             },
-        })
+        }
     }
 }
 
-impl SnapshotSource for LayeredStore {
+impl ByteSnapshotSource for LayeredStore {
     /// The host's view: a live entry with its expiry, `None` for anything it
     /// cannot touch. An archived entry maps to `None` as well — the host must
     /// treat it exactly like the network would, where the footprint fails
     /// until a restore, not like a value that happens to still be around.
-    fn get(&self, key: &Rc<LedgerKey>) -> Result<Option<EntryWithLiveUntil>, HostError> {
-        Ok(match self.lookup(key)? {
+    fn get(&self, key_xdr: &[u8]) -> Option<(Rc<[u8]>, Option<u32>)> {
+        match self.lookup(key_xdr) {
             Lookup::Live {
                 entry, live_until, ..
             } => Some((entry, live_until)),
             Lookup::Archived { .. } | Lookup::Absent => None,
-        })
+        }
     }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use soroban_env_host::xdr::{
-        ContractDataDurability, ContractDataEntry, Hash, LedgerEntryData, LedgerEntryExt,
-        LedgerKeyContractData, ScAddress, ScVal,
-    };
 
-    /// A distinct contract-data key per `n`.
-    fn key(n: u32) -> LedgerKey {
-        LedgerKey::ContractData(LedgerKeyContractData {
-            contract: ScAddress::Contract(Hash([7u8; 32]).into()),
-            key: ScVal::U32(n),
-            durability: ContractDataDurability::Persistent,
-        })
+    // The store never decodes what it holds, so opaque bytes exercise it
+    // exactly as real XDR would: a key per `n`, an entry carrying `v`.
+    fn key(n: u32) -> Vec<u8> {
+        [b"key:".as_slice(), &n.to_be_bytes()].concat()
     }
 
-    /// A contract-data entry whose value is `v`.
-    fn entry(n: u32, v: u32) -> LedgerEntry {
-        LedgerEntry {
-            last_modified_ledger_seq: 0,
-            data: LedgerEntryData::ContractData(ContractDataEntry {
-                ext: soroban_env_host::xdr::ExtensionPoint::V0,
-                contract: ScAddress::Contract(Hash([7u8; 32]).into()),
-                key: ScVal::U32(n),
-                durability: ContractDataDurability::Persistent,
-                val: ScVal::U32(v),
-            }),
-            ext: LedgerEntryExt::V0,
-        }
+    fn entry(n: u32, v: u32) -> Vec<u8> {
+        [b"entry:".as_slice(), &n.to_be_bytes(), &v.to_be_bytes()].concat()
     }
 
     fn live_value(store: &LayeredStore, n: u32) -> Option<u32> {
-        match store.lookup(&key(n)).unwrap() {
-            Lookup::Live { entry, .. } => match &entry.data {
-                LedgerEntryData::ContractData(data) => match data.val {
-                    ScVal::U32(v) => Some(v),
-                    _ => None,
-                },
-                _ => None,
-            },
+        match store.lookup(&key(n)) {
+            Lookup::Live { entry, .. } => {
+                Some(u32::from_be_bytes(entry[10..14].try_into().unwrap()))
+            }
             _ => None,
         }
     }
@@ -383,8 +344,8 @@ mod tests {
 
     fn snapshot_bytes(store: &LayeredStore, upto: u32) -> Vec<Option<Vec<u8>>> {
         (0..upto)
-            .map(|n| match store.lookup(&key(n)).unwrap() {
-                Lookup::Live { entry, .. } => Some(entry.to_xdr(Limits::none()).unwrap()),
+            .map(|n| match store.lookup(&key(n)) {
+                Lookup::Live { entry, .. } => Some(entry.to_vec()),
                 _ => None,
             })
             .collect()
@@ -393,21 +354,17 @@ mod tests {
     #[test]
     fn overlay_precedence_is_session_then_override_then_base() {
         let mut store = LayeredStore::new(100);
-        store
-            .insert_base(&key(1), entry(1, 10), Some(1_000), 42)
-            .unwrap();
+        store.insert_base(&key(1), entry(1, 10), Some(1_000), 42);
         assert_eq!(live_value(&store, 1), Some(10));
 
-        store
-            .insert_override(&key(1), entry(1, 20), Some(1_000))
-            .unwrap();
+        store.insert_override(&key(1), entry(1, 20), Some(1_000));
         assert_eq!(live_value(&store, 1), Some(20));
 
-        store.apply_modified([write(1, 30)]).unwrap();
+        store.apply_modified([write(1, 30)]);
         assert_eq!(live_value(&store, 1), Some(30));
 
         // Provenance follows the winning layer.
-        let Lookup::Live { provenance, .. } = store.lookup(&key(1)).unwrap() else {
+        let Lookup::Live { provenance, .. } = store.lookup(&key(1)) else {
             panic!("expected live");
         };
         assert_eq!(provenance.source, Source::Session);
@@ -416,21 +373,17 @@ mod tests {
     #[test]
     fn a_tombstone_hides_a_lower_layer_without_touching_it() {
         let mut store = LayeredStore::new(100);
-        store
-            .insert_base(&key(1), entry(1, 10), Some(1_000), 42)
-            .unwrap();
-        store.apply_modified([delete(1)]).unwrap();
-        assert!(matches!(store.lookup(&key(1)).unwrap(), Lookup::Absent));
+        store.insert_base(&key(1), entry(1, 10), Some(1_000), 42);
+        store.apply_modified([delete(1)]);
+        assert!(matches!(store.lookup(&key(1)), Lookup::Absent));
 
         // Rolling the session away brings the base entry back untouched.
         let cp = {
             let mut fresh = LayeredStore::new(100);
-            fresh
-                .insert_base(&key(1), entry(1, 10), Some(1_000), 42)
-                .unwrap();
+            fresh.insert_base(&key(1), entry(1, 10), Some(1_000), 42);
             let cp = fresh.checkpoint();
-            fresh.apply_modified([delete(1)]).unwrap();
-            assert!(matches!(fresh.lookup(&key(1)).unwrap(), Lookup::Absent));
+            fresh.apply_modified([delete(1)]);
+            assert!(matches!(fresh.lookup(&key(1)), Lookup::Absent));
             fresh.rollback(cp).unwrap();
             assert_eq!(live_value(&fresh, 1), Some(10));
             cp
@@ -442,24 +395,20 @@ mod tests {
     fn rollback_restores_byte_identical_state_and_keeps_the_checkpoint_valid() {
         let mut store = LayeredStore::new(100);
         for n in 0..8 {
-            store
-                .insert_base(&key(n), entry(n, n), Some(1_000), 42)
-                .unwrap();
+            store.insert_base(&key(n), entry(n, n), Some(1_000), 42);
         }
-        store.apply_modified([write(2, 222)]).unwrap();
+        store.apply_modified([write(2, 222)]);
         let before = snapshot_bytes(&store, 10);
 
         let cp = store.checkpoint();
-        store
-            .apply_modified([write(0, 99), write(8, 88), delete(3)])
-            .unwrap();
+        store.apply_modified([write(0, 99), write(8, 88), delete(3)]);
         assert_ne!(snapshot_bytes(&store, 10), before);
 
         store.rollback(cp).unwrap();
         assert_eq!(snapshot_bytes(&store, 10), before);
 
         // The checkpoint stays valid: mutate and roll back to it again.
-        store.apply_modified([delete(0), write(9, 9)]).unwrap();
+        store.apply_modified([delete(0), write(9, 9)]);
         store.rollback(cp).unwrap();
         assert_eq!(snapshot_bytes(&store, 10), before);
     }
@@ -467,12 +416,10 @@ mod tests {
     #[test]
     fn ten_thousand_checkpoints_store_only_their_changes() {
         let mut store = LayeredStore::new(100);
-        store
-            .insert_base(&key(0), entry(0, 0), Some(1_000_000), 42)
-            .unwrap();
+        store.insert_base(&key(0), entry(0, 0), Some(1_000_000), 42);
 
         for n in 0..10_000u32 {
-            store.apply_modified([write(n % 16, n)]).unwrap();
+            store.apply_modified([write(n % 16, n)]);
             store.checkpoint();
         }
         assert_eq!(store.checkpoint_count(), 10_000);
@@ -486,19 +433,14 @@ mod tests {
     #[test]
     fn an_entry_past_its_live_until_reads_as_archived() {
         let mut store = LayeredStore::new(100);
-        store
-            .insert_base(&key(1), entry(1, 10), Some(100), 42)
-            .unwrap();
-        assert!(matches!(
-            store.lookup(&key(1)).unwrap(),
-            Lookup::Live { .. }
-        ));
+        store.insert_base(&key(1), entry(1, 10), Some(100), 42);
+        assert!(matches!(store.lookup(&key(1)), Lookup::Live { .. }));
 
         store.set_sequence(101);
         let Lookup::Archived {
             live_until,
             provenance,
-        } = store.lookup(&key(1)).unwrap()
+        } = store.lookup(&key(1))
         else {
             panic!("expected archived");
         };
@@ -506,39 +448,28 @@ mod tests {
         assert_eq!(provenance.source, Source::Fork);
 
         // The host's view refuses it outright, like the network would.
-        use std::rc::Rc;
-        let host_view = SnapshotSource::get(&store, &Rc::new(key(1))).unwrap();
-        assert!(host_view.is_none());
+        assert!(ByteSnapshotSource::get(&store, &key(1)).is_none());
 
         // A TTL extension applied from a simulate result revives it.
-        store
-            .apply_modified([Write {
-                key: key(1),
-                entry: Some(entry(1, 10)),
-                live_until: Some(200),
-            }])
-            .unwrap();
-        assert!(matches!(
-            store.lookup(&key(1)).unwrap(),
-            Lookup::Live { .. }
-        ));
+        store.apply_modified([Write {
+            key: key(1),
+            entry: Some(entry(1, 10)),
+            live_until: Some(200),
+        }]);
+        assert!(matches!(store.lookup(&key(1)), Lookup::Live { .. }));
     }
 
     #[test]
     fn provenance_names_the_layer_and_its_ledgers() {
         let mut store = LayeredStore::new(100);
-        store
-            .insert_base(&key(1), entry(1, 1), Some(1_000), 42)
-            .unwrap();
-        store
-            .insert_override(&key(2), entry(2, 2), Some(1_000))
-            .unwrap();
+        store.insert_base(&key(1), entry(1, 1), Some(1_000), 42);
+        store.insert_override(&key(2), entry(2, 2), Some(1_000));
         store.set_sequence(105);
-        store.apply_modified([write(3, 3)]).unwrap();
+        store.apply_modified([write(3, 3)]);
 
         let Lookup::Live {
             provenance: fork, ..
-        } = store.lookup(&key(1)).unwrap()
+        } = store.lookup(&key(1))
         else {
             panic!()
         };
@@ -547,7 +478,7 @@ mod tests {
 
         let Lookup::Live {
             provenance: over, ..
-        } = store.lookup(&key(2)).unwrap()
+        } = store.lookup(&key(2))
         else {
             panic!()
         };
@@ -557,7 +488,7 @@ mod tests {
         let Lookup::Live {
             provenance: session,
             ..
-        } = store.lookup(&key(3)).unwrap()
+        } = store.lookup(&key(3))
         else {
             panic!()
         };

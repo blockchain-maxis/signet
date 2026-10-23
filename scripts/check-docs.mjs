@@ -158,6 +158,7 @@ const ENV_ALLOW = new Set([
   'CLI_RELEASE_ENABLED', // GitHub repo variable, not app env — see release-cli.yml
   'NPM_TOKEN', // GitHub Actions secret, not app env — see release-cli.yml
   'SIGNET_SIMULATOR_PATH', // docs/CLI_RUST_BRIDGE.md — future Go CLI env, not this web app's
+  'SIGNET_NETWORK', // shell env for the cli/ Go module (network override), not the pnpm workspace's .env
 ]);
 
 /**
@@ -174,6 +175,9 @@ const NOT_ENV_IDENTIFIERS = new Set([
   'MAX_HANDLE_LEN', // identity-registry contract constant
   'DB_OPERATIONS_PER_WALLET', // apps/web/lib/profiles.ts — bounded read, not config
   'HORIZON_MAX_RECORDS', // apps/web/lib/server/horizon.ts — bounded read, not config
+  'NETWORK_PASSPHRASE', // stellar.toml key the CLI reads, not env
+  'SIGNING_KEY', // stellar.toml key the CLI reads, not env
+  'WEB_AUTH_ENDPOINT', // stellar.toml key the CLI reads, not env
 ]);
 
 /** Backticked SCREAMING_SNAKE with an underscore — typical env var citation. */

@@ -1,6 +1,5 @@
-import { NextRequest, NextResponse } from 'next/server';
-import { getOperationsResult, getPagedOperations } from '@/lib/profiles';
-import { LIMITS, enforceRateLimit } from '@/lib/rate-limit-http';
+import { getOperationsResult, getPagedOperations } from '../../../../../lib/profiles.ts';
+import { LIMITS, enforceRateLimit } from '../../../../../lib/rate-limit-http.ts';
 
 export const runtime = 'nodejs';
 
@@ -24,7 +23,7 @@ export const runtime = 'nodejs';
  *     }
  *   }
  */
-export async function GET(_req: NextRequest, { params }: { params: Promise<{ handle: string }> }) {
+export async function GET(_req: Request, { params }: { params: Promise<{ handle: string }> }) {
   const limited = await enforceRateLimit(_req, 'profile:operations', LIMITS.read);
   if (limited) return limited;
 
@@ -54,7 +53,7 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ han
 
   const { data, total, truncated, cap, source } = page;
 
-  return NextResponse.json({
+  const res = Response.json({
     data,
     meta: {
       total,
@@ -66,6 +65,11 @@ export async function GET(_req: NextRequest, { params }: { params: Promise<{ han
       source,
     },
   });
+
+  res.headers.set('Deprecation', `/api/v1/profiles/${handle}/operations`);
+  res.headers.set('Link', `</api/v1/profiles/${handle}/operations>; rel="successor-version"`);
+
+  return res;
 }
 
 /**
