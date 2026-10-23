@@ -62,14 +62,14 @@ export function CopyAddress({
       type="button"
       onClick={handleCopy}
       title={address}
-      // With visible text the accessible name is built from that text (WCAG
-      // 2.5.3 label-in-name); only the icon-only button needs an explicit name.
-      aria-label={copied ? copiedLabel : hasText ? undefined : `Copy ${label} ${address}`}
+      // The name must contain the visible text (WCAG 2.5.3 label-in-name), which
+      // is `display` — not necessarily the full address. Icon-only buttons name
+      // the address itself.
+      aria-label={copied ? copiedLabel : `Copy ${label} ${display || address}`}
       className={`group inline-flex min-h-11 min-w-11 items-center gap-2 text-left ${
         hasText ? '' : 'justify-center'
       }`}
     >
-      {hasText && <span className="sr-only">Copy {label}</span>}
       {hasText && (
         <span
           className="text-[13px] text-[#b8b5a8]"
