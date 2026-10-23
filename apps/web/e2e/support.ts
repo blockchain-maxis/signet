@@ -24,11 +24,11 @@ import { Keypair, TransactionBuilder } from '@stellar/stellar-sdk';
  *    and reload all run for real. Use it to test sign-in and the claim form
  *    through the UI.
  *
- * Rate-limit budget: the SEP-10 buckets allow 12 requests/min per client and
- * every spec in this suite shares one client (localhost). Each sign-in costs
- * one challenge + one verify. Keep the total number of sign-ins across e2e
- * specs comfortably under that — add specs that reuse a session rather than
- * minting a new one per assertion.
+ * Rate-limit budget: the SEP-10 buckets allow 12 requests/min per client. Each
+ * `apiSignIn` presents its own client address (`x-vercel-forwarded-for`), so
+ * sign-ins no longer draw on one shared bucket and a new spec cannot starve the
+ * others. Specs that exercise the limit itself (rate-limit.spec.ts) pick their
+ * own addresses.
  */
 
 /** Sign a SEP-10 challenge transaction envelope with `kp` (in Node, real crypto). */
@@ -42,16 +42,25 @@ export function signChallenge(
   return tx.toXDR();
 }
 
+/** A client address in TEST-NET-3 (203.0.113.0/24), unique enough per call. */
+function randomClientIp(): string {
+  return `203.0.113.${1 + Math.floor(Math.random() * 254)}`;
+}
+
 /** SEP-10 sign-in through the API; the session cookie lands in the page's context. */
 export async function apiSignIn(page: Page, kp: Keypair = Keypair.random()): Promise<string> {
   const address = kp.publicKey();
-  const chal = await page.request.get(`/api/auth/sep10?account=${address}`);
+  // A fresh client address per sign-in: the whole suite otherwise shares one
+  // `unknown` client and its 12/min SEP-10 budget.
+  const headers = { 'x-vercel-forwarded-for': randomClientIp() };
+  const chal = await page.request.get(`/api/auth/sep10?account=${address}`, { headers });
   expect(chal.ok()).toBeTruthy();
   const { transaction, network_passphrase } = (await chal.json()) as {
     transaction: string;
     network_passphrase: string;
   };
   const verify = await page.request.post('/api/auth/sep10', {
+    headers,
     data: { transaction: signChallenge(transaction, network_passphrase, kp) },
   });
   expect(verify.ok()).toBeTruthy();
