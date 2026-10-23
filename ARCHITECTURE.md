@@ -193,7 +193,7 @@ part of that contract.
 
 | Path | Role | Runtime |
 | --- | --- | --- |
-| `apps/web` | Next.js App Router — marketing, profiles, dashboard, tRPC API, SIWS auth | Netlify |
+| `apps/web` | Next.js App Router — marketing, profiles, dashboard, tRPC API, SIWS auth | Vercel |
 | `apps/indexer` | Long-running worker: attestation + deployment + operations + activity | Container (GHCR image) |
 | `packages/contracts/identity-registry` | Soroban `claim`/`release`/`admin_revoke` registry; emits the event stream. Immutable — a defect is recovered by migrating to a new contract, per [`docs/CONTRACT_MIGRATION.md`](docs/CONTRACT_MIGRATION.md) | Stellar network |
 | `packages/db` | Prisma schema + client (`Profile`, `Wallet`, `Contract`, `Operation`, `ContractSnapshot`, `IndexerCursor`) | PostgreSQL |
@@ -207,8 +207,8 @@ part of that contract.
 
 **Deployed & serving traffic today**
 
-- **Web app** — built and hosted on Netlify via git integration
-  ([`netlify.toml`](netlify.toml)): landing, `/how-it-works`, `/handles`, and
+- **Web app** — built and hosted on Vercel via git integration:
+  landing, `/how-it-works`, `/handles`, and
   profiles at `/p/{handle}` for every handle bound on the registry. The tRPC API
   and SIWS auth surface ship with it.
 - **Identity Registry contract** — deployed to Stellar **testnet** on

@@ -8,7 +8,7 @@ Signet is a verifiable developer career record built on Stellar/Soroban. Develop
 |-----------|----------------|-------|
 | **Identity Registry** contract | Stellar **testnet** | **Deployed 2026-07-09** — `CASFJHI5PQSRWS7JV25CF7FOMRKIVBP3RXRP3E2GH2CV4BCAG7FUJRCN`, wasm executable, `initialize`d |
 | **Identity Registry** contract | Stellar **mainnet** | Not deployed |
-| **Web app** (`apps/web`) | Netlify ([`netlify.toml`](netlify.toml)) | Deployed — landing, `/how-it-works`, `/handles`, `/p/{handle}` profiles, tRPC API, SIWS auth |
+| **Web app** (`apps/web`) | Vercel | Deployed — landing, `/how-it-works`, `/handles`, `/p/{handle}` profiles, tRPC API, SIWS auth |
 | **Indexer** (`apps/indexer`) | GHCR image, opt-in [`deploy.yml`](.github/workflows/deploy.yml) | Code-complete, not provisioned — needs a Postgres to point at |
 | **PostgreSQL** (`packages/db`) | — | Prisma schema + migrations committed; no hosted instance |
 | **CLI** (`npx @signet/cli link`) | npm | Not shipped — terminal deploy-wallet linking is in progress; see [`docs/CLI.md`](docs/CLI.md) |
@@ -93,7 +93,7 @@ registry id): see [`docs/TROUBLESHOOTING.md`](docs/TROUBLESHOOTING.md).
 
 **See [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md)** for a clone-to-running guide:
 prerequisites, deploy key + Friendbot, wasm build, `infra/deploy-contract.sh`,
-`initialize(admin)`, Netlify (`netlify.toml`) and Vercel production env
+`initialize(admin)`, Vercel production env
 (including `SIGNET_AUTH_SECRET`), verification checklist, and rollback.
 
 ## Roadmap and funding
@@ -143,7 +143,7 @@ indexer's Postgres sync is an accelerant for it, not a dependency.
 
 **Deployed & serving traffic**
 
-- `apps/web` on Netlify — landing, `/how-it-works`, `/handles`, `/p/{handle}` profiles, tRPC API, SIWS auth
+- `apps/web` on Vercel — landing, `/how-it-works`, `/handles`, `/p/{handle}` profiles, tRPC API, SIWS auth
 - `packages/contracts/identity-registry` — Soroban contract on Stellar **testnet**, 24 `cargo test` unit tests, builds to wasm
 
 **Operational-only** — built and tested, needs provisioning to go live

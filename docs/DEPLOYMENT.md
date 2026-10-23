@@ -225,60 +225,26 @@ pnpm --filter @signet/web dev
 
 ## 7. Deploy the web app
 
-The app is a Next.js monorepo package at `apps/web`. Root
-[`netlify.toml`](../netlify.toml) builds with Turborepo.
+The app is a Next.js monorepo package at `apps/web`, built with Turborepo.
 
-### 7a. Netlify
-
-1. Create a new site from this Git repo (or `netlify init` with the Netlify CLI).
-2. Build settings are already in `netlify.toml`:
-
-   ```toml
-   [build]
-       base = "."
-       command = "pnpm install --frozen-lockfile && pnpm turbo run build --filter=./apps/web"
-       publish = "apps/web/.next"
-   ```
-
-3. If the UI plugin requires an explicit Next runtime, enable **Netlify Next.js
-   Runtime** / `@netlify/plugin-nextjs` for the site so App Router API routes work.
-4. Site settings → Environment variables — set at least:
-
-   | Variable | Example |
-   | --- | --- |
-   | `NEXT_PUBLIC_APP_URL` | `https://<site>.netlify.app` (required — startup fails without it) |
-   | `NEXT_PUBLIC_ROOT_DOMAIN` | `<site>.netlify.app` (or your custom domain) |
-   | `NEXT_PUBLIC_STELLAR_NETWORK` | `testnet` |
-   | `NEXT_PUBLIC_SOROBAN_RPC_URL` | `https://soroban-testnet.stellar.org` |
-   | `NEXT_PUBLIC_IDENTITY_REGISTRY_ID` | `C…` from section 4 |
-   | `SIGNET_AUTH_SECRET` | output of `openssl rand -base64 24` |
-   | `DATABASE_URL` | optional managed Postgres URL |
-
-5. Trigger a production deploy. Confirm the build log finishes
-   `turbo run build --filter=./apps/web` without errors.
-
-CLI sketch:
-
-```bash
-# requires: npm i -g netlify-cli && netlify login
-netlify link
-netlify env:set NEXT_PUBLIC_APP_URL "https://your-site.netlify.app"
-netlify env:set NEXT_PUBLIC_ROOT_DOMAIN "your-site.netlify.app"
-netlify env:set NEXT_PUBLIC_STELLAR_NETWORK "testnet"
-netlify env:set NEXT_PUBLIC_SOROBAN_RPC_URL "https://soroban-testnet.stellar.org"
-netlify env:set NEXT_PUBLIC_IDENTITY_REGISTRY_ID "C…"
-netlify env:set SIGNET_AUTH_SECRET "$(openssl rand -base64 24)"
-netlify deploy --prod --build
-```
-
-### 7b. Vercel
+### 7a. Vercel
 
 1. Import the Git repo in Vercel.
 2. Framework preset: **Next.js**. Root directory: repository root (not `apps/web`).
 3. Install command: `pnpm install --frozen-lockfile`
 4. Build command: `pnpm turbo run build --filter=./apps/web`
 5. Output: Next.js default (Vercel detects the app via the turbo filter / workspace).
-6. Add the same production env vars as Netlify, including **`SIGNET_AUTH_SECRET`**.
+6. Add the production env vars, including **`SIGNET_AUTH_SECRET`**:
+
+   | Variable                           | Example                                                              |
+   | ---------------------------------- | -------------------------------------------------------------------- |
+   | `NEXT_PUBLIC_APP_URL`              | `https://<project>.vercel.app` (required — startup fails without it) |
+   | `NEXT_PUBLIC_ROOT_DOMAIN`          | `<project>.vercel.app` (or your custom domain)                       |
+   | `NEXT_PUBLIC_STELLAR_NETWORK`      | `testnet`                                                            |
+   | `NEXT_PUBLIC_SOROBAN_RPC_URL`      | `https://soroban-testnet.stellar.org`                                |
+   | `NEXT_PUBLIC_IDENTITY_REGISTRY_ID` | `C…` from section 4                                                  |
+   | `SIGNET_AUTH_SECRET`               | output of `openssl rand -base64 24`                                  |
+   | `DATABASE_URL`                     | optional managed Postgres URL                                        |
 7. Deploy.
 
 CLI sketch:
@@ -371,7 +337,7 @@ stellar contract invoke \
 
 | Layer | Rollback |
 | --- | --- |
-| **Web (Netlify / Vercel)** | Redeploy the previous successful deploy from the host UI (Netlify Deploys → Publish deploy / Vercel Deployments → Promote). Instant traffic switch; no chain interaction. |
+| **Web (Vercel)** | Redeploy the previous successful deploy from the host UI (Vercel Deployments → Promote). Instant traffic switch; no chain interaction. |
 | **Env misconfiguration** | Revert bad env vars in the host, then redeploy or restart so Next picks up `NEXT_PUBLIC_*` at build time. Server-only secrets (`SIGNET_AUTH_SECRET`, `DATABASE_URL`) apply on the next instance boot. |
 | **Auth secret leak** | Set a new `SIGNET_AUTH_SECRET` and set `SIGNET_SESSIONS_VALID_AFTER` to current epoch-ms to invalidate old cookies (see [`SECURITY.md`](../SECURITY.md)). |
 | **One compromised wallet** | `pnpm --filter @signet/web run revoke:sessions -- G…` revokes that address' sessions only; running instances honour it within ten seconds. Do **not** reach for `SIGNET_SESSIONS_VALID_AFTER`, which signs out every user (see [`SECURITY.md`](../SECURITY.md)). |

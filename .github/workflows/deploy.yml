@@ -4,7 +4,7 @@ name: Deploy
 #   1. apply pending Prisma migrations to the production database
 #   2. build & publish the indexer worker image (GHCR)
 #
-# The web app deploys via Netlify's git integration (see netlify.toml), so it is
+# The web app deploys via Vercel's git integration, so it is
 # intentionally not duplicated here.
 #
 # This workflow is OPT-IN: every job is gated on `vars.DEPLOY_ENABLED == 'true'`
