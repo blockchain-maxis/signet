@@ -1108,3 +1108,5 @@ export function getOpenApiDocument(): OpenApiDocument {
     },
   };
 }
+
+export const generateOpenApiSpec = getOpenApiDocument;

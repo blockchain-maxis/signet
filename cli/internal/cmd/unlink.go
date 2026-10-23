@@ -51,6 +51,19 @@ stellar CLI.`,
 				return errUnlinkNeedsYes
 			}
 
+			network := deps.Config.Network
+			client, err := deps.NewClient(resolved.BaseURL, api.Options{
+				UserAgent: api.UserAgent(deps.Version),
+				Insecure:  deps.Insecure,
+			})
+			if err != nil {
+				return err
+			}
+			// The first request, before the identity is resolved (#618).
+			if err := checkDeploymentNetwork(cmd.Context(), client.API(), network, printer); err != nil {
+				return err
+			}
+
 			source, err := keys.Resolve(
 				deps.KeysBinary,
 				resolved.Source,
@@ -64,14 +77,6 @@ stellar CLI.`,
 				return err
 			}
 			if err := link.ValidatePublicKey(publicKey); err != nil {
-				return err
-			}
-
-			client, err := deps.NewClient(resolved.BaseURL, api.Options{
-				UserAgent: api.UserAgent(deps.Version),
-				Insecure:  deps.Insecure,
-			})
-			if err != nil {
 				return err
 			}
 
@@ -114,7 +119,6 @@ stellar CLI.`,
 				}
 			}
 
-			network := deps.Config.Network
 			unsigned, passphrase, err := link.FetchChallenge(
 				client.API(), network, spec.CliLinkPurposeUnlink,
 			)(cmd.Context(), publicKey)

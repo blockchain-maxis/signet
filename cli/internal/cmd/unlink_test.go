@@ -79,14 +79,27 @@ func TestConfirmUnlink_ShowsTheKeyItIsAbout(t *testing.T) {
 	}
 }
 
-// fakeDeployment answers GET /api/cli/whoami with the given identity and
-// counts every request by path, so a test can assert what unlink did (and
-// did not) ask for.
+// testnetStellarTOML is the document a testnet deployment publishes, in the
+// shape apps/web/app/.well-known/stellar.toml/route.ts emits.
+const testnetStellarTOML = `NETWORK_PASSPHRASE="Test SDF Network ; September 2015"
+WEB_AUTH_ENDPOINT="https://signet.example/api/auth/sep10"
+SIGNING_KEY="GBWMCCC3NHSKLAOJDBKKYW7SSH2PFTTNVFKWSGLWGDLEBKLOVP5JLBBP"
+ACCOUNTS=["GBWMCCC3NHSKLAOJDBKKYW7SSH2PFTTNVFKWSGLWGDLEBKLOVP5JLBBP"]
+`
+
+// fakeDeployment is a testnet deployment: it publishes its stellar.toml,
+// answers GET /api/cli/whoami with the given identity, and counts every
+// request by path, so a test can assert what unlink did (and did not) ask
+// for.
 func fakeDeployment(t *testing.T, identity pair.Identity) (*httptest.Server, *requestLog) {
 	t.Helper()
 	log := &requestLog{byPath: map[string]int{}}
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		log.record(r.URL.Path)
+		if r.URL.Path == "/.well-known/stellar.toml" {
+			_, _ = w.Write([]byte(testnetStellarTOML))
+			return
+		}
 		if r.URL.Path == "/api/cli-link" {
 			log.recordPurpose(r.URL.Query().Get("purpose"))
 			w.Header().Set("Content-Type", "application/json")
@@ -201,8 +214,9 @@ func TestUnlink_NotLinkedExits0WithoutSigning(t *testing.T) {
 		t.Fatalf("output does not say the key is not linked: %q", out)
 	}
 	byPath, total := log.snapshot()
-	if total != 1 || byPath["/api/cli/whoami"] != 1 {
-		t.Fatalf("requests = %v, want only one whoami (no challenge fetched)", byPath)
+	// The network check's discovery (#618), then one whoami — no challenge.
+	if total != 2 || byPath["/.well-known/stellar.toml"] != 1 || byPath["/api/cli/whoami"] != 1 {
+		t.Fatalf("requests = %v, want stellar.toml and one whoami (no challenge fetched)", byPath)
 	}
 }
 

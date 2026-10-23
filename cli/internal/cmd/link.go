@@ -51,6 +51,21 @@ signing goes through the stellar CLI.`,
 			resolved := deps.Config
 			printer := printerFor(cmd)
 
+			network := deps.Config.Network
+			client, err := deps.NewClient(resolved.BaseURL, api.Options{
+				UserAgent: api.UserAgent(deps.Version),
+				Insecure:  deps.Insecure,
+			})
+			if err != nil {
+				return err
+			}
+			// Before anything else, including resolving an identity: a
+			// network the deployment does not serve is a configuration
+			// error with a fix, not a 400 halfway through pairing (#618).
+			if err := checkDeploymentNetwork(cmd.Context(), client.API(), network, printer); err != nil {
+				return err
+			}
+
 			source, err := keys.Resolve(
 				deps.KeysBinary,
 				resolved.Source,
@@ -64,15 +79,6 @@ signing goes through the stellar CLI.`,
 				return err
 			}
 			if err := link.ValidatePublicKey(publicKey); err != nil {
-				return err
-			}
-
-			network := deps.Config.Network
-			client, err := deps.NewClient(resolved.BaseURL, api.Options{
-				UserAgent: api.UserAgent(deps.Version),
-				Insecure:  deps.Insecure,
-			})
-			if err != nil {
 				return err
 			}
 
