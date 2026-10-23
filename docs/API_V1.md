@@ -187,6 +187,15 @@ Paging never lifts a cap: the cursor walks the bounded window, and
 `nextCursor: null` with `truncated: true` means "this is all the window holds",
 not "this is everything that exists".
 
+### Operations and pagination
+
+`GET /api/v1/profiles/{handle}/operations` provides cursor-based pagination over a profile's operations:
+
+- `data`: `[{ id, type, function, contract, sourceAccount, createdAt, txHash, successful }]`.
+- `asset_balance_changes` is dropped from v1: it is an internal Horizon representation rather than part of the stable Signet contract.
+- When the database answered, `meta.total` is an exact count integer.
+- On the Horizon fallback, `meta.total` is `null` (never a lower bound presented as an exact total), and the cursor never promises pages beyond the cap.
+
 ## Completeness
 
 `meta.source` says which layer answered, on every read whose answer depends on
@@ -197,6 +206,17 @@ enum: a new layer may be added, so an unknown value means "some other layer".
 
 A read that has no such dependency (a static spec addressed by WASM hash) omits
 `source`.
+
+### Wallet provenance sources
+
+Endpoints returning wallet records (`GET /api/v1/profiles/{handle}/wallets`) identify how each wallet link was proven via the `source` field:
+
+- `onchain`: The registry's claim. Proven directly on-chain via Identity Registry contract state.
+- `cli`: Browser consent plus key signature, recorded off-chain by this deployment.
+- `curated`: Legacy seed records from Phase 1.
+- `unknown`: An unrecognised provenance value read from storage, logged and surfaced without misattribution.
+
+These represent different strengths of proof: an `onchain` claim is attested by the ledger itself, whereas `cli` is an off-chain cryptographic signature verified and stored by this deployment.
 
 ## CORS
 

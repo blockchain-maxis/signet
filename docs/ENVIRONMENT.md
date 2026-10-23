@@ -89,4 +89,4 @@ pnpm install
 pnpm --filter @signet/web dev
 ```
 
-For a full self-host (registry deploy, Netlify/Vercel, verification) see [`DEPLOYMENT.md`](./DEPLOYMENT.md).
+For a full self-host (registry deploy, Vercel, verification) see [`DEPLOYMENT.md`](./DEPLOYMENT.md).

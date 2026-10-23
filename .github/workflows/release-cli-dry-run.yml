@@ -7,8 +7,9 @@ name: Release CLI dry run
 # (build-simulator.yml: native build on all five targets), then runs the same
 # scripts/release/build-cli.sh (build every target, stage each npm platform
 # package with signet AND signet-simulator, archive, checksum, pin the shim) at
-# the throwaway version 0.0.0-dryrun.<sha>, `npm pack`s every package, and
-# uploads the tarballs. A second job then installs the shim plus that OS's
+# the throwaway version 0.0.0-dryrun.<sha>, runs the same
+# scripts/release/verify-artifacts.sh, `npm pack`s every package, and uploads
+# the tarballs. A second job then installs the shim plus that OS's
 # platform package from the tarballs on ubuntu, macos and windows, and runs the
 # installed `signet` through npx and the installed `signet-simulator` directly.
 #
@@ -69,6 +70,9 @@ jobs:
             .github/workflows/release-cli.yml \
             .github/workflows/release-cli-dry-run.yml
 
+      - name: Test the release scripts
+        run: node --test scripts/release/stage-platform-package.test.mjs
+
       - uses: actions/setup-go@v7
         with:
           go-version-file: cli/go.mod
@@ -95,6 +99,13 @@ jobs:
           SIMULATOR_DIR: simulator-artifacts
         run: scripts/release/build-cli.sh
 
+      # The same verifier the real release runs, so review and release enforce
+      # one definition of "both binaries in every artifact".
+      - name: Verify both binaries in every artifact
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: scripts/release/verify-artifacts.sh
+
       - name: npm pack every package
         env:
           VERSION: ${{ steps.version.outputs.version }}
@@ -105,16 +116,6 @@ jobs:
             npm pack "$dir" --pack-destination cli/dist/tarballs
           done
           ls -l cli/dist/tarballs
-          # One archive per platform plus checksums.txt, both binaries in each.
-          cat cli/dist/checksums.txt
-          test "$(wc -l < cli/dist/checksums.txt)" -eq 5
-          (cd cli/dist && sha256sum -c checksums.txt)
-          for a in cli/dist/signet-"${VERSION}"-cli-*.tar.gz; do
-            test "$(tar -tzf "$a" | sort | tr '\n' ' ')" = 'signet signet-simulator ' \
-              || { echo "::error::bad archive $a"; exit 1; }
-          done
-          test "$(unzip -Z1 "cli/dist/signet-${VERSION}-cli-windows-x64.zip" | sort | tr '\n' ' ')" = 'signet-simulator.exe signet.exe ' \
-            || { echo "::error::bad windows archive"; exit 1; }
           count=$(find cli/dist/tarballs -name '*.tgz' | wc -l)
           echo "packed ${count} packages"
           test "$count" -eq "$(find cli/npm -mindepth 1 -maxdepth 1 -type d | wc -l)"

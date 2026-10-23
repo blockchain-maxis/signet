@@ -8,14 +8,14 @@
  * the browser-safe `@signet/spec` surface stays free of network access.
  */
 
-import { Contract, rpc, StrKey } from '@stellar/stellar-sdk';
-import type { xdr } from '@stellar/stellar-sdk';
+import { Contract, rpc, StrKey, xdr, hash as hashBytes } from '@stellar/stellar-sdk';
 import type { Network } from '@signet/types';
 import {
   ContractNotFound,
   InvalidWasm,
   NoInterface,
   RpcUnavailable,
+  WasmNotFound,
   isSpecReadError,
 } from './errors.ts';
 import { MAX_WASM_BYTES, parseContractSpec } from './parse.ts';
@@ -139,6 +139,38 @@ export async function fetchContractSpec(
   return spec;
 }
 
+/**
+ * Read an embedded spec directly from its immutable contract-code entry.
+ * No address, attribution lookup or registry fallback is involved. The same
+ * response bound, deadline, parser and hash assertion as the address reader
+ * apply. A missing code entry is distinct from a missing contract instance.
+ */
+export async function fetchContractSpecByHash(
+  wasmHash: string,
+  opts: FetchOptions,
+): Promise<ContractSpec> {
+  if (!/^[0-9a-f]{64}$/i.test(wasmHash)) throw new TypeError('Invalid WASM hash');
+  const hash = wasmHash.toLowerCase();
+  const server = opts.server ?? createBoundedRpcServer(opts);
+  const key = xdr.LedgerKey.contractCode(
+    new xdr.LedgerKeyContractCode({ hash: Buffer.from(hash, 'hex') }),
+  );
+  const wasm = await rpcCall(opts, async () => {
+    const response = await server.getLedgerEntries(key);
+    const entry = response.entries[0];
+    if (!entry?.val) throw new WasmNotFound(hash, opts.network);
+    return Buffer.from(entry.val.contractCode().code());
+  });
+  const maxBytes = opts.maxWasmBytes ?? MAX_WASM_BYTES;
+  if (wasm.byteLength > maxBytes) throw new InvalidWasm();
+  // Establish identity before decoding: another module with no spec is an
+  // inconsistent RPC answer, not proof that this hash has no interface.
+  if (hashBytes(wasm).toString('hex') !== hash) {
+    throw new RpcUnavailable(opts.rpcUrl, new Error('Contract code does not match requested hash'));
+  }
+  return parseContractSpec(wasm, { maxBytes });
+}
+
 interface InstanceRead {
   readonly server: SpecRpcServer;
   readonly result: WasmHashResult;
@@ -164,7 +196,10 @@ async function readInstance(address: string, opts: FetchOptions): Promise<Instan
     throw new ContractNotFound(address, opts.network);
   }
   const result = classifyInstance(entry.val, opts.rpcUrl);
-  return { server, result: isExpired(entry, response.latestLedger) ? { ...result, archived: true } : result };
+  return {
+    server,
+    result: isExpired(entry, response.latestLedger) ? { ...result, archived: true } : result,
+  };
 }
 
 /**

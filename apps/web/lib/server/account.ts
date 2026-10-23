@@ -16,8 +16,10 @@
  */
 
 import { isWalletSource, type WalletSource } from '@signet/types';
+import { getConfiguredNetwork } from '../cli-link.ts';
 import { logger } from '../logger.ts';
-import { lookupWallet, type RegistryReadOptions } from './registry-read.ts';
+import { V1Error } from '../api/v1/http.ts';
+import { lookupWallet, resolveHandle, type RegistryReadOptions } from './registry-read.ts';
 
 export interface Account {
   address: string;
@@ -63,17 +65,14 @@ const MAX_DISPLAY_NAME = 80;
 const MAX_BIO = 280;
 
 /**
- * Passes a stored `source` through, warning when it isn't one of the allowed
- * values. It deliberately does *not* substitute a fallback: coercing an
- * unrecognised source to 'curated' would describe a binding this build cannot
- * vouch for as a hand-entered one, which is exactly the mislabelling the
- * provenance badge exists to prevent. Surfaces render the unknown case through
+ * Passes a stored `source` through, warning and mapping to 'unknown' when it isn't
+ * one of the allowed values. Surfaces render the unknown case through
  * `describeWalletSource`, which reports it as unrecognised.
  */
-function toWalletSource(value: string, pubkey: string): WalletSource | (string & {}) {
+export function toWalletSource(value: string, pubkey: string): WalletSource | 'unknown' {
   if (isWalletSource(value)) return value;
   logger.warn({ pubkey, source: value }, 'account.unknownWalletSource');
-  return value;
+  return 'unknown';
 }
 
 async function getPrisma() {
@@ -147,6 +146,125 @@ export async function getAccountWallets(address: string): Promise<LinkedWallet[]
     attestedAt: w.attestedAt.toISOString().slice(0, 10),
     indexingPending: w.indexRequestedAt != null,
   }));
+}
+
+export interface HandleWallet {
+  address: string;
+  isPrimary: boolean;
+  source: WalletSource | 'unknown';
+  linkedAt: string | null;
+  indexingPending: boolean;
+  network: string;
+}
+
+export interface HandleWalletsResult {
+  data: HandleWallet[];
+  meta: {
+    source: 'db' | 'chain';
+  };
+}
+
+export interface HandleWalletsStore {
+  profile: {
+    findUnique(args: {
+      where: { handle: string };
+      include?: {
+        wallets?: {
+          orderBy?: Array<Record<string, 'asc' | 'desc'>>;
+        };
+      };
+    }): Promise<{
+      handle: string;
+      wallets: Array<{
+        pubkey: string;
+        isPrimary: boolean;
+        source: string;
+        attestedAt: Date | string | null;
+        indexRequestedAt: Date | string | null;
+      }>;
+    } | null>;
+  };
+}
+
+export interface HandleWalletsDeps {
+  store?: HandleWalletsStore | null;
+  resolveHandle?: (handle: string) => Promise<string | null>;
+  network?: string;
+}
+
+/**
+ * Retrieve all wallets linked to a handle (primary first).
+ *
+ * If a database is available, queries all linked wallets for the profile,
+ * validating each source with toWalletSource and exposing indexingPending.
+ * Without a database or when the handle is not yet indexed, falls back to the
+ * on-chain registry via resolveHandle, returning the primary wallet with
+ * meta.source: "chain". Throws V1Error('not_found') if the handle does
+ * not exist.
+ */
+export async function getHandleWallets(
+  handle: string,
+  deps: HandleWalletsDeps = {},
+): Promise<HandleWalletsResult> {
+  const normalizedHandle = handle.trim().toLowerCase();
+  const network = deps.network ?? getConfiguredNetwork();
+
+  const db =
+    deps.store !== undefined
+      ? deps.store
+      : ((await getPrisma()) as unknown as HandleWalletsStore | null);
+
+  if (db) {
+    const profile = await db.profile.findUnique({
+      where: { handle: normalizedHandle },
+      include: {
+        wallets: {
+          orderBy: [{ isPrimary: 'desc' }, { attestedAt: 'asc' }],
+        },
+      },
+    });
+
+    if (profile) {
+      const wallets: HandleWallet[] = (profile.wallets ?? []).map((w) => ({
+        address: w.pubkey,
+        isPrimary: w.isPrimary,
+        source: toWalletSource(w.source, w.pubkey),
+        linkedAt: w.attestedAt ? new Date(w.attestedAt).toISOString() : null,
+        indexingPending: Boolean(w.indexRequestedAt),
+        network,
+      }));
+
+      wallets.sort((a, b) => (b.isPrimary ? 1 : 0) - (a.isPrimary ? 1 : 0));
+
+      return {
+        data: wallets,
+        meta: { source: 'db' },
+      };
+    }
+  }
+
+  const resolver = deps.resolveHandle ?? resolveHandle;
+  const primaryAddress = await resolver(normalizedHandle);
+
+  if (!primaryAddress) {
+    throw new V1Error('not_found', `No profile for handle '${normalizedHandle}'.`, {
+      handle: normalizedHandle,
+    });
+  }
+
+  return {
+    data: [
+      {
+        address: primaryAddress,
+        isPrimary: true,
+        source: 'onchain',
+        linkedAt: null,
+        indexingPending: false,
+        network,
+      },
+    ],
+    meta: { source: 'chain' },
+  };
 }
 
 /**
