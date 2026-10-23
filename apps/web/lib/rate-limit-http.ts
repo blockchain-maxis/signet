@@ -1,4 +1,4 @@
-import { NextResponse } from 'next/server';
+import { NextResponse } from 'next/server.js';
 import type { ErrorBody } from '@signet/types';
 import { LIMITS, WINDOW_MS, rateLimitDecision } from './rate-limit-policy.ts';
 

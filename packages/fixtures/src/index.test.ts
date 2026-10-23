@@ -9,6 +9,8 @@ const FIXTURES: FixtureName[] = [
   'contract-wasm-entry',
   'claim-get-transaction',
   'deploy-get-transaction',
+  'sac-transfer-call-get-transaction',
+  'footprint-only-call-get-transaction',
   'horizon-contract-deploy-tx',
 ];
 

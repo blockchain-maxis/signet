@@ -17,6 +17,7 @@ import {
 import { xdr } from '@stellar/stellar-sdk';
 import claimFixture from '../../../../packages/fixtures/data/claim-get-transaction.json' with { type: 'json' };
 import deployFixture from '../../../../packages/fixtures/data/deploy-get-transaction.json' with { type: 'json' };
+import sacTransferFixture from '../../../../packages/fixtures/data/sac-transfer-call-get-transaction.json' with { type: 'json' };
 
 function createMockStore(contracts: InvocationsContract[] = []) {
   const contractInvocations: Map<string, ContractInvocationCreate> = new Map();
@@ -75,7 +76,8 @@ test('extracts sourceAccount, footprint, functionName, changedKeys, and eventsCo
 
   const eventsContractIds = extractEventsContractIds(claimFixture.payload.resultMetaXdr);
   assert.ok(eventsContractIds.includes('CASFJHI5PQSRWS7JV25CF7FOMRKIVBP3RXRP3E2GH2CV4BCAG7FUJRCN'));
-  assert.ok(eventsContractIds.includes('CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC'));
+  // The native SAC only charged and refunded the fee (transaction-level events): not a contract this call ran.
+  assert.ok(!eventsContractIds.includes('CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC'));
 });
 
 test('extractChangedKeys keeps every recognized key even when one change has an unsupported LedgerKey arm', () => {
@@ -165,6 +167,8 @@ test('runInvocationsWorker upserts invocations idempotently', async () => {
   assert.equal(record.readOnly.length, 1);
   assert.equal(record.readWrite.length, 3);
   assert.ok(Array.isArray(record.changed) && record.changed.length === 6);
+  // A self-only call: decoded, and no edges.
+  assert.deepEqual(record.callEdges, []);
 
   // Second run (idempotency)
   const res2 = await runInvocationsWorker(mockRpc, { eventWindowLedgers: 8000 }, store);
@@ -267,4 +271,49 @@ test('runInvocationsWorker handles malformed XDR gracefully by logging and skipp
   const res = await runInvocationsWorker(mockRpc, { eventWindowLedgers: 8000 }, store);
   assert.equal(res.invocationsUpserted, 0);
   assert.equal(contractInvocations.size, 0);
+});
+
+test('runInvocationsWorker persists callEdges and names the function of a sub-call target', async () => {
+  const LENDING = 'CBXZBQ6NW3TGPGLTR4JCG2VPVWFLCCHKDW75NJIXYXV7CJLNUO64VTFC';
+  const SAC = 'CBM44TNMCPYIFJO4PSMDZA7IXKJRRNHA6EOWNWI3X4V47DDC7WQXXD3E';
+  const FOREIGN = 'CAITA5YIDBY4WQU7C5DUOM2P6BWZDFCKFCGOSUVDHZH3O3T7XKOAYOZR';
+  const lending: InvocationsContract = { id: 'lending', address: LENDING, wasmHash: null };
+  const sac: InvocationsContract = { id: 'sac', address: SAC, wasmHash: null };
+  const { store, contractInvocations } = createMockStore([lending, sac]);
+  const tx = sacTransferFixture.payload;
+
+  const mockRpc = {
+    getLatestLedger: async () => ({ sequence: tx.ledger + 10 } as any),
+    getEvents: async () => ({ latestLedger: tx.ledger + 10, events: [{ ledger: tx.ledger, txHash: tx.txHash } as any] }),
+    getTransaction: async () => tx as any,
+  } as unknown as SorobanInvocationsRpc;
+
+  await runInvocationsWorker(mockRpc, { eventWindowLedgers: 8000 }, store);
+
+  // Both contracts' rows share the `${txHash}:0` id in this worker, so the
+  // second scan (the SAC) refreshes the row the first created. Check each
+  // contract's view by scanning it alone.
+  const byContract = async (contract: InvocationsContract) => {
+    const { store, contractInvocations } = createMockStore([contract]);
+    await runInvocationsWorker(mockRpc, { eventWindowLedgers: 8000 }, store);
+    return contractInvocations.get(`${tx.txHash}:0`)!;
+  };
+
+  const lendingRow = await byContract(lending);
+  assert.equal(lendingRow.function, 'repay_obligation_liquidity');
+  assert.deepEqual(lendingRow.callEdges, [
+    { from: LENDING, to: SAC, function: 'transfer', evidence: 'auth-tree' },
+    { from: LENDING, to: FOREIGN, evidence: 'footprint' },
+  ]);
+  assert.deepEqual([...lendingRow.eventsContractIds].sort(), [LENDING, SAC].sort());
+
+  const sacRow = await byContract(sac);
+  // Reached only as a sub-call: the auth tree names the function (#417's null rows).
+  assert.equal(sacRow.function, 'transfer');
+  assert.deepEqual(sacRow.callEdges, []);
+
+  // The refresh path writes callEdges too, not just create.
+  const refreshed = contractInvocations.get(`${tx.txHash}:0`)!;
+  assert.deepEqual(refreshed.callEdges, []);
+  assert.equal(refreshed.function, 'transfer');
 });

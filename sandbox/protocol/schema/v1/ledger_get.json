@@ -29,7 +29,12 @@
       "minItems": 1
     }
   },
-  "required": ["version", "id", "type", "keys_xdr"],
+  "required": [
+    "version",
+    "id",
+    "type",
+    "keys_xdr"
+  ],
   "additionalProperties": false,
   "definitions": {
     "result": {
@@ -83,14 +88,57 @@
                     "type": "null"
                   }
                 ]
+              },
+              "provenance": {
+                "type": "object",
+                "description": "Which layer answered, and when it was fetched or last written (#530). Absent for a key the ledger does not know.",
+                "properties": {
+                  "source": {
+                    "enum": [
+                      "fork",
+                      "override",
+                      "session"
+                    ]
+                  },
+                  "fetchedAtLedger": {
+                    "oneOf": [
+                      {
+                        "type": "integer",
+                        "minimum": 0
+                      },
+                      {
+                        "type": "null"
+                      }
+                    ],
+                    "description": "Ledger the fork fetched the entry at; null off the fork layer"
+                  },
+                  "lastModifiedLedgerSeq": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "description": "Simulated sequence that last wrote the entry in its layer"
+                  }
+                },
+                "required": [
+                  "source",
+                  "lastModifiedLedgerSeq"
+                ],
+                "additionalProperties": false
               }
             },
-            "required": ["key_xdr", "entry_xdr"],
+            "required": [
+              "key_xdr",
+              "entry_xdr"
+            ],
             "additionalProperties": false
           }
         }
       },
-      "required": ["version", "id", "type", "entries"],
+      "required": [
+        "version",
+        "id",
+        "type",
+        "entries"
+      ],
       "additionalProperties": false
     }
   }

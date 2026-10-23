@@ -202,3 +202,12 @@ export {
   type PanelError,
   type PanelEvent,
 } from './panels.ts';
+
+// Observed cross-contract call edges (#516, design §1.4): phase-3 overlay data.
+export {
+  aggregateCallEdges,
+  callEdgesFromTransaction,
+  eventContractIds,
+  invokedFunction,
+} from './observe/calls.ts';
+export type { AggregatedCallEdge, CallEdge, CallEdgeRow, CallEvidence } from './observe/calls.ts';

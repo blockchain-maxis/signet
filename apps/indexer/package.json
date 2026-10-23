@@ -16,6 +16,7 @@
   "dependencies": {
     "@signet/db": "workspace:*",
     "@signet/types": "workspace:*",
+    "@signet/visualiser": "workspace:*",
     "@stellar/stellar-sdk": "^16.1.0"
   },
   "devDependencies": {

@@ -305,3 +305,158 @@ test('encodeCursor() and parseCursor() round-trip opaque pagination cursors', ()
     code: 'bad_request',
   });
 });
+
+test('withV1() computes weak ETag and same body gives the same ETag', async () => {
+  const handler = withV1(async () => ok({ user: 'alice', score: 100 }));
+  const req1 = new Request('http://localhost/api/v1/test', {
+    headers: { 'x-forwarded-for': '127.0.0.1' },
+  });
+  const res1 = await handler(req1);
+
+  assert.equal(res1.status, 200);
+  const etag1 = res1.headers.get('ETag');
+  assert.ok(etag1, 'Response must have an ETag header');
+  assert.ok(etag1.startsWith('W/'), 'ETag must be weak by default');
+
+  const req2 = new Request('http://localhost/api/v1/test', {
+    headers: { 'x-forwarded-for': '127.0.0.2' },
+  });
+  const res2 = await handler(req2);
+  const etag2 = res2.headers.get('ETag');
+  assert.equal(etag1, etag2, 'Same body must yield identical ETag');
+
+  // Different body produces different ETag
+  const diffHandler = withV1(async () => ok({ user: 'bob', score: 200 }));
+  const diffRes = await diffHandler(req1);
+  assert.notEqual(diffRes.headers.get('ETag'), etag1);
+});
+
+test('withV1() answers matching If-None-Match with 304 and no body, preserving headers', async () => {
+  const handler = withV1(async () => ok({ user: 'alice' }), {
+    cache: 'public, max-age=60',
+  });
+
+  const initialReq = new Request('http://localhost/api/v1/user');
+  const initialRes = await handler(initialReq);
+  const etag = initialRes.headers.get('ETag')!;
+  assert.ok(etag);
+
+  const conditionalReq = new Request('http://localhost/api/v1/user', {
+    headers: { 'If-None-Match': etag },
+  });
+  const res304 = await handler(conditionalReq);
+
+  assert.equal(res304.status, 304);
+  assert.equal(res304.headers.get('ETag'), etag);
+  assert.equal(res304.headers.get('Cache-Control'), 'public, max-age=60');
+  assert.equal(res304.headers.get('Access-Control-Allow-Origin'), '*');
+  assert.ok(res304.headers.has('RateLimit-Limit'));
+  assert.ok(res304.headers.has('RateLimit-Remaining'));
+  assert.ok(res304.headers.has('RateLimit-Reset'));
+
+  const body = await res304.text();
+  assert.equal(body, '', '304 response must have no body');
+});
+
+test('withV1() performs weak ETag comparison for If-None-Match', async () => {
+  const handler = withV1(async () => ok({ items: [1, 2] }));
+  const initialRes = await handler(new Request('http://localhost/api/v1/items'));
+  const weakEtag = initialRes.headers.get('ETag')!; // e.g. W/"<hash>"
+  const rawTag = weakEtag.replace(/^W\//, ''); // e.g. "<hash>"
+
+  // Weak comparison: client sends tag without W/
+  const reqWithoutW = new Request('http://localhost/api/v1/items', {
+    headers: { 'If-None-Match': rawTag },
+  });
+  const res1 = await handler(reqWithoutW);
+  assert.equal(res1.status, 304);
+
+  // Weak comparison: client sends comma-separated list
+  const reqList = new Request('http://localhost/api/v1/items', {
+    headers: { 'If-None-Match': `"other", ${weakEtag}` },
+  });
+  const res2 = await handler(reqList);
+  assert.equal(res2.status, 304);
+
+  // Client sends wildcard *
+  const reqWildcard = new Request('http://localhost/api/v1/items', {
+    headers: { 'If-None-Match': '*' },
+  });
+  const res3 = await handler(reqWildcard);
+  assert.equal(res3.status, 304);
+
+  // Client sends non-matching tag -> 200 with full body
+  const reqMismatch = new Request('http://localhost/api/v1/items', {
+    headers: { 'If-None-Match': '"stale-tag"' },
+  });
+  const resMismatch = await handler(reqMismatch);
+  assert.equal(resMismatch.status, 200);
+  const data = await resMismatch.json();
+  assert.deepEqual(data.data, { items: [1, 2] });
+});
+
+test('withV1() preserves handler-supplied strong ETag', async () => {
+  const strongEtag = '"strong-hash-custom-42"';
+  const handler = withV1(async () => {
+    return new Response(JSON.stringify({ custom: true }), {
+      status: 200,
+      headers: {
+        'Content-Type': 'application/json',
+        ETag: strongEtag,
+      },
+    });
+  });
+
+  const res = await handler(new Request('http://localhost/api/v1/custom'));
+  assert.equal(res.status, 200);
+  assert.equal(res.headers.get('ETag'), strongEtag);
+
+  // Conditional request with strong ETag
+  const req304 = new Request('http://localhost/api/v1/custom', {
+    headers: { 'If-None-Match': strongEtag },
+  });
+  const res304 = await handler(req304);
+  assert.equal(res304.status, 304);
+  assert.equal(res304.headers.get('ETag'), strongEtag);
+});
+
+test('withV1() skips ETags on no-store responses (such as health)', async () => {
+  const healthHandler = withV1(async () => ok({ status: 'pass', apiVersion: '1' }), {
+    cache: 'no-store',
+  });
+
+  const res = await healthHandler(new Request('http://localhost/api/v1/health'));
+  assert.equal(res.status, 200);
+  assert.equal(res.headers.get('Cache-Control'), 'no-store');
+  assert.equal(res.headers.has('ETag'), false, 'no-store response must not have ETag');
+
+  // If-None-Match against no-store response still returns 200
+  const reqWithEtag = new Request('http://localhost/api/v1/health', {
+    headers: { 'If-None-Match': '"some-etag"' },
+  });
+  const resWithMatch = await healthHandler(reqWithEtag);
+  assert.equal(resWithMatch.status, 200);
+  assert.equal(resWithMatch.headers.has('ETag'), false);
+});
+
+test('withV1() sets Access-Control-Expose-Headers with all required headers', async () => {
+  const handler = withV1(async () => ok({ key: 'val' }));
+  const res = await handler(new Request('http://localhost/api/v1/test'));
+
+  const exposed = res.headers.get('Access-Control-Expose-Headers');
+  assert.ok(exposed);
+
+  const expectedHeaders = [
+    'ETag',
+    'RateLimit-Limit',
+    'RateLimit-Remaining',
+    'RateLimit-Reset',
+    'Retry-After',
+    'Deprecation',
+    'Sunset',
+  ];
+
+  for (const h of expectedHeaders) {
+    assert.ok(exposed.includes(h), `Access-Control-Expose-Headers must include ${h}`);
+  }
+});

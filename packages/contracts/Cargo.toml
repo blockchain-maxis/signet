@@ -3,7 +3,7 @@ resolver = "2"
 members = ["identity-registry"]
 
 [workspace.dependencies]
-soroban-sdk = "28"
+soroban-sdk = "29"
 proptest = "1"
 
 [profile.release]

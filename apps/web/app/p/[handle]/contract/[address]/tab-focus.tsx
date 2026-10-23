@@ -26,6 +26,12 @@ function fragmentTarget(): HTMLElement | null {
  * a target inside a closed `<details>` (the "unused types" group) is not
  * rendered at all. So this opens any closed `<details>` around the target and
  * focuses it, which also scrolls it into view.
+ *
+ * Returns true only once the target really holds focus. While a streamed
+ * boundary is still arriving, React parks its finished content in a hidden
+ * buffer element, so `getElementById` can find the target there: `focus()` on
+ * it is a no-op, and reporting success would stop the wait before the content
+ * is swapped into place (the deep link then never scrolled).
  */
 function focusFragment(): boolean {
   const target = fragmentTarget();
@@ -36,7 +42,7 @@ function focusFragment(): boolean {
   // Sections carry tabindex=-1 already; this covers any other target.
   if (!target.hasAttribute('tabindex')) target.setAttribute('tabindex', '-1');
   target.focus();
-  return true;
+  return document.activeElement === target;
 }
 
 /** Focus the tab's `<h2>`. Headings are not focusable by default; -1 allows programmatic focus without a tab stop. */

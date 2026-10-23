@@ -4,6 +4,8 @@
 
 mod dispatch;
 mod framing;
+mod lanes;
+mod ledger;
 
 use std::io;
 
@@ -11,21 +13,21 @@ use tracing_subscriber::EnvFilter;
 
 /// Wire protocol version the CLI handshake compares against.
 pub(crate) const PROTOCOL_VERSION: u32 = 1;
-/// Soroban lane count this build is pinned to.
-pub(crate) const LANES: u32 = 28;
-/// Pinned `soroban-env-host` and `soroban-simulation` versions (sandbox/Cargo.toml);
-/// bump with them.
-pub(crate) const ENV_HOST_VERSION: &str = "28.0.2";
-pub(crate) const SIMULATION_VERSION: &str = "28.0.2";
 
-/// `signet-simulator <semver> (commit <sha>) protocol 1 lanes 28`
+/// `signet-simulator <semver> (commit <sha>) protocol 1 lanes 28`; with more
+/// lanes, their ledger protocols comma-separated (`lanes 28,29`).
 fn version_string() -> String {
+    let lanes: Vec<String> = lanes::LaneRegistry::builtin()
+        .supported()
+        .iter()
+        .map(u32::to_string)
+        .collect();
     format!(
         "signet-simulator {} (commit {}) protocol {} lanes {}",
         env!("CARGO_PKG_VERSION"),
         env!("SIGNET_SIMULATOR_COMMIT"),
         PROTOCOL_VERSION,
-        LANES
+        lanes.join(",")
     )
 }
 

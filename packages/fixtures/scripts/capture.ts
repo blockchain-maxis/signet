@@ -26,6 +26,18 @@ const CLAIM_TX_HASH = 'ce05dc2ae700d2ea1d535d9efda77a212978d456c1a3e3da6e5f066a7
 // so when this hash ages out, pick a newer create-contract tx and update it.
 const DEPLOY_TX_HASH = 'dd8155932d72fe2f8edc2405fc28c022212d79485bb56515fc3175259cf3c9b2';
 
+// Real cross-contract calls on testnet (#516), both into the same lending
+// contract (CBXZBQ6N…). The repay's auth tree names a sub-call to a Stellar
+// Asset Contract `transfer`; the borrow touches a foreign contract instance
+// (CAITA5YI…) that appears only in the footprint — neither the auth tree nor
+// any contract event names it.
+const SAC_TRANSFER_CALL_TX_HASH = '8267711dde3fd5b84b9314c6f771c0e5a427d60595856314b28c6b9049d92f13';
+const FOOTPRINT_ONLY_CALL_TX_HASH = '7e8b80aa4dd8afe649b1362e1e4a79e9f931c8eeeb2deb8ccaa9e27aec224ac0';
+
+// `capture <name>...` re-records only the named fixtures, so adding one does
+// not force re-capturing pinned transactions that have aged out of retention.
+const ONLY = new Set(process.argv.slice(2));
+
 async function rpcCall(method: string, params: unknown): Promise<any> {
   for (let attempt = 0; attempt < 10; attempt++) {
     try {
@@ -69,6 +81,7 @@ export interface FixtureEnvelope<T = unknown> {
 }
 
 async function writeFixture(name: string, envelope: FixtureEnvelope): Promise<void> {
+  if (ONLY.size > 0 && !ONLY.has(name)) return;
   await mkdir(DATA_DIR, { recursive: true });
   const path = join(DATA_DIR, `${name}.json`);
   await writeFile(path, JSON.stringify(envelope, null, 2) + '\n');
@@ -179,7 +192,28 @@ async function main() {
     payload: deployTx,
   });
 
-  // 6. Horizon transaction record for the same deployment, verbatim. Current
+  // 6–7. Cross-contract call getTransactions
+  for (const [name, hash] of [
+    ['sac-transfer-call-get-transaction', SAC_TRANSFER_CALL_TX_HASH],
+    ['footprint-only-call-get-transaction', FOOTPRINT_ONLY_CALL_TX_HASH],
+  ] as const) {
+    if (ONLY.size > 0 && !ONLY.has(name)) continue;
+    const callTx = await rpcCall('getTransaction', { hash });
+    await writeFixture(name, {
+      network: NETWORK,
+      rpcUrl: RPC_URL,
+      capturedAt,
+      latestLedger,
+      request: {
+        endpoint: 'rpc',
+        methodOrPath: 'getTransaction',
+        params: { hash },
+      },
+      payload: callTx,
+    });
+  }
+
+  // 8. Horizon transaction record for the same deployment, verbatim. Current
   // Horizon does not return `result_meta_xdr`; the meta lives in the
   // `deploy-get-transaction` (RPC) fixture. Nothing is merged or invented here:
   // if Horizon is unreachable the capture fails.

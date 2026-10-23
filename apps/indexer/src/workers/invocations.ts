@@ -1,4 +1,5 @@
 import { Address, StrKey, xdr, rpc } from '@stellar/stellar-sdk';
+import { callEdgesFromTransaction, eventContractIds, invokedFunction, type CallEdge } from '@signet/visualiser';
 import { logger } from '../logger.js';
 import { sleep } from '../stellar.js';
 import { withRetry } from '../retry.js';
@@ -28,17 +29,20 @@ export interface ContractInvocationCreate {
   readOnly: string[];
   readWrite: string[];
   changed: string[] | null;
-  callEdges?: unknown;
+  /** Cross-contract call edges out of this contract (#516); null if they could not be decoded. */
+  callEdges?: CallEdge[] | null;
   eventsContractIds: string[];
 }
 
 /** Fields refreshed on an existing `ContractInvocation` row. */
 export interface ContractInvocationUpdate {
+  function: string | null;
   successful: boolean;
   wasmHash: string | null;
   readOnly: string[];
   readWrite: string[];
   changed: string[] | null;
+  callEdges: CallEdge[] | null;
   eventsContractIds: string[];
 }
 
@@ -256,49 +260,14 @@ export function extractChangedKeys(metaXdr: string | xdr.TransactionMeta): strin
 }
 
 /**
- * Extract all contract IDs that emitted events or diagnostic events in this transaction.
+ * Extract the contract IDs that emitted contract events in this transaction's
+ * operations. v4 transaction-level events are the native SAC's fee
+ * charge/refund on every transaction and diagnostic events are not reliably
+ * returned, so neither counts — the same rule call-edge evidence uses.
  */
 export function extractEventsContractIds(metaXdr: string | xdr.TransactionMeta): string[] {
   try {
-    const meta = typeof metaXdr === 'string' ? xdr.TransactionMeta.fromXDR(metaXdr, 'base64') : metaXdr;
-    const contractIds = new Set<string>();
-
-    const addEvent = (event: xdr.ContractEvent) => {
-      const cid = event.contractId();
-      if (cid) {
-        contractIds.add(Address.contract(cid as any).toString());
-      }
-    };
-
-    // See extractChangedKeys: switch on the resolved discriminant, not a
-    // string-literal check with an always-truthy accessor-presence fallback,
-    // or the v3 branch wrongly wins for every v4 meta and throws.
-    switch (meta.switch()) {
-      case 3: {
-        const v3 = meta.v3();
-        const sorobanMeta = v3.sorobanMeta();
-        if (sorobanMeta) {
-          for (const ev of sorobanMeta.events()) {
-            addEvent(ev);
-          }
-          for (const dev of sorobanMeta.diagnosticEvents()) {
-            addEvent(dev.event());
-          }
-        }
-        break;
-      }
-      case 4: {
-        const v4 = meta.v4();
-        for (const ev of v4.events()) {
-          addEvent(ev.event());
-        }
-        for (const dev of v4.diagnosticEvents()) {
-          addEvent(dev.event());
-        }
-        break;
-      }
-    }
-    return Array.from(contractIds);
+    return eventContractIds(metaXdr);
   } catch {
     return [];
   }
@@ -332,7 +301,8 @@ export function extractSourceAccount(envelope: xdr.TransactionEnvelope): string 
 
 /**
  * Extract top-level invoked function name if the target of invokeHostFunction is this contract.
- * Invocations where the contract is reached only as a sub-call return null.
+ * Invocations where the contract is reached only as a sub-call return null; the worker then
+ * falls back to the auth tree (`invokedFunction`), which names authorised sub-calls.
  */
 export function extractFunctionName(tx: xdr.Transaction, contractAddress: string): string | null {
   try {
@@ -357,12 +327,23 @@ export function extractFunctionName(tx: xdr.Transaction, contractAddress: string
   return null;
 }
 
+/** Run a pure decoder; a malformed structure yields null rather than dropping the row. */
+function safely<T>(decode: () => T): T | null {
+  try {
+    return decode();
+  } catch (err) {
+    logger.debug({ error: String(err) }, 'invocations.decodeFailed');
+    return null;
+  }
+}
+
 /**
  * Per-contract invocation index capture worker.
  *
  * Discovers recent transactions for tracked contracts via RPC `getEvents` (documenting
  * the blind spot for event-less calls) and fetches full transaction details via `getTransaction`.
- * Decodes declared footprints, result meta state changes, and top-level function names.
+ * Decodes declared footprints, result meta state changes, function names (top-level, or from
+ * the auth tree for authorised sub-calls), and cross-contract call edges (#516).
  */
 export async function runInvocationsWorker(
   soroban: SorobanInvocationsRpc,
@@ -486,10 +467,11 @@ export async function runInvocationsWorker(
         }
 
         const { readOnly, readWrite } = extractFootprint(tx);
-        const fnName = extractFunctionName(tx, contract.address);
+        const fnName = extractFunctionName(tx, contract.address) ?? safely(() => invokedFunction(envelope, contract.address));
         const metaXdr = (txRes as any).resultMetaXdr;
         const changed = metaXdr ? extractChangedKeys(metaXdr) : null;
         const eventsContractIds = metaXdr ? extractEventsContractIds(metaXdr) : [];
+        const callEdges = safely(() => callEdgesFromTransaction(envelope, metaXdr ?? null, contract.address));
 
         const createdAt = txRes.createdAt
           ? typeof txRes.createdAt === 'number'
@@ -507,11 +489,13 @@ export async function runInvocationsWorker(
         await store.contractInvocation.upsert({
           where: { id },
           update: {
+            function: fnName,
             successful,
             wasmHash: contract.wasmHash,
             readOnly,
             readWrite,
             changed,
+            callEdges,
             eventsContractIds,
           },
           create: {
@@ -527,7 +511,7 @@ export async function runInvocationsWorker(
             readOnly,
             readWrite,
             changed,
-            callEdges: null,
+            callEdges,
             eventsContractIds,
           },
         });

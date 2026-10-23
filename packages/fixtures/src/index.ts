@@ -86,6 +86,8 @@ export type FixtureName =
   | 'contract-wasm-entry'
   | 'claim-get-transaction'
   | 'deploy-get-transaction'
+  | 'sac-transfer-call-get-transaction'
+  | 'footprint-only-call-get-transaction'
   | 'horizon-contract-deploy-tx';
 
 export function loadFixtureEnvelope<T = unknown>(name: FixtureName): FixtureEnvelope<T> {
@@ -98,7 +100,11 @@ export function loadFixture(
   name: 'registry-instance-entry' | 'sac-instance-entry' | 'contract-wasm-entry',
 ): GetLedgerEntriesResult;
 export function loadFixture(
-  name: 'claim-get-transaction' | 'deploy-get-transaction',
+  name:
+    | 'claim-get-transaction'
+    | 'deploy-get-transaction'
+    | 'sac-transfer-call-get-transaction'
+    | 'footprint-only-call-get-transaction',
 ): GetTransactionResult;
 export function loadFixture(name: 'horizon-contract-deploy-tx'): HorizonTransactionResult;
 export function loadFixture<T = unknown>(name: FixtureName): T {
