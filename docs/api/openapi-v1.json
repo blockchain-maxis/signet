@@ -128,6 +128,49 @@
         ],
         "type": "object"
       },
+      "HandleWallet": {
+        "additionalProperties": false,
+        "properties": {
+          "address": {
+            "description": "Stellar account public key (G...) or contract ID (C...).",
+            "pattern": "^[GC][A-Z2-7]{55}$",
+            "type": "string"
+          },
+          "indexingPending": {
+            "description": "True when the indexer has not yet finished scanning the wallet.",
+            "type": "boolean"
+          },
+          "isPrimary": {
+            "description": "Whether this is the primary wallet for the handle.",
+            "type": "boolean"
+          },
+          "linkedAt": {
+            "description": "ISO-8601 UTC timestamp when the link was attested, or null.",
+            "format": "date-time",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "network": {
+            "description": "Network context.",
+            "type": "string"
+          },
+          "source": {
+            "description": "Provenance of the wallet link ('onchain', 'cli', 'curated', or 'unknown').",
+            "type": "string"
+          }
+        },
+        "required": [
+          "address",
+          "isPrimary",
+          "source",
+          "linkedAt",
+          "indexingPending",
+          "network"
+        ],
+        "type": "object"
+      },
       "Operation": {
         "additionalProperties": false,
         "properties": {
@@ -332,6 +375,558 @@
         ],
         "type": "object"
       },
+      "SpecJson": {
+        "definitions": {
+          "contractBuild": {
+            "properties": {
+              "entries": {
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "description": "Every contractmetav0 key/value pair. Absent in documents written before it was added.",
+                "type": "object"
+              },
+              "rustVersion": {
+                "type": "string"
+              },
+              "sdkVersion": {
+                "type": "string"
+              }
+            },
+            "type": "object"
+          },
+          "contractEnvMeta": {
+            "properties": {
+              "preRelease": {
+                "minimum": 0,
+                "type": "integer"
+              },
+              "protocolVersion": {
+                "minimum": 0,
+                "type": "integer"
+              }
+            },
+            "required": [
+              "protocolVersion",
+              "preRelease"
+            ],
+            "type": "object"
+          },
+          "specEnum": {
+            "properties": {
+              "doc": {
+                "type": "string"
+              },
+              "kind": {
+                "const": "enum"
+              },
+              "name": {
+                "type": "string"
+              },
+              "variants": {
+                "items": {
+                  "$ref": "#/components/schemas/SpecJson/definitions/specEnumVariant"
+                },
+                "type": "array"
+              }
+            },
+            "required": [
+              "kind",
+              "name",
+              "variants"
+            ],
+            "type": "object"
+          },
+          "specEnumVariant": {
+            "properties": {
+              "doc": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              },
+              "value": {
+                "type": "integer"
+              }
+            },
+            "required": [
+              "name",
+              "value"
+            ],
+            "type": "object"
+          },
+          "specErrorCase": {
+            "properties": {
+              "doc": {
+                "type": "string"
+              },
+              "enumName": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              },
+              "value": {
+                "minimum": 0,
+                "type": "integer"
+              }
+            },
+            "required": [
+              "name",
+              "value"
+            ],
+            "type": "object"
+          },
+          "specEvent": {
+            "properties": {
+              "dataFormat": {
+                "enum": [
+                  "single_value",
+                  "vec",
+                  "map"
+                ]
+              },
+              "doc": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              },
+              "params": {
+                "items": {
+                  "properties": {
+                    "location": {
+                      "enum": [
+                        "topic",
+                        "data"
+                      ]
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "type": {
+                      "$ref": "#/components/schemas/SpecJson/definitions/typeRef"
+                    }
+                  },
+                  "required": [
+                    "name",
+                    "type",
+                    "location"
+                  ],
+                  "type": "object"
+                },
+                "type": "array"
+              },
+              "prefixTopics": {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              }
+            },
+            "required": [
+              "name",
+              "doc",
+              "prefixTopics",
+              "params",
+              "dataFormat"
+            ],
+            "type": "object"
+          },
+          "specField": {
+            "properties": {
+              "doc": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              },
+              "type": {
+                "$ref": "#/components/schemas/SpecJson/definitions/typeRef"
+              }
+            },
+            "required": [
+              "name",
+              "type"
+            ],
+            "type": "object"
+          },
+          "specFunction": {
+            "properties": {
+              "doc": {
+                "type": "string"
+              },
+              "inputs": {
+                "items": {
+                  "$ref": "#/components/schemas/SpecJson/definitions/specField"
+                },
+                "type": "array"
+              },
+              "isConstructor": {
+                "type": "boolean"
+              },
+              "name": {
+                "type": "string"
+              },
+              "outputs": {
+                "items": {
+                  "$ref": "#/components/schemas/SpecJson/definitions/typeRef"
+                },
+                "type": "array"
+              }
+            },
+            "required": [
+              "name",
+              "inputs",
+              "outputs"
+            ],
+            "type": "object"
+          },
+          "specStruct": {
+            "properties": {
+              "doc": {
+                "type": "string"
+              },
+              "fields": {
+                "items": {
+                  "$ref": "#/components/schemas/SpecJson/definitions/specField"
+                },
+                "type": "array"
+              },
+              "kind": {
+                "const": "struct"
+              },
+              "name": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "kind",
+              "name",
+              "fields"
+            ],
+            "type": "object"
+          },
+          "specType": {
+            "oneOf": [
+              {
+                "$ref": "#/components/schemas/SpecJson/definitions/specStruct"
+              },
+              {
+                "$ref": "#/components/schemas/SpecJson/definitions/specUnion"
+              },
+              {
+                "$ref": "#/components/schemas/SpecJson/definitions/specEnum"
+              }
+            ]
+          },
+          "specUnion": {
+            "properties": {
+              "cases": {
+                "items": {
+                  "$ref": "#/components/schemas/SpecJson/definitions/specUnionCase"
+                },
+                "type": "array"
+              },
+              "doc": {
+                "type": "string"
+              },
+              "kind": {
+                "const": "union"
+              },
+              "name": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "kind",
+              "name",
+              "cases"
+            ],
+            "type": "object"
+          },
+          "specUnionCase": {
+            "properties": {
+              "doc": {
+                "type": "string"
+              },
+              "fields": {
+                "items": {
+                  "$ref": "#/components/schemas/SpecJson/definitions/specField"
+                },
+                "type": "array"
+              },
+              "name": {
+                "type": "string"
+              }
+            },
+            "required": [
+              "name",
+              "fields"
+            ],
+            "type": "object"
+          },
+          "typeRef": {
+            "oneOf": [
+              {
+                "enum": [
+                  "val",
+                  "void",
+                  "bool",
+                  "i32",
+                  "u32",
+                  "i64",
+                  "u64",
+                  "i128",
+                  "u128",
+                  "i256",
+                  "u256",
+                  "bytes",
+                  "string",
+                  "symbol",
+                  "address",
+                  "timepoint",
+                  "duration",
+                  "error"
+                ],
+                "type": "string"
+              },
+              {
+                "properties": {
+                  "n": {
+                    "minimum": 1,
+                    "type": "integer"
+                  },
+                  "type": {
+                    "const": "bytes_n"
+                  }
+                },
+                "required": [
+                  "type",
+                  "n"
+                ],
+                "type": "object"
+              },
+              {
+                "properties": {
+                  "type": {
+                    "const": "option"
+                  },
+                  "value": {
+                    "$ref": "#/components/schemas/SpecJson/definitions/typeRef"
+                  }
+                },
+                "required": [
+                  "type",
+                  "value"
+                ],
+                "type": "object"
+              },
+              {
+                "properties": {
+                  "error": {
+                    "$ref": "#/components/schemas/SpecJson/definitions/typeRef"
+                  },
+                  "ok": {
+                    "$ref": "#/components/schemas/SpecJson/definitions/typeRef"
+                  },
+                  "type": {
+                    "const": "result"
+                  }
+                },
+                "required": [
+                  "type",
+                  "ok",
+                  "error"
+                ],
+                "type": "object"
+              },
+              {
+                "properties": {
+                  "element": {
+                    "$ref": "#/components/schemas/SpecJson/definitions/typeRef"
+                  },
+                  "type": {
+                    "const": "vec"
+                  }
+                },
+                "required": [
+                  "type",
+                  "element"
+                ],
+                "type": "object"
+              },
+              {
+                "properties": {
+                  "key": {
+                    "$ref": "#/components/schemas/SpecJson/definitions/typeRef"
+                  },
+                  "type": {
+                    "const": "map"
+                  },
+                  "value": {
+                    "$ref": "#/components/schemas/SpecJson/definitions/typeRef"
+                  }
+                },
+                "required": [
+                  "type",
+                  "key",
+                  "value"
+                ],
+                "type": "object"
+              },
+              {
+                "properties": {
+                  "elements": {
+                    "items": {
+                      "$ref": "#/components/schemas/SpecJson/definitions/typeRef"
+                    },
+                    "type": "array"
+                  },
+                  "type": {
+                    "const": "tuple"
+                  }
+                },
+                "required": [
+                  "type",
+                  "elements"
+                ],
+                "type": "object"
+              },
+              {
+                "properties": {
+                  "name": {
+                    "minLength": 1,
+                    "type": "string"
+                  },
+                  "type": {
+                    "const": "named"
+                  }
+                },
+                "required": [
+                  "type",
+                  "name"
+                ],
+                "type": "object"
+              },
+              {
+                "properties": {
+                  "type": {
+                    "const": "unknown"
+                  },
+                  "xdrArm": {
+                    "minLength": 1,
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "type",
+                  "xdrArm"
+                ],
+                "type": "object"
+              }
+            ]
+          }
+        },
+        "description": "Versioned, deterministic JSON form of a Soroban contract spec (B-11). entriesXdr is the source of truth; the flattened views are carried alongside. H's OpenAPI document $refs this file; signet-simulator validates spec.extract output against it.",
+        "properties": {
+          "attestationHash": {
+            "description": "Hash of the registry attestation record.",
+            "type": "string"
+          },
+          "attestationPointer": {
+            "description": "Pointer or URI of the attestation in the registry.",
+            "type": "string"
+          },
+          "build": {
+            "$ref": "#/components/schemas/SpecJson/definitions/contractBuild"
+          },
+          "entriesXdr": {
+            "description": "Every spec entry's canonical XDR bytes as base64, in decode order.",
+            "items": {
+              "minLength": 1,
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "env": {
+            "$ref": "#/components/schemas/SpecJson/definitions/contractEnvMeta"
+          },
+          "errors": {
+            "items": {
+              "$ref": "#/components/schemas/SpecJson/definitions/specErrorCase"
+            },
+            "type": "array"
+          },
+          "events": {
+            "items": {
+              "$ref": "#/components/schemas/SpecJson/definitions/specEvent"
+            },
+            "type": "array"
+          },
+          "functionSchemas": {
+            "additionalProperties": {
+              "type": "object"
+            },
+            "description": "Optional JSON Schema per function arguments (B-15).",
+            "type": "object"
+          },
+          "functions": {
+            "items": {
+              "$ref": "#/components/schemas/SpecJson/definitions/specFunction"
+            },
+            "type": "array"
+          },
+          "provenance": {
+            "description": "Where this specification was obtained from.",
+            "enum": [
+              "embedded",
+              "orbital_registry"
+            ],
+            "type": "string"
+          },
+          "schemaVersion": {
+            "const": 1,
+            "description": "Schema version. Additive fields keep v1; renames and removals need v2."
+          },
+          "sdkVersion": {
+            "description": "Version of @stellar/stellar-sdk that decoded this spec.",
+            "minLength": 1,
+            "type": "string"
+          },
+          "types": {
+            "items": {
+              "$ref": "#/components/schemas/SpecJson/definitions/specType"
+            },
+            "type": "array"
+          },
+          "warnings": {
+            "description": "Non-fatal extraction notes (e.g. future XDR arms surfaced as unknown).",
+            "items": {
+              "type": "string"
+            },
+            "type": "array"
+          },
+          "wasmHash": {
+            "description": "Hex-encoded SHA-256 hash of the contract executable WASM.",
+            "pattern": "^[0-9a-f]{64}$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "schemaVersion",
+          "wasmHash",
+          "sdkVersion",
+          "entriesXdr",
+          "functions",
+          "types",
+          "errors",
+          "events",
+          "warnings"
+        ],
+        "title": "SpecJson v1",
+        "type": "object"
+      },
       "SuccessEnvelope": {
         "additionalProperties": false,
         "properties": {
@@ -400,6 +995,160 @@
   },
   "openapi": "3.1.0",
   "paths": {
+    "/contracts/{address}/spec": {
+      "get": {
+        "description": "Public chain data, without an attribution gate or registry fallback. The address mapping is short-lived: public, max-age=300, s-maxage=3600. Missing contracts return no_contract; a contract without an embedded interface returns no_embedded_spec.",
+        "operationId": "getContractSpec",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "address",
+            "required": true,
+            "schema": {
+              "pattern": "^C[A-Z2-7]{55}$",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "If-None-Match",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "data": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "address": {
+                          "pattern": "^C[A-Z2-7]{55}$",
+                          "type": "string"
+                        },
+                        "network": {
+                          "type": "string"
+                        },
+                        "spec": {
+                          "$ref": "#/components/schemas/SpecJson"
+                        },
+                        "specSource": {
+                          "const": "embedded",
+                          "type": "string"
+                        },
+                        "wasmHash": {
+                          "pattern": "^[0-9a-f]{64}$",
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "address",
+                        "network",
+                        "wasmHash",
+                        "spec",
+                        "specSource"
+                      ],
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "The embedded specification. ETag is the quoted WASM hash.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "ETag": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "304": {
+            "description": "If-None-Match matched. Empty body; ETag and Cache-Control retained.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "ETag": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "A standard v1 error. Missing contracts and embedded specs have distinct details.reason."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "A standard v1 error. Missing contracts and embedded specs have distinct details.reason."
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "A standard v1 error. Missing contracts and embedded specs have distinct details.reason."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "A standard v1 error. Missing contracts and embedded specs have distinct details.reason."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "A standard v1 error. Missing contracts and embedded specs have distinct details.reason."
+          }
+        },
+        "summary": "Embedded contract specification",
+        "tags": [
+          "Specifications"
+        ]
+      }
+    },
     "/health": {
       "get": {
         "description": "The operator probe's stable v1 form: per-dependency checks (including whether CLI pairing can work on this deployment), plus which network and API version this deployment serves. A degraded dependency still answers 200 with status \"degraded\".",
@@ -670,6 +1419,628 @@
         "summary": "Profile for a handle",
         "tags": [
           "Profiles"
+        ]
+      }
+    },
+    "/profiles/{handle}/operations": {
+      "get": {
+        "description": "Cursor-paginated operations for a profile with completeness metadata. When database is available, exact total is reported; when fallback answered, total is null and cursor stops at cap.",
+        "operationId": "getProfileOperations",
+        "parameters": [
+          {
+            "description": "Handle to look up (case-insensitive).",
+            "in": "path",
+            "name": "handle",
+            "required": true,
+            "schema": {
+              "pattern": "^[a-z0-9_-]{1,32}$",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Opaque pagination cursor from meta.nextCursor.",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Number of operations to return (default 25, max 100).",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 25,
+              "maximum": 100,
+              "minimum": 1,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "data": {
+                      "items": {
+                        "$ref": "#/components/schemas/Operation"
+                      },
+                      "type": "array"
+                    },
+                    "meta": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "cap": {
+                          "description": "Cap applied to the read, or null.",
+                          "type": [
+                            "integer",
+                            "null"
+                          ]
+                        },
+                        "nextCursor": {
+                          "description": "Opaque cursor for the next page, or null.",
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "source": {
+                          "description": "Layer that answered ('database' or 'horizon').",
+                          "type": "string"
+                        },
+                        "total": {
+                          "description": "Exact total count when database answered, otherwise null.",
+                          "type": [
+                            "integer",
+                            "null"
+                          ]
+                        },
+                        "truncated": {
+                          "description": "Whether records were capped.",
+                          "type": "boolean"
+                        }
+                      },
+                      "required": [
+                        "nextCursor",
+                        "total",
+                        "truncated",
+                        "cap",
+                        "source"
+                      ],
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Paginated list of operations."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Invalid handle or pagination parameters."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "No profile for this handle."
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Rate limit exceeded."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Internal server error."
+          }
+        },
+        "summary": "Operations for a profile",
+        "tags": [
+          "Profiles"
+        ]
+      }
+    },
+    "/profiles/{handle}/wallets": {
+      "get": {
+        "description": "All wallets attributed to a handle with provenance source and indexing status. Primary wallet is returned first.",
+        "operationId": "getHandleWallets",
+        "parameters": [
+          {
+            "description": "Handle to look up (case-insensitive).",
+            "in": "path",
+            "name": "handle",
+            "required": true,
+            "schema": {
+              "pattern": "^[a-z0-9_-]{1,32}$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "data": {
+                      "items": {
+                        "$ref": "#/components/schemas/HandleWallet"
+                      },
+                      "type": "array"
+                    },
+                    "meta": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "source": {
+                          "description": "Layer that answered ('db' or 'chain').",
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "source"
+                      ],
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "List of linked wallets."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Invalid handle."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "No profile for this handle."
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Rate limit exceeded."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Internal server error."
+          }
+        },
+        "summary": "Wallets linked to a handle",
+        "tags": [
+          "Profiles"
+        ]
+      }
+    },
+    "/registry/stats": {
+      "get": {
+        "description": "Public counts for dashboards and ecosystem reports. Any count the deployment cannot compute is null, never 0.",
+        "operationId": "getRegistryStats",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "data": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "boundHandles": {
+                          "description": "Total handles currently bound in the registry, or null if unreadable.",
+                          "type": [
+                            "integer",
+                            "null"
+                          ]
+                        },
+                        "indexedContracts": {
+                          "description": "Total contracts indexed in the database, or null if unavailable.",
+                          "type": [
+                            "integer",
+                            "null"
+                          ]
+                        },
+                        "indexedWallets": {
+                          "description": "Total wallets indexed in the database, or null if unavailable.",
+                          "type": [
+                            "integer",
+                            "null"
+                          ]
+                        },
+                        "network": {
+                          "description": "The Stellar network this deployment is configured for.",
+                          "type": "string"
+                        },
+                        "registryContract": {
+                          "description": "Configured Identity Registry contract address.",
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "network",
+                        "registryContract",
+                        "boundHandles",
+                        "indexedWallets",
+                        "indexedContracts"
+                      ],
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "The registry statistics.",
+            "headers": {
+              "Cache-Control": {
+                "description": "public, s-maxage=300",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Rate limit exceeded."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Internal server error."
+          }
+        },
+        "summary": "Public registry and indexer counts",
+        "tags": [
+          "Registry"
+        ]
+      }
+    },
+    "/resolve/{handle}": {
+      "get": {
+        "description": "Direct registry read with no database: which wallet does the Identity Registry say owns this handle? Returns 404 when unbound, 503 unavailable when unconfigured or simulation errors.",
+        "operationId": "resolveHandle",
+        "parameters": [
+          {
+            "description": "Handle to resolve (case-insensitive).",
+            "in": "path",
+            "name": "handle",
+            "required": true,
+            "schema": {
+              "pattern": "^[a-z0-9_-]{1,32}$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "data": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "archived": {
+                          "description": "Whether the handle entry is currently archived on chain.",
+                          "type": "boolean"
+                        },
+                        "handle": {
+                          "description": "Resolved handle in canonical lowercase.",
+                          "type": "string"
+                        },
+                        "network": {
+                          "description": "The Stellar network this deployment is configured for.",
+                          "type": "string"
+                        },
+                        "registryContract": {
+                          "description": "Configured Identity Registry contract address.",
+                          "type": "string"
+                        },
+                        "restorePreamble": {
+                          "additionalProperties": true,
+                          "description": "Restore preamble details from RPC simulation when archived.",
+                          "type": "object"
+                        },
+                        "wallet": {
+                          "description": "Stellar address (G… or C…) bound to the handle, or empty if archived.",
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "handle",
+                        "wallet",
+                        "network",
+                        "registryContract"
+                      ],
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "The bound wallet information.",
+            "headers": {
+              "Cache-Control": {
+                "description": "public, s-maxage=30",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Malformed handle."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Handle is not bound in the registry."
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Rate limit exceeded."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Registry unavailable or unconfigured."
+          }
+        },
+        "summary": "Resolve handle against Identity Registry",
+        "tags": [
+          "Registry"
+        ]
+      }
+    },
+    "/specs/{wasmHash}": {
+      "get": {
+        "description": "Read an immutable embedded specification directly by its hash. Public caching for one year with immutable; a missing code entry returns no_wasm.",
+        "operationId": "getSpecByHash",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "wasmHash",
+            "required": true,
+            "schema": {
+              "pattern": "^[0-9a-fA-F]{64}$",
+              "type": "string"
+            }
+          },
+          {
+            "in": "header",
+            "name": "If-None-Match",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "data": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "network": {
+                          "type": "string"
+                        },
+                        "spec": {
+                          "$ref": "#/components/schemas/SpecJson"
+                        },
+                        "specSource": {
+                          "const": "embedded",
+                          "type": "string"
+                        },
+                        "wasmHash": {
+                          "pattern": "^[0-9a-f]{64}$",
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "network",
+                        "wasmHash",
+                        "spec",
+                        "specSource"
+                      ],
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "The embedded specification. ETag is the quoted WASM hash.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "ETag": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "304": {
+            "description": "If-None-Match matched. Empty body; ETag and Cache-Control retained.",
+            "headers": {
+              "Cache-Control": {
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "ETag": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "A standard v1 error. Missing contracts and embedded specs have distinct details.reason."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "A standard v1 error. Missing contracts and embedded specs have distinct details.reason."
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "A standard v1 error. Missing contracts and embedded specs have distinct details.reason."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "A standard v1 error. Missing contracts and embedded specs have distinct details.reason."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "A standard v1 error. Missing contracts and embedded specs have distinct details.reason."
+          }
+        },
+        "summary": "Embedded specification by WASM hash",
+        "tags": [
+          "Specifications"
         ]
       }
     }

@@ -14,10 +14,11 @@ use std::sync::Mutex;
 use serde_json::{json, Map, Value};
 
 use crate::framing::{Line, LineReader};
+use crate::lanes::LaneRegistry;
 use crate::ledger::verbs::{
     ledger_checkpoint, ledger_get, ledger_open, ledger_put, ledger_rollback, OpenLedger,
 };
-use crate::{ENV_HOST_VERSION, LANES, PROTOCOL_VERSION, SIMULATION_VERSION};
+use crate::PROTOCOL_VERSION;
 
 /// Exit status after a panic in the message loop.
 pub const PANIC_EXIT_CODE: i32 = 101;
@@ -209,6 +210,16 @@ impl Dispatcher {
             return invalid_field(id, "client_protocol_version", "a non-negative integer");
         }
         self.greeted = true;
+        let lanes: Vec<Value> = LaneRegistry::builtin()
+            .lanes()
+            .map(|lane| {
+                json!({
+                    "ledger_protocol": lane.ledger_protocol(),
+                    "env_host": lane.env_host_version(),
+                    "simulation": lane.simulation_version(),
+                })
+            })
+            .collect();
         Step::reply(json!({
             "version": PROTOCOL_VERSION,
             "id": id,
@@ -216,11 +227,7 @@ impl Dispatcher {
             "server_protocol_version": PROTOCOL_VERSION,
             "simulator_version": env!("CARGO_PKG_VERSION"),
             "commit": env!("SIGNET_SIMULATOR_COMMIT"),
-            "lanes": [{
-                "ledger_protocol": LANES,
-                "env_host": ENV_HOST_VERSION,
-                "simulation": SIMULATION_VERSION,
-            }],
+            "lanes": lanes,
         }))
     }
 }
@@ -326,7 +333,26 @@ mod tests {
         assert_eq!(ack["server_protocol_version"], 1);
         assert_eq!(ack["simulator_version"], env!("CARGO_PKG_VERSION"));
         assert_eq!(ack["commit"], env!("SIGNET_SIMULATOR_COMMIT"));
-        assert_eq!(ack["lanes"][0]["ledger_protocol"], LANES);
+        assert_eq!(ack["lanes"][0]["ledger_protocol"], 28);
+        assert_eq!(ack["lanes"][0]["env_host"], "28.0.2");
+        assert_eq!(ack["lanes"][0]["simulation"], "28.0.2");
+    }
+
+    #[test]
+    fn ledger_open_at_protocol_29_is_unsupported_ledger_protocol() {
+        let (replies, _) = run(&format!(
+            "{HELLO}\n{}\n",
+            r#"{"version":1,"id":"o1","type":"ledger_open","network_passphrase":"Test SDF Network ; September 2015","ledger_protocol":29}"#
+        ));
+        assert_error(
+            &replies[1],
+            "unsupported_ledger_protocol",
+            "ledger_protocol",
+        );
+        assert_eq!(replies[1]["id"], "o1");
+        assert_eq!(replies[1]["detail"]["requested"], 29);
+        assert_eq!(replies[1]["detail"]["networkProtocol"], 29);
+        assert_eq!(replies[1]["detail"]["supported"], json!([28]));
     }
 
     #[test]

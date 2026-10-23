@@ -573,6 +573,86 @@ export const paths: Record<string, OpenApiPathItem> = {
       },
     },
   },
+  '/registry/stats': {
+    get: {
+      operationId: 'getRegistryStats',
+      summary: 'Public registry and indexer counts',
+      description:
+        'Public counts for dashboards and ecosystem reports. Any count the deployment cannot compute is null, never 0.',
+      tags: ['Registry'],
+      responses: {
+        '200': {
+          description: 'The registry statistics.',
+          headers: {
+            'Cache-Control': {
+              schema: { type: 'string' },
+              description: 'public, s-maxage=300',
+            },
+          },
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                required: ['data'],
+                properties: {
+                  data: {
+                    type: 'object',
+                    required: [
+                      'network',
+                      'registryContract',
+                      'boundHandles',
+                      'indexedWallets',
+                      'indexedContracts',
+                    ],
+                    properties: {
+                      network: {
+                        type: 'string',
+                        description: 'The Stellar network this deployment is configured for.',
+                      },
+                      registryContract: {
+                        type: 'string',
+                        description: 'Configured Identity Registry contract address.',
+                      },
+                      boundHandles: {
+                        type: ['integer', 'null'],
+                        description: 'Total handles currently bound in the registry, or null if unreadable.',
+                      },
+                      indexedWallets: {
+                        type: ['integer', 'null'],
+                        description: 'Total wallets indexed in the database, or null if unavailable.',
+                      },
+                      indexedContracts: {
+                        type: ['integer', 'null'],
+                        description: 'Total contracts indexed in the database, or null if unavailable.',
+                      },
+                    },
+                    additionalProperties: false,
+                  },
+                },
+                additionalProperties: false,
+              },
+            },
+          },
+        },
+        '429': {
+          description: 'Rate limit exceeded.',
+          content: {
+            'application/json': {
+              schema: { $ref: '#/components/schemas/ErrorEnvelope' },
+            },
+          },
+        },
+        '500': {
+          description: 'Internal server error.',
+          content: {
+            'application/json': {
+              schema: { $ref: '#/components/schemas/ErrorEnvelope' },
+            },
+          },
+        },
+      },
+    },
+  },
   '/openapi.json': {
     get: {
       operationId: 'getOpenApiDocument',
@@ -607,6 +687,110 @@ export const paths: Record<string, OpenApiPathItem> = {
               schema: {
                 $ref: '#/components/schemas/ErrorEnvelope',
               },
+            },
+          },
+        },
+      },
+    },
+  },
+  '/resolve/{handle}': {
+    get: {
+      operationId: 'resolveHandle',
+      summary: 'Resolve handle against Identity Registry',
+      description:
+        'Direct registry read with no database: which wallet does the Identity Registry say owns this handle? Returns 404 when unbound, 503 unavailable when unconfigured or simulation errors.',
+      tags: ['Registry'],
+      parameters: [
+        {
+          name: 'handle',
+          in: 'path',
+          required: true,
+          description: 'Handle to resolve (case-insensitive).',
+          schema: { type: 'string', pattern: '^[a-z0-9_-]{1,32}$' },
+        },
+      ],
+      responses: {
+        '200': {
+          description: 'The bound wallet information.',
+          headers: {
+            'Cache-Control': {
+              schema: { type: 'string' },
+              description: 'public, s-maxage=30',
+            },
+          },
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                required: ['data'],
+                properties: {
+                  data: {
+                    type: 'object',
+                    required: ['handle', 'wallet', 'network', 'registryContract'],
+                    properties: {
+                      handle: {
+                        type: 'string',
+                        description: 'Resolved handle in canonical lowercase.',
+                      },
+                      wallet: {
+                        type: 'string',
+                        description: 'Stellar address (G… or C…) bound to the handle, or empty if archived.',
+                      },
+                      network: {
+                        type: 'string',
+                        description: 'The Stellar network this deployment is configured for.',
+                      },
+                      registryContract: {
+                        type: 'string',
+                        description: 'Configured Identity Registry contract address.',
+                      },
+                      archived: {
+                        type: 'boolean',
+                        description: 'Whether the handle entry is currently archived on chain.',
+                      },
+                      restorePreamble: {
+                        type: 'object',
+                        description: 'Restore preamble details from RPC simulation when archived.',
+                        additionalProperties: true,
+                      },
+                    },
+                    additionalProperties: false,
+                  },
+                },
+                additionalProperties: false,
+              },
+            },
+          },
+        },
+        '400': {
+          description: 'Malformed handle.',
+          content: {
+            'application/json': {
+              schema: { $ref: '#/components/schemas/ErrorEnvelope' },
+            },
+          },
+        },
+        '404': {
+          description: 'Handle is not bound in the registry.',
+          content: {
+            'application/json': {
+              schema: { $ref: '#/components/schemas/ErrorEnvelope' },
+            },
+          },
+        },
+        '429': {
+          description: 'Rate limit exceeded.',
+          content: {
+            'application/json': {
+              schema: { $ref: '#/components/schemas/ErrorEnvelope' },
+            },
+          },
+        },
+        '503': {
+          description: 'Registry unavailable or unconfigured.',
+          content: {
+            'application/json': {
+              schema: { $ref: '#/components/schemas/ErrorEnvelope' },
             },
           },
         },
@@ -659,6 +843,117 @@ export const paths: Record<string, OpenApiPathItem> = {
         },
         '400': {
           description: 'Invalid handle.',
+          content: {
+            'application/json': {
+              schema: { $ref: '#/components/schemas/ErrorEnvelope' },
+            },
+          },
+        },
+        '404': {
+          description: 'No profile for this handle.',
+          content: {
+            'application/json': {
+              schema: { $ref: '#/components/schemas/ErrorEnvelope' },
+            },
+          },
+        },
+        '429': {
+          description: 'Rate limit exceeded.',
+          content: {
+            'application/json': {
+              schema: { $ref: '#/components/schemas/ErrorEnvelope' },
+            },
+          },
+        },
+        '500': {
+          description: 'Internal server error.',
+          content: {
+            'application/json': {
+              schema: { $ref: '#/components/schemas/ErrorEnvelope' },
+            },
+          },
+        },
+      },
+    },
+  },
+  '/profiles/{handle}/operations': {
+    get: {
+      operationId: 'getProfileOperations',
+      summary: 'Operations for a profile',
+      description:
+        'Cursor-paginated operations for a profile with completeness metadata. When database is available, exact total is reported; when fallback answered, total is null and cursor stops at cap.',
+      tags: ['Profiles'],
+      parameters: [
+        {
+          name: 'handle',
+          in: 'path',
+          required: true,
+          description: 'Handle to look up (case-insensitive).',
+          schema: { type: 'string', pattern: '^[a-z0-9_-]{1,32}$' },
+        },
+        {
+          name: 'cursor',
+          in: 'query',
+          required: false,
+          description: 'Opaque pagination cursor from meta.nextCursor.',
+          schema: { type: 'string' },
+        },
+        {
+          name: 'limit',
+          in: 'query',
+          required: false,
+          description: 'Number of operations to return (default 25, max 100).',
+          schema: { type: 'integer', minimum: 1, maximum: 100, default: 25 },
+        },
+      ],
+      responses: {
+        '200': {
+          description: 'Paginated list of operations.',
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                required: ['data', 'meta'],
+                properties: {
+                  data: {
+                    type: 'array',
+                    items: { $ref: '#/components/schemas/Operation' },
+                  },
+                  meta: {
+                    type: 'object',
+                    required: ['nextCursor', 'total', 'truncated', 'cap', 'source'],
+                    properties: {
+                      nextCursor: {
+                        type: ['string', 'null'],
+                        description: 'Opaque cursor for the next page, or null.',
+                      },
+                      total: {
+                        type: ['integer', 'null'],
+                        description: 'Exact total count when database answered, otherwise null.',
+                      },
+                      truncated: {
+                        type: 'boolean',
+                        description: 'Whether records were capped.',
+                      },
+                      cap: {
+                        type: ['integer', 'null'],
+                        description: 'Cap applied to the read, or null.',
+                      },
+                      source: {
+                        type: 'string',
+                        description: "Layer that answered ('database' or 'horizon').",
+                      },
+                    },
+                    additionalProperties: false,
+                  },
+                },
+                additionalProperties: false,
+              },
+            },
+          },
+        },
+        '400': {
+          description: 'Invalid handle or pagination parameters.',
           content: {
             'application/json': {
               schema: { $ref: '#/components/schemas/ErrorEnvelope' },
