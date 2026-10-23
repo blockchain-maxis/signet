@@ -5,11 +5,22 @@ import { createServer } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { rpc, xdr } from '@stellar/stellar-sdk';
+import { rpc, xdr, hash as hashBytes } from '@stellar/stellar-sdk';
 import { loadFixture, loadFixtureEnvelope } from '@signet/fixtures';
 import type { Network } from '@signet/types';
-import { ContractNotFound, InvalidWasm, NoInterface, RpcUnavailable } from './errors.ts';
-import { fetchContractSpec, fetchWasmHash, maxRpcResponseBytes } from './fetch.ts';
+import {
+  ContractNotFound,
+  InvalidWasm,
+  NoInterface,
+  RpcUnavailable,
+  WasmNotFound,
+} from './errors.ts';
+import {
+  fetchContractSpec,
+  fetchContractSpecByHash,
+  fetchWasmHash,
+  maxRpcResponseBytes,
+} from './fetch.ts';
 import type { FetchOptions, SpecRpcServer } from './fetch.ts';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -84,6 +95,73 @@ function registryStub(): StubRpcServer {
 function stubOptions(stub: StubRpcServer, extra?: Partial<FetchOptions>): FetchOptions {
   return { network: NETWORK, rpcUrl: RPC_URL, server: stub, ...extra };
 }
+
+function codeStub(): StubRpcServer {
+  const stub = new StubRpcServer();
+  const entry = loadFixture('contract-wasm-entry').entries![0]!;
+  stub.response = {
+    latestLedger: 4887004,
+    entries: [
+      {
+        key: xdr.LedgerKey.fromXDR(entry.key, 'base64'),
+        val: xdr.LedgerEntryData.fromXDR(entry.xdr, 'base64'),
+      },
+    ],
+  };
+  return stub;
+}
+
+test('fetchContractSpecByHash reads the code key directly, without an address lookup', async () => {
+  const stub = codeStub();
+  const spec = await fetchContractSpecByHash(REGISTRY_WASM_HASH.toUpperCase(), stubOptions(stub));
+  assert.equal(spec.wasmHash, REGISTRY_WASM_HASH);
+  assert.equal(spec.entries.length, 9);
+  assert.equal(stub.ledgerCalls, 1);
+  assert.equal(stub.wasmCalls, 0);
+  assert.equal(stub.ledgerKeys[0]!.switch().name, 'contractCode');
+  assert.equal(stub.ledgerKeys[0]!.contractCode().hash().toString('hex'), REGISTRY_WASM_HASH);
+});
+
+test('fetchContractSpecByHash distinguishes a missing code entry and rejects invalid hashes before RPC', async () => {
+  const stub = new StubRpcServer();
+  await assert.rejects(fetchContractSpecByHash('a'.repeat(64), stubOptions(stub)), WasmNotFound);
+  assert.equal(stub.ledgerCalls, 1);
+  await assert.rejects(fetchContractSpecByHash('../invalid', stubOptions(stub)), TypeError);
+  assert.equal(stub.ledgerCalls, 1);
+});
+
+test('fetchContractSpecByHash enforces hash identity, module size and embedded-only parsing', async () => {
+  const stub = codeStub();
+  await assert.rejects(fetchContractSpecByHash('a'.repeat(64), stubOptions(stub)), RpcUnavailable);
+  await assert.rejects(
+    fetchContractSpecByHash(REGISTRY_WASM_HASH, stubOptions(stub, { maxWasmBytes: 1 })),
+    InvalidWasm,
+  );
+  const noSpec = readFileSync(join(SPEC_FIXTURES_DIR, 'no_spec.wasm'));
+  stub.response.entries[0]!.val!.contractCode().code(noSpec);
+  // A wrong-hash no-spec response must not masquerade as an absent interface.
+  await assert.rejects(
+    fetchContractSpecByHash(REGISTRY_WASM_HASH, stubOptions(stub)),
+    RpcUnavailable,
+  );
+  await assert.rejects(
+    fetchContractSpecByHash(hashBytes(noSpec).toString('hex'), stubOptions(stub)),
+    NoInterface,
+  );
+});
+
+test('fetchContractSpecByHash maps transport and malformed-entry failures without exposing them', async () => {
+  const stub = registryStub(); // an instance entry is not a code entry
+  await assert.rejects(
+    fetchContractSpecByHash(REGISTRY_WASM_HASH, stubOptions(stub)),
+    RpcUnavailable,
+  );
+  stub.ledgerFailure = new Error('private transport detail');
+  await assert.rejects(
+    fetchContractSpecByHash(REGISTRY_WASM_HASH, stubOptions(stub)),
+    RpcUnavailable,
+  );
+});
 
 test('fetchContractSpec: registry recording decodes to 9 spec entries', async () => {
   const stub = registryStub();

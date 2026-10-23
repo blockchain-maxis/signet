@@ -4,7 +4,7 @@ import type { RateLimitResult, RateLimitStore } from './rate-limit.ts';
 /**
  * Shared-backend rate-limit store for horizontally-scaled / serverless deploys.
  *
- * The in-memory store in `rate-limit.ts` is per-instance, so on Vercel/Netlify
+ * The in-memory store in `rate-limit.ts` is per-instance, so on Vercel
  * functions (or any multi-replica deploy) each instance counts independently and
  * the effective limit multiplies by the replica count. This store keeps the
  * count in Upstash Redis (HTTP/REST — no TCP socket, works in edge/serverless)

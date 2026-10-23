@@ -13,6 +13,7 @@ import type {
 } from './types.ts';
 import {
   ContractNotFound,
+  WasmNotFound,
   NoInterface,
   InterfaceUnreadable,
   RpcUnavailable,
@@ -194,6 +195,7 @@ test('ContractSpec type-level shape compilation using satisfies', () => {
 test('SpecReadError subclasses discriminate cleanly by kind', () => {
   const errors: ConcreteSpecReadError[] = [
     new ContractNotFound('CDUMMY...', 'testnet'),
+    new WasmNotFound('a'.repeat(64), 'testnet'),
     new NoInterface('no_section'),
     new NoInterface('stellar_asset_contract'),
     new InterfaceUnreadable('16.1.0', new Error('decode err')),
@@ -209,6 +211,10 @@ test('SpecReadError subclasses discriminate cleanly by kind', () => {
     switch (err.kind) {
       case 'contract_not_found':
         assert.equal(err.address, 'CDUMMY...');
+        assert.equal(err.network, 'testnet');
+        break;
+      case 'wasm_not_found':
+        assert.equal(err.wasmHash, 'a'.repeat(64));
         assert.equal(err.network, 'testnet');
         break;
       case 'no_interface':

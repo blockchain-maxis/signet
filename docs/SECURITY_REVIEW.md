@@ -183,4 +183,10 @@ test, not comfortable with the change.
       profile already shows them publicly — the API must not become a reverse
       index the profile page refuses to be. `[H: #633]`
 - [ ] Spec-serving endpoints inherit every bound in §2 — the API is the spec
-      reader's most exposed caller, not an exception to it. `[H: #633]`
+      reader's most exposed caller, not an exception to it. The public routes in
+      `apps/web/lib/api/v1/contract-spec.ts` validate inputs before RPC and use
+      `fetchWasmHash` / `fetchContractSpecByHash` from `packages/spec/src/fetch.ts`,
+      including its bounded transport, deadline, parser limits and hash check.
+      They never consult the optional registry fallback or attribution database.
+      Proof: the by-hash tests in `packages/spec/src/fetch.test.ts` and the
+      offline route tests in `apps/web/lib/api/v1/contract-spec.test.ts`.
