@@ -201,6 +201,14 @@ it can never collide with an id Go assigned
 ([#531](https://github.com/blockchain-maxis/signet/issues/531)). An entry Go
 could not find comes back with `entry_xdr: null`.
 
+When Go cannot answer at all (the RPC is down, the fetch timed out, or this
+session has no ledger source), it replies to the same `sim-` id with an `error`
+whose `code` is `fetch_failed` and whose `detail.kind` is `rpc_unavailable`,
+`timeout` or `rejected`. The simulator then fails the in-flight request with
+that `fetch_failed` error. Go's client (`cli/internal/simulator`) runs the fetch
+handler while it keeps waiting on the request, so the request's own timeout
+still bounds a slow RPC.
+
 Why a request at all, and not a snapshot sent up front: `soroban-simulation`
 reads state through a `SnapshotSource`, the RPC's `getLedgerEntries` only serves
 the **latest** ledger, and `stellar snapshot create` took 3m27s and then failed
