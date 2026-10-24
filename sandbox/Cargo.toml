@@ -14,8 +14,15 @@ license = "Apache-2.0"
 publish = false
 
 [workspace.dependencies]
-soroban-env-host = { version = "=28.0.2", features = ["recording_mode"] }
-soroban-simulation = "=28.0.2"
+# One host per ledger protocol (docs/CONTRACT_SANDBOX_DESIGN.md §4.1): a
+# production soroban-env-host only runs at its own protocol, so each lane links
+# its own pinned host and simulation crate under a renamed dependency, the way
+# stellar-core does. sandbox/simulator/src/lanes/ is the only code that names
+# them.
+soroban-env-host-p28 = { package = "soroban-env-host", version = "=28.0.2", features = ["recording_mode"] }
+soroban-simulation-p28 = { package = "soroban-simulation", version = "=28.0.2" }
+soroban-env-host-p29 = { package = "soroban-env-host", version = "=29.0.2", features = ["recording_mode"] }
+soroban-simulation-p29 = { package = "soroban-simulation", version = "=29.0.2" }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 base64 = "0.23"

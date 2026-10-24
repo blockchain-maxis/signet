@@ -1,6 +1,9 @@
-//! The protocol 28 lane: `soroban-env-host` 28.0.2 and `soroban-simulation`
-//! 28.0.2 (sandbox/Cargo.toml). Every versioned type stays inside this file;
-//! callers hand it XDR bytes and get XDR bytes back.
+// One host lane, shared source. Each lane module (`p28`, `p29`) aliases its
+// own pinned `soroban_env_host` and `soroban_simulation`, defines
+// LEDGER_PROTOCOL, ENV_HOST_VERSION and SIMULATION_VERSION, declares the
+// `spec` module, and `include!`s this file, so every lane runs the same code
+// against its own host. Every versioned type stays inside the lane; callers
+// hand it XDR bytes and get XDR bytes back.
 
 use std::io::Cursor;
 use std::rc::Rc;
@@ -35,19 +38,13 @@ use super::{
     SimulateBytes, SimulateResultBytes, SwapResultBytes, TransactionResources, WasmInspection,
 };
 
-/// The ledger protocol this lane runs: the pinned host's interface version.
-pub const LEDGER_PROTOCOL: u32 = 28;
-pub const ENV_HOST_VERSION: &str = "28.0.2";
-pub const SIMULATION_VERSION: &str = "28.0.2";
 
 /// Custom WASM section that holds the contract spec.
 const SPEC_SECTION: &str = "contractspecv0";
 
-mod spec;
+pub struct HostLane;
 
-pub struct P28Lane;
-
-pub static P28: P28Lane = P28Lane;
+pub static LANE: HostLane = HostLane;
 
 fn invalid(what: &'static str) -> LaneError {
     LaneError::InvalidXdr {
@@ -152,7 +149,7 @@ fn custom_sections<'a>(wasm: &'a [u8], name: &str) -> Result<Vec<&'a [u8]>, Lane
     Ok(found)
 }
 
-impl Lane for P28Lane {
+impl Lane for HostLane {
     fn ledger_protocol(&self) -> u32 {
         LEDGER_PROTOCOL
     }
@@ -1248,19 +1245,19 @@ mod tests {
 
     #[test]
     fn key_and_entry_checks_accept_valid_xdr_and_name_the_type_otherwise() {
-        assert!(P28.check_ledger_key(&fixtures::data_key_xdr(1)).is_ok());
-        assert!(P28
+        assert!(LANE.check_ledger_key(&fixtures::data_key_xdr(1)).is_ok());
+        assert!(LANE
             .check_ledger_entry(&fixtures::data_entry_xdr(1, 2))
             .is_ok());
         assert_eq!(
-            P28.check_ledger_key(b"junk"),
+            LANE.check_ledger_key(b"junk"),
             Err(LaneError::InvalidXdr {
                 what: "LedgerKey",
-                protocol: 28
+                protocol: LEDGER_PROTOCOL
             })
         );
         // An entry is not a key.
-        assert!(P28
+        assert!(LANE
             .check_ledger_key(&fixtures::data_entry_xdr(1, 2))
             .is_err());
     }
@@ -1289,14 +1286,14 @@ mod tests {
 
     #[test]
     fn simulate_rejects_bytes_that_are_not_a_host_function() {
-        let err = P28
+        let err = LANE
             .simulate(&request(b"junk".to_vec()), Rc::new(Ledger::default()))
             .unwrap_err();
         assert_eq!(
             err,
             LaneError::InvalidXdr {
                 what: "HostFunction",
-                protocol: 28
+                protocol: LEDGER_PROTOCOL
             }
         );
     }
@@ -1306,7 +1303,7 @@ mod tests {
         // A well-formed call against a ledger with no ConfigSetting entries:
         // the lane reads the ledger through the byte source and says what is
         // missing instead of guessing fees and limits.
-        let err = P28
+        let err = LANE
             .simulate(&request(invoke_xdr()), Rc::new(Ledger::default()))
             .unwrap_err();
         assert!(matches!(err, LaneError::NetworkConfig(_)), "{err:?}");
@@ -1318,7 +1315,7 @@ mod tests {
             .to_xdr(Limits::none())
             .unwrap();
 
-        let swapped = P28.swap(&entry, [2; 32]).unwrap();
+        let swapped = LANE.swap(&entry, [2; 32]).unwrap();
 
         assert_eq!(swapped.previous_wasm_hash, [1; 32]);
         let after = LedgerEntry::from_xdr(swapped.entry_xdr, Limits::none()).unwrap();
@@ -1328,11 +1325,11 @@ mod tests {
     #[test]
     fn swap_refuses_anything_but_a_wasm_contract_instance() {
         assert_eq!(
-            P28.swap(&fixtures::data_entry_xdr(1, 1), [2; 32]),
+            LANE.swap(&fixtures::data_entry_xdr(1, 1), [2; 32]),
             Err(LaneError::NotAContractInstance)
         );
         assert!(matches!(
-            P28.swap(b"junk", [2; 32]),
+            LANE.swap(b"junk", [2; 32]),
             Err(LaneError::InvalidXdr { .. })
         ));
     }
@@ -1341,7 +1338,7 @@ mod tests {
     fn the_instance_key_matches_the_instance_entry() {
         let entry = instance_entry([5; 32], [1; 32]);
         assert_eq!(
-            P28.contract_instance_key([5; 32]),
+            LANE.contract_instance_key([5; 32]),
             entry.to_key().to_xdr(Limits::none()).unwrap()
         );
     }
@@ -1388,7 +1385,7 @@ mod tests {
         payload.extend(function_spec("world").to_xdr(Limits::none()).unwrap());
         let wasm = wasm_with(&[("other", vec![1, 2, 3]), (SPEC_SECTION, payload)]);
 
-        let entries = P28.spec_entries(&wasm).unwrap();
+        let entries = LANE.spec_entries(&wasm).unwrap();
 
         let names: Vec<String> = entries
             .iter()
@@ -1404,13 +1401,13 @@ mod tests {
 
     #[test]
     fn a_module_without_a_spec_has_no_entries_and_junk_is_rejected() {
-        assert!(P28.spec_entries(&wasm_with(&[])).unwrap().is_empty());
+        assert!(LANE.spec_entries(&wasm_with(&[])).unwrap().is_empty());
         assert!(matches!(
-            P28.spec_entries(b"not wasm"),
+            LANE.spec_entries(b"not wasm"),
             Err(LaneError::InvalidWasm(_))
         ));
         assert!(matches!(
-            P28.spec_entries(&wasm_with(&[(SPEC_SECTION, vec![0xff; 3])])),
+            LANE.spec_entries(&wasm_with(&[(SPEC_SECTION, vec![0xff; 3])])),
             Err(LaneError::InvalidWasm(_))
         ));
     }
@@ -1455,7 +1452,7 @@ mod tests {
 
     #[test]
     fn a_module_without_env_meta_has_no_interface_version() {
-        let inspection = P28.inspect_wasm(&wasm_with(&[("other", vec![])])).unwrap();
+        let inspection = LANE.inspect_wasm(&wasm_with(&[("other", vec![])])).unwrap();
         assert_eq!(inspection.custom_sections, ["other"]);
         assert_eq!(inspection.interface_version, None);
         assert!(inspection.exports.is_empty() && inspection.imports.is_empty());
@@ -1500,7 +1497,7 @@ mod tests {
             signatures: Default::default(),
         });
 
-        let decoded = P28
+        let decoded = LANE
             .decode_transaction(&envelope.to_xdr(Limits::none()).unwrap(), None)
             .unwrap();
 
@@ -1518,7 +1515,7 @@ mod tests {
             signatures: Default::default(),
         });
 
-        let decoded = P28
+        let decoded = LANE
             .decode_transaction(&envelope.to_xdr(Limits::none()).unwrap(), None)
             .unwrap();
 
@@ -1545,7 +1542,7 @@ mod tests {
     #[test]
     fn an_unknown_setting_name_is_refused() {
         assert!(matches!(
-            P28.ledger_keys(&KeyRequest::ConfigSetting {
+            LANE.ledger_keys(&KeyRequest::ConfigSetting {
                 setting: "NoSuchSetting".into()
             }),
             Err(LaneError::InvalidInput { .. })
@@ -1574,7 +1571,7 @@ mod tests {
             }),
             ext: LedgerEntryExt::V0,
         };
-        let info = P28
+        let info = LANE
             .instance_info(&instance.to_xdr(Limits::none()).unwrap())
             .unwrap();
         assert_eq!(info.executable, "external_ref");
@@ -1600,7 +1597,7 @@ mod tests {
             ext: LedgerEntryExt::V0,
         };
         assert_eq!(
-            P28.external_ref_wasm_hash(&reference.to_xdr(Limits::none()).unwrap())
+            LANE.external_ref_wasm_hash(&reference.to_xdr(Limits::none()).unwrap())
                 .unwrap(),
             [7; 32]
         );

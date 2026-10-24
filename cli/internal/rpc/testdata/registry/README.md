@@ -13,5 +13,5 @@ entries asked for.
   captured 2026-10-24).
 - `getNetwork.json` and `getLatestLedger.json` are composed to match: testnet's
   passphrase, the ledger the registry was captured at, and protocol 28, the
-  lane the simulator runs. `getLatestLedger`'s `id` is a placeholder and its
+  older of the two lanes the simulator runs. `getLatestLedger`'s `id` is a placeholder and its
   `closeTime` the capture's `latestLedgerCloseTime`.

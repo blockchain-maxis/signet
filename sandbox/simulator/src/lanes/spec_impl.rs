@@ -1,4 +1,4 @@
-//! The contract spec for the p28 lane (#545, #546): the `SpecJson` v1
+//! The contract spec for a host lane (#545, #546): the `SpecJson` v1
 //! document, JSON arguments to `ScVal`, and `ScVal` back to JSON.
 //!
 //! The JSON shape is the shared reader's (`@signet/spec`'s
@@ -28,6 +28,8 @@ use std::str::FromStr;
 
 use serde_json::{json, Map, Value};
 use sha2::{Digest, Sha256};
+
+use super::soroban_env_host;
 use soroban_env_host::xdr::{
     BytesM, ContractEvent, ContractEventBody, Duration, Int128Parts, Int256Parts, Limited, Limits,
     ReadXdr, ScAddress, ScBytes, ScEnvMetaEntry, ScError, ScMap, ScMapEntry, ScMetaEntry,

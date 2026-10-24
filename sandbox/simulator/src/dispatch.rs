@@ -385,6 +385,7 @@ mod tests {
         assert_eq!(reply["version"], PROTOCOL_VERSION);
     }
 
+    #[cfg(all(feature = "lane-p28", feature = "lane-p29"))]
     #[test]
     fn hello_is_acked_and_end_of_input_exits_zero() {
         let (replies, code) = run(&format!("{HELLO}\n"));
@@ -400,13 +401,16 @@ mod tests {
         assert_eq!(ack["lanes"][0]["ledger_protocol"], 28);
         assert_eq!(ack["lanes"][0]["env_host"], "28.0.2");
         assert_eq!(ack["lanes"][0]["simulation"], "28.0.2");
+        assert_eq!(ack["lanes"][1]["ledger_protocol"], 29);
+        assert_eq!(ack["lanes"][1]["env_host"], "29.0.2");
     }
 
+    #[cfg(all(feature = "lane-p28", feature = "lane-p29"))]
     #[test]
-    fn ledger_open_at_protocol_29_is_unsupported_ledger_protocol() {
+    fn ledger_open_at_protocol_30_is_unsupported_ledger_protocol() {
         let (replies, _) = run(&format!(
             "{HELLO}\n{}\n",
-            r#"{"version":1,"id":"o1","type":"ledger_open","network_passphrase":"Test SDF Network ; September 2015","ledger_protocol":29}"#
+            r#"{"version":1,"id":"o1","type":"ledger_open","network_passphrase":"Test SDF Network ; September 2015","ledger_protocol":30}"#
         ));
         assert_error(
             &replies[1],
@@ -414,9 +418,9 @@ mod tests {
             "ledger_protocol",
         );
         assert_eq!(replies[1]["id"], "o1");
-        assert_eq!(replies[1]["detail"]["requested"], 29);
-        assert_eq!(replies[1]["detail"]["networkProtocol"], 29);
-        assert_eq!(replies[1]["detail"]["supported"], json!([28]));
+        assert_eq!(replies[1]["detail"]["requested"], 30);
+        assert_eq!(replies[1]["detail"]["networkProtocol"], 30);
+        assert_eq!(replies[1]["detail"]["supported"], json!([28, 29]));
     }
 
     #[test]

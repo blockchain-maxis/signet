@@ -434,7 +434,11 @@ pub fn ledger_rollback(
 #[cfg(test)]
 mod tests {
     use super::*;
+    // Any lane's fixtures do: the store never decodes what it holds.
+    #[cfg(feature = "lane-p28")]
     use crate::lanes::p28::fixtures;
+    #[cfg(all(not(feature = "lane-p28"), feature = "lane-p29"))]
+    use crate::lanes::p29::fixtures;
 
     fn key_b64(n: u32) -> String {
         BASE64.encode(fixtures::data_key_xdr(n))
@@ -459,7 +463,13 @@ mod tests {
             &obj(json!({ "network_passphrase": "Test SDF Network ; September 2015" })),
         );
         assert_eq!(reply["type"], "result");
-        assert_eq!(reply["ledger_protocol"], 28);
+        assert_eq!(
+            reply["ledger_protocol"],
+            crate::lanes::LaneRegistry::builtin()
+                .newest()
+                .ledger_protocol(),
+            "the newest lane is the default"
+        );
         assert_eq!(reply["sequence"], 1);
     }
 
@@ -535,6 +545,7 @@ mod tests {
         assert_eq!(got["entries"][0]["entry_xdr"], Value::Null);
     }
 
+    #[cfg(all(feature = "lane-p28", feature = "lane-p29"))]
     #[test]
     fn opening_an_unsupported_protocol_names_the_supported_lanes() {
         let mut ledger = None;
@@ -543,18 +554,19 @@ mod tests {
             &id(),
             &obj(json!({
                 "network_passphrase": "Test SDF Network ; September 2015",
-                "ledger_protocol": 29,
+                "ledger_protocol": 27,
             })),
         );
         assert_eq!(reply["type"], "error");
         assert_eq!(reply["code"], "unsupported_ledger_protocol");
         assert_eq!(reply["detail"]["kind"], "ledger_protocol");
-        assert_eq!(reply["detail"]["requested"], 29);
-        assert_eq!(reply["detail"]["networkProtocol"], 29);
-        assert_eq!(reply["detail"]["supported"], json!([28]));
+        assert_eq!(reply["detail"]["requested"], 27);
+        assert_eq!(reply["detail"]["networkProtocol"], 27);
+        assert_eq!(reply["detail"]["supported"], json!([28, 29]));
         assert!(ledger.is_none(), "a refused open leaves no ledger behind");
     }
 
+    #[cfg(feature = "lane-p28")]
     #[test]
     fn opening_protocol_28_explicitly_selects_the_p28_lane() {
         let mut ledger = None;

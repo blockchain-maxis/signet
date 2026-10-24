@@ -121,7 +121,7 @@ if proto > meta::INTERFACE_VERSION.protocol {
 }
 ```
 
-A host build therefore serves exactly one network protocol, which is why the sandbox carries one host per lane. The contract's env meta must be ≤ the lane's protocol.
+A host build therefore serves exactly one network protocol, which is why the sandbox carries one host per lane: today 28 and 29 (`sandbox/simulator/src/lanes/`), as renamed dependencies on `soroban-env-host` 28.0.2 and 29.0.2. The contract's env meta must be ≤ the lane's protocol.
 
 The policy for the sandbox is:
 

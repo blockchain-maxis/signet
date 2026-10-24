@@ -17,7 +17,13 @@
 
 use std::rc::Rc;
 
+#[cfg(feature = "lane-p28")]
 pub mod p28;
+#[cfg(feature = "lane-p29")]
+pub mod p29;
+
+#[cfg(not(any(feature = "lane-p28", feature = "lane-p29")))]
+compile_error!("signet-simulator needs at least one lane feature (lane-p28, lane-p29)");
 
 // ─── Bytes in, bytes out ───────────────────────────────────────────────────────
 
@@ -413,11 +419,16 @@ pub struct LaneRegistry {
     lanes: &'static [&'static dyn Lane],
 }
 
-static BUILTIN: [&dyn Lane; 1] = [&p28::P28];
+static BUILTIN: &[&dyn Lane] = &[
+    #[cfg(feature = "lane-p28")]
+    &p28::LANE,
+    #[cfg(feature = "lane-p29")]
+    &p29::LANE,
+];
 
 impl LaneRegistry {
     pub fn builtin() -> Self {
-        Self { lanes: &BUILTIN }
+        Self { lanes: BUILTIN }
     }
 
     /// The lane for `ledger_protocol`, or which protocols are on offer.
@@ -460,6 +471,7 @@ mod tests {
     use super::*;
     use std::path::{Path, PathBuf};
 
+    #[cfg(feature = "lane-p28")]
     #[test]
     fn protocol_28_resolves_to_the_p28_lane() {
         let lane = LaneRegistry::builtin().for_protocol(28).unwrap();
@@ -468,23 +480,39 @@ mod tests {
         assert_eq!(lane.simulation_version(), "28.0.2");
     }
 
+    #[cfg(feature = "lane-p29")]
     #[test]
-    fn protocol_29_is_unsupported_and_names_what_is() {
-        let err = LaneRegistry::builtin().for_protocol(29).err().unwrap();
-        assert_eq!(
-            err,
-            UnsupportedLedgerProtocol {
-                requested: 29,
-                supported: vec![28],
-            }
-        );
+    fn protocol_29_resolves_to_the_p29_lane() {
+        let lane = LaneRegistry::builtin().for_protocol(29).unwrap();
+        assert_eq!(lane.ledger_protocol(), 29);
+        assert_eq!(lane.env_host_version(), "29.0.2");
+        assert_eq!(lane.simulation_version(), "29.0.2");
     }
 
+    #[cfg(all(feature = "lane-p28", feature = "lane-p29"))]
+    #[test]
+    fn protocols_outside_the_window_are_unsupported_and_name_what_is() {
+        for requested in [27, 30] {
+            let err = LaneRegistry::builtin()
+                .for_protocol(requested)
+                .err()
+                .unwrap();
+            assert_eq!(
+                err,
+                UnsupportedLedgerProtocol {
+                    requested,
+                    supported: vec![28, 29],
+                }
+            );
+        }
+    }
+
+    #[cfg(all(feature = "lane-p28", feature = "lane-p29"))]
     #[test]
     fn the_newest_lane_is_the_default() {
         let registry = LaneRegistry::builtin();
-        assert_eq!(registry.newest().ledger_protocol(), 28);
-        assert_eq!(registry.supported(), vec![28]);
+        assert_eq!(registry.newest().ledger_protocol(), 29);
+        assert_eq!(registry.supported(), vec![28, 29]);
     }
 
     fn rust_files(dir: &Path, out: &mut Vec<PathBuf>) {

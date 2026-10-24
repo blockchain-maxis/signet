@@ -180,10 +180,10 @@ fn registry_wasm() -> String {
 /// A hand-built ledger: testnet's network config and a freshly installed
 /// registry. Anything else a call reads (the auth nonce recording mode looks
 /// up) is fetched, and the fake Go knows nothing else, so it is absent.
-fn fresh_registry() -> (Sim, String) {
+fn fresh_registry(lane: u32) -> (Sim, String) {
     let mut sim = Sim::start();
     let open = sim.send(json!({
-        "type": "ledger_open", "network_passphrase": TESTNET, "sequence": 100, "timestamp": 1_790_000_000u64,
+        "type": "ledger_open", "network_passphrase": TESTNET, "ledger_protocol": lane, "sequence": 100, "timestamp": 1_790_000_000u64,
         "entries": network_config_entries(),
     }));
     assert_eq!(open["type"], "result", "{open}");
@@ -200,9 +200,8 @@ fn fresh_registry() -> (Sim, String) {
     (sim, id)
 }
 
-#[test]
-fn count_is_zero_on_an_empty_instance() {
-    let (mut sim, registry) = fresh_registry();
+fn count_is_zero_on_an_empty_instance(lane: u32) {
+    let (mut sim, registry) = fresh_registry(lane);
     let r = sim.call(&registry, "count", json!({}));
     assert_eq!(r["type"], "result", "{r}");
     assert_eq!(r["return_value"], 0);
@@ -212,14 +211,13 @@ fn count_is_zero_on_an_empty_instance() {
     );
     assert_eq!(
         r["ledger"],
-        json!({ "sequence": 100, "timestamp": 1_790_000_000u64, "protocol": 28 })
+        json!({ "sequence": 100, "timestamp": 1_790_000_000u64, "protocol": lane })
     );
     assert_eq!(r["misses"], json!([]));
 }
 
-#[test]
-fn a_session_claims_resolves_and_refuses_a_taken_handle() {
-    let (mut sim, registry) = fresh_registry();
+fn a_session_claims_resolves_and_refuses_a_taken_handle(lane: u32) {
+    let (mut sim, registry) = fresh_registry(lane);
     let init = sim.call(&registry, "initialize", json!({ "admin": ADMIN }));
     assert_eq!(init["type"], "result", "{init}");
 
@@ -263,9 +261,8 @@ fn a_session_claims_resolves_and_refuses_a_taken_handle() {
     assert_eq!(count["return_value"], 1, "{count}");
 }
 
-#[test]
-fn a_dry_run_leaves_the_session_untouched_and_fees_are_stable() {
-    let (mut sim, registry) = fresh_registry();
+fn a_dry_run_leaves_the_session_untouched_and_fees_are_stable(lane: u32) {
+    let (mut sim, registry) = fresh_registry(lane);
     sim.call(&registry, "initialize", json!({ "admin": ADMIN }));
     let dry = sim.send(json!({
         "type": "simulate", "contract_id": registry, "function": "claim",
@@ -295,9 +292,8 @@ fn a_dry_run_leaves_the_session_untouched_and_fees_are_stable() {
     );
 }
 
-#[test]
-fn a_wrong_argument_names_its_path() {
-    let (mut sim, registry) = fresh_registry();
+fn a_wrong_argument_names_its_path(lane: u32) {
+    let (mut sim, registry) = fresh_registry(lane);
     let r = sim.call(
         &registry,
         "claim",
@@ -313,18 +309,17 @@ fn a_wrong_argument_names_its_path() {
 
 /// A fork of the deployed registry at the recorded ledger: nothing local,
 /// everything fetched.
-fn forked() -> Sim {
+fn forked(lane: u32) -> Sim {
     let mut sim = Sim::start();
     let open = sim.send(json!({
-        "type": "ledger_open", "network_passphrase": TESTNET, "sequence": FORK_LEDGER,
+        "type": "ledger_open", "network_passphrase": TESTNET, "ledger_protocol": lane, "sequence": FORK_LEDGER,
     }));
     assert_eq!(open["type"], "result", "{open}");
     sim
 }
 
-#[test]
-fn the_first_call_fetches_and_an_identical_second_call_fetches_nothing() {
-    let mut sim = forked();
+fn the_first_call_fetches_and_an_identical_second_call_fetches_nothing(lane: u32) {
+    let mut sim = forked(lane);
     // Opening the fork fetched the network config (#535).
     let at_open = sim.fetched.len();
     assert_eq!(at_open, 10, "{:?}", sim.fetched);
@@ -371,11 +366,10 @@ fn the_first_call_fetches_and_an_identical_second_call_fetches_nothing() {
     );
 }
 
-#[test]
-fn deny_mode_names_the_key_it_would_have_fetched() {
+fn deny_mode_names_the_key_it_would_have_fetched(lane: u32) {
     let mut sim = Sim::start();
     let open = sim.send(json!({
-        "type": "ledger_open", "network_passphrase": TESTNET, "sequence": FORK_LEDGER, "fetch": "deny",
+        "type": "ledger_open", "network_passphrase": TESTNET, "ledger_protocol": lane, "sequence": FORK_LEDGER, "fetch": "deny",
         "entries": network_config_entries(),
     }));
     assert_eq!(open["type"], "result", "{open}");
@@ -389,9 +383,8 @@ fn deny_mode_names_the_key_it_would_have_fetched() {
     assert!(sim.fetched.is_empty());
 }
 
-#[test]
-fn go_failing_a_fetch_fails_the_call_with_its_reason() {
-    let mut sim = forked();
+fn go_failing_a_fetch_fails_the_call_with_its_reason(lane: u32) {
+    let mut sim = forked(lane);
     sim.answer = Answer::Refuse("rpc_unavailable");
     let r = sim.call(REGISTRY, "count", json!({}));
     assert_eq!(r["code"], "fetch_failed", "{r}");
@@ -402,9 +395,8 @@ fn go_failing_a_fetch_fails_the_call_with_its_reason() {
     assert_eq!(sim.call(REGISTRY, "count", json!({}))["type"], "result");
 }
 
-#[test]
-fn status_reports_the_open_ledger() {
-    let (mut sim, _) = fresh_registry();
+fn status_reports_the_open_ledger(lane: u32) {
+    let (mut sim, _) = fresh_registry(lane);
     let s = sim.send(json!({ "type": "status" }));
     assert_eq!(s["ledger_open"], true, "{s}");
     assert_eq!(s["ledger_sequence"], 100);
@@ -422,11 +414,10 @@ fn status_reports_the_open_ledger() {
     assert_eq!(s["base_reserve"], 5_000_000);
 }
 
-#[test]
-fn a_fork_fetches_its_network_config_when_it_opens() {
+fn a_fork_fetches_its_network_config_when_it_opens(lane: u32) {
     let mut sim = Sim::start();
     let open = sim.send(
-        json!({ "type": "ledger_open", "network_passphrase": TESTNET, "sequence": FORK_LEDGER }),
+        json!({ "type": "ledger_open", "network_passphrase": TESTNET, "ledger_protocol": lane, "sequence": FORK_LEDGER }),
     );
     assert_eq!(open["type"], "result", "{open}");
     assert_eq!(sim.fetched.len(), 10, "{:?}", sim.fetched);
@@ -439,15 +430,14 @@ fn a_fork_fetches_its_network_config_when_it_opens() {
     );
 }
 
-#[test]
-fn a_missing_config_setting_fails_the_open_and_names_it() {
+fn a_missing_config_setting_fails_the_open_and_names_it(lane: u32) {
     let mut sim = Sim::start();
     let mut entries = network_config_entries();
     // ContractLedgerCostExtV0's key is the third of the ten.
     let dropped = entries.remove(2);
     assert_eq!(dropped["key_xdr"], "AAAACAAAAA8=");
     let open = sim.send(json!({
-        "type": "ledger_open", "network_passphrase": TESTNET, "sequence": 100, "fetch": "deny", "entries": entries,
+        "type": "ledger_open", "network_passphrase": TESTNET, "ledger_protocol": lane, "sequence": 100, "fetch": "deny", "entries": entries,
     }));
     assert_eq!(open["code"], "fetch_failed", "{open}");
     assert_eq!(open["detail"]["kind"], "missing_config");
@@ -465,7 +455,7 @@ fn a_missing_config_setting_fails_the_open_and_names_it() {
     // On a fork, a setting the network lacks is just as fatal.
     sim.entries.remove("AAAACAAAAA8=");
     let fork = sim.send(
-        json!({ "type": "ledger_open", "network_passphrase": TESTNET, "sequence": FORK_LEDGER }),
+        json!({ "type": "ledger_open", "network_passphrase": TESTNET, "ledger_protocol": lane, "sequence": FORK_LEDGER }),
     );
     assert_eq!(
         fork["detail"]["missing"],
@@ -474,9 +464,8 @@ fn a_missing_config_setting_fails_the_open_and_names_it() {
     );
 }
 
-#[test]
-fn contract_info_reads_and_fetches_a_contract_without_running_it() {
-    let mut sim = forked();
+fn contract_info_reads_and_fetches_a_contract_without_running_it(lane: u32) {
+    let mut sim = forked(lane);
     let at_open = sim.fetched.len();
     let info = sim.send(json!({ "type": "contract_info", "contract_id": REGISTRY }));
     assert_eq!(info["type"], "result", "{info}");
@@ -503,3 +492,63 @@ fn contract_info_reads_and_fetches_a_contract_without_running_it() {
         "{missing}"
     );
 }
+
+/// The same suite on every lane (#538): each test above runs once per
+/// ledger protocol the binary carries.
+macro_rules! on_lane {
+    ($lane:ident, $protocol:expr) => {
+        mod $lane {
+            #[test]
+            fn count_is_zero_on_an_empty_instance() {
+                super::count_is_zero_on_an_empty_instance($protocol)
+            }
+            #[test]
+            fn a_session_claims_resolves_and_refuses_a_taken_handle() {
+                super::a_session_claims_resolves_and_refuses_a_taken_handle($protocol)
+            }
+            #[test]
+            fn a_dry_run_leaves_the_session_untouched_and_fees_are_stable() {
+                super::a_dry_run_leaves_the_session_untouched_and_fees_are_stable($protocol)
+            }
+            #[test]
+            fn a_wrong_argument_names_its_path() {
+                super::a_wrong_argument_names_its_path($protocol)
+            }
+            #[test]
+            fn the_first_call_fetches_and_an_identical_second_call_fetches_nothing() {
+                super::the_first_call_fetches_and_an_identical_second_call_fetches_nothing(
+                    $protocol,
+                )
+            }
+            #[test]
+            fn deny_mode_names_the_key_it_would_have_fetched() {
+                super::deny_mode_names_the_key_it_would_have_fetched($protocol)
+            }
+            #[test]
+            fn go_failing_a_fetch_fails_the_call_with_its_reason() {
+                super::go_failing_a_fetch_fails_the_call_with_its_reason($protocol)
+            }
+            #[test]
+            fn status_reports_the_open_ledger() {
+                super::status_reports_the_open_ledger($protocol)
+            }
+            #[test]
+            fn a_fork_fetches_its_network_config_when_it_opens() {
+                super::a_fork_fetches_its_network_config_when_it_opens($protocol)
+            }
+            #[test]
+            fn a_missing_config_setting_fails_the_open_and_names_it() {
+                super::a_missing_config_setting_fails_the_open_and_names_it($protocol)
+            }
+            #[test]
+            fn contract_info_reads_and_fetches_a_contract_without_running_it() {
+                super::contract_info_reads_and_fetches_a_contract_without_running_it($protocol)
+            }
+        }
+    };
+}
+
+#[cfg(feature = "lane-p28")]
+on_lane!(p28, 28);
+#[cfg(feature = "lane-p29")]
+on_lane!(p29, 29);

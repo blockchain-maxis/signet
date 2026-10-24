@@ -79,7 +79,10 @@ only at startup.
   "server_protocol_version": 1,
   "simulator_version": "0.1.0",
   "commit": "7ad61d0dc5da",
-  "lanes": [{ "ledger_protocol": 28, "env_host": "28.0.2", "simulation": "28.0.2" }]
+  "lanes": [
+    { "ledger_protocol": 28, "env_host": "28.0.2", "simulation": "28.0.2" },
+    { "ledger_protocol": 29, "env_host": "29.0.2", "simulation": "29.0.2" }
+  ]
 }
 ```
 
@@ -125,9 +128,11 @@ a ledger key) is a message that returns JSON.
 Inside Rust the same rule holds one level down ([#533](https://github.com/blockchain-maxis/signet/issues/533)):
 the ledger store and the dispatcher keep XDR as bytes, and only
 `sandbox/simulator/src/lanes/` names `soroban-env-host`, `soroban-simulation`
-or `stellar-xdr`. Each `Lane` (today `lanes/p28.rs`) decodes with its own XDR
-crate, and `LaneRegistry::for_protocol` picks the lane for a ledger, so a second
-protocol is a new lane module rather than a change to the store or the verbs. A
+or `stellar-xdr`. Each `Lane` (today `lanes/p28` and `lanes/p29`, one pinned
+host each, sharing one source) decodes with its own XDR crate, and
+`LaneRegistry::for_protocol` picks the lane for a ledger, so another protocol is
+a new lane module rather than a change to the store or the verbs
+([#538](https://github.com/blockchain-maxis/signet/issues/538)). A
 unit test fails the build if a versioned type leaks outside `lanes/`.
 
 | `type`              | What it does                                                                                                                                   | Request fields                                                                                                                              | `result` fields                                                                                                                                                   |

@@ -72,7 +72,8 @@ fn run_message_loop() -> i32 {
     dispatch::serve(&channel, |line| dispatcher.handle(line))
 }
 
-#[cfg(test)]
+// The version string's lane list is the release build's.
+#[cfg(all(test, feature = "lane-p28", feature = "lane-p29"))]
 mod tests {
     use super::*;
 
@@ -81,7 +82,7 @@ mod tests {
         let v = version_string();
         let prefix = format!("signet-simulator {} (commit ", env!("CARGO_PKG_VERSION"));
         assert!(v.starts_with(&prefix), "{v}");
-        assert!(v.ends_with(") protocol 1 lanes 28"), "{v}");
+        assert!(v.ends_with(") protocol 1 lanes 28,29"), "{v}");
     }
 
     #[test]

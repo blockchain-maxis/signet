@@ -63,7 +63,7 @@ The first build compiles `soroban-env-host` and takes several minutes.
 
 ```text
 $ sandbox/target/release/signet-simulator --version
-signet-simulator 0.1.0 (commit 9b0764e496ad) protocol 1 lanes 28
+signet-simulator 0.1.0 (commit 9b0764e496ad) protocol 1 lanes 28,29
 ```
 
 The commit comes from an override variable read by `simulator/build.rs` if
@@ -74,7 +74,26 @@ build from a source tarball).
 
 - `sandbox/rust-toolchain.toml` pins the toolchain; `rustup` installs it on
   first use.
-- `soroban-env-host` and `soroban-simulation` are pinned to `=28.0.2`. Bump
-  them together, deliberately, and update the lanes number in
-  `simulator/src/main.rs` when the protocol moves.
+- One host per ledger protocol: `soroban-env-host` and `soroban-simulation`
+  are pinned per lane, as renamed dependencies (`soroban-env-host-p28` /
+  `-p29`, both `=N.0.2`), the way stellar-core links one host per protocol.
+  A production host only runs at its own protocol, so the binary carries the
+  current protocol (29, both public networks since October 2026) and the
+  previous one (28). Bump a lane's pins together, deliberately.
+
+## Lanes
+
+Each lane is a feature, both on by default: `lane-p28`, `lane-p29`. A
+contributor can build one lane for speed:
+
+```sh
+cargo test --no-default-features --features lane-p29
+```
+
+`simulator/src/lanes/p28/mod.rs` and `p29/mod.rs` alias their own pinned host
+and `include!` the shared `lanes/host_lane.rs` (and `lanes/spec_impl.rs`), so
+every lane runs the same code and the same tests; `tests/simulate.rs` runs its
+suite once per lane. Adding protocol N is a new `pN/mod.rs`, two pins in
+`Cargo.toml`, a feature, and an entry in `lanes/mod.rs`'s `BUILTIN`.
+
 - `sandbox/Cargo.lock` is committed and CI builds with `--locked`.

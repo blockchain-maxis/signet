@@ -5,6 +5,9 @@
 //! interleaved with the lines the simulator answers. `<commit>` and
 //! `<version>` stand for the build identity baked into the binary.
 
+// The golden transcripts are the release build's: both lanes in hello_ack.
+#![cfg(all(feature = "lane-p28", feature = "lane-p29"))]
+
 use std::io::Write;
 use std::process::{Command, Stdio};
 
