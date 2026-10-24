@@ -625,6 +625,51 @@ jobs:
       - name: Check spec_extract against SpecJson v1
         run: node protocol/check-spec-json.mjs
 
+  simulator-size:
+    name: signet-simulator size budget
+    needs: changes
+    if: needs.changes.outputs.sandbox == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    defaults:
+      run:
+        working-directory: sandbox
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo
+        uses: actions/cache@v6
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            sandbox/target
+          key: cargo-sandbox-release-${{ hashFiles('sandbox/Cargo.lock') }}
+
+      - name: Build release
+        run: cargo build --release --locked -p signet-simulator
+
+      # Every npm install of the CLI downloads this binary (#593). The release
+      # profile already strips symbols. First measurement, linux x64 with both
+      # lanes (#538): 10,437,224 bytes (protocol 28 alone: 6,808,440, so the
+      # second lane costs ~3.6 MB). The budget is that plus 25%: room for the
+      # lanes' patch releases and the remaining sandbox verbs, while still
+      # catching a third lane or an accidental debug build. Raise it
+      # deliberately, with the new measurement, when a lane is added.
+      - name: Simulator size budget
+        env:
+          BUDGET_BYTES: 13046530
+        run: |
+          bin="target/release/signet-simulator"
+          size=$(wc -c < "$bin")
+          echo "signet-simulator: ${size} bytes (budget ${BUDGET_BYTES})"
+          if [ "$size" -gt "$BUDGET_BYTES" ]; then
+            echo "::error::signet-simulator ${size} bytes exceeds budget ${BUDGET_BYTES} bytes"
+            exit 1
+          fi
+
   security:
     name: dependency audit
     runs-on: ubuntu-latest

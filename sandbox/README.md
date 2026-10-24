@@ -90,6 +90,10 @@ contributor can build one lane for speed:
 cargo test --no-default-features --features lane-p29
 ```
 
+Size, linux x64 release, stripped (#593): both lanes 10,437,224 bytes; protocol
+28 alone 6,808,440. A lane costs about 3.6 MB. CI's `signet-simulator size
+budget` job fails above 13,046,530 bytes (the first measurement plus 25%).
+
 `simulator/src/lanes/p28/mod.rs` and `p29/mod.rs` alias their own pinned host
 and `include!` the shared `lanes/host_lane.rs` (and `lanes/spec_impl.rs`), so
 every lane runs the same code and the same tests; `tests/simulate.rs` runs its
