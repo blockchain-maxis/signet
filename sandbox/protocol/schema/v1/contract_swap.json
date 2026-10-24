@@ -2,7 +2,7 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "https://signet.dev/schemas/sandbox/v1/contract_swap.json",
   "title": "contract_swap (request)",
-  "description": "Point an installed contract at a different executable, as an upgrade would.",
+  "description": "Point an installed contract at another executable already in the ledger, as an on-chain upgrade would (#539): only the instance's executable changes, its storage and TTL are kept, no constructor runs. A CAP-85 instance needs a mode.",
   "type": "object",
   "properties": {
     "version": {
@@ -26,6 +26,14 @@
       "type": "string",
       "pattern": "^[0-9a-f]{64}$",
       "description": "Hash of an already installed executable"
+    },
+    "layer": {
+      "enum": ["session", "override"],
+      "description": "Where the rewritten entry goes: session (default; undone by ledger_rollback) or override (beneath the session; refused if the session already wrote the entry)"
+    },
+    "mode": {
+      "enum": ["instance", "ref"],
+      "description": "Required for a CAP-85 instance: instance repoints this contract at the WASM, ref replaces the reference's target for every contract sharing it"
     }
   },
   "required": ["version", "id", "type", "contract_id", "wasm_hash"],
@@ -53,14 +61,27 @@
           "description": "Contract id"
         },
         "previous_wasm_hash": {
-          "type": "string",
-          "pattern": "^[0-9a-f]{64}$",
-          "description": "Hash before the swap"
+          "oneOf": [
+            {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "What the contract ran before"
         },
         "wasm_hash": {
           "type": "string",
           "pattern": "^[0-9a-f]{64}$",
           "description": "Hash now in use"
+        },
+        "mode": {
+          "enum": ["instance", "ref"]
+        },
+        "layer": {
+          "enum": ["session", "override"]
         }
       },
       "required": ["version", "id", "type", "contract_id", "previous_wasm_hash", "wasm_hash"],

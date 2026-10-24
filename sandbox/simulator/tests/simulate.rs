@@ -493,6 +493,223 @@ fn contract_info_reads_and_fetches_a_contract_without_running_it(lane: u32) {
     );
 }
 
+fn fixture_wasm(name: &str) -> Vec<u8> {
+    let path = format!(
+        "{}/../fixtures/wasm/{name}.wasm",
+        env!("CARGO_MANIFEST_DIR")
+    );
+    std::fs::read(&path).unwrap_or_else(|e| panic!("{path}: {e}"))
+}
+
+/// A ledger with the network config and nothing else.
+fn config_only(lane: u32) -> Sim {
+    let mut sim = Sim::start();
+    let open = sim.send(json!({
+        "type": "ledger_open", "network_passphrase": TESTNET, "ledger_protocol": lane, "sequence": 100,
+        "entries": network_config_entries(),
+    }));
+    assert_eq!(open["type"], "result", "{open}");
+    sim
+}
+
+fn install(sim: &mut Sim, wasm: &[u8]) -> (String, String) {
+    let r = sim.send(json!({ "type": "contract_install", "wasm_base64": BASE64.encode(wasm) }));
+    assert_eq!(r["type"], "result", "{r}");
+    (
+        r["contract_id"].as_str().unwrap().to_string(),
+        r["wasm_hash"].as_str().unwrap().to_string(),
+    )
+}
+
+fn hot_swap_keeps_storage_and_runs_the_new_code(lane: u32) {
+    let mut sim = config_only(lane);
+    let (counter, v1) = install(&mut sim, &fixture_wasm("counter_v1"));
+    let (_, v2) = install(&mut sim, &fixture_wasm("counter_v2_cost"));
+    sim.call(&counter, "increment", json!({}));
+    assert_eq!(
+        sim.call(&counter, "increment", json!({}))["return_value"],
+        2
+    );
+
+    let swap =
+        sim.send(json!({ "type": "contract_swap", "contract_id": counter, "wasm_hash": v2 }));
+    assert_eq!(swap["type"], "result", "{swap}");
+    assert_eq!(swap["previous_wasm_hash"], v1);
+    assert_eq!(swap["wasm_hash"], v2);
+    assert_eq!(swap["mode"], "instance");
+    assert_eq!(swap["layer"], "session");
+
+    // The instance storage survived the swap, and the next call runs the new
+    // code: its footprint reads v2's executable, not v1's.
+    assert_eq!(sim.call(&counter, "get", json!({}))["return_value"], 2);
+    let after = sim.call(&counter, "increment", json!({}));
+    assert_eq!(after["return_value"], 3, "{after}");
+    let read_code: Vec<String> = after["resources"]["footprint"]["read_only"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|k| {
+            let bytes = BASE64.decode(k.as_str().unwrap()).unwrap();
+            bytes[4..].iter().map(|b| format!("{b:02x}")).collect()
+        })
+        .collect();
+    assert!(read_code.contains(&v2), "{read_code:?}");
+    assert!(!read_code.contains(&v1), "{read_code:?}");
+    let info = sim.send(json!({ "type": "contract_info", "contract_id": counter }));
+    assert_eq!(info["wasm_hash"], v2, "{info}");
+}
+
+fn a_wasm_for_a_newer_protocol_is_refused(lane: u32) {
+    let mut sim = config_only(lane);
+    let mut wasm = fixture_wasm("counter_v1");
+    // contractenvmetav0's payload is one ScEnvMetaEntry: kind (u32 0), then
+    // the protocol. Point it one past the lane.
+    let name = b"contractenvmetav0";
+    let at = wasm.windows(name.len()).position(|w| w == name).unwrap() + name.len() + 4;
+    wasm[at..at + 4].copy_from_slice(&(lane + 1).to_be_bytes());
+    let r = sim.send(json!({ "type": "contract_install", "wasm_base64": BASE64.encode(&wasm) }));
+    assert_eq!(r["code"], "bad_request", "{r}");
+    assert_eq!(r["detail"]["contract_protocol"], lane + 1);
+    assert_eq!(r["detail"]["lane_protocol"], lane);
+    assert!(
+        r["message"]
+            .as_str()
+            .unwrap()
+            .contains(&format!("targets ledger protocol {}", lane + 1)),
+        "{r}"
+    );
+}
+
+/// CAP-85 entries, built with the lane's own XDR (stellar-xdr 28, which
+/// both lanes share): an owner's ExecutableTag entry pointing at `hash`, and
+/// an instance of `contract` running through it.
+fn external_ref_entries(
+    owner: [u8; 32],
+    contract: [u8; 32],
+    hash: [u8; 32],
+) -> (String, Vec<Value>) {
+    #[cfg(all(not(feature = "lane-p29"), feature = "lane-p28"))]
+    use soroban_env_host_p28::xdr;
+    #[cfg(feature = "lane-p29")]
+    use soroban_env_host_p29::xdr;
+    use xdr::WriteXdr;
+    let owner = xdr::ScAddress::Contract(xdr::ContractId(xdr::Hash(owner)));
+    let tag = xdr::ScString("v1".try_into().unwrap());
+    let data = |contract: xdr::ScAddress, key: xdr::ScVal, val: xdr::ScVal| {
+        let key_xdr = xdr::LedgerKey::ContractData(xdr::LedgerKeyContractData {
+            contract: contract.clone(),
+            key: key.clone(),
+            durability: xdr::ContractDataDurability::Persistent,
+        });
+        let entry = xdr::LedgerEntry {
+            last_modified_ledger_seq: 1,
+            data: xdr::LedgerEntryData::ContractData(xdr::ContractDataEntry {
+                ext: xdr::ExtensionPoint::V0,
+                contract,
+                key,
+                durability: xdr::ContractDataDurability::Persistent,
+                val,
+            }),
+            ext: xdr::LedgerEntryExt::V0,
+        };
+        json!({
+            "key_xdr": BASE64.encode(key_xdr.to_xdr(xdr::Limits::none()).unwrap()),
+            "entry_xdr": BASE64.encode(entry.to_xdr(xdr::Limits::none()).unwrap()),
+            "live_until_ledger": 1_000_000,
+        })
+    };
+    let reference = data(
+        owner.clone(),
+        xdr::ScVal::ExecutableTag(tag.clone()),
+        xdr::ScVal::Bytes(xdr::ScBytes(hash.to_vec().try_into().unwrap())),
+    );
+    let address = xdr::ScAddress::Contract(xdr::ContractId(xdr::Hash(contract)));
+    let instance = data(
+        address.clone(),
+        xdr::ScVal::LedgerKeyContractInstance,
+        xdr::ScVal::ContractInstance(xdr::ScContractInstance {
+            executable: xdr::ContractExecutable::ExternalRef(xdr::ContractExecutableExternalRef {
+                executable_owner: owner,
+                tag,
+            }),
+            storage: None,
+        }),
+    );
+    (address.to_string(), vec![reference, instance])
+}
+
+fn hex_bytes(hex: &str) -> [u8; 32] {
+    let mut out = [0u8; 32];
+    for (i, b) in out.iter_mut().enumerate() {
+        *b = u8::from_str_radix(&hex[2 * i..2 * i + 2], 16).unwrap();
+    }
+    out
+}
+
+fn an_external_ref_swap_needs_an_explicit_mode(lane: u32) {
+    let mut sim = config_only(lane);
+    let (_, v1) = install(&mut sim, &fixture_wasm("counter_v1"));
+    let (_, v2) = install(&mut sim, &fixture_wasm("counter_v2_cost"));
+    let (shared_a, mut entries) = external_ref_entries([9; 32], [1; 32], hex_bytes(&v1));
+    let (shared_b, more) = external_ref_entries([9; 32], [2; 32], hex_bytes(&v1));
+    entries.push(more[1].clone());
+    assert_eq!(
+        sim.send(json!({ "type": "ledger_put", "entries": entries }))["written"],
+        3
+    );
+
+    // It runs through the reference.
+    assert_eq!(
+        sim.call(&shared_a, "increment", json!({}))["return_value"],
+        1
+    );
+
+    let r = sim.send(json!({ "type": "contract_swap", "contract_id": shared_a, "wasm_hash": v2 }));
+    assert_eq!(r["code"], "bad_request", "{r}");
+    assert_eq!(r["detail"]["path"], "mode");
+    let message = r["message"].as_str().unwrap();
+    assert!(
+        message.contains("mode \"instance\"") && message.contains("mode \"ref\""),
+        "{message}"
+    );
+
+    // Repointing one instance leaves the other on the reference.
+    let one = sim.send(json!({ "type": "contract_swap", "contract_id": shared_a, "wasm_hash": v2, "mode": "instance" }));
+    assert_eq!(one["previous_wasm_hash"], v1, "{one}");
+    assert_eq!(
+        sim.send(json!({ "type": "contract_info", "contract_id": shared_a }))["executable"],
+        "wasm"
+    );
+    assert_eq!(
+        sim.send(json!({ "type": "contract_info", "contract_id": shared_b }))["wasm_hash"],
+        v1
+    );
+
+    // Retargeting the reference moves every contract still on it.
+    let all = sim.send(
+        json!({ "type": "contract_swap", "contract_id": shared_b, "wasm_hash": v2, "mode": "ref" }),
+    );
+    assert_eq!(all["mode"], "ref", "{all}");
+    assert_eq!(all["previous_wasm_hash"], v1);
+    let info = sim.send(json!({ "type": "contract_info", "contract_id": shared_b }));
+    assert_eq!(info["executable"], "external_ref");
+    assert_eq!(info["wasm_hash"], v2, "{info}");
+}
+
+fn a_session_layer_swap_rolls_back(lane: u32) {
+    let mut sim = config_only(lane);
+    let (counter, v1) = install(&mut sim, &fixture_wasm("counter_v1"));
+    let (_, v2) = install(&mut sim, &fixture_wasm("counter_v2_cost"));
+    let cp = sim.send(json!({ "type": "ledger_checkpoint" }))["checkpoint"].clone();
+    let swap = sim.send(json!({ "type": "contract_swap", "contract_id": counter, "wasm_hash": v2, "layer": "session" }));
+    assert_eq!(swap["layer"], "session", "{swap}");
+    sim.send(json!({ "type": "ledger_rollback", "checkpoint": cp }));
+    assert_eq!(
+        sim.send(json!({ "type": "contract_info", "contract_id": counter }))["wasm_hash"],
+        v1
+    );
+}
+
 /// The same suite on every lane (#538): each test above runs once per
 /// ledger protocol the binary carries.
 macro_rules! on_lane {
@@ -543,6 +760,22 @@ macro_rules! on_lane {
             #[test]
             fn contract_info_reads_and_fetches_a_contract_without_running_it() {
                 super::contract_info_reads_and_fetches_a_contract_without_running_it($protocol)
+            }
+            #[test]
+            fn hot_swap_keeps_storage_and_runs_the_new_code() {
+                super::hot_swap_keeps_storage_and_runs_the_new_code($protocol)
+            }
+            #[test]
+            fn a_wasm_for_a_newer_protocol_is_refused() {
+                super::a_wasm_for_a_newer_protocol_is_refused($protocol)
+            }
+            #[test]
+            fn an_external_ref_swap_needs_an_explicit_mode() {
+                super::an_external_ref_swap_needs_an_explicit_mode($protocol)
+            }
+            #[test]
+            fn a_session_layer_swap_rolls_back() {
+                super::a_session_layer_swap_rolls_back($protocol)
             }
         }
     };

@@ -358,10 +358,37 @@ impl Lane for HostLane {
         let ScVal::ContractInstance(instance) = &mut data.val else {
             return Err(LaneError::NotAContractInstance);
         };
-        let ContractExecutable::Wasm(Hash(previous)) = instance.executable else {
-            return Err(LaneError::NotAContractInstance);
+        let previous = match &instance.executable {
+            ContractExecutable::Wasm(Hash(previous)) => Some(*previous),
+            ContractExecutable::ExternalRef(_) => None,
+            ContractExecutable::StellarAsset => return Err(LaneError::NotAContractInstance),
         };
         instance.executable = ContractExecutable::Wasm(Hash(wasm_hash));
+        Ok(SwapResultBytes {
+            entry_xdr: encode(&entry, "LedgerEntry")?,
+            previous_wasm_hash: previous,
+        })
+    }
+
+    fn retarget_external_ref(
+        &self,
+        reference_entry_xdr: &[u8],
+        wasm_hash: [u8; 32],
+    ) -> Result<SwapResultBytes, LaneError> {
+        let mut entry: LedgerEntry = decode(reference_entry_xdr, "LedgerEntry")?;
+        let LedgerEntryData::ContractData(data) = &mut entry.data else {
+            return Err(invalid("executable reference entry"));
+        };
+        let previous = match &data.val {
+            ScVal::Bytes(bytes) => bytes.as_slice().try_into().ok(),
+            _ => return Err(invalid("executable reference entry holding a WASM hash")),
+        };
+        data.val = ScVal::Bytes(
+            wasm_hash
+                .to_vec()
+                .try_into()
+                .map_err(|_| invalid("WASM hash"))?,
+        );
         Ok(SwapResultBytes {
             entry_xdr: encode(&entry, "LedgerEntry")?,
             previous_wasm_hash: previous,
@@ -1340,7 +1367,7 @@ mod tests {
 
         let swapped = LANE.swap(&entry, [2; 32]).unwrap();
 
-        assert_eq!(swapped.previous_wasm_hash, [1; 32]);
+        assert_eq!(swapped.previous_wasm_hash, Some([1; 32]));
         let after = LedgerEntry::from_xdr(swapped.entry_xdr, Limits::none()).unwrap();
         assert_eq!(after, instance_entry([3; 32], [2; 32]));
     }

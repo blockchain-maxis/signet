@@ -267,13 +267,19 @@ type ContractInstallResult struct {
 type ContractSwapParams struct {
 	ContractID string `json:"contract_id"`
 	WasmHash   string `json:"wasm_hash"`
+	// Layer is "session" (the default) or "override".
+	Layer string `json:"layer,omitempty"`
+	// Mode is required for a CAP-85 instance: "instance" or "ref".
+	Mode string `json:"mode,omitempty"`
 }
 
 // ContractSwapResult answers contract_swap.
 type ContractSwapResult struct {
-	ContractID       string `json:"contract_id"`
-	PreviousWasmHash string `json:"previous_wasm_hash"`
-	WasmHash         string `json:"wasm_hash"`
+	ContractID       string  `json:"contract_id"`
+	PreviousWasmHash *string `json:"previous_wasm_hash"`
+	WasmHash         string  `json:"wasm_hash"`
+	Mode             string  `json:"mode,omitempty"`
+	Layer            string  `json:"layer,omitempty"`
 }
 
 // ContractInfoParams reads a contract without running it (#550).

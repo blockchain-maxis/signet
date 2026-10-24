@@ -157,9 +157,12 @@ pub struct SimulateResultBytes {
 /// The outcome of pointing a contract instance at another executable.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SwapResultBytes {
-    /// The rewritten instance `LedgerEntry` XDR.
+    /// The rewritten `LedgerEntry` XDR: the instance, or for a retargeted
+    /// CAP-85 reference, the owner's `ExecutableTag` entry.
     pub entry_xdr: Vec<u8>,
-    pub previous_wasm_hash: [u8; 32],
+    /// What the entry pointed at before; `None` for an instance that ran
+    /// through an executable reference (the reference entry knows).
+    pub previous_wasm_hash: Option<[u8; 32]>,
 }
 
 /// A ledger entry Go wants to ask RPC for, named without XDR (#532). Strkeys
@@ -310,8 +313,17 @@ pub trait Lane: Sync {
     #[allow(dead_code)] // the lane's own tests; handlers use `ledger_keys`.
     fn contract_instance_key(&self, contract_id: [u8; 32]) -> Vec<u8>;
 
+    /// Point a CAP-85 executable reference (an owner's `ExecutableTag`
+    /// entry) at `wasm_hash`, which every instance sharing it then runs.
+    fn retarget_external_ref(
+        &self,
+        reference_entry_xdr: &[u8],
+        wasm_hash: [u8; 32],
+    ) -> Result<SwapResultBytes, LaneError>;
+
     /// Point a contract instance entry at the executable `wasm_hash`, as an
-    /// upgrade would, keeping its storage.
+    /// upgrade would, keeping its storage. A CAP-85 instance is repointed at
+    /// the WASM directly, leaving its old reference alone.
     fn swap(
         &self,
         instance_entry_xdr: &[u8],

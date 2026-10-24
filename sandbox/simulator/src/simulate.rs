@@ -471,6 +471,34 @@ pub fn contract_install(
         Some(Value::String(s)) => Some(s.as_str()),
         Some(_) => return invalid_field(id, "contract_id", "a contract id (C...)"),
     };
+    // Parse it as the lane would before it lands in the ledger, and refuse
+    // an executable built for a newer protocol than the lane runs.
+    match open.lane.inspect_wasm(&wasm) {
+        Ok(inspection) => {
+            if let Some(v) = inspection.interface_version {
+                if v.protocol > open.lane.ledger_protocol() {
+                    return error_message(
+                        id,
+                        "bad_request",
+                        format!(
+                            "this executable targets ledger protocol {}, but the open ledger runs protocol {}; open the ledger at protocol {} (or rebuild the contract for {})",
+                            v.protocol,
+                            open.lane.ledger_protocol(),
+                            v.protocol,
+                            open.lane.ledger_protocol()
+                        ),
+                        json!({
+                            "kind": "invalid_field",
+                            "path": "wasm_base64",
+                            "contract_protocol": v.protocol,
+                            "lane_protocol": open.lane.ledger_protocol(),
+                        }),
+                    );
+                }
+            }
+        }
+        Err(e) => return invalid_field(id, "wasm_base64", &format!("a WASM executable: {e}")),
+    }
     let installed = match open.lane.install(&wasm, contract_id) {
         Ok(installed) => installed,
         Err(e @ LaneError::InvalidWasm(_)) => {
@@ -513,6 +541,19 @@ pub fn contract_swap(
     else {
         return invalid_field(id, "wasm_hash", "64 lowercase hex digits");
     };
+    // A swap is what an upgrade transaction leaves behind, so by default it
+    // is a session write: visible at once, undone by a rollback.
+    let session_layer = match object.get("layer").and_then(Value::as_str) {
+        None if object.get("layer").is_none() => true,
+        Some("override") => false,
+        Some("session") => true,
+        _ => return invalid_field(id, "layer", "\"override\" or \"session\""),
+    };
+    let mode = match object.get("mode") {
+        None => None,
+        Some(Value::String(m)) if m == "instance" || m == "ref" => Some(m.as_str()),
+        Some(_) => return invalid_field(id, "mode", "\"instance\" or \"ref\""),
+    };
     let key_of = |request: KeyRequest| {
         lane.ledger_keys(&request)
             .map(|mut keys| keys.remove(0).key_xdr)
@@ -548,8 +589,8 @@ pub fn contract_swap(
                 .map_or_else(|| no_open_ledger(id), |f| fetch_failed(id, lane, &f))
         }
     }
-    let instance = match fetched(&instance_key) {
-        Ok(Some((entry, _))) => entry,
+    let (instance, instance_ttl) = match fetched(&instance_key) {
+        Ok(Some(found)) => found,
         Ok(None) => {
             return error_message(
                 id,
@@ -564,19 +605,93 @@ pub fn contract_swap(
                 .map_or_else(|| no_open_ledger(id), |f| fetch_failed(id, lane, &f))
         }
     };
-    let swapped = match lane.swap(&instance, hash) {
-        Ok(swapped) => swapped,
+    let info = match lane.instance_info(&instance) {
+        Ok(info) => info,
         Err(e) => return invalid_field(id, "contract_id", &format!("a WASM contract: {e}")),
     };
-    open.store
-        .borrow_mut()
-        .insert_override(&instance_key, swapped.entry_xdr, Some(u32::MAX));
+
+    // A CAP-85 instance can change two ways, with different reach, so the
+    // caller must say which (#539).
+    let (key, swapped, ttl, mode) = match (&info.external_ref, mode) {
+        (Some(external), None) => {
+            return error_message(
+                id,
+                "bad_request",
+                format!(
+                    "contract {contract_id} runs executable `{}` of {} through a reference; choose mode \"instance\" to repoint this contract only, or mode \"ref\" to replace the reference's target, which changes every contract sharing it",
+                    external.tag, external.owner
+                ),
+                json!({ "kind": "invalid_field", "path": "mode", "expected": ["instance", "ref"] }),
+            )
+        }
+        (Some(external), Some("ref")) => {
+            let (reference, ref_ttl) = match fetched(&external.key_xdr) {
+                Ok(Some(found)) => found,
+                Ok(None) => {
+                    return error_message(
+                        id,
+                        "bad_request",
+                        format!("the reference `{}` of {} is not in the ledger", external.tag, external.owner),
+                        json!({ "kind": "invalid_field", "path": "contract_id", "reason": "executable reference missing" }),
+                    )
+                }
+                Err(_) => return fork.failure().map_or_else(|| no_open_ledger(id), |f| fetch_failed(id, lane, &f)),
+            };
+            match lane.retarget_external_ref(&reference, hash) {
+                Ok(swapped) => (external.key_xdr.clone(), swapped, ref_ttl, "ref"),
+                Err(e) => return invalid_field(id, "contract_id", &format!("a contract with a usable reference: {e}")),
+            }
+        }
+        (external, _) => {
+            let mut swapped = match lane.swap(&instance, hash) {
+                Ok(swapped) => swapped,
+                Err(e) => return invalid_field(id, "contract_id", &format!("a WASM contract: {e}")),
+            };
+            // Repointing an ExternalRef instance: what it ran is in the
+            // reference entry.
+            if let Some(external) = external {
+                if let Ok(Some((reference, _))) = fetched(&external.key_xdr) {
+                    swapped.previous_wasm_hash = lane.external_ref_wasm_hash(&reference).ok();
+                }
+            }
+            (instance_key, swapped, instance_ttl, "instance")
+        }
+    };
+
+    // The swap rewrites one entry and keeps its TTL, as an on-chain upgrade
+    // does; no constructor runs and no event is emitted.
+    let mut store = open.store.borrow_mut();
+    if !session_layer {
+        // The session layer sits above the overrides: a session that already
+        // wrote this entry would hide an override-layer swap.
+        if let crate::ledger::store::Lookup::Live { provenance, .. } = store.lookup(&key) {
+            if provenance.source == crate::ledger::store::Source::Session {
+                return error_message(
+                    id,
+                    "bad_request",
+                    "this session has already written the entry the swap rewrites, so an override-layer swap would be hidden beneath it; swap in the session layer, or roll back first".to_string(),
+                    json!({ "kind": "invalid_field", "path": "layer", "reason": "shadowed by a session write" }),
+                );
+            }
+        }
+    }
+    if session_layer {
+        store.apply_modified([Write {
+            key,
+            entry: Some(swapped.entry_xdr),
+            live_until: ttl,
+        }]);
+    } else {
+        store.insert_override(&key, swapped.entry_xdr, ttl);
+    }
     result(
         id,
         json!({
             "contract_id": contract_id,
-            "previous_wasm_hash": hex(&swapped.previous_wasm_hash),
+            "previous_wasm_hash": swapped.previous_wasm_hash.map(|h| hex(&h)),
             "wasm_hash": hex(&hash),
+            "mode": mode,
+            "layer": if session_layer { "session" } else { "override" },
         }),
     )
 }
