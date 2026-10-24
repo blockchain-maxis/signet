@@ -126,6 +126,10 @@
         ]
       },
       "description": "Entries to seed the fork layer with before the network config is loaded: a hand-built ledger, or a fork's ConfigSetting entries"
+    },
+    "session_id": {
+      "type": "string",
+      "description": "Names the session or repro bundle; each call's PRNG seed derives from it and the call index (#537). Default empty."
     }
   },
   "required": ["version", "id", "type", "network_passphrase"],

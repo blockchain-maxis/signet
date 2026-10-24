@@ -140,6 +140,7 @@ pub fn simulate(
     };
 
     let sequence = open.store.borrow().sequence();
+    let seed = call_seed(&open.session_id, open.calls);
     open.calls += 1;
     let request = SimulateBytes {
         network_passphrase: open.network_passphrase.clone(),
@@ -148,7 +149,7 @@ pub fn simulate(
         base_reserve: open.base_reserve,
         host_function_xdr,
         source_account_xdr,
-        prng_seed: call_seed(open.calls),
+        prng_seed: seed,
         enable_diagnostics: diagnostics,
     };
     let src: Rc<dyn ByteSnapshotSource> = fork.clone();
@@ -177,7 +178,10 @@ pub fn simulate(
         }
     };
 
-    let misses = b64_all(&fork.misses());
+    // Canonical order (#537): by XDR bytes, not by when they were fetched.
+    let mut miss_keys = fork.misses();
+    miss_keys.sort();
+    let misses = b64_all(&miss_keys);
     let ledger_info = json!({
         "sequence": sequence,
         "timestamp": open.timestamp,
@@ -199,6 +203,7 @@ pub fn simulate(
                 "cost": { "cpu_insns": run.cpu_instructions, "mem_bytes": run.memory_bytes },
                 "misses": misses,
                 "ledger": ledger_info,
+                "seed": hex(&seed),
             });
             if let Some(code) = failure.contract_code {
                 if let Ok(cases) = lane.error_cases(&wasm, code) {
@@ -243,20 +248,23 @@ pub fn simulate(
             let mut fields = body;
             fields["misses"] = json!(misses);
             fields["ledger"] = ledger_info;
+            fields["seed"] = json!(hex(&seed));
             result(id, fields)
         }
     }
 }
 
-/// The PRNG seed for the session's `n`th call. Recording-mode auth draws its
-/// nonces from it, so a fixed seed would hand two calls the same nonce and
-/// the second would collide with the first's write. A counter keeps calls
-/// distinct and a replayed session identical (#537).
-fn call_seed(n: u64) -> [u8; 32] {
+/// The PRNG seed for the session's `n`th call: sha256(session id ‖ n as a
+/// big-endian u64), never random (#537). A contract's `env.prng()` and
+/// recording-mode auth nonces both draw from it, so a replayed session
+/// produces the same values, while two calls in one session never share a
+/// nonce (a fixed seed would make the second collide with the first's
+/// write).
+pub fn call_seed(session_id: &str, n: u64) -> [u8; 32] {
     use sha2::{Digest, Sha256};
     let mut seed = Sha256::new();
-    seed.update(b"signet-simulate");
-    seed.update(n.to_le_bytes());
+    seed.update(session_id.as_bytes());
+    seed.update(n.to_be_bytes());
     seed.finalize().into()
 }
 
@@ -315,7 +323,7 @@ fn success_body(
         "events": events,
         "diagnostic_events": b64_all(&run.diagnostic_events_xdr),
         "auth": b64_all(&run.auth_xdr),
-        "modified_entries": run.modified_entries.iter().map(|m| json!({
+        "modified_entries": sorted_changes(run).iter().map(|m| json!({
             "key_xdr": BASE64.encode(&m.key_xdr),
             "before_xdr": m.before_xdr.as_ref().map(|b| BASE64.encode(b)),
             "after_xdr": m.entry_xdr.as_ref().map(|a| BASE64.encode(a)),
@@ -338,6 +346,13 @@ fn success_body(
         }
     }
     body
+}
+
+/// Modified entries in canonical order: by key XDR (#537).
+fn sorted_changes(run: &SimulateResultBytes) -> Vec<&crate::lanes::EntryChangeBytes> {
+    let mut changes: Vec<_> = run.modified_entries.iter().collect();
+    changes.sort_by(|a, b| a.key_xdr.cmp(&b.key_xdr));
+    changes
 }
 
 /// A successful call's writes land in the session layer, so the next call

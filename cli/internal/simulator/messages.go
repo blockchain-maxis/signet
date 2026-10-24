@@ -87,6 +87,7 @@ type ContractError struct {
 	Cost             *Cost         `json:"cost,omitempty"`
 	Misses           []string      `json:"misses,omitempty"`
 	Ledger           *LedgerInfo   `json:"ledger,omitempty"`
+	Seed             string        `json:"seed,omitempty"`
 }
 
 // DecodedError is a contracterror read from the contract's spec (#546).
@@ -179,6 +180,9 @@ type LedgerOpenParams struct {
 	BaseReserve *uint32 `json:"base_reserve,omitempty"`
 	// Entries seed the fork layer before the network config is loaded.
 	Entries []PutEntry `json:"entries,omitempty"`
+	// SessionID names the session or bundle; each call's PRNG seed derives
+	// from it and the call index (#537).
+	SessionID string `json:"session_id,omitempty"`
 }
 
 // LedgerOpenResult answers ledger_open.
@@ -331,6 +335,8 @@ type SimulateResult struct {
 	// Misses are the keys this call fetched (#531), for prefetching.
 	Misses []string    `json:"misses,omitempty"`
 	Ledger *LedgerInfo `json:"ledger,omitempty"`
+	// Seed is the call's PRNG seed, hex (#537).
+	Seed string `json:"seed,omitempty"`
 }
 
 // Event is one contract event, as XDR, with its spec decoding when there

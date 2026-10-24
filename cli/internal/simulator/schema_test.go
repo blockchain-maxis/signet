@@ -67,6 +67,7 @@ func TestMessagesMatchTheSchemas(t *testing.T) {
 	full.Resources = &Resources{Instructions: 1, DiskReadBytes: 2, WriteBytes: 3, Footprint: Footprint{ReadOnly: []string{b64}, ReadWrite: []string{}}}
 	full.Fee = &Fee{ResourceFee: 100}
 	full.Ledger = &LedgerInfo{Sequence: 5, Timestamp: 6, Protocol: 28}
+	full.Seed = hash
 
 	requests := map[string]any{
 		TypeLedgerOpen:       LedgerOpenParams{NetworkPassphrase: "Test SDF Network ; September 2015", LedgerProtocol: ip(28), Sequence: u32(5), Fetch: "deny", BaseReserve: u32(5000000), Entries: []PutEntry{{KeyXDR: b64, DataXDR: b64, LastModifiedLedgerSeq: u32(1)}}},
@@ -144,7 +145,7 @@ func TestMessagesMatchTheSchemas(t *testing.T) {
 	others := map[string]any{
 		TypeHello:         Hello{ClientProtocolVersion: ProtocolVersion},
 		TypeHelloAck:      HelloAck{ServerProtocolVersion: 1, SimulatorVersion: "0.1.0", Commit: "abc", Lanes: []Lane{{LedgerProtocol: 28, EnvHost: "28.0.2", Simulation: "28.0.2"}}},
-		TypeContractError: ContractError{Kind: "contract", Code: "Error(Contract, #2)", Message: "m", Decoded: &DecodedError{ErrorEnum: "Error", ErrorName: "X", ErrorValue: ip(2), Candidates: []ErrorCandidate{{ErrorEnum: "A", ErrorName: "X"}}}, DiagnosticEvents: []string{b64}, Cost: &Cost{CPUInsns: 1}, Misses: []string{b64}, Ledger: &LedgerInfo{Sequence: 1, Protocol: 28}},
+		TypeContractError: ContractError{Kind: "contract", Code: "Error(Contract, #2)", Message: "m", Seed: strings.Repeat("0", 64), Decoded: &DecodedError{ErrorEnum: "Error", ErrorName: "X", ErrorValue: ip(2), Candidates: []ErrorCandidate{{ErrorEnum: "A", ErrorName: "X"}}}, DiagnosticEvents: []string{b64}, Cost: &Cost{CPUInsns: 1}, Misses: []string{b64}, Ledger: &LedgerInfo{Sequence: 1, Protocol: 28}},
 		TypeError:         ErrorMessage{Code: "bad_request", Message: "m", Detail: map[string]any{"kind": "invalid_json"}},
 		TypeLedgerFetch:   LedgerFetch{KeysXDR: []string{b64}},
 		TypeLedgerEntries: LedgerEntries{Entries: []Entry{{KeyXDR: b64, EntryXDR: sp(b64), LiveUntilLedger: u32(1)}, {KeyXDR: b64}, {KeyXDR: b64, DataXDR: b64, LastModifiedLedgerSeq: u32(9), ExtXDR: "AAAAAA==", LiveUntilLedger: u32(99)}}},

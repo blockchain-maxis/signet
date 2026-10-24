@@ -186,6 +186,21 @@ in `ledger_open`'s result and in `status`, for the "ran against" panel.
 `LedgerInfo` comes from the open: the lane's protocol, `sequence`, `timestamp`,
 the network id from the passphrase, and `base_reserve` (default 0.5 XLM).
 
+**Determinism ([#537](https://github.com/blockchain-maxis/signet/issues/537)).**
+The same session on the same ledger state produces byte-identical results on
+every run. A call's PRNG seed is `sha256(session_id ‖ call index)` (`session_id`
+from `ledger_open`, the index as a big-endian u64), never random, and is
+reported as `seed`; it drives both `env.prng()` and recording-mode auth nonces.
+Execution reads no clock: the ledger time is `ledger_open`'s `timestamp`.
+`modified_entries` and `misses` are ordered by their XDR bytes, and object keys
+are sorted. What is not covered: the state itself (a fork fetches the network's
+latest entries, so two forks of a moving network can differ; a repro bundle,
+[#572](https://github.com/blockchain-maxis/signet/issues/572), pins them), and
+host metering across CPU architectures, which the host computes from its own
+cost model rather than measuring but which only
+[#573](https://github.com/blockchain-maxis/signet/issues/573)'s cross-platform
+check verifies. `status`'s `uptime_ms` is wall-clock and not part of any result.
+
 `simulate` takes **JSON arguments** and the simulator encodes them from the
 contract's spec
 ([#545](https://github.com/blockchain-maxis/signet/issues/545)); this replaces

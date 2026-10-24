@@ -81,6 +81,8 @@ struct Sim {
     next: u64,
     /// Every `keys_xdr` the simulator asked for, in order.
     fetched: Vec<String>,
+    /// Every line the simulator wrote, as written.
+    raw: Vec<String>,
 }
 
 impl Sim {
@@ -101,6 +103,7 @@ impl Sim {
             answer: Answer::Recorded,
             next: 0,
             fetched: Vec::new(),
+            raw: Vec::new(),
         };
         let ack = sim.send(json!({ "id": "hello", "type": "hello", "client_protocol_version": 1 }));
         assert_eq!(ack["type"], "hello_ack");
@@ -130,6 +133,7 @@ impl Sim {
                 self.stdout.read_line(&mut line).unwrap() > 0,
                 "the simulator exited"
             );
+            self.raw.push(line.clone());
             let reply: Value = serde_json::from_str(&line).unwrap();
             if reply["type"] == "ledger_fetch" {
                 let keys: Vec<String> = reply["keys_xdr"]
@@ -710,6 +714,97 @@ fn a_session_layer_swap_rolls_back(lane: u32) {
     );
 }
 
+/// A ledger with config and the registry and dice fixtures, opened under
+/// `session_id`.
+fn seeded(lane: u32, session_id: &str) -> (Sim, String, String) {
+    let mut sim = Sim::start();
+    let open = sim.send(json!({
+        "type": "ledger_open", "network_passphrase": TESTNET, "ledger_protocol": lane, "sequence": 100,
+        "timestamp": 1_790_000_000u64, "session_id": session_id, "entries": network_config_entries(),
+    }));
+    assert_eq!(open["type"], "result", "{open}");
+    let registry = sim.send(json!({ "type": "contract_install", "wasm_base64": registry_wasm() }))
+        ["contract_id"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    let (dice, _) = install(&mut sim, &fixture_wasm("dice"));
+    (sim, registry, dice)
+}
+
+fn the_seed_is_derived_and_drives_env_prng(lane: u32) {
+    let roll = |session: &str| {
+        let (mut sim, _, dice) = seeded(lane, session);
+        let first = sim.call(&dice, "roll", json!({}));
+        let second = sim.call(&dice, "roll", json!({}));
+        (first, second)
+    };
+    let (a1, a2) = roll("session-a");
+    let (b1, _) = roll("session-a");
+    let (c1, _) = roll("session-b");
+    assert_eq!(
+        a1["return_value"], b1["return_value"],
+        "same session, same value"
+    );
+    assert_ne!(
+        a1["return_value"], c1["return_value"],
+        "another session, another value"
+    );
+    assert_ne!(
+        a1["return_value"], a2["return_value"],
+        "the next call draws a new seed"
+    );
+
+    use sha2::{Digest, Sha256};
+    let mut expected = Sha256::new();
+    expected.update(b"session-a");
+    expected.update(0u64.to_be_bytes());
+    let hex: String = expected
+        .finalize()
+        .iter()
+        .map(|b| format!("{b:02x}"))
+        .collect();
+    assert_eq!(a1["seed"], hex);
+}
+
+fn a_session_replays_byte_for_byte(lane: u32) {
+    let session = |sim: &mut Sim, registry: &str, dice: &str| {
+        sim.call(registry, "initialize", json!({ "admin": ADMIN }));
+        for i in 0..8 {
+            sim.call(
+                registry,
+                "claim",
+                json!({ "handle": format!("h{i}"), "wallet": WALLET }),
+            );
+        }
+        sim.call(
+            registry,
+            "claim",
+            json!({ "handle": "h0", "wallet": WALLET }),
+        );
+        for i in 0..4 {
+            sim.call(registry, "resolve", json!({ "handle": format!("h{i}") }));
+        }
+        sim.call(registry, "count", json!({}));
+        for _ in 0..3 {
+            sim.call(dice, "roll", json!({}));
+        }
+        sim.call(registry, "claim", json!({ "handle": "h9", "wallet": 5 }));
+    };
+    let run = || {
+        let (mut sim, registry, dice) = seeded(lane, "replay");
+        let before = sim.raw.len();
+        session(&mut sim, &registry, &dice);
+        sim.raw[before..].to_vec()
+    };
+    let (first, second) = (run(), run());
+    assert_eq!(first.len(), second.len());
+    assert!(first.len() >= 20, "{} replies", first.len());
+    for (i, (a, b)) in first.iter().zip(&second).enumerate() {
+        assert_eq!(a, b, "reply {i} differs between two fresh runs");
+    }
+}
+
 /// The same suite on every lane (#538): each test above runs once per
 /// ledger protocol the binary carries.
 macro_rules! on_lane {
@@ -776,6 +871,14 @@ macro_rules! on_lane {
             #[test]
             fn a_session_layer_swap_rolls_back() {
                 super::a_session_layer_swap_rolls_back($protocol)
+            }
+            #[test]
+            fn the_seed_is_derived_and_drives_env_prng() {
+                super::the_seed_is_derived_and_drives_env_prng($protocol)
+            }
+            #[test]
+            fn a_session_replays_byte_for_byte() {
+                super::a_session_replays_byte_for_byte($protocol)
             }
         }
     };

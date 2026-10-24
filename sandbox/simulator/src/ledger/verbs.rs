@@ -30,8 +30,12 @@ pub struct OpenLedger {
     pub fetch: FetchMode,
     /// Contracts set up with `contract_install`.
     pub installed: BTreeSet<String>,
-    /// `simulate` calls run on this ledger; seeds each call's PRNG.
+    /// `simulate` calls run on this ledger; with `session_id`, seeds each
+    /// call's PRNG (#537).
     pub calls: u64,
+    /// Names the session or bundle for seeding (`ledger_open`'s
+    /// `session_id`, empty by default).
+    pub session_id: String,
     /// The network's base reserve in stroops (`ledger_open`'s `base_reserve`).
     pub base_reserve: u32,
     /// The effective network configuration, loaded when the ledger opened
@@ -194,6 +198,11 @@ pub fn ledger_open(
         _ => return invalid_field(id, "fetch", "\"allow\" or \"deny\""),
     };
 
+    let session_id = match object.get("session_id") {
+        None => String::new(),
+        Some(Value::String(s)) => s.clone(),
+        Some(_) => return invalid_field(id, "session_id", "a string"),
+    };
     let base_reserve = match object.get("base_reserve") {
         None => DEFAULT_BASE_RESERVE,
         Some(value) => match value.as_u64().and_then(|n| u32::try_from(n).ok()) {
@@ -240,6 +249,7 @@ pub fn ledger_open(
         fetch,
         installed: BTreeSet::new(),
         calls: 0,
+        session_id,
         base_reserve,
         network_config: Value::Null,
     });

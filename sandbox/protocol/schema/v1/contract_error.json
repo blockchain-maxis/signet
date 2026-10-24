@@ -133,6 +133,11 @@
       },
       "required": ["sequence", "timestamp", "protocol"],
       "additionalProperties": false
+    },
+    "seed": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$",
+      "description": "The call's PRNG seed: sha256(session_id ‖ call index as a big-endian u64) (#537)"
     }
   },
   "required": ["version", "id", "type", "kind", "code", "message", "diagnostic_events"],
