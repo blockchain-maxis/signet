@@ -85,6 +85,56 @@ pub struct SwapResultBytes {
     pub previous_wasm_hash: [u8; 32],
 }
 
+/// A ledger entry Go wants to ask RPC for, named without XDR (#532). Strkeys
+/// stay strings here: decoding them is the lane's job, like any other XDR.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub enum KeyRequest {
+    /// A contract's instance entry (`C...` strkey).
+    ContractInstance { contract_id: String },
+    /// An uploaded executable, by its SHA-256.
+    ContractCode { wasm_hash: [u8; 32] },
+    /// A classic account (`G...` strkey).
+    Account { account_id: String },
+    /// One `ConfigSettingId`, by its XDR name (`ContractMaxSizeBytes`).
+    ConfigSetting { setting: String },
+    /// Every `ConfigSetting` entry the lane's `NetworkConfig` loads (#535).
+    NetworkConfig,
+}
+
+/// One derived `LedgerKey`, with what it addresses in plain terms.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct DerivedKey {
+    /// `contract_instance`, `contract_code`, `account` or `config_setting`.
+    pub kind: &'static str,
+    /// The contract id, hex hash, account id or setting name it was built from.
+    pub subject: String,
+    pub key_xdr: Vec<u8>,
+}
+
+/// What an executable declares, read without running it (#540).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct WasmInspection {
+    pub wasm_hash: [u8; 32],
+    pub size_bytes: usize,
+    /// Every custom section's name, in file order.
+    pub custom_sections: Vec<String>,
+    /// `contractenvmetav0`'s interface version, if the section declares one.
+    pub interface_version: Option<InterfaceVersion>,
+    /// Exported function names, in file order.
+    pub exports: Vec<String>,
+    /// Imported functions as `(module, name)`, in file order: the host
+    /// functions the executable calls.
+    pub imports: Vec<(String, String)>,
+}
+
+/// A Soroban environment interface version: the ledger protocol, and a
+/// pre-release number that is zero for anything that can run on a network.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct InterfaceVersion {
+    pub protocol: u32,
+    pub pre_release: u32,
+}
+
 /// Why a lane could not do what it was asked. Contract failures are not lane
 /// failures: they come back inside [`SimulateResultBytes::return_value`].
 #[derive(Debug, thiserror::Error, PartialEq, Eq)]
@@ -105,6 +155,10 @@ pub enum LaneError {
     /// The simulation could not be set up or accounted (not a contract error).
     #[error("simulation failed: {0}")]
     Simulation(String),
+    /// A plain-text input the lane decodes itself (a strkey, a setting name)
+    /// that it does not recognise.
+    #[error("{what} is not valid: {detail}")]
+    InvalidInput { what: &'static str, detail: String },
 }
 
 // ─── The lane ──────────────────────────────────────────────────────────────────
@@ -149,6 +203,22 @@ pub trait Lane: Sync {
     /// section, in declaration order; empty when the section is absent.
     #[allow(dead_code)] // called by the `spec_*` handlers (#545).
     fn spec_entries(&self, wasm: &[u8]) -> Result<Vec<Vec<u8>>, LaneError>;
+
+    /// The `LedgerKey` XDR for each entry `request` names; `NetworkConfig`
+    /// expands to one key per setting, the rest to exactly one (`xdr_keys`).
+    fn ledger_keys(&self, request: &KeyRequest) -> Result<Vec<DerivedKey>, LaneError>;
+
+    /// A `TransactionEnvelope`, and optionally the `TransactionMeta` RPC's
+    /// `getTransaction` returned for it, decoded to JSON (`tx_decode`). The
+    /// shape is the `transaction` object in schema/v1/tx_decode.json.
+    fn decode_transaction(
+        &self,
+        envelope_xdr: &[u8],
+        meta_xdr: Option<&[u8]>,
+    ) -> Result<serde_json::Value, LaneError>;
+
+    /// What an executable declares (`wasm_inspect`).
+    fn inspect_wasm(&self, wasm: &[u8]) -> Result<WasmInspection, LaneError>;
 }
 
 // ─── Registry ──────────────────────────────────────────────────────────────────

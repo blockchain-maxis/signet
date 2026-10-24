@@ -6,6 +6,7 @@ mod dispatch;
 mod framing;
 mod lanes;
 mod ledger;
+mod xdr_helpers;
 
 use std::io;
 

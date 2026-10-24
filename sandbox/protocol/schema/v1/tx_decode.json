@@ -2,7 +2,7 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "https://signet.dev/schemas/sandbox/v1/tx_decode.json",
   "title": "tx_decode (request)",
-  "description": "Decode a transaction envelope to JSON.",
+  "description": "Decode a transaction envelope, and optionally the result meta from RPC getTransaction, to JSON (#532): which contract, which function, which args, and what happened on chain (#636).",
   "type": "object",
   "properties": {
     "version": {
@@ -17,16 +17,125 @@
     "type": {
       "const": "tx_decode"
     },
+    "ledger_protocol": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Lane to decode with; defaults to the open ledger's, else the newest"
+    },
     "transaction_xdr": {
       "type": "string",
       "minLength": 1,
       "pattern": "^[A-Za-z0-9+/]+={0,2}$",
-      "description": "TransactionEnvelope, base64 XDR"
+      "description": "TransactionEnvelope, base64 XDR (RPC getTransaction's envelopeXdr)"
+    },
+    "result_meta_xdr": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9+/]+={0,2}$",
+      "description": "TransactionMeta, base64 XDR (RPC getTransaction's resultMetaXdr); when present, the response carries `transaction.result`"
     }
   },
   "required": ["version", "id", "type", "transaction_xdr"],
   "additionalProperties": false,
   "definitions": {
+    "scval": {
+      "type": "object",
+      "description": "An ScVal for reading: integers of 64 bits and wider are decimal strings, bytes are hex, addresses are strkeys, vec and map hold tagged values. A type with no plain form carries `xdr` instead of `value`. A display form; spec_decode_val decodes by the contract's types.",
+      "properties": {
+        "type": { "type": "string", "minLength": 1 },
+        "value": {},
+        "xdr": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9+/]+={0,2}$",
+          "description": "The value's ScVal, base64 XDR"
+        }
+      },
+      "required": ["type"],
+      "additionalProperties": false
+    },
+    "address": {
+      "type": "string",
+      "pattern": "^[GCMBL][A-Z2-7]+$",
+      "description": "A strkey"
+    },
+    "host_function": {
+      "type": "object",
+      "description": "The operation's HostFunction. Only invoke_contract is replayable; any other kind, or a transaction that is not a single InvokeHostFunction operation, has replayable false and a reason.",
+      "properties": {
+        "kind": {
+          "enum": [
+            "invoke_contract",
+            "create_contract",
+            "create_contract_v2",
+            "upload_contract_wasm",
+            null
+          ]
+        },
+        "replayable": { "type": "boolean" },
+        "reason": { "type": "string", "minLength": 1 },
+        "contract_id": { "$ref": "#/definitions/address" },
+        "function": { "type": "string" },
+        "args": {
+          "type": "array",
+          "items": { "$ref": "#/definitions/scval" },
+          "description": "Each with its `xdr`, to pass on to spec_decode_val"
+        }
+      },
+      "required": ["kind", "replayable"],
+      "additionalProperties": false
+    },
+    "auth": {
+      "type": "object",
+      "properties": {
+        "credentials": {
+          "enum": ["source_account", "address", "address_v2", "address_with_delegates"]
+        },
+        "address": { "$ref": "#/definitions/address" },
+        "root_function": {
+          "type": "object",
+          "properties": {
+            "kind": { "enum": ["contract_fn", "create_contract", "create_contract_v2"] },
+            "contract_id": { "$ref": "#/definitions/address" },
+            "function": { "type": "string" }
+          },
+          "required": ["kind"],
+          "additionalProperties": false
+        },
+        "sub_invocations": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "How many invocations the root authorizes beneath it"
+        },
+        "entry_xdr": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9+/]+={0,2}$",
+          "description": "SorobanAuthorizationEntry, base64 XDR"
+        }
+      },
+      "required": ["credentials", "root_function", "sub_invocations", "entry_xdr"],
+      "additionalProperties": false
+    },
+    "event": {
+      "type": "object",
+      "properties": {
+        "type": { "enum": ["system", "contract", "diagnostic"] },
+        "contract_id": {
+          "oneOf": [{ "$ref": "#/definitions/address" }, { "type": "null" }]
+        },
+        "topics": {
+          "type": "array",
+          "items": { "$ref": "#/definitions/scval" }
+        },
+        "data": { "$ref": "#/definitions/scval" },
+        "event_xdr": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9+/]+={0,2}$",
+          "description": "ContractEvent, base64 XDR"
+        }
+      },
+      "required": ["type", "contract_id", "topics", "data", "event_xdr"],
+      "additionalProperties": false
+    },
     "result": {
       "title": "tx_decode (success response)",
       "type": "object",
@@ -45,7 +154,42 @@
         },
         "transaction": {
           "type": "object",
-          "description": "The envelope as JSON"
+          "description": "The envelope as JSON. For a fee bump, everything but fee_bump describes the inner transaction. operation_source_account is present only when the operation sets its own source.",
+          "properties": {
+            "source_account": { "$ref": "#/definitions/address" },
+            "fee_bump": { "type": "boolean" },
+            "operation_count": { "type": "integer", "minimum": 0 },
+            "operation_source_account": { "$ref": "#/definitions/address" },
+            "host_function": { "$ref": "#/definitions/host_function" },
+            "auth": {
+              "type": "array",
+              "items": { "$ref": "#/definitions/auth" }
+            },
+            "result": {
+              "type": "object",
+              "description": "What happened on chain, decoded from result_meta_xdr; present only when it was sent",
+              "properties": {
+                "meta_version": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "description": "TransactionMeta version: 3 before protocol 23, 4 from it"
+                },
+                "return_value": {
+                  "oneOf": [{ "$ref": "#/definitions/scval" }, { "type": "null" }],
+                  "description": "The invocation's return value, with its `xdr`; null when the meta records none"
+                },
+                "events": {
+                  "type": "array",
+                  "items": { "$ref": "#/definitions/event" },
+                  "description": "Contract events, in emission order"
+                }
+              },
+              "required": ["meta_version", "return_value", "events"],
+              "additionalProperties": false
+            }
+          },
+          "required": ["source_account", "fee_bump", "operation_count", "host_function", "auth"],
+          "additionalProperties": false
         }
       },
       "required": ["version", "id", "type", "transaction"],

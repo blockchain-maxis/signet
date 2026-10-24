@@ -8,7 +8,7 @@
 use std::io::Write;
 use std::process::{Command, Stdio};
 
-const CLIENT_TYPES: [&str; 2] = ["hello", "shutdown"];
+const CLIENT_TYPES: [&str; 5] = ["hello", "shutdown", "xdr_keys", "tx_decode", "wasm_inspect"];
 
 struct Replay {
     stdout: String,
@@ -79,6 +79,16 @@ fn version_mismatch_transcript_replays_byte_for_byte() {
     // A message with the wrong `version` is refused mid-session with
     // `unsupported_version`, and the session carries on.
     let (sent, expected) = load("version_mismatch.ndjson");
+    let replay = run_simulator(&sent);
+    assert_eq!(replay.stdout, expected);
+    assert!(replay.status.success());
+}
+
+#[test]
+fn xdr_helpers_transcript_replays_byte_for_byte() {
+    // xdr_keys, tx_decode and wasm_inspect (#532) on the testnet registry, a
+    // recorded claim, and a fixture contract.
+    let (sent, expected) = load("xdr_helpers.ndjson");
     let replay = run_simulator(&sent);
     assert_eq!(replay.stdout, expected);
     assert!(replay.status.success());

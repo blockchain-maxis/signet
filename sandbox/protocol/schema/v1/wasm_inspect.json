@@ -2,7 +2,7 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "https://signet.dev/schemas/sandbox/v1/wasm_inspect.json",
   "title": "wasm_inspect (request)",
-  "description": "Report what an executable declares, without running it.",
+  "description": "Report what an executable declares, without running it (#532, used by #540).",
   "type": "object",
   "properties": {
     "version": {
@@ -16,6 +16,11 @@
     },
     "type": {
       "const": "wasm_inspect"
+    },
+    "ledger_protocol": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Lane to decode with; defaults to the open ledger's, else the newest"
     },
     "wasm_base64": {
       "type": "string",
@@ -53,17 +58,53 @@
           "description": "Executable size",
           "minimum": 0
         },
+        "custom_sections": {
+          "type": "array",
+          "items": { "type": "string" },
+          "description": "Every custom section's name, in file order (a name may repeat)"
+        },
         "interface_version": {
-          "type": "integer",
-          "description": "Soroban env interface version the executable targets",
-          "minimum": 0
+          "description": "contractenvmetav0's interface version; null when the section declares none",
+          "oneOf": [
+            {
+              "type": "object",
+              "properties": {
+                "protocol": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "description": "Ledger protocol the executable targets"
+                },
+                "pre_release": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "description": "Pre-release number; 0 for anything that can run on a network"
+                }
+              },
+              "required": ["protocol", "pre_release"],
+              "additionalProperties": false
+            },
+            { "type": "null" }
+          ]
         },
         "exports": {
           "type": "array",
           "items": {
             "type": "string"
           },
-          "description": "Exported function names"
+          "description": "Exported function names, in file order"
+        },
+        "imports": {
+          "type": "array",
+          "description": "Imported functions, in file order: the host functions the executable calls",
+          "items": {
+            "type": "object",
+            "properties": {
+              "module": { "type": "string" },
+              "name": { "type": "string" }
+            },
+            "required": ["module", "name"],
+            "additionalProperties": false
+          }
         }
       },
       "required": [
@@ -72,8 +113,10 @@
         "type",
         "wasm_hash",
         "size_bytes",
+        "custom_sections",
         "interface_version",
-        "exports"
+        "exports",
+        "imports"
       ],
       "additionalProperties": false
     }

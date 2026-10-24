@@ -3,3 +3,4 @@ pnpm-lock.yaml
 packages/fixtures/data/
 docs/api/openapi-v1.json
 
+sandbox/simulator/tests/fixtures/*.json

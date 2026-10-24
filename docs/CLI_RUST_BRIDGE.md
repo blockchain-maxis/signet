@@ -1,4 +1,4 @@
-# The Go ↔ Rust bridge (design note)
+| `wasm_inspect` | Report what an executable declares, without running it | `wasm_base64`; optional `ledger_protocol` | `wasm_hash`, `size_bytes`, `custom_sections[]`, `interface_version`, `exports[]`, `imports[]` || `tx_decode` | Decode a transaction envelope, and optionally its result meta, to JSON | `transaction_xdr`; optional `result_meta_xdr`, `ledger_protocol` | `transaction` || `xdr_keys` | Build the ledger keys Go asks RPC for: a contract instance, a code entry, an account, a config setting, or every setting `NetworkConfig` loads | `keys[]` of `{kind, ...}`; optional `ledger_protocol` | `keys[]` of `{kind, subject, key_xdr}` |# The Go ↔ Rust bridge (design note)
 
 This is a design note, not implementation. **No Rust crate is scaffolded by
 this document** — it exists so the boundary between the Go CLI
@@ -153,6 +153,12 @@ unit test fails the build if a versioned type leaks outside `lanes/`.
 | `status`            | Report simulator state                                                         | none                                                                      | `uptime_ms`, `ledger_open`, `ledger_sequence`, `entries`, `contracts` |
 | `shutdown`          | Answer, then exit 0                                                            | none                                                                      | none                                                                  |
 
+The three XDR helpers ([#532](https://github.com/blockchain-maxis/signet/issues/532)) are how Go gets by without parsing XDR. None needs an open ledger; each decodes with the lane named by `ledger_protocol`, else the open ledger's, else the newest.
+
+- `xdr_keys` builds the base64 `LedgerKey`s for RPC `getLedgerEntries`. `network_config` expands to exactly the `ConfigSetting` entries the lane's `NetworkConfig::load_from_snapshot` reads, so a fork ([#535](https://github.com/blockchain-maxis/signet/issues/535)) fetches no more and no less.
+- `tx_decode` takes RPC `getTransaction`'s `envelopeXdr` and, optionally, `resultMetaXdr`. It returns the source account, the host function, and the auth entries; with the meta, also the on-chain return value and contract events, for [#636](https://github.com/blockchain-maxis/signet/issues/636)'s fidelity check (meta v3 and v4 alike). Only an `invoke_contract` host function is `replayable`; anything else says why not. Values come in a tagged display form (`{"type": "string", "value": "alice"}`) alongside their XDR, which Go passes on to `spec_decode_val` when it needs the contract's own types.
+- `wasm_inspect` reports the WASM hash, the custom sections, the `contractenvmetav0` interface version, and the imported host functions ([#540](https://github.com/blockchain-maxis/signet/issues/540)).
+
 `hello` / `hello_ack` are the handshake above. `ledger_fetch` and
 `ledger_entries` are the one exchange that runs the other way, described next.
 
@@ -219,7 +225,7 @@ cannot be the default way state reaches the simulator.
 | `bad_request`                 | The line or the message is not valid                                                                                                                                | `line_too_long`, `invalid_utf8`, `invalid_json`, `not_an_object`, `invalid_field` (with `path`), `unknown_type`, `handshake_required`, `already_greeted` |
 | `unsupported_version`         | `version` is not the protocol version this binary speaks                                                                                                            | `version_mismatch` (with `expected`, `received`)                                                                                                         |
 | `internal_panic`              | The simulator panicked; the last line before a non-zero exit                                                                                                        | `panic`                                                                                                                                                  |
-| `unsupported_ledger_protocol` | `ledger_open` asked for a lane this binary does not carry ([#533](https://github.com/blockchain-maxis/signet/issues/533))                                           | `ledger_protocol` (with `requested`, `networkProtocol` (same value), `supported`)                                                                         |
+| `unsupported_ledger_protocol` | `ledger_open` asked for a lane this binary does not carry ([#533](https://github.com/blockchain-maxis/signet/issues/533))                                           | `ledger_protocol` (with `requested`, `networkProtocol` (same value), `supported`)                                                                        |
 | `fetch_failed`                | Go could not answer a `ledger_fetch` ([#531](https://github.com/blockchain-maxis/signet/issues/531), [#535](https://github.com/blockchain-maxis/signet/issues/535)) | `rpc_unavailable`, `timeout`, `rejected`                                                                                                                 |
 | `resource_limit`              | A request went over a limit the simulator enforces ([#536](https://github.com/blockchain-maxis/signet/issues/536))                                                  | `cpu_budget`, `memory_budget`, `ledger_entries`, `wasm_size`                                                                                             |
 

@@ -18,6 +18,7 @@ use crate::lanes::LaneRegistry;
 use crate::ledger::verbs::{
     ledger_checkpoint, ledger_get, ledger_open, ledger_put, ledger_rollback, OpenLedger,
 };
+use crate::xdr_helpers::{tx_decode, wasm_inspect, xdr_keys};
 use crate::PROTOCOL_VERSION;
 
 /// Exit status after a panic in the message loop.
@@ -182,6 +183,9 @@ impl Dispatcher {
             "ledger_get" => Step::reply(ledger_get(&self.ledger, &id, &object)),
             "ledger_checkpoint" => Step::reply(ledger_checkpoint(&mut self.ledger, &id)),
             "ledger_rollback" => Step::reply(ledger_rollback(&mut self.ledger, &id, &object)),
+            "xdr_keys" => Step::reply(xdr_keys(&self.ledger, &id, &object)),
+            "tx_decode" => Step::reply(tx_decode(&self.ledger, &id, &object)),
+            "wasm_inspect" => Step::reply(wasm_inspect(&self.ledger, &id, &object)),
             "shutdown" => Step {
                 reply: json!({ "version": PROTOCOL_VERSION, "id": id, "type": "result" }),
                 exit: Some(0),

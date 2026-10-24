@@ -2,7 +2,7 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "https://signet.dev/schemas/sandbox/v1/xdr_keys.json",
   "title": "xdr_keys (request)",
-  "description": "Derive the ledger key of each entry, so Go can address entries without parsing XDR.",
+  "description": "Build the base64 LedgerKey for each named entry, so Go can ask RPC for entries without building XDR (#532).",
   "type": "object",
   "properties": {
     "version": {
@@ -17,19 +17,87 @@
     "type": {
       "const": "xdr_keys"
     },
-    "entries_xdr": {
+    "ledger_protocol": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Lane to build with; defaults to the open ledger's, else the newest"
+    },
+    "keys": {
       "type": "array",
+      "minItems": 1,
+      "description": "The entries to build keys for",
       "items": {
-        "type": "string",
-        "minLength": 1,
-        "pattern": "^[A-Za-z0-9+/]+={0,2}$",
-        "description": "LedgerEntry, base64 XDR"
-      },
-      "description": "Entries",
-      "minItems": 1
+        "oneOf": [
+          {
+            "type": "object",
+            "description": "A contract's instance entry (persistent ContractData, LedgerKeyContractInstance)",
+            "properties": {
+              "kind": { "const": "contract_instance" },
+              "contract_id": {
+                "type": "string",
+                "pattern": "^C[A-Z2-7]{55}$",
+                "description": "Contract strkey"
+              }
+            },
+            "required": ["kind", "contract_id"],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "description": "An uploaded executable's ContractCode entry",
+            "properties": {
+              "kind": { "const": "contract_code" },
+              "wasm_hash": {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$",
+                "description": "SHA-256 of the WASM, hex"
+              }
+            },
+            "required": ["kind", "wasm_hash"],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "description": "A classic account entry",
+            "properties": {
+              "kind": { "const": "account" },
+              "account_id": {
+                "type": "string",
+                "pattern": "^G[A-Z2-7]{55}$",
+                "description": "Account strkey"
+              }
+            },
+            "required": ["kind", "account_id"],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "description": "One ConfigSetting entry",
+            "properties": {
+              "kind": { "const": "config_setting" },
+              "setting": {
+                "type": "string",
+                "minLength": 1,
+                "description": "ConfigSettingId name as in the XDR, e.g. ContractMaxSizeBytes"
+              }
+            },
+            "required": ["kind", "setting"],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "description": "Every ConfigSetting entry the lane's NetworkConfig loads (#535); expands to one key per setting",
+            "properties": {
+              "kind": { "const": "network_config" }
+            },
+            "required": ["kind"],
+            "additionalProperties": false
+          }
+        ]
+      }
     }
   },
-  "required": ["version", "id", "type", "entries_xdr"],
+  "required": ["version", "id", "type", "keys"],
   "additionalProperties": false,
   "definitions": {
     "result": {
@@ -48,17 +116,33 @@
         "type": {
           "const": "result"
         },
-        "keys_xdr": {
+        "keys": {
           "type": "array",
+          "description": "One key per requested entry, in request order; network_config contributes one per setting",
           "items": {
-            "type": "string",
-            "minLength": 1,
-            "pattern": "^[A-Za-z0-9+/]+={0,2}$",
-            "description": "LedgerKey, base64 XDR"
+            "type": "object",
+            "properties": {
+              "kind": {
+                "enum": ["contract_instance", "contract_code", "account", "config_setting"]
+              },
+              "subject": {
+                "type": "string",
+                "minLength": 1,
+                "description": "What the key addresses: the contract id, hex hash, account id or setting name"
+              },
+              "key_xdr": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^[A-Za-z0-9+/]+={0,2}$",
+                "description": "LedgerKey, base64 XDR"
+              }
+            },
+            "required": ["kind", "subject", "key_xdr"],
+            "additionalProperties": false
           }
         }
       },
-      "required": ["version", "id", "type", "keys_xdr"],
+      "required": ["version", "id", "type", "keys"],
       "additionalProperties": false
     }
   }
