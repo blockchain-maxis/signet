@@ -100,14 +100,19 @@ func TestLocateFollowsASymlinkedCLI(t *testing.T) {
 	if runtime.GOOS == "windows" {
 		t.Skip("symlinks need privileges on Windows")
 	}
-	root := t.TempDir()
+	// Resolve the temp dir itself first: on macOS it lives under /var, a
+	// symlink to /private/var, and the lookup resolves links.
+	root, err := filepath.EvalSymlinks(t.TempDir())
+	if err != nil {
+		t.Fatal(err)
+	}
 	real := placeExecutable(t, filepath.Join(root, "cellar"), "signet")
 	sibling := placeExecutable(t, filepath.Join(root, "cellar"), BinaryName())
 	link := filepath.Join(root, "bin", "signet")
 	if err := os.MkdirAll(filepath.Dir(link), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.Symlink(real, link); err != nil {
+	if err = os.Symlink(real, link); err != nil {
 		t.Fatal(err)
 	}
 	l := locator{

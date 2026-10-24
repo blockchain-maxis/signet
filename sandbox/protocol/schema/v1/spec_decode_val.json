@@ -99,12 +99,23 @@
   },
   "oneOf": [
     {
+      "properties": {
+        "val_xdr": true,
+        "function": true
+      },
       "required": ["val_xdr", "function"]
     },
     {
+      "properties": {
+        "val_xdr": true,
+        "as_type": true
+      },
       "required": ["val_xdr", "as_type"]
     },
     {
+      "properties": {
+        "event_xdr": true
+      },
       "required": ["event_xdr"]
     }
   ]

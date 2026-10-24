@@ -61,6 +61,16 @@ for (const type of schemaTypes) {
   }
 }
 
+// addSchema compiles lazily, so a schema no transcript exercises would
+// otherwise skip strict mode; compile them all now, as CI does.
+for (const type of schemaTypes) {
+  try {
+    ajv.getSchema(SCHEMA_ID(type));
+  } catch (e) {
+    fail(`schema/v1/${type}.json`, e.message);
+  }
+}
+
 // Every message type has to appear in the bridge note's catalogue.
 const doc = fs.readFileSync(bridgeDoc, 'utf8');
 for (const type of schemaTypes) {
