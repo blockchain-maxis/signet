@@ -293,6 +293,37 @@ written back by a flag; edit the file (or keep using `--url`/`SIGNET_URL`) to
 change the configured deployment. See `internal/config` for the resolution
 logic and its tests.
 
+### Sandbox network and RPC
+
+`signet sandbox` (and `signet dev`) fork contract state from a Stellar RPC.
+They take the root's `--network` (`testnet`, `mainnet`, `futurenet`, `local`,
+or a name of your own) plus two flags of their own:
+
+| Flag                          | Meaning                                                                                                        |
+| ----------------------------- | -------------------------------------------------------------------------------------------------------------- |
+| `--rpc-url <url>`             | The RPC to fork from. Outranks the context's `rpc-url`.                                                        |
+| `--network-passphrase <text>` | Required for a custom `--network`. For a known network it must equal that network's passphrase, or is refused. |
+
+The RPC URL is `--rpc-url`, then the context's `rpcUrl` field, then
+`https://soroban-testnet.stellar.org` for testnet only. Mainnet has no bundled
+default, so it needs `--rpc-url` or a saved URL:
+
+```sh
+signet config set rpc-url https://my-mainnet-rpc.example
+```
+
+which stores it on the current context:
+
+```json
+{ "contexts": { "default": { "network": "mainnet", "rpcUrl": "https://my-mainnet-rpc.example" } } }
+```
+
+Before forking, signet calls the RPC's `getNetwork` and refuses (exit `3`) an
+RPC whose passphrase is not the selected network's, so testnet state is never
+labelled mainnet. RPC calls retry `429` and `5xx` with jittered backoff; a
+call that runs out of time exits `7`, any other RPC failure `6`
+(`internal/rpc`).
+
 ## Build
 
 ```bash
@@ -380,3 +411,4 @@ GOOS=linux  GOARCH=amd64 go build -o bin/signet-linux-amd64  ./cmd/signet
 | `internal/exitcode`  | The exit-code taxonomy (see "Exit codes" above) — its own leaf package so both `internal/cmd` and packages like `internal/keys` can depend on it without a cycle                                                                                                                                                                                            |
 | `internal/browser`   | Opens a URL in the default browser for an approval flow, falling back to printing it — not yet wired into any command                                                                                                                                                                                                                                       |
 | `internal/simulator` | The one client for `signet-simulator`: finds it (`SIGNET_SIMULATOR_PATH`, beside `signet`, then `PATH`), spawns it, checks the handshake, serialises calls, answers its `ledger_fetch`, enforces the per-request timeout (SIGTERM, 2s, SIGKILL), stops it when idle, and respawns it transparently with the session replayed (docs/CLI_RUST_BRIDGE.md §4–5) |
+| `internal/rpc`       | A thin Stellar RPC JSON-RPC client (`getNetwork`, `getLatestLedger`, `getVersionInfo`, `getHealth`, `getLedgerEntries` paged at 200 keys, `getTransaction(s)`, `getEvents`, `simulateTransaction`) with retries, and the sandbox network selection; payloads stay base64                                                                                    |

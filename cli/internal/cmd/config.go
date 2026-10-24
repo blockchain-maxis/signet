@@ -19,7 +19,7 @@ func newConfigCmd() *cobra.Command {
 		Use:   "config",
 		Short: "Inspect and update settings in the current context",
 		Long: `Inspect and update settings in the current deployment context.
-Supported keys are: url, network, source.`,
+Supported keys are: url, network, source, rpc-url.`,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			return cmd.Help()
 		},

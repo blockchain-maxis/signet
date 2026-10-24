@@ -40,6 +40,12 @@ func Normalize(name string) (string, bool) {
 	return n, ok
 }
 
+// PassphraseFor is the passphrase of a canonical network name.
+func PassphraseFor(name string) (string, bool) {
+	p, ok := passphrases[name]
+	return p, ok
+}
+
 // NameFor is the canonical name of a network passphrase, if it is one of the
 // known networks.
 func NameFor(passphrase string) (string, bool) {

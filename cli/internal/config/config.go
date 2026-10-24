@@ -55,6 +55,9 @@ type Context struct {
 	Network string `json:"network,omitempty"`
 	// Source is the default identity name for this context.
 	Source string `json:"source,omitempty"`
+	// RPCURL is the Stellar RPC sandbox commands fork from. Testnet has a
+	// default; mainnet and custom networks need one here or --rpc-url.
+	RPCURL string `json:"rpcUrl,omitempty"`
 }
 
 // File holds the configuration persisted to disk (Schema v2).
@@ -310,7 +313,7 @@ func (f *File) RemoveContext(name string) error {
 	return nil
 }
 
-// GetConfig reads a configuration key (url, network, source) from the current context.
+// GetConfig reads a configuration key (url, network, source, rpc-url) from the current context.
 func (f File) GetConfig(key string) (string, error) {
 	ctx := f.CurrentContext()
 	switch strings.ToLower(key) {
@@ -320,15 +323,17 @@ func (f File) GetConfig(key string) (string, error) {
 		return ctx.Network, nil
 	case "source":
 		return ctx.Source, nil
+	case "rpc-url":
+		return ctx.RPCURL, nil
 	default:
 		return "", &ContextError{
-			Msg:  fmt.Sprintf("invalid config key %q: valid keys are url, network, source", key),
+			Msg:  fmt.Sprintf("invalid config key %q: valid keys are url, network, source, rpc-url", key),
 			Code: exitcode.InvalidInput,
 		}
 	}
 }
 
-// SetConfig sets a configuration key (url, network, source) in the current context.
+// SetConfig sets a configuration key (url, network, source, rpc-url) in the current context.
 func (f *File) SetConfig(key, value string) error {
 	curr := f.Current
 	if curr == "" {
@@ -346,9 +351,11 @@ func (f *File) SetConfig(key, value string) error {
 		ctx.Network = value
 	case "source":
 		ctx.Source = value
+	case "rpc-url":
+		ctx.RPCURL = value
 	default:
 		return &ContextError{
-			Msg:  fmt.Sprintf("invalid config key %q: valid keys are url, network, source", key),
+			Msg:  fmt.Sprintf("invalid config key %q: valid keys are url, network, source, rpc-url", key),
 			Code: exitcode.InvalidInput,
 		}
 	}
@@ -356,7 +363,7 @@ func (f *File) SetConfig(key, value string) error {
 	return nil
 }
 
-// UnsetConfig unsets a configuration key (url, network, source) in the current context.
+// UnsetConfig unsets a configuration key (url, network, source, rpc-url) in the current context.
 func (f *File) UnsetConfig(key string) error {
 	curr := f.Current
 	if curr == "" {
@@ -374,9 +381,11 @@ func (f *File) UnsetConfig(key string) error {
 		ctx.Network = ""
 	case "source":
 		ctx.Source = ""
+	case "rpc-url":
+		ctx.RPCURL = ""
 	default:
 		return &ContextError{
-			Msg:  fmt.Sprintf("invalid config key %q: valid keys are url, network, source", key),
+			Msg:  fmt.Sprintf("invalid config key %q: valid keys are url, network, source, rpc-url", key),
 			Code: exitcode.InvalidInput,
 		}
 	}
@@ -423,6 +432,9 @@ type Resolved struct {
 	Network string
 	Source  string
 	Context string
+	// RPCURL is the active context's rpcUrl, if any. Sandbox commands give
+	// --rpc-url precedence over it (internal/rpc.Select).
+	RPCURL string
 }
 
 // ResolveOptions carries the flag/environment inputs for one invocation.
@@ -474,6 +486,7 @@ func Resolve(opts ResolveOptions, file File) Resolved {
 		Network: DefaultNetwork,
 		Source:  activeCtx.Source,
 		Context: contextName,
+		RPCURL:  activeCtx.RPCURL,
 	}
 
 	// BaseURL: flag > env > context > default

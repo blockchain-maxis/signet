@@ -1,7 +1,7 @@
 $ signet config --help
 -- stdout --
 Inspect and update settings in the current deployment context.
-Supported keys are: url, network, source.
+Supported keys are: url, network, source, rpc-url.
 
 Usage:
   signet config [flags]
