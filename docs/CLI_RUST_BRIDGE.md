@@ -385,6 +385,17 @@ this line.
 - A timeout invalidates only that subprocess instance, not the CLI session:
   the next `simulate` call transparently spawns and re-handshakes a fresh
   subprocess. The user does not need to restart the CLI.
+- **What the simulator guards itself
+  ([#536](https://github.com/blockchain-maxis/signet/issues/536)).** It adds no
+  watchdog of its own: the wall clock is Go's. It keeps the default `SIGTERM`
+  disposition, so it exits at once on `SIGTERM`, even mid-call. A single host
+  call is bounded by its budget: the network's CPU and memory limits, or a
+  `simulate` `budget` override of at most 10× them (reported in the result).
+  Running out is a `contract_error` with `kind: "host"`, as on the network. A
+  counting allocator caps the whole process at 2 GiB
+  (`SIGNET_SIMULATOR_MEMORY_LIMIT` bytes): past it the simulator writes an
+  `error` with `id: null`, code `resource_limit`, `detail.kind: "memory"`, and
+  stops, and the next request respawns it.
 - **Idle timeout.** If a live subprocess sees no request for 5 minutes (an
   interactive sandbox session left open), Go proactively terminates it to
   free the resident `soroban-env-host` state, and respawns on the next

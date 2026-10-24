@@ -87,7 +87,12 @@ struct Sim {
 
 impl Sim {
     fn start() -> Self {
+        Self::start_with_env(&[])
+    }
+
+    fn start_with_env(env: &[(&str, &str)]) -> Self {
         let mut child = Command::new(env!("CARGO_BIN_EXE_signet-simulator"))
+            .envs(env.iter().copied())
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::inherit())
@@ -805,6 +810,93 @@ fn a_session_replays_byte_for_byte(lane: u32) {
     }
 }
 
+fn guarded(lane: u32, env: &[(&str, &str)]) -> (Sim, String, String) {
+    let mut sim = Sim::start_with_env(env);
+    let open = sim.send(json!({
+        "type": "ledger_open", "network_passphrase": TESTNET, "ledger_protocol": lane, "sequence": 100,
+        "entries": network_config_entries(),
+    }));
+    assert_eq!(open["type"], "result", "{open}");
+    let (looper, _) = install(&mut sim, &fixture_wasm("looper"));
+    let (hog, _) = install(&mut sim, &fixture_wasm("hog"));
+    (sim, looper, hog)
+}
+
+fn the_budget_stops_a_runaway_call_and_the_next_call_runs(lane: u32) {
+    let (mut sim, looper, hog) = guarded(lane, &[]);
+    let (dice, _) = install(&mut sim, &fixture_wasm("dice"));
+
+    let spin = sim.call(&looper, "run", json!({}));
+    assert_eq!(spin["type"], "contract_error", "{spin}");
+    assert_eq!(spin["kind"], "host");
+    assert!(
+        spin["code"].as_str().unwrap().starts_with("Error(Budget"),
+        "{spin}"
+    );
+    assert!(
+        spin.get("budget").is_none(),
+        "no override, nothing to report"
+    );
+    assert_eq!(sim.call(&dice, "roll", json!({}))["type"], "result");
+
+    let grow = sim.call(&hog, "allocate", json!({ "count": 10_000 }));
+    assert_eq!(grow["kind"], "host", "{grow}");
+    assert!(
+        grow["code"].as_str().unwrap().starts_with("Error(Budget"),
+        "{grow}"
+    );
+    assert_eq!(sim.call(&dice, "roll", json!({}))["type"], "result");
+}
+
+fn a_budget_override_is_capped_and_reported(lane: u32) {
+    let (mut sim, looper, _) = guarded(lane, &[]);
+    let limit = sim.send(json!({ "type": "status" }))["network_config"]["tx_max_instructions"]
+        .as_u64()
+        .unwrap();
+
+    let over = sim.send(json!({
+        "type": "simulate", "contract_id": looper, "function": "run", "args": {},
+        "budget": { "instructions": limit * 10 + 1 },
+    }));
+    assert_eq!(over["code"], "bad_request", "{over}");
+    assert_eq!(over["detail"]["path"], "budget.instructions");
+
+    // A smaller budget is an override too: it is reported, and enforced.
+    let halved = sim.send(json!({
+        "type": "simulate", "contract_id": looper, "function": "run", "args": {},
+        "budget": { "instructions": limit / 2 },
+    }));
+    assert_eq!(halved["kind"], "host", "{halved}");
+    assert_eq!(halved["budget"]["instructions"], limit / 2);
+    let spent = halved["cost"]["cpu_insns"].as_u64().unwrap();
+    assert!(spent <= limit / 2 + limit / 10, "{halved}");
+}
+
+fn the_memory_guard_stops_the_process_with_resource_limit(lane: u32) {
+    let (mut sim, _, hog) = guarded(lane, &[("SIGNET_SIMULATOR_MEMORY_LIMIT", "134217728")]);
+    let mem = sim.send(json!({ "type": "status" }))["network_config"]["tx_memory_limit"]
+        .as_u64()
+        .unwrap();
+    // A lifted memory budget lets the host grow past the 128 MiB guard.
+    sim.write(&json!({
+        "version": 1, "id": "big", "type": "simulate", "contract_id": hog, "function": "allocate",
+        "args": { "count": 10_000 }, "budget": { "mem_bytes": mem * 10, "instructions": 1_000_000_000u64 },
+    }));
+    let mut line = String::new();
+    sim.stdout.read_line(&mut line).unwrap();
+    let reply: Value = serde_json::from_str(&line).unwrap();
+    assert_eq!(reply["code"], "resource_limit", "{reply}");
+    assert_eq!(reply["detail"]["kind"], "memory");
+    assert_eq!(reply["id"], Value::Null);
+    let status = sim.child.wait().unwrap();
+    assert!(!status.success(), "the process should have stopped");
+
+    // A fresh process, as Go respawns one, runs the next call.
+    let (mut next, _, _) = guarded(lane, &[]);
+    let (dice, _) = install(&mut next, &fixture_wasm("dice"));
+    assert_eq!(next.call(&dice, "roll", json!({}))["type"], "result");
+}
+
 /// The same suite on every lane (#538): each test above runs once per
 /// ledger protocol the binary carries.
 macro_rules! on_lane {
@@ -879,6 +971,18 @@ macro_rules! on_lane {
             #[test]
             fn a_session_replays_byte_for_byte() {
                 super::a_session_replays_byte_for_byte($protocol)
+            }
+            #[test]
+            fn the_budget_stops_a_runaway_call_and_the_next_call_runs() {
+                super::the_budget_stops_a_runaway_call_and_the_next_call_runs($protocol)
+            }
+            #[test]
+            fn a_budget_override_is_capped_and_reported() {
+                super::a_budget_override_is_capped_and_reported($protocol)
+            }
+            #[test]
+            fn the_memory_guard_stops_the_process_with_resource_limit() {
+                super::the_memory_guard_stops_the_process_with_resource_limit($protocol)
             }
         }
     };

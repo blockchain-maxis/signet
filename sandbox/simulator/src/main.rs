@@ -6,6 +6,7 @@ mod dispatch;
 mod framing;
 mod lanes;
 mod ledger;
+mod memguard;
 mod simulate;
 mod spec_verbs;
 mod stdio;
@@ -37,7 +38,12 @@ fn version_string() -> String {
     )
 }
 
+/// Every allocation is counted against the process memory limit (#536).
+#[global_allocator]
+static GLOBAL: memguard::Guard = memguard::Guard;
+
 fn main() {
+    memguard::configure();
     let mut args = std::env::args().skip(1);
     match args.next().as_deref() {
         Some("--version") | Some("-V") => println!("{}", version_string()),

@@ -51,6 +51,21 @@
     "dry_run": {
       "type": "boolean",
       "description": "Do not apply the call's writes to the session (default false)"
+    },
+    "budget": {
+      "type": "object",
+      "description": "Budget overrides, each up to 10x the network's limit (#536); running out is a host contract_error",
+      "properties": {
+        "instructions": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "mem_bytes": {
+          "type": "integer",
+          "minimum": 1
+        }
+      },
+      "additionalProperties": false
     }
   },
   "required": ["version", "id", "type", "contract_id", "function", "args"],
@@ -279,6 +294,22 @@
           "type": "string",
           "pattern": "^[0-9a-f]{64}$",
           "description": "The call's PRNG seed: sha256(session_id ‖ call index as a big-endian u64) (#537)"
+        },
+        "budget": {
+          "type": "object",
+          "description": "The limits an overridden call ran under (#536); absent when it ran under the network's",
+          "properties": {
+            "instructions": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "mem_bytes": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          "required": ["instructions", "mem_bytes"],
+          "additionalProperties": false
         }
       },
       "required": ["version", "id", "type", "return_value_xdr", "events", "cost", "logs"],

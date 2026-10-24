@@ -21,7 +21,7 @@ use serde_json::{json, Map, Value};
 
 use crate::dispatch::error_message;
 use crate::lanes::{
-    ByteSnapshotSource, DecodeTarget, KeyRequest, Lane, LaneError, SimulateBytes,
+    BudgetOverride, ByteSnapshotSource, DecodeTarget, KeyRequest, Lane, LaneError, SimulateBytes,
     SimulateResultBytes,
 };
 use crate::ledger::fetch::FetchingSource;
@@ -103,6 +103,10 @@ pub fn simulate(
         Some(Value::String(s)) => s.as_str(),
         Some(_) => return invalid_field(id, "source_account", "an account id (G...)"),
     };
+    let budget = match parse_budget(id, object) {
+        Ok(budget) => budget,
+        Err(reply) => return reply,
+    };
     let (diagnostics, dry_run) =
         match (flag(id, object, "diagnostics"), flag(id, object, "dry_run")) {
             (Ok(d), Ok(r)) => (d, r),
@@ -151,6 +155,7 @@ pub fn simulate(
         source_account_xdr,
         prng_seed: seed,
         enable_diagnostics: diagnostics,
+        budget,
     };
     let src: Rc<dyn ByteSnapshotSource> = fork.clone();
     let outcome = lane.simulate(&request, src);
@@ -167,6 +172,17 @@ pub fn simulate(
                 format!("the ledger lacks the network configuration a call needs: {reason}"),
                 json!({ "kind": "missing_config", "reason": reason }),
             )
+        }
+        Err(e @ LaneError::InvalidInput { .. }) => {
+            let LaneError::InvalidInput { what, .. } = &e else {
+                unreachable!()
+            };
+            return error_message(
+                id,
+                "bad_request",
+                format!("`{what}`: {e}"),
+                json!({ "kind": "invalid_field", "path": what, "reason": e.to_string() }),
+            );
         }
         Err(e) => {
             return error_message(
@@ -205,6 +221,9 @@ pub fn simulate(
                 "ledger": ledger_info,
                 "seed": hex(&seed),
             });
+            if run.budget.overridden {
+                reply["budget"] = budget_json(&run);
+            }
             if let Some(code) = failure.contract_code {
                 if let Ok(cases) = lane.error_cases(&wasm, code) {
                     if let Some(first) = cases.first() {
@@ -249,6 +268,9 @@ pub fn simulate(
             fields["misses"] = json!(misses);
             fields["ledger"] = ledger_info;
             fields["seed"] = json!(hex(&seed));
+            if run.budget.overridden {
+                fields["budget"] = budget_json(&run);
+            }
             result(id, fields)
         }
     }
@@ -346,6 +368,39 @@ fn success_body(
         }
     }
     body
+}
+
+/// `budget: {instructions?, mem_bytes?}` (#536).
+fn parse_budget(id: &Value, object: &Map<String, Value>) -> Result<Option<BudgetOverride>, Value> {
+    let Some(raw) = object.get("budget") else {
+        return Ok(None);
+    };
+    let Some(raw) = raw.as_object() else {
+        return Err(invalid_field(
+            id,
+            "budget",
+            "an object with `instructions` and/or `mem_bytes`",
+        ));
+    };
+    let field = |name: &str| match raw.get(name) {
+        None => Ok(None),
+        Some(v) => v
+            .as_u64()
+            .map(Some)
+            .ok_or_else(|| invalid_field(id, &format!("budget.{name}"), "a positive integer")),
+    };
+    Ok(Some(BudgetOverride {
+        instructions: field("instructions")?,
+        mem_bytes: field("mem_bytes")?,
+    }))
+}
+
+/// The limits an overridden call ran under, for its result.
+fn budget_json(run: &SimulateResultBytes) -> Value {
+    json!({
+        "instructions": run.budget.instructions,
+        "mem_bytes": run.budget.mem_bytes,
+    })
 }
 
 /// Modified entries in canonical order: by key XDR (#537).

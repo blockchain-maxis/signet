@@ -138,6 +138,22 @@
       "type": "string",
       "pattern": "^[0-9a-f]{64}$",
       "description": "The call's PRNG seed: sha256(session_id ‖ call index as a big-endian u64) (#537)"
+    },
+    "budget": {
+      "type": "object",
+      "description": "The limits an overridden call ran under (#536); absent when it ran under the network's",
+      "properties": {
+        "instructions": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "mem_bytes": {
+          "type": "integer",
+          "minimum": 1
+        }
+      },
+      "required": ["instructions", "mem_bytes"],
+      "additionalProperties": false
     }
   },
   "required": ["version", "id", "type", "kind", "code", "message", "diagnostic_events"],

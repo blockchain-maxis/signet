@@ -189,7 +189,7 @@
             "type": "object",
             "properties": {
               "kind": {
-                "enum": ["cpu_budget", "memory_budget", "ledger_entries", "wasm_size"]
+                "enum": ["cpu_budget", "memory_budget", "ledger_entries", "wasm_size", "memory"]
               }
             }
           }

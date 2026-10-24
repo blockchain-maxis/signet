@@ -88,6 +88,7 @@ type ContractError struct {
 	Misses           []string      `json:"misses,omitempty"`
 	Ledger           *LedgerInfo   `json:"ledger,omitempty"`
 	Seed             string        `json:"seed,omitempty"`
+	Budget           *Budget       `json:"budget,omitempty"`
 }
 
 // DecodedError is a contracterror read from the contract's spec (#546).
@@ -317,6 +318,14 @@ type SimulateParams struct {
 	SourceAccount string `json:"source_account,omitempty"`
 	Diagnostics   bool   `json:"diagnostics,omitempty"`
 	DryRun        bool   `json:"dry_run,omitempty"`
+	// Budget overrides the network's limits, each up to 10x (#536).
+	Budget *Budget `json:"budget,omitempty"`
+}
+
+// Budget is a call's CPU and memory limits.
+type Budget struct {
+	Instructions uint64 `json:"instructions,omitempty"`
+	MemBytes     uint64 `json:"mem_bytes,omitempty"`
 }
 
 // SimulateResult answers a simulate that executed, whatever it returned.
@@ -337,6 +346,8 @@ type SimulateResult struct {
 	Ledger *LedgerInfo `json:"ledger,omitempty"`
 	// Seed is the call's PRNG seed, hex (#537).
 	Seed string `json:"seed,omitempty"`
+	// Budget is set when the call ran under an override.
+	Budget *Budget `json:"budget,omitempty"`
 }
 
 // Event is one contract event, as XDR, with its spec decoding when there

@@ -62,6 +62,28 @@ pub struct SimulateBytes {
     pub source_account_xdr: Vec<u8>,
     pub prng_seed: [u8; 32],
     pub enable_diagnostics: bool,
+    /// Budget overrides (#536); `None` keeps the network's limits.
+    pub budget: Option<BudgetOverride>,
+}
+
+/// A caller's budget for one call. Either limit may stay the network's.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct BudgetOverride {
+    pub instructions: Option<u64>,
+    pub mem_bytes: Option<u64>,
+}
+
+/// How far a budget override may go: this many times the network's limit.
+/// Past it a runaway call could hold the terminal for minutes; the wall
+/// clock is Go's to enforce (docs/CLI_RUST_BRIDGE.md §4).
+pub const BUDGET_CEILING_FACTOR: u64 = 10;
+
+/// The limits a call ran under.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct EffectiveBudget {
+    pub instructions: u64,
+    pub mem_bytes: u64,
+    pub overridden: bool,
 }
 
 /// One ledger entry a simulation created, updated or deleted.
@@ -152,6 +174,8 @@ pub struct SimulateResultBytes {
     pub cpu_instructions: u32,
     pub memory_bytes: u32,
     pub modified_entries: Vec<EntryChangeBytes>,
+    /// The budget the call ran under.
+    pub budget: EffectiveBudget,
 }
 
 /// The outcome of pointing a contract instance at another executable.

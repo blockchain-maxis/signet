@@ -33,7 +33,7 @@ use soroban_simulation::simulation::{
 use soroban_simulation::NetworkConfig;
 
 use super::{
-    ByteSnapshotSource, DecodeTarget, DerivedKey, EntryChangeBytes, ErrorCase, ExternalRef,
+    BudgetOverride, ByteSnapshotSource, EffectiveBudget, BUDGET_CEILING_FACTOR, DecodeTarget, DerivedKey, EntryChangeBytes, ErrorCase, ExternalRef,
     Installed, InstanceInfo, InterfaceVersion, InvocationFailure, KeyRequest, Lane, LaneError,
     SimulateBytes, SimulateResultBytes, SwapResultBytes, TransactionResources, WasmInspection,
 };
@@ -110,6 +110,50 @@ fn upgradeability(imports: &[(String, String)]) -> &'static str {
     } else {
         "none"
     }
+}
+
+/// Applies a budget override to the network's limits, refusing one past
+/// [`BUDGET_CEILING_FACTOR`] times them (#536).
+fn apply_budget(
+    config: &mut NetworkConfig,
+    requested: Option<BudgetOverride>,
+) -> Result<EffectiveBudget, LaneError> {
+    let network_instructions = u64::try_from(config.tx_max_instructions).unwrap_or(0);
+    let network_mem = u64::from(config.tx_memory_limit);
+    let Some(requested) = requested else {
+        return Ok(EffectiveBudget {
+            instructions: network_instructions,
+            mem_bytes: network_mem,
+            overridden: false,
+        });
+    };
+    let check = |what: &'static str, value: u64, network: u64| {
+        let ceiling = network.saturating_mul(BUDGET_CEILING_FACTOR);
+        if value == 0 || value > ceiling {
+            return Err(LaneError::InvalidInput {
+                what,
+                detail: format!(
+                    "{value} is outside 1..={ceiling} ({BUDGET_CEILING_FACTOR}x the network's {network})"
+                ),
+            });
+        }
+        Ok(value)
+    };
+    let instructions = match requested.instructions {
+        Some(v) => check("budget.instructions", v, network_instructions)?,
+        None => network_instructions,
+    };
+    let mem_bytes = match requested.mem_bytes {
+        Some(v) => check("budget.mem_bytes", v, network_mem)?,
+        None => network_mem,
+    };
+    config.tx_max_instructions = i64::try_from(instructions).unwrap_or(i64::MAX);
+    config.tx_memory_limit = u32::try_from(mem_bytes).unwrap_or(u32::MAX);
+    Ok(EffectiveBudget {
+        instructions,
+        mem_bytes,
+        overridden: true,
+    })
 }
 
 /// How an invocation failed, in the host's terms.
@@ -226,8 +270,9 @@ impl Lane for HostLane {
         let source_account: AccountId = decode(&request.source_account_xdr, "AccountId")?;
 
         let snapshot = Rc::new(BytesSnapshot(src.clone()));
-        let network_config = NetworkConfig::load_from_snapshot(&*snapshot)
+        let mut network_config = NetworkConfig::load_from_snapshot(&*snapshot)
             .map_err(|e| LaneError::NetworkConfig(e.to_string()))?;
+        let budget = apply_budget(&mut network_config, request.budget)?;
         let mut ledger_info = LedgerInfo {
             protocol_version: LEDGER_PROTOCOL,
             sequence_number: request.sequence,
@@ -330,6 +375,7 @@ impl Lane for HostLane {
             cpu_instructions: result.simulated_instructions,
             memory_bytes: result.simulated_memory,
             modified_entries,
+            budget,
         })
     }
 
@@ -1280,6 +1326,7 @@ mod tests {
                 .unwrap(),
             prng_seed: [0; 32],
             enable_diagnostics: false,
+            budget: None,
         }
     }
 

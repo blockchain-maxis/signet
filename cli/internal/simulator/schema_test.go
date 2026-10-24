@@ -68,6 +68,7 @@ func TestMessagesMatchTheSchemas(t *testing.T) {
 	full.Fee = &Fee{ResourceFee: 100}
 	full.Ledger = &LedgerInfo{Sequence: 5, Timestamp: 6, Protocol: 28}
 	full.Seed = hash
+	full.Budget = &Budget{Instructions: 1, MemBytes: 2}
 
 	requests := map[string]any{
 		TypeLedgerOpen:       LedgerOpenParams{NetworkPassphrase: "Test SDF Network ; September 2015", LedgerProtocol: ip(28), Sequence: u32(5), Fetch: "deny", BaseReserve: u32(5000000), Entries: []PutEntry{{KeyXDR: b64, DataXDR: b64, LastModifiedLedgerSeq: u32(1)}}},
@@ -79,7 +80,7 @@ func TestMessagesMatchTheSchemas(t *testing.T) {
 		TypeContractInstall:  ContractInstallParams{WasmBase64: "AGFzbQEAAAA=", ContractID: registry},
 		TypeContractSwap:     ContractSwapParams{ContractID: registry, WasmHash: hash, Layer: "session", Mode: "ref"},
 		TypeContractInfo:     ContractInfoParams{ContractID: registry},
-		TypeSimulate:         SimulateParams{ContractID: registry, Function: "f", Args: map[string]any{"a": 1, "b": []any{"x"}}, SourceAccount: "GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN", Diagnostics: true, DryRun: true},
+		TypeSimulate:         SimulateParams{ContractID: registry, Function: "f", Args: map[string]any{"a": 1, "b": []any{"x"}}, SourceAccount: "GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN", Diagnostics: true, DryRun: true, Budget: &Budget{Instructions: 5}},
 		TypeSpecExtract:      SpecExtractParams{Source: Source{ContractID: registry}},
 		TypeSpecEncodeArgs:   SpecEncodeArgsParams{Source: src, Function: "f", Args: map[string]any{"handle": "a"}},
 		TypeSpecDecodeVal:    SpecDecodeValParams{Source: src, Function: "f", ValXDR: b64},
