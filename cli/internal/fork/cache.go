@@ -102,6 +102,9 @@ type Manifest struct {
 	WasmHash   string `json:"wasmHash,omitempty"`
 	// InstanceStorageEntries counts the instance's own storage map.
 	InstanceStorageEntries int `json:"instanceStorageEntries"`
+	// DriftedEntries counts entries fetched for the fork that changed
+	// on-chain after ForkLedger (#551).
+	DriftedEntries int `json:"driftedEntries"`
 }
 
 // ID is the manifest's fork id.

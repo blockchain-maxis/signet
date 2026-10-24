@@ -2,6 +2,9 @@ package fork
 
 import (
 	"context"
+	"fmt"
+	"sort"
+	"sync"
 
 	"github.com/blockchain-maxis/signet/cli/internal/rpc"
 	"github.com/blockchain-maxis/signet/cli/internal/simulator"
@@ -15,10 +18,63 @@ type EntrySource interface {
 // Fetcher answers the simulator's ledger_fetch for one fork: from the cache
 // when it can, else from RPC, storing whatever RPC said (including that a
 // key does not exist) so the next run starts warm.
+//
+// RPC only serves the latest state, so an entry fetched after the fork
+// ledger may have changed since (#551). Such an entry is drifted: marked so
+// in the cache, and counted in Drift for every run that reads it.
 type Fetcher struct {
 	Ctx   context.Context
 	Cache *Cache
 	RPC   EntrySource
+	// ForkLedger is the ledger the fork is pinned at; 0 disables drift
+	// tracking.
+	ForkLedger uint32
+
+	mu      sync.Mutex
+	drifted map[string]uint32 // key -> lastModifiedLedgerSeq
+}
+
+// Drift is what a run read that changed on-chain after the fork ledger.
+type Drift struct {
+	ForkLedger uint32 `json:"forkLedger"`
+	// NewestLedger is the latest lastModifiedLedgerSeq among the drifted
+	// entries: the run mixed ForkLedger with ledgers up to this one.
+	NewestLedger uint32   `json:"newestLedger"`
+	Keys         []string `json:"keys"`
+}
+
+// Count is how many entries drifted.
+func (d Drift) Count() int { return len(d.Keys) }
+
+// Warning is the one line a person sees about it.
+func (d Drift) Warning() string {
+	noun := "entries"
+	if d.Count() == 1 {
+		noun = "entry"
+	}
+	return fmt.Sprintf("⚠ %d %s changed on-chain after the fork ledger; results mix ledger %d and %d", d.Count(), noun, d.ForkLedger, d.NewestLedger)
+}
+
+// Drift reports what this Fetcher's runs read that drifted.
+func (f *Fetcher) Drift() Drift {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	d := Drift{ForkLedger: f.ForkLedger, Keys: []string{}}
+	for k, seq := range f.drifted {
+		d.Keys = append(d.Keys, k)
+		d.NewestLedger = max(d.NewestLedger, seq)
+	}
+	sort.Strings(d.Keys)
+	return d
+}
+
+func (f *Fetcher) noteDrift(key string, seq uint32) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	if f.drifted == nil {
+		f.drifted = map[string]uint32{}
+	}
+	f.drifted[key] = seq
 }
 
 // Fetch is a simulator.FetchFunc.
@@ -49,6 +105,7 @@ func (f *Fetcher) Fetch(keys []string) ([]simulator.Entry, error) {
 				LastModifiedLedgerSeq: e.LastModifiedLedgerSeq,
 				LiveUntilLedgerSeq:    e.LiveUntilLedgerSeq,
 				FetchedAtLedger:       got.LatestLedger,
+				Drifted:               f.ForkLedger != 0 && e.LastModifiedLedgerSeq > f.ForkLedger,
 			}
 			fetched = append(fetched, entry)
 			found[e.Key] = entry
@@ -77,6 +134,9 @@ func (f *Fetcher) Fetch(keys []string) ([]simulator.Entry, error) {
 		if !ok {
 			out = append(out, simulator.Absent(k))
 			continue
+		}
+		if e.Drifted {
+			f.noteDrift(k, e.LastModifiedLedgerSeq)
 		}
 		seq := e.LastModifiedLedgerSeq
 		out = append(out, simulator.Entry{

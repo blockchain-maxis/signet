@@ -43,13 +43,34 @@ manifest.`,
 			if err := requireContract(args[0]); err != nil {
 				return err
 			}
+			mode, err := driftMode(cmd)
+			if err != nil {
+				return err
+			}
 			ctx, stop := signal.NotifyContext(cmd.Context(), os.Interrupt)
 			defer stop()
 
 			printer := printerFor(cmd)
-			m, err := createFork(ctx, cmd, deps, args[0], printer.Progress)
+			m, drift, err := createFork(ctx, cmd, deps, args[0], printer.Progress)
 			if err != nil {
 				return err
+			}
+			if drift.Count() > 0 {
+				switch mode {
+				case "fail":
+					return fmt.Errorf("%w: %s — run with --drift=refork to pin a newer ledger, or --drift=warn to accept it",
+						exitcode.ErrNetwork, drift.Warning())
+				case "refork":
+					printer.Progress(drift.Warning() + "; forking again at the latest ledger")
+					if m, drift, err = createFork(ctx, cmd, deps, args[0], printer.Progress); err != nil {
+						return err
+					}
+					if drift.Count() > 0 {
+						printer.Progress(drift.Warning())
+					}
+				default:
+					printer.Progress(drift.Warning())
+				}
 			}
 			now := time.Now
 			if deps.Now != nil {
@@ -94,27 +115,27 @@ func startSimulator(ctx context.Context, deps Deps, warn func(string)) (*simulat
 // the ledger, opens it in the simulator (which fetches the network config),
 // and reads the contract through contract_info (which fetches its instance
 // and code), all through the fork's cache. It returns the saved manifest.
-func createFork(ctx context.Context, cmd *cobra.Command, deps Deps, contract string, progress func(string)) (fork.Manifest, error) {
+func createFork(ctx context.Context, cmd *cobra.Command, deps Deps, contract string, progress func(string)) (m fork.Manifest, drift fork.Drift, err error) {
 	network, err := sandboxNetwork(cmd, deps)
 	if err != nil {
-		return fork.Manifest{}, err
+		return fork.Manifest{}, fork.Drift{}, err
 	}
 	client, _, err := rpc.Connect(ctx, network, deps.RPCOptions...)
 	if err != nil {
-		return fork.Manifest{}, err
+		return fork.Manifest{}, fork.Drift{}, err
 	}
 	latest, err := client.GetLatestLedger(ctx)
 	if err != nil {
-		return fork.Manifest{}, err
+		return fork.Manifest{}, fork.Drift{}, err
 	}
 
 	sim, err := startSimulator(ctx, deps, progress)
 	if err != nil {
-		return fork.Manifest{}, err
+		return fork.Manifest{}, fork.Drift{}, err
 	}
 	defer func() { _ = sim.Close() }()
 	if err := checkLanes(network.Name, latest.ProtocolVersion, sim.HelloAck()); err != nil {
-		return fork.Manifest{}, err
+		return fork.Manifest{}, fork.Drift{}, err
 	}
 
 	rootDir := deps.ForkRoot
@@ -123,10 +144,10 @@ func createFork(ctx context.Context, cmd *cobra.Command, deps Deps, contract str
 	}
 	root, err := rootDir()
 	if err != nil {
-		return fork.Manifest{}, err
+		return fork.Manifest{}, fork.Drift{}, err
 	}
 	forkTime := closeTime(latest.CloseTime, deps.Now)
-	m := fork.Manifest{
+	m = fork.Manifest{
 		Network:    network.Name,
 		Passphrase: network.Passphrase,
 		RPCURL:     network.RPCURL,
@@ -138,7 +159,7 @@ func createFork(ctx context.Context, cmd *cobra.Command, deps Deps, contract str
 	}
 	cache, err := fork.Create(root, m)
 	if err != nil {
-		return fork.Manifest{}, err
+		return fork.Manifest{}, fork.Drift{}, err
 	}
 	saved := false
 	defer func() {
@@ -148,7 +169,8 @@ func createFork(ctx context.Context, cmd *cobra.Command, deps Deps, contract str
 			_ = os.RemoveAll(cache.Dir())
 		}
 	}()
-	sim.HandleFetch((&fork.Fetcher{Ctx: ctx, Cache: cache, RPC: client}).Fetch)
+	fetcher := &fork.Fetcher{Ctx: ctx, Cache: cache, RPC: client, ForkLedger: latest.Sequence}
+	sim.HandleFetch(fetcher.Fetch)
 
 	protocol := latest.ProtocolVersion
 	sequence := latest.Sequence
@@ -159,27 +181,29 @@ func createFork(ctx context.Context, cmd *cobra.Command, deps Deps, contract str
 		Sequence:          &sequence,
 		Timestamp:         &timestamp,
 	}, nil); err != nil {
-		return fork.Manifest{}, err
+		return fork.Manifest{}, fork.Drift{}, err
 	}
 
 	var info simulator.ContractInfoResult
 	if _, err := callSimulator(ctx, sim, simulator.TypeContractInfo, simulator.ContractInfoParams{ContractID: contract}, &info); err != nil {
 		var se *simulator.Error
 		if errors.As(err, &se) && se.Code == "bad_request" && se.Detail["path"] == "contract_id" {
-			return fork.Manifest{}, &inputError{fmt.Sprintf("no contract %s on %s at ledger %d: %s", contract, network.Name, latest.Sequence, se.Message)}
+			return fork.Manifest{}, fork.Drift{}, &inputError{fmt.Sprintf("no contract %s on %s at ledger %d: %s", contract, network.Name, latest.Sequence, se.Message)}
 		}
-		return fork.Manifest{}, err
+		return fork.Manifest{}, fork.Drift{}, err
 	}
 	m.Executable = info.Executable
 	if info.WasmHash != nil {
 		m.WasmHash = *info.WasmHash
 	}
 	m.InstanceStorageEntries = info.StorageEntries
+	drift = fetcher.Drift()
+	m.DriftedEntries = drift.Count()
 	if err := cache.SaveManifest(m); err != nil {
-		return fork.Manifest{}, err
+		return fork.Manifest{}, fork.Drift{}, err
 	}
 	saved = true
-	return m, nil
+	return m, drift, nil
 }
 
 // callSimulator is Call for requests that cannot fail as a contract: a

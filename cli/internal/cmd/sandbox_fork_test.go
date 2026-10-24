@@ -69,6 +69,8 @@ type registryRPC struct {
 	mu       sync.Mutex
 	asked    []string
 	override map[string]any // method -> result, replacing the fixture
+	// latest, when set, answers getLatestLedger in turn (the last repeats).
+	latest []map[string]any
 }
 
 func newRegistryRPC(t *testing.T) *registryRPC {
@@ -99,6 +101,12 @@ func (r *registryRPC) serve(w http.ResponseWriter, req *http.Request) {
 	_ = json.NewDecoder(req.Body).Decode(&call)
 	r.mu.Lock()
 	result, ok := r.override[call.Method]
+	if call.Method == "getLatestLedger" && len(r.latest) > 0 {
+		result, ok = r.latest[0], true
+		if len(r.latest) > 1 {
+			r.latest = r.latest[1:]
+		}
+	}
 	r.mu.Unlock()
 	if !ok {
 		fixture := r.fixture(call.Method)
@@ -196,7 +204,10 @@ func TestSandboxForkPinsTheRegistry(t *testing.T) {
 	if run.err != nil {
 		t.Fatalf("fork: %v\nstderr: %s", run.err, run.stderr)
 	}
-	want := "Forked CASF…RCN on testnet at ledger 4887004 (protocol 28, 3s ago) · wasm 9369…fe · instance storage 3 entries\n"
+	// The fixture's config entries were recorded later than the registry's
+	// ledger, so seven of them drifted (#551).
+	want := driftWarning + "\n" +
+		"Forked CASF…RCN on testnet at ledger 4887004 (protocol 28, 3s ago) · wasm 9369…fe · instance storage 3 entries\n"
 	if run.stdout.String() != want {
 		t.Fatalf("stdout:\n got %q\nwant %q", run.stdout, want)
 	}
@@ -313,4 +324,63 @@ func TestDescribeFork(t *testing.T) {
 	if got != want {
 		t.Fatalf("got  %q\nwant %q", got, want)
 	}
+}
+
+const driftWarning = "⚠ 7 entries changed on-chain after the fork ledger; results mix ledger 4887004 and 5370048"
+
+func TestSandboxForkDriftModes(t *testing.T) {
+	t.Run("warn", func(t *testing.T) {
+		r := newRegistryRPC(t)
+		run := runFork(t, r, r.forkScript(t, registryInfo()), registryContract, "--json")
+		if run.err != nil {
+			t.Fatalf("fork: %v", run.err)
+		}
+		if !strings.Contains(run.stderr.String(), driftWarning) {
+			t.Fatalf("stderr = %q", run.stderr)
+		}
+		var m fork.Manifest
+		_ = json.Unmarshal(run.stdout.Bytes(), &m)
+		if m.DriftedEntries != 7 {
+			t.Fatalf("driftedEntries = %d", m.DriftedEntries)
+		}
+	})
+
+	t.Run("fail", func(t *testing.T) {
+		r := newRegistryRPC(t)
+		run := runFork(t, r, r.forkScript(t, registryInfo()), registryContract, "--drift", "fail")
+		if code := ExitCode(run.err); code != exitcode.Network {
+			t.Fatalf("exit %d (%v), want 6", code, run.err)
+		}
+		if !strings.Contains(run.err.Error(), driftWarning) {
+			t.Fatalf("message: %v", run.err)
+		}
+	})
+
+	t.Run("refork", func(t *testing.T) {
+		r := newRegistryRPC(t)
+		first := r.fixture("getLatestLedger")
+		newer := r.fixture("getLatestLedger")
+		newer["sequence"] = 5370090
+		r.latest = []map[string]any{first, newer}
+		run := runFork(t, r, r.forkScript(t, registryInfo()), registryContract, "--drift", "refork", "--json")
+		if run.err != nil {
+			t.Fatalf("fork: %v\nstderr: %s", run.err, run.stderr)
+		}
+		var m fork.Manifest
+		_ = json.Unmarshal(run.stdout.Bytes(), &m)
+		if m.ForkLedger != 5370090 || m.DriftedEntries != 0 {
+			t.Fatalf("re-pinned manifest = %+v", m)
+		}
+		if !strings.Contains(run.stderr.String(), "forking again at the latest ledger") {
+			t.Fatalf("stderr = %q", run.stderr)
+		}
+	})
+
+	t.Run("bad mode", func(t *testing.T) {
+		r := newRegistryRPC(t)
+		run := runFork(t, r, "", registryContract, "--drift", "sometimes")
+		if code := ExitCode(run.err); code != exitcode.InvalidInput {
+			t.Fatalf("exit %d (%v), want 2", code, run.err)
+		}
+	})
 }

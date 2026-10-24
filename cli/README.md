@@ -155,6 +155,14 @@ fetched from RPC and kept in the fork cache under `os.UserCacheDir()/signet/fork
 - An RPC serving another network than `--network` exits `3` (see "Sandbox
   network and RPC" below).
 
+RPC only serves the latest state, so an entry fetched after the fork ledger may
+have changed since. Such an entry is _drifted_: the fork would mix ledgers that
+never existed together. `--drift` (shared by the sandbox commands) decides what
+happens: `warn` (the default) prints
+`⚠ 2 entries changed on-chain after the fork ledger; results mix ledger 4852095 and 4852131`,
+`fail` exits `6`, and `refork` pins the latest ledger and runs once more. The
+manifest records `driftedEntries`.
+
 ### Global `--json`
 
 `--json` is a persistent flag on the root, so it works on every command and

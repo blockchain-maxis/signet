@@ -1,6 +1,8 @@
 package cmd
 
 import (
+	"strconv"
+
 	"github.com/spf13/cobra"
 
 	"github.com/blockchain-maxis/signet/cli/internal/rpc"
@@ -46,4 +48,15 @@ binary, then on PATH.`,
 func addRPCFlags(cmd *cobra.Command) {
 	cmd.PersistentFlags().String("rpc-url", "", "Stellar RPC to fork from (overrides the context's rpc-url; testnet defaults to "+rpc.DefaultTestnetURL+")")
 	cmd.PersistentFlags().String("network-passphrase", "", "passphrase of a custom --network (checked against the RPC's getNetwork)")
+	cmd.PersistentFlags().String("drift", "warn", "when an entry fetched for the fork changed on-chain after the fork ledger: warn, fail (exit 6), or refork (pin the latest ledger and run once more)")
+}
+
+// driftMode reads --drift.
+func driftMode(cmd *cobra.Command) (string, error) {
+	mode, _ := cmd.Flags().GetString("drift")
+	switch mode {
+	case "warn", "fail", "refork":
+		return mode, nil
+	}
+	return "", &inputError{"--drift must be warn, fail or refork, not " + strconv.Quote(mode)}
 }
