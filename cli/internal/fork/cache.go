@@ -402,6 +402,11 @@ func (c *Cache) Tx(hash string) ([]byte, error) { return c.get(bucketTxs, hash) 
 // PutMeta stores a small value the fork's commands need to remember.
 func (c *Cache) PutMeta(key string, v []byte) error { return c.put(bucketMeta, key, v) }
 
+// DeleteMeta forgets a meta value.
+func (c *Cache) DeleteMeta(key string) error {
+	return c.db.Update(func(tx *bolt.Tx) error { return tx.Bucket(bucketMeta).Delete([]byte(key)) })
+}
+
 // Meta returns a stored meta value, or nil.
 func (c *Cache) Meta(key string) ([]byte, error) { return c.get(bucketMeta, key) }
 

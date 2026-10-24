@@ -349,6 +349,7 @@ fn success_body(
             "key_xdr": BASE64.encode(&m.key_xdr),
             "before_xdr": m.before_xdr.as_ref().map(|b| BASE64.encode(b)),
             "after_xdr": m.entry_xdr.as_ref().map(|a| BASE64.encode(a)),
+            "live_until_ledger": m.live_until,
         })).collect::<Vec<_>>(),
         "cost": { "cpu_insns": run.cpu_instructions, "mem_bytes": run.memory_bytes },
         "logs": [],
@@ -779,6 +780,73 @@ fn parse_hash(value: &str) -> Option<[u8; 32]> {
         *byte = u8::from_str_radix(&value[2 * i..2 * i + 2], 16).ok()?;
     }
     Some(hash)
+}
+
+/// `ledger_apply`: write entries into the session layer, as a call's writes
+/// land there, so Go can restore a saved session in a new process (#555).
+/// A null `entry_xdr` deletes the key.
+pub fn ledger_apply(
+    ledger: &mut Option<OpenLedger>,
+    id: &Value,
+    object: &Map<String, Value>,
+) -> Value {
+    let Some(open) = ledger.as_mut() else {
+        return no_open_ledger(id);
+    };
+    let Some(entries) = object.get("entries").and_then(Value::as_array) else {
+        return invalid_field(id, "entries", "an array");
+    };
+    let mut writes = Vec::with_capacity(entries.len());
+    for (index, item) in entries.iter().enumerate() {
+        let at = format!("entries[{index}]");
+        let Some(item) = item.as_object() else {
+            return invalid_field(id, &at, "an object");
+        };
+        let Some(key) = item
+            .get("key_xdr")
+            .and_then(Value::as_str)
+            .and_then(|k| BASE64.decode(k).ok())
+            .filter(|k| open.lane.check_ledger_key(k).is_ok())
+        else {
+            return invalid_field(id, &format!("{at}.key_xdr"), "a base64 LedgerKey");
+        };
+        let entry = match item.get("entry_xdr") {
+            None | Some(Value::Null) => None,
+            Some(Value::String(e)) => match BASE64
+                .decode(e)
+                .ok()
+                .filter(|b| open.lane.check_ledger_entry(b).is_ok())
+            {
+                Some(bytes) => Some(bytes),
+                None => {
+                    return invalid_field(
+                        id,
+                        &format!("{at}.entry_xdr"),
+                        "a base64 LedgerEntry or null",
+                    )
+                }
+            },
+            Some(_) => {
+                return invalid_field(
+                    id,
+                    &format!("{at}.entry_xdr"),
+                    "a base64 LedgerEntry or null",
+                )
+            }
+        };
+        let live_until = item
+            .get("live_until_ledger")
+            .and_then(Value::as_u64)
+            .and_then(|n| u32::try_from(n).ok());
+        writes.push(Write {
+            key,
+            entry,
+            live_until,
+        });
+    }
+    let applied = writes.len();
+    open.store.borrow_mut().apply_modified(writes);
+    result(id, json!({ "applied": applied }))
 }
 
 /// `ledger_import`: replace the ledger with a whole snapshot, which becomes

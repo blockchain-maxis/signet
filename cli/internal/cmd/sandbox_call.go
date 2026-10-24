@@ -1,0 +1,532 @@
+package cmd
+
+import (
+	"context"
+	"encoding/base64"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"io"
+	"os"
+	"os/signal"
+	"sort"
+	"strings"
+
+	"github.com/spf13/cobra"
+
+	"github.com/blockchain-maxis/signet/cli/internal/exitcode"
+	"github.com/blockchain-maxis/signet/cli/internal/fork"
+	"github.com/blockchain-maxis/signet/cli/internal/rpc"
+	"github.com/blockchain-maxis/signet/cli/internal/simulator"
+)
+
+// CallResult is `signet sandbox call --json`: one object, schema in
+// sandbox/protocol/schema/v1/cli-call-result.json.
+type CallResult struct {
+	Contract      string         `json:"contract"`
+	Function      string         `json:"function"`
+	Args          map[string]any `json:"args"`
+	SourceAccount string         `json:"sourceAccount,omitempty"`
+	Network       string         `json:"network"`
+	ForkID        string         `json:"forkId"`
+	ForkLedger    uint32         `json:"forkLedger"`
+	Protocol      int            `json:"protocol"`
+	Session       string         `json:"session,omitempty"`
+	SwappedWasm   string         `json:"swappedWasm,omitempty"`
+	// Outcome is "result" (the call returned) or "contract_error" (the
+	// contract or the host refused it).
+	Outcome        string                    `json:"outcome"`
+	ReturnValue    json.RawMessage           `json:"returnValue,omitempty"`
+	ReturnValueXDR string                    `json:"returnValueXdr,omitempty"`
+	Error          *simulator.ContractError  `json:"error,omitempty"`
+	Events         []simulator.Event         `json:"events"`
+	Auth           []string                  `json:"auth"`
+	Modified       []simulator.ModifiedEntry `json:"modifiedEntries"`
+	Resources      *simulator.Resources      `json:"resources,omitempty"`
+	Fee            *simulator.Fee            `json:"fee,omitempty"`
+	Cost           *simulator.Cost           `json:"cost,omitempty"`
+	Misses         []string                  `json:"misses"`
+	Drift          fork.Drift                `json:"drift"`
+	Seed           string                    `json:"seed"`
+}
+
+func newSandboxCallCmd() *cobra.Command {
+	var (
+		rawArgs       []string
+		argsFile      string
+		sourceAccount string
+		wasmPath      string
+		session       string
+	)
+	cmd := &cobra.Command{
+		Use:   "call <contract> <function>",
+		Short: "Call a contract function on a fork, locally",
+		Long: `Call a function of a deployed contract on a fork of the network, in the local
+contract simulator. Nothing is submitted: the result says what the call would
+return, write and require, at the fork's ledger.
+
+Arguments are named: --arg handle=alice --arg wallet=G…. A value is read as
+JSON when it parses as JSON and as a plain string otherwise, so --arg n=5 is
+the number 5 and --arg handle=alice the string "alice"; quote a string that
+looks like JSON (--arg name='"5"'). --args-file takes a JSON object instead.
+
+Without --session every call starts from the fork. With --session <name>, the
+call's writes are kept in the fork cache and the next call with the same name
+starts from them; signet sandbox session reset <name> clears them.
+
+The account a call runs as is --source-account (a G… address), not the root's
+--source, which names the stellar identity signet signs with.`,
+		Example: `  signet sandbox call CASF…RCN count
+  signet sandbox call CASF…RCN claim --arg handle=alice --arg wallet=GA5Z… --session demo
+  signet sandbox call CASF…RCN resolve --arg handle=alice --session demo
+  signet sandbox call CASF…RCN count --wasm ./target/wasm32v1-none/release/registry.wasm`,
+		Args: cobra.ExactArgs(2),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			deps, err := depsFor(cmd)
+			if err != nil {
+				return err
+			}
+			contract, function := args[0], args[1]
+			if err := requireContract(contract); err != nil {
+				return err
+			}
+			mode, err := driftMode(cmd)
+			if err != nil {
+				return err
+			}
+			callArgs, err := parseCallArgs(rawArgs, argsFile)
+			if err != nil {
+				return err
+			}
+			var wasm []byte
+			if wasmPath != "" {
+				if wasm, err = os.ReadFile(wasmPath); err != nil {
+					return &inputError{fmt.Sprintf("--wasm: %v", err)}
+				}
+			}
+			network, err := sandboxNetwork(cmd, deps)
+			if err != nil {
+				return err
+			}
+			ctx, stop := signal.NotifyContext(cmd.Context(), os.Interrupt)
+			defer stop()
+
+			printer := printerFor(cmd)
+			req := callRequest{
+				contract: contract, function: function, args: callArgs,
+				sourceAccount: sourceAccount, wasm: wasm, session: session,
+			}
+			res, drift, err := runCall(ctx, deps, network, req, printer.Progress)
+			if err != nil {
+				return err
+			}
+			if drift.Count() > 0 {
+				switch mode {
+				case "fail":
+					return fmt.Errorf("%w: %s — run with --drift=refork to pin a newer ledger, or --drift=warn to accept it",
+						exitcode.ErrNetwork, drift.Warning())
+				case "refork":
+					printer.Progress(drift.Warning() + "; forking again at the latest ledger and calling once more")
+					if _, err := forkWithDrift(ctx, deps, network, contract, "warn", printer.Progress); err != nil {
+						return err
+					}
+					if res, drift, err = runCall(ctx, deps, network, req, printer.Progress); err != nil {
+						return err
+					}
+					if drift.Count() > 0 {
+						printer.Progress(drift.Warning())
+					}
+				default:
+					printer.Progress(drift.Warning())
+				}
+			}
+			return printer.Result(res, func(w io.Writer) error { return renderCall(w, res) })
+		},
+	}
+	cmd.Flags().StringArrayVar(&rawArgs, "arg", nil, "a named argument, name=value (JSON, or a plain string); repeat for each")
+	cmd.Flags().StringVar(&argsFile, "args-file", "", "a JSON file holding an object of named arguments")
+	cmd.Flags().StringVar(&sourceAccount, "source-account", "", "the account (G…) the call runs as")
+	cmd.Flags().StringVar(&wasmPath, "wasm", "", "swap this local WASM in first, as an upgrade would, keeping storage")
+	cmd.Flags().StringVar(&session, "session", "", "keep this call's writes under a name, and start from that name's earlier writes")
+	return cmd
+}
+
+// parseCallArgs reads --arg name=value and --args-file into one object.
+func parseCallArgs(raw []string, file string) (map[string]any, error) {
+	args := map[string]any{}
+	if file != "" {
+		data, err := os.ReadFile(file)
+		if err != nil {
+			return nil, &inputError{fmt.Sprintf("--args-file: %v", err)}
+		}
+		if err := json.Unmarshal(data, &args); err != nil {
+			return nil, &inputError{fmt.Sprintf("--args-file %s: want a JSON object of named arguments: %v", file, err)}
+		}
+	}
+	for _, a := range raw {
+		name, value, ok := strings.Cut(a, "=")
+		if !ok || name == "" {
+			return nil, &inputError{fmt.Sprintf("--arg %q: want name=value", a)}
+		}
+		var v any
+		if err := json.Unmarshal([]byte(value), &v); err != nil {
+			v = value // not JSON: a plain string
+		}
+		args[name] = v
+	}
+	return args, nil
+}
+
+type callRequest struct {
+	contract, function string
+	args               map[string]any
+	sourceAccount      string
+	wasm               []byte
+	session            string
+}
+
+// latestFork returns the newest fork of contract on network, if any.
+func latestFork(root string, network rpc.Network, contract string) (*fork.Info, error) {
+	forks, err := fork.List(root)
+	if err != nil {
+		return nil, err
+	}
+	var best *fork.Info
+	for i := range forks {
+		f := &forks[i]
+		if f.Contract == contract && f.Passphrase == network.Passphrase && (best == nil || f.ForkLedger > best.ForkLedger) {
+			best = f
+		}
+	}
+	return best, nil
+}
+
+func sessionKey(name string) string { return "session/" + name }
+
+// runCall runs one call on the newest fork of the contract, creating the
+// fork first if there is none.
+func runCall(ctx context.Context, deps Deps, network rpc.Network, req callRequest, progress func(string)) (CallResult, fork.Drift, error) {
+	root, err := forkRoot(deps)
+	if err != nil {
+		return CallResult{}, fork.Drift{}, err
+	}
+	info, err := latestFork(root, network, req.contract)
+	if err != nil {
+		return CallResult{}, fork.Drift{}, fmt.Errorf("%w: reading the fork cache: %v", exitcode.ErrConfiguration, err)
+	}
+	if info == nil {
+		progress(fmt.Sprintf("No fork of %s on %s yet; forking it now.", shorten(req.contract, 4, 3), network.Name))
+		if _, err := forkWithDrift(ctx, deps, network, req.contract, "warn", progress); err != nil {
+			return CallResult{}, fork.Drift{}, err
+		}
+		if info, err = latestFork(root, network, req.contract); err != nil || info == nil {
+			return CallResult{}, fork.Drift{}, fmt.Errorf("%w: the new fork is not in the cache", exitcode.ErrConfiguration)
+		}
+	}
+	if network.RPCURL == "" {
+		network.RPCURL = info.RPCURL
+	}
+	client, _, err := rpc.Connect(ctx, network, deps.RPCOptions...)
+	if err != nil {
+		return CallResult{}, fork.Drift{}, err
+	}
+
+	sim, err := startSimulator(ctx, deps, progress)
+	if err != nil {
+		return CallResult{}, fork.Drift{}, err
+	}
+	defer func() { _ = sim.Close() }()
+	if err := checkLanes(network.Name, info.Protocol, sim.HelloAck()); err != nil {
+		return CallResult{}, fork.Drift{}, err
+	}
+
+	cache, err := fork.Open(root, network.Passphrase, info.ID)
+	if err != nil {
+		return CallResult{}, fork.Drift{}, err
+	}
+	defer func() { _ = cache.Close() }()
+	fetcher := &fork.Fetcher{Ctx: ctx, Cache: cache, RPC: client, ForkLedger: info.ForkLedger}
+	sim.HandleFetch(fetcher.Fetch)
+
+	m := cache.Manifest()
+	protocol, sequence, timestamp := m.Protocol, m.ForkLedger, uint64(m.ForkTime.Unix())
+
+	// A named session starts from its earlier writes.
+	var saved savedSession
+	if req.session != "" {
+		raw, err := cache.Meta(sessionKey(req.session))
+		if err != nil {
+			return CallResult{}, fork.Drift{}, err
+		}
+		if raw != nil {
+			if err := json.Unmarshal(raw, &saved); err != nil {
+				return CallResult{}, fork.Drift{}, fmt.Errorf("%w: session %q in the fork cache is unreadable: %v", exitcode.ErrConfiguration, req.session, err)
+			}
+		}
+	}
+
+	if _, err := callSimulator(ctx, sim, simulator.TypeLedgerOpen, simulator.LedgerOpenParams{
+		NetworkPassphrase: m.Passphrase, LedgerProtocol: &protocol, Sequence: &sequence, Timestamp: &timestamp,
+		SessionID: req.session, CallIndex: saved.Calls,
+	}, nil); err != nil {
+		return CallResult{}, fork.Drift{}, err
+	}
+	if len(saved.Entries) > 0 {
+		if _, err := callSimulator(ctx, sim, simulator.TypeLedgerApply, simulator.LedgerApplyParams{Entries: saved.Entries}, nil); err != nil {
+			return CallResult{}, fork.Drift{}, err
+		}
+	}
+
+	res := CallResult{
+		Contract: req.contract, Function: req.function, Args: req.args, SourceAccount: req.sourceAccount,
+		Network: m.Network, ForkID: info.ID, ForkLedger: m.ForkLedger, Protocol: m.Protocol, Session: req.session,
+	}
+	if len(req.wasm) > 0 {
+		var installed simulator.ContractInstallResult
+		if _, err := callSimulator(ctx, sim, simulator.TypeContractInstall, simulator.ContractInstallParams{
+			WasmBase64: base64.StdEncoding.EncodeToString(req.wasm),
+		}, &installed); err != nil {
+			return CallResult{}, fork.Drift{}, asInputError(err, "--wasm")
+		}
+		if _, err := callSimulator(ctx, sim, simulator.TypeContractSwap, simulator.ContractSwapParams{
+			ContractID: req.contract, WasmHash: installed.WasmHash, Mode: "instance",
+		}, nil); err != nil {
+			return CallResult{}, fork.Drift{}, asInputError(err, "--wasm")
+		}
+		res.SwappedWasm = installed.WasmHash
+	}
+
+	var out simulator.SimulateResult
+	ce, err := sim.Call(ctx, simulator.TypeSimulate, simulator.SimulateParams{
+		ContractID: req.contract, Function: req.function, Args: req.args, SourceAccount: req.sourceAccount,
+	}, &out)
+	if err != nil {
+		return CallResult{}, fork.Drift{}, callError(ctx, sim, req, err)
+	}
+	if ce != nil {
+		res.Outcome = "contract_error"
+		res.Error = ce
+		res.Cost, res.Misses, res.Seed = ce.Cost, ce.Misses, ce.Seed
+		res.Events, res.Auth, res.Modified = []simulator.Event{}, []string{}, []simulator.ModifiedEntry{}
+	} else {
+		res.Outcome = "result"
+		res.ReturnValue, res.ReturnValueXDR = out.ReturnValue, out.ReturnValueXDR
+		res.Events, res.Auth, res.Modified = out.Events, out.Auth, out.ModifiedEntries
+		res.Resources, res.Fee, res.Cost, res.Misses, res.Seed = out.Resources, out.Fee, &out.Cost, out.Misses, out.Seed
+		if res.Auth == nil {
+			res.Auth = []string{}
+		}
+		if res.Modified == nil {
+			res.Modified = []simulator.ModifiedEntry{}
+		}
+		if req.session != "" {
+			if err := saveSession(cache, req.session, saved, out.ModifiedEntries); err != nil {
+				return CallResult{}, fork.Drift{}, err
+			}
+		}
+	}
+	if res.Misses == nil {
+		res.Misses = []string{}
+	}
+	if res.Events == nil {
+		res.Events = []simulator.Event{}
+	}
+	drift := fetcher.Drift()
+	res.Drift = drift
+	return res, drift, nil
+}
+
+// savedSession is a named session in the fork cache: its writes, and how
+// many calls it has made, so a resumed session's seeds continue.
+type savedSession struct {
+	Calls   uint64                   `json:"calls"`
+	Entries []simulator.AppliedEntry `json:"entries"`
+}
+
+// saveSession merges a call's writes into the session's saved writes, the
+// latest write per key winning, and counts the call.
+func saveSession(cache *fork.Cache, name string, saved savedSession, writes []simulator.ModifiedEntry) error {
+	byKey := map[string]simulator.AppliedEntry{}
+	var order []string
+	for _, e := range saved.Entries {
+		if _, seen := byKey[e.KeyXDR]; !seen {
+			order = append(order, e.KeyXDR)
+		}
+		byKey[e.KeyXDR] = e
+	}
+	for _, w := range writes {
+		if _, seen := byKey[w.KeyXDR]; !seen {
+			order = append(order, w.KeyXDR)
+		}
+		byKey[w.KeyXDR] = simulator.AppliedEntry{KeyXDR: w.KeyXDR, EntryXDR: w.AfterXDR, LiveUntilLedger: w.LiveUntilLedger}
+	}
+	merged := make([]simulator.AppliedEntry, 0, len(order))
+	for _, k := range order {
+		merged = append(merged, byKey[k])
+	}
+	raw, err := json.Marshal(savedSession{Calls: saved.Calls + 1, Entries: merged})
+	if err != nil {
+		return err
+	}
+	return cache.PutMeta(sessionKey(name), raw)
+}
+
+// callError turns a simulator refusal of the call itself into the CLI's
+// terms: an unknown function or a bad argument is the caller's mistake
+// (exit 2), the rest stays a simulator failure.
+func callError(ctx context.Context, sim *simulator.Client, req callRequest, err error) error {
+	var se *simulator.Error
+	if !errors.As(err, &se) || se.Code != "bad_request" {
+		return err
+	}
+	path, _ := se.Detail["path"].(string)
+	switch {
+	case path == "function":
+		names := contractFunctions(ctx, sim, req.contract)
+		if len(names) == 0 {
+			return &inputError{se.Message}
+		}
+		return &inputError{fmt.Sprintf("%s has no function %q; it has: %s", shorten(req.contract, 4, 3), req.function, strings.Join(names, ", "))}
+	case strings.HasPrefix(path, "args"):
+		return &inputError{se.Message}
+	case path == "contract_id":
+		return &inputError{se.Message}
+	}
+	return err
+}
+
+// contractFunctions lists a contract's functions from its spec.
+func contractFunctions(ctx context.Context, sim *simulator.Client, contract string) []string {
+	var spec simulator.SpecExtractResult
+	if _, err := sim.Call(ctx, simulator.TypeSpecExtract, simulator.SpecExtractParams{Source: simulator.Source{ContractID: contract}}, &spec); err != nil {
+		return nil
+	}
+	var doc struct {
+		Functions []struct {
+			Name string `json:"name"`
+		} `json:"functions"`
+	}
+	if json.Unmarshal(spec.Spec, &doc) != nil {
+		return nil
+	}
+	var names []string
+	for _, f := range doc.Functions {
+		if !strings.HasPrefix(f.Name, "__") {
+			names = append(names, f.Name)
+		}
+	}
+	sort.Strings(names)
+	return names
+}
+
+// asInputError reports a bad_request about a flag's value as exit 2.
+func asInputError(err error, flag string) error {
+	var se *simulator.Error
+	if errors.As(err, &se) && se.Code == "bad_request" {
+		return &inputError{fmt.Sprintf("%s: %s", flag, se.Message)}
+	}
+	return err
+}
+
+// renderCall is the human rendering until the full one (#556): the value
+// or the refusal, then where it ran.
+func renderCall(w io.Writer, res CallResult) error {
+	switch res.Outcome {
+	case "contract_error":
+		e := res.Error
+		if e.Kind == "contract" && e.Decoded != nil && e.Decoded.ErrorName != "" {
+			line := fmt.Sprintf("✗ %s (#%d)", e.Decoded.ErrorName, valueOr(e.Decoded.ErrorValue))
+			if e.Decoded.ErrorDoc != "" {
+				line += ": " + e.Decoded.ErrorDoc
+			}
+			if _, err := fmt.Fprintln(w, line); err != nil {
+				return err
+			}
+		} else if _, err := fmt.Fprintf(w, "✗ %s error %s: %s\n", e.Kind, e.Code, e.Message); err != nil {
+			return err
+		}
+	default:
+		value := "(nothing)"
+		if len(res.ReturnValue) > 0 && string(res.ReturnValue) != "null" {
+			value = string(res.ReturnValue)
+		}
+		if _, err := fmt.Fprintf(w, "→ %s\n", value); err != nil {
+			return err
+		}
+		if len(res.Modified) > 0 {
+			if _, err := fmt.Fprintf(w, "Would write %d entries\n", len(res.Modified)); err != nil {
+				return err
+			}
+		}
+	}
+	session := ""
+	if res.Session != "" {
+		session = " · session " + res.Session
+	}
+	_, err := fmt.Fprintf(w, "%s · fork ledger %d · protocol %d%s · local sandbox: nothing was submitted\n",
+		res.Network, res.ForkLedger, res.Protocol, session)
+	return err
+}
+
+func valueOr(p *int) int {
+	if p == nil {
+		return 0
+	}
+	return *p
+}
+
+func newSandboxSessionCmd() *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "session",
+		Short: "Manage named call sessions",
+		Args:  cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			return cmd.Help()
+		},
+	}
+	reset := &cobra.Command{
+		Use:   "reset <name>",
+		Short: "Forget a session's writes, on every fork",
+		Args:  cobra.ExactArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			deps, err := depsFor(cmd)
+			if err != nil {
+				return err
+			}
+			root, err := forkRoot(deps)
+			if err != nil {
+				return err
+			}
+			forks, err := fork.List(root)
+			if err != nil {
+				return fmt.Errorf("%w: reading the fork cache: %v", exitcode.ErrConfiguration, err)
+			}
+			cleared := []string{}
+			for _, f := range forks {
+				c, err := fork.Open(root, f.Passphrase, f.ID)
+				if err != nil {
+					return err
+				}
+				had, _ := c.Meta(sessionKey(args[0]))
+				if had != nil {
+					if err := c.DeleteMeta(sessionKey(args[0])); err != nil {
+						_ = c.Close()
+						return err
+					}
+					cleared = append(cleared, f.ID)
+				}
+				_ = c.Close()
+			}
+			res := struct {
+				Session string   `json:"session"`
+				Forks   []string `json:"forks"`
+			}{args[0], cleared}
+			return printerFor(cmd).Result(res, func(w io.Writer) error {
+				_, err := fmt.Fprintf(w, "Reset session %s on %d fork(s).\n", args[0], len(cleared))
+				return err
+			})
+		},
+	}
+	cmd.AddCommand(reset)
+	return cmd
+}

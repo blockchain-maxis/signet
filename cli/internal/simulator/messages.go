@@ -22,6 +22,7 @@ const (
 	TypeLedgerCheckpoint = "ledger_checkpoint"
 	TypeLedgerRollback   = "ledger_rollback"
 	TypeLedgerImport     = "ledger_import"
+	TypeLedgerApply      = "ledger_apply"
 	TypeContractInstall  = "contract_install"
 	TypeContractSwap     = "contract_swap"
 	TypeContractInfo     = "contract_info"
@@ -184,6 +185,9 @@ type LedgerOpenParams struct {
 	// SessionID names the session or bundle; each call's PRNG seed derives
 	// from it and the call index (#537).
 	SessionID string `json:"session_id,omitempty"`
+	// CallIndex is the index of the session's next call, so a session
+	// resumed in a new process continues its seeds instead of repeating them.
+	CallIndex uint64 `json:"call_index,omitempty"`
 }
 
 // LedgerOpenResult answers ledger_open.
@@ -361,9 +365,28 @@ type Event struct {
 // ModifiedEntry is one entry a call wrote: nil BeforeXDR is a creation, nil
 // AfterXDR a deletion.
 type ModifiedEntry struct {
-	KeyXDR    string  `json:"key_xdr"`
-	BeforeXDR *string `json:"before_xdr"`
-	AfterXDR  *string `json:"after_xdr"`
+	KeyXDR          string  `json:"key_xdr"`
+	BeforeXDR       *string `json:"before_xdr"`
+	AfterXDR        *string `json:"after_xdr"`
+	LiveUntilLedger *uint32 `json:"live_until_ledger,omitempty"`
+}
+
+// AppliedEntry is one write ledger_apply puts in the session layer; a nil
+// EntryXDR deletes the key.
+type AppliedEntry struct {
+	KeyXDR          string  `json:"key_xdr"`
+	EntryXDR        *string `json:"entry_xdr"`
+	LiveUntilLedger *uint32 `json:"live_until_ledger,omitempty"`
+}
+
+// LedgerApplyParams restores session writes (#555).
+type LedgerApplyParams struct {
+	Entries []AppliedEntry `json:"entries"`
+}
+
+// LedgerApplyResult answers ledger_apply.
+type LedgerApplyResult struct {
+	Applied int `json:"applied"`
 }
 
 // Resources is what the call needs, from its simulated transaction data.

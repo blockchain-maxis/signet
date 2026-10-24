@@ -1,0 +1,178 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://signet.dev/schemas/sandbox/v1/cli-call-result.json",
+  "title": "signet sandbox call --json",
+  "description": "The one object `signet sandbox call --json` writes to stdout (#555). Top-level keys are camelCase like the rest of the CLI's JSON; the nested simulator objects (error, events, modifiedEntries, resources, fee, cost) pass through in the protocol's own snake_case shapes from simulate.json and contract_error.json.",
+  "type": "object",
+  "properties": {
+    "contract": {
+      "type": "string",
+      "minLength": 56,
+      "description": "The contract called (C...)"
+    },
+    "function": {
+      "type": "string",
+      "minLength": 1
+    },
+    "args": {
+      "type": "object",
+      "description": "The named arguments, as JSON"
+    },
+    "sourceAccount": {
+      "type": "string",
+      "description": "--source-account, when given"
+    },
+    "network": {
+      "type": "string",
+      "minLength": 1
+    },
+    "forkId": {
+      "type": "string",
+      "minLength": 1,
+      "description": "<contract>@<forkLedger>"
+    },
+    "forkLedger": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "protocol": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "session": {
+      "type": "string",
+      "description": "--session, when given"
+    },
+    "swappedWasm": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$",
+      "description": "The --wasm executable's hash, when one was swapped in"
+    },
+    "outcome": {
+      "enum": ["result", "contract_error"]
+    },
+    "returnValue": {
+      "description": "The return value decoded with the contract's spec"
+    },
+    "returnValueXdr": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9+/]+={0,2}$"
+    },
+    "error": {
+      "type": "object",
+      "description": "The contract_error, for outcome contract_error: kind, code, message, decoded"
+    },
+    "events": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "auth": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "pattern": "^[A-Za-z0-9+/]+={0,2}$"
+      }
+    },
+    "modifiedEntries": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "resources": {
+      "type": "object"
+    },
+    "fee": {
+      "type": "object"
+    },
+    "cost": {
+      "type": "object"
+    },
+    "misses": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "pattern": "^[A-Za-z0-9+/]+={0,2}$"
+      }
+    },
+    "drift": {
+      "type": "object",
+      "properties": {
+        "forkLedger": {
+          "type": "integer"
+        },
+        "newestLedger": {
+          "type": "integer"
+        },
+        "keys": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "required": ["forkLedger", "newestLedger", "keys"],
+      "additionalProperties": false
+    },
+    "seed": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    }
+  },
+  "required": [
+    "contract",
+    "function",
+    "args",
+    "network",
+    "forkId",
+    "forkLedger",
+    "protocol",
+    "outcome",
+    "events",
+    "auth",
+    "modifiedEntries",
+    "misses",
+    "drift",
+    "seed"
+  ],
+  "additionalProperties": false,
+  "allOf": [
+    {
+      "if": {
+        "properties": {
+          "outcome": {
+            "const": "result"
+          }
+        },
+        "required": ["outcome"]
+      },
+      "then": {
+        "properties": {
+          "returnValueXdr": true
+        },
+        "required": ["returnValueXdr"]
+      }
+    },
+    {
+      "if": {
+        "properties": {
+          "outcome": {
+            "const": "contract_error"
+          }
+        },
+        "required": ["outcome"]
+      },
+      "then": {
+        "properties": {
+          "error": true
+        },
+        "required": ["error"]
+      }
+    }
+  ]
+}

@@ -198,6 +198,18 @@
                     "type": "null"
                   }
                 ]
+              },
+              "live_until_ledger": {
+                "oneOf": [
+                  {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  {
+                    "type": "null"
+                  }
+                ],
+                "description": "The entry's TTL after the call"
               }
             },
             "required": ["key_xdr", "before_xdr", "after_xdr"],

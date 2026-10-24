@@ -19,8 +19,10 @@ Usage:
   signet sandbox [command]
 
 Available Commands:
+  call        Call a contract function on a fork, locally
   fork        Pin a fork of a deployed contract at the network's latest ledger
   forks       List, remove and refresh cached forks
+  session     Manage named call sessions
 
 Flags:
       --drift string                when an entry fetched for the fork changed on-chain after the fork ledger: warn, fail (exit 6), or refork (pin the latest ledger and run once more) (default "warn")

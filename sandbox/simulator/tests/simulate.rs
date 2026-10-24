@@ -897,6 +897,37 @@ fn the_memory_guard_stops_the_process_with_resource_limit(lane: u32) {
     assert_eq!(next.call(&dice, "roll", json!({}))["type"], "result");
 }
 
+fn a_saved_session_is_restored_in_a_new_process(lane: u32) {
+    let (mut first, registry) = fresh_registry(lane);
+    first.call(&registry, "initialize", json!({ "admin": ADMIN }));
+    let claim = first.call(
+        &registry,
+        "claim",
+        json!({ "handle": "carol", "wallet": WALLET }),
+    );
+    // What Go keeps for a named session: every write, with its TTL.
+    let mut saved = Vec::new();
+    for call in [&claim] {
+        for m in call["modified_entries"].as_array().unwrap() {
+            assert!(m.get("live_until_ledger").is_some(), "{m}");
+            saved.push(json!({
+                "key_xdr": m["key_xdr"], "entry_xdr": m["after_xdr"], "live_until_ledger": m["live_until_ledger"],
+            }));
+        }
+    }
+    // initialize's writes too, from a replay of the same call.
+    let (mut second, registry2) = fresh_registry(lane);
+    assert_eq!(registry, registry2, "the same WASM installs at the same id");
+    let init = second.call(&registry, "initialize", json!({ "admin": ADMIN }));
+    assert_eq!(init["type"], "result");
+    let applied = second.send(json!({ "type": "ledger_apply", "entries": saved }));
+    assert_eq!(applied["applied"], saved.len(), "{applied}");
+    assert_eq!(
+        second.call(&registry, "resolve", json!({ "handle": "carol" }))["return_value"],
+        WALLET
+    );
+}
+
 /// The same suite on every lane (#538): each test above runs once per
 /// ledger protocol the binary carries.
 macro_rules! on_lane {
@@ -983,6 +1014,10 @@ macro_rules! on_lane {
             #[test]
             fn the_memory_guard_stops_the_process_with_resource_limit() {
                 super::the_memory_guard_stops_the_process_with_resource_limit($protocol)
+            }
+            #[test]
+            fn a_saved_session_is_restored_in_a_new_process() {
+                super::a_saved_session_is_restored_in_a_new_process($protocol)
             }
         }
     };

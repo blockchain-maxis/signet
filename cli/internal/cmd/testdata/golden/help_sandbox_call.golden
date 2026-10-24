@@ -1,0 +1,49 @@
+$ signet sandbox call --help
+-- stdout --
+Call a function of a deployed contract on a fork of the network, in the local
+contract simulator. Nothing is submitted: the result says what the call would
+return, write and require, at the fork's ledger.
+
+Arguments are named: --arg handle=alice --arg wallet=G…. A value is read as
+JSON when it parses as JSON and as a plain string otherwise, so --arg n=5 is
+the number 5 and --arg handle=alice the string "alice"; quote a string that
+looks like JSON (--arg name='"5"'). --args-file takes a JSON object instead.
+
+Without --session every call starts from the fork. With --session <name>, the
+call's writes are kept in the fork cache and the next call with the same name
+starts from them; signet sandbox session reset <name> clears them.
+
+The account a call runs as is --source-account (a G… address), not the root's
+--source, which names the stellar identity signet signs with.
+
+Usage:
+  signet sandbox call <contract> <function> [flags]
+
+Examples:
+  signet sandbox call CASF…RCN count
+  signet sandbox call CASF…RCN claim --arg handle=alice --arg wallet=GA5Z… --session demo
+  signet sandbox call CASF…RCN resolve --arg handle=alice --session demo
+  signet sandbox call CASF…RCN count --wasm ./target/wasm32v1-none/release/registry.wasm
+
+Flags:
+      --arg stringArray         a named argument, name=value (JSON, or a plain string); repeat for each
+      --args-file string        a JSON file holding an object of named arguments
+  -h, --help                    help for call
+      --session string          keep this call's writes under a name, and start from that name's earlier writes
+      --source-account string   the account (G…) the call runs as
+      --wasm string             swap this local WASM in first, as an upgrade would, keeping storage
+
+Global Flags:
+      --context string              deployment context to use (overrides SIGNET_CONTEXT and the config file's current context)
+      --drift string                when an entry fetched for the fork changed on-chain after the fork ledger: warn, fail (exit 6), or refork (pin the latest ledger and run once more) (default "warn")
+      --insecure                    allow a plain-http deployment URL on a non-local host (signed challenges travel in cleartext; use only against a deployment you control)
+      --json                        write a single JSON result to stdout instead of human-readable output (diagnostics go to stderr)
+      --network string              Stellar network to talk to (overrides SIGNET_NETWORK, the context, and default "testnet")
+      --network-passphrase string   passphrase of a custom --network (checked against the RPC's getNetwork)
+      --rpc-url string              Stellar RPC to fork from (overrides the context's rpc-url; testnet defaults to https://soroban-testnet.stellar.org)
+      --sign-with-key string        identity to sign with, for non-interactive use (same value as STELLAR_SIGN_WITH_KEY; not remembered)
+      --source string               identity to sign as (remembered in the config file for next time)
+      --url string                  Signet deployment URL (overrides SIGNET_URL, the config file, and the default)
+-- stderr --
+(empty)
+-- exit 0 --

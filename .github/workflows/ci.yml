@@ -37,6 +37,10 @@ jobs:
           filters: |
             sandbox:
               - 'sandbox/**'
+              - 'cli/internal/cmd/sandbox*'
+              - 'cli/internal/simulator/**'
+              - 'cli/internal/fork/**'
+              - 'cli/internal/rpc/**'
               - '.github/workflows/ci.yml'
 
   docs:
@@ -624,6 +628,19 @@ jobs:
       # in packages/spec produces. `cargo test` above built the binary.
       - name: Check spec_extract against SpecJson v1
         run: node protocol/check-spec-json.mjs
+
+      # The CLI's sandbox commands against the real host (#555): the Go
+      # tests that need a built signet-simulator skip in the cli job, which
+      # has no Rust toolchain, and run here, where `cargo test` built one.
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: cli/go.mod
+
+      - name: CLI sandbox tests against the real simulator
+        working-directory: cli
+        env:
+          SIGNET_SIMULATOR_PATH: ${{ github.workspace }}/sandbox/target/debug/signet-simulator
+        run: go test -count=1 -run 'SandboxCall' ./internal/cmd
 
   simulator-size:
     name: signet-simulator size budget

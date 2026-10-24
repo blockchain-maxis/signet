@@ -198,6 +198,13 @@ pub fn ledger_open(
         _ => return invalid_field(id, "fetch", "\"allow\" or \"deny\""),
     };
 
+    let first_call = match object.get("call_index") {
+        None => 0,
+        Some(value) => match value.as_u64() {
+            Some(n) => n,
+            None => return invalid_field(id, "call_index", "a non-negative integer"),
+        },
+    };
     let session_id = match object.get("session_id") {
         None => String::new(),
         Some(Value::String(s)) => s.clone(),
@@ -248,7 +255,7 @@ pub fn ledger_open(
         timestamp,
         fetch,
         installed: BTreeSet::new(),
-        calls: 0,
+        calls: first_call,
         session_id,
         base_reserve,
         network_config: Value::Null,

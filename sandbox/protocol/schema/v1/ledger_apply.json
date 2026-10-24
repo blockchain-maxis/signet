@@ -1,0 +1,84 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://signet.dev/schemas/sandbox/v1/ledger_apply.json",
+  "title": "ledger_apply",
+  "description": "Write entries into the session layer, as a call's writes land there, so a saved session can be restored in a new process (#555). A null entry_xdr deletes the key.",
+  "type": "object",
+  "properties": {
+    "version": {
+      "const": 1,
+      "description": "Wire protocol version; checked on every message"
+    },
+    "id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Caller-assigned; echoed on the response"
+    },
+    "type": {
+      "const": "ledger_apply"
+    },
+    "entries": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "key_xdr": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9+/]+={0,2}$"
+          },
+          "entry_xdr": {
+            "oneOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^[A-Za-z0-9+/]+={0,2}$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "live_until_ledger": {
+            "oneOf": [
+              {
+                "type": "integer",
+                "minimum": 0
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": ["key_xdr", "entry_xdr"],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": ["version", "id", "type", "entries"],
+  "additionalProperties": false,
+  "definitions": {
+    "result": {
+      "type": "object",
+      "properties": {
+        "version": {
+          "const": 1
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "type": {
+          "const": "result"
+        },
+        "applied": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "required": ["version", "id", "type", "applied"],
+      "additionalProperties": false
+    }
+  }
+}

@@ -163,6 +163,36 @@ happens: `warn` (the default) prints
 `fail` exits `6`, and `refork` pins the latest ledger and runs once more. The
 manifest records `driftedEntries`.
 
+### `signet sandbox call`
+
+```sh
+signet sandbox call CASF…RCN count
+# → 41
+# testnet · fork ledger 4887004 · protocol 28 · local sandbox: nothing was submitted
+signet sandbox call CASF…RCN claim --arg handle=alice --arg wallet=GA5Z… --session demo
+signet sandbox call CASF…RCN resolve --arg handle=alice --session demo
+signet sandbox session reset demo
+```
+
+Calls a function on the newest fork of the contract (forking it first if there
+is none) in the local simulator. Nothing is submitted.
+
+- `--arg name=value` is read as JSON when it parses and as a plain string
+  otherwise (`--arg n=5` is a number, `--arg handle=alice` a string); quote a
+  string that looks like JSON. `--args-file` takes a JSON object.
+- `--source-account G…` is the account the call runs as. It is deliberately not
+  `--source`, the root flag naming the `stellar` identity, which the config file
+  remembers.
+- `--session <name>` keeps the call's writes in the fork cache and starts the
+  next call with that name from them; without it every call starts from the
+  fork. `signet sandbox session reset <name>` forgets them.
+- `--wasm ./x.wasm` swaps a local build in first, as an upgrade would, keeping
+  storage.
+- A contract that refuses the call (`✗ HandleTaken (#3): …`) is an answer, not a
+  failure: exit `0`. An unknown function or a bad argument exits `2`, naming the
+  functions or the argument; a simulator failure exits `13`.
+- `--json` writes one object, `sandbox/protocol/schema/v1/cli-call-result.json`.
+
 ### `signet sandbox forks`
 
 ```sh
