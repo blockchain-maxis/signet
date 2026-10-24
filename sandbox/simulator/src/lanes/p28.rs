@@ -13,12 +13,15 @@ use sha2::{Digest, Sha256};
 use soroban_env_host::e2e_invoke::{RecordingInvocationAuthMode, RecordingInvocationAuthParams};
 use soroban_env_host::storage::{EntryWithLiveUntil, SnapshotSource};
 use soroban_env_host::xdr::{
-    AccountId, ConfigSettingId, ContractDataDurability, ContractEvent, ContractEventBody,
-    ContractExecutable, ContractId, FeeBumpTransactionInnerTx, Hash, HostFunction, LedgerEntry,
-    LedgerEntryData, LedgerKey, LedgerKeyAccount, LedgerKeyConfigSetting, LedgerKeyContractCode,
-    LedgerKeyContractData, Limited, Limits, MuxedAccount, OperationBody, ReadXdr, ScAddress,
-    ScEnvMetaEntry, ScErrorCode, ScErrorType, ScSpecEntry, ScVal, SorobanAuthorizationEntry,
-    SorobanAuthorizedFunction, SorobanCredentials, TransactionEnvelope, TransactionMeta, WriteXdr,
+    AccountId, ConfigSettingId, ContractCodeEntry, ContractCodeEntryExt, ContractDataDurability,
+    ContractDataEntry, ContractEvent, ContractEventBody, ContractExecutable, ContractId,
+    ExtensionPoint, FeeBumpTransactionInnerTx, Hash, HostFunction, InvokeContractArgs, LedgerEntry,
+    LedgerEntryData, LedgerEntryExt, LedgerKey, LedgerKeyAccount, LedgerKeyConfigSetting,
+    LedgerKeyContractCode, LedgerKeyContractData, Limited, Limits, MuxedAccount, OperationBody,
+    ReadXdr, ScAddress, ScContractInstance, ScEnvMetaEntry, ScError, ScErrorCode, ScErrorType,
+    ScSpecEntry, ScSymbol, ScVal, SorobanAuthorizationEntry, SorobanAuthorizedFunction,
+    SorobanCredentials, SorobanTransactionData, StringM, TransactionEnvelope, TransactionMeta,
+    WriteXdr,
 };
 use soroban_env_host::{HostError, LedgerInfo};
 use soroban_simulation::simulation::{
@@ -27,9 +30,9 @@ use soroban_simulation::simulation::{
 use soroban_simulation::NetworkConfig;
 
 use super::{
-    ByteSnapshotSource, DecodeTarget, DerivedKey, EntryChangeBytes, ErrorCase, InterfaceVersion,
-    KeyRequest, Lane, LaneError, SimulateBytes, SimulateResultBytes, SwapResultBytes,
-    WasmInspection,
+    ByteSnapshotSource, DecodeTarget, DerivedKey, EntryChangeBytes, ErrorCase, Installed,
+    InterfaceVersion, InvocationFailure, KeyRequest, Lane, LaneError, SimulateBytes,
+    SimulateResultBytes, SwapResultBytes, TransactionResources, WasmInspection,
 };
 
 /// The ledger protocol this lane runs: the pinned host's interface version.
@@ -78,12 +81,44 @@ struct BytesSnapshot(Rc<dyn ByteSnapshotSource>);
 impl SnapshotSource for BytesSnapshot {
     fn get(&self, key: &Rc<LedgerKey>) -> Result<Option<EntryWithLiveUntil>, HostError> {
         let key_xdr = key.to_xdr(Limits::none()).map_err(|_| input_error())?;
-        let Some((entry_xdr, live_until)) = self.0.get(&key_xdr) else {
+        // A source that gave up keeps its reason; the host just has to stop.
+        let found = self.0.get(&key_xdr).map_err(|_| {
+            HostError::from(soroban_env_host::Error::from_type_and_code(
+                ScErrorType::Storage,
+                ScErrorCode::MissingValue,
+            ))
+        })?;
+        let Some((entry_xdr, live_until)) = found else {
             return Ok(None);
         };
         let entry =
             LedgerEntry::from_xdr(&*entry_xdr, Limits::none()).map_err(|_| input_error())?;
         Ok(Some((Rc::new(entry), live_until)))
+    }
+}
+
+/// How an invocation failed, in the host's terms.
+fn invocation_failure(error: &HostError) -> InvocationFailure {
+    let detail = format!("{:?}", error.error);
+    match ScError::try_from(error.error) {
+        Ok(sc) => {
+            let (error_type, error_code) = spec::host_error_parts(&sc);
+            InvocationFailure {
+                contract_code: match sc {
+                    ScError::Contract(code) => Some(code),
+                    _ => None,
+                },
+                error_type,
+                error_code,
+                detail,
+            }
+        }
+        Err(_) => InvocationFailure {
+            contract_code: None,
+            error_type: "Unknown".into(),
+            error_code: "Unknown".into(),
+            detail,
+        },
     }
 }
 
@@ -149,7 +184,7 @@ impl Lane for P28Lane {
         let host_fn: HostFunction = decode(&request.host_function_xdr, "HostFunction")?;
         let source_account: AccountId = decode(&request.source_account_xdr, "AccountId")?;
 
-        let snapshot = Rc::new(BytesSnapshot(src));
+        let snapshot = Rc::new(BytesSnapshot(src.clone()));
         let network_config = NetworkConfig::load_from_snapshot(&*snapshot)
             .map_err(|e| LaneError::NetworkConfig(e.to_string()))?;
         let mut ledger_info = LedgerInfo {
@@ -177,20 +212,55 @@ impl Lane for P28Lane {
 
         let return_value = match &result.invoke_result {
             Ok(value) => Ok(encode(value, "ScVal")?),
-            Err(error) => Err(format!("{error:?}")),
+            Err(error) => Err(invocation_failure(error)),
         };
         let mut modified_entries = Vec::with_capacity(result.modified_entries.len());
         for diff in &result.modified_entries {
             let Some(entry) = diff.state_after.as_ref().or(diff.state_before.as_ref()) else {
                 continue;
             };
+            let key = entry.to_key();
+            let key_xdr = encode(&key, "LedgerKey")?;
+            // The diff carries no TTL: an entry that existed keeps its own,
+            // a new one gets the network's minimum for its durability.
+            let previous_ttl = src
+                .get(&key_xdr)
+                .ok()
+                .flatten()
+                .and_then(|(_, live_until)| live_until);
+            let live_until = match (&diff.state_before, previous_ttl) {
+                (Some(_), Some(ttl)) => Some(ttl),
+                _ => match &key {
+                    LedgerKey::ContractData(data)
+                        if data.durability == ContractDataDurability::Temporary =>
+                    {
+                        Some(
+                            request
+                                .sequence
+                                .saturating_add(ledger_info.min_temp_entry_ttl - 1),
+                        )
+                    }
+                    LedgerKey::ContractData(_) | LedgerKey::ContractCode(_) => Some(
+                        request
+                            .sequence
+                            .saturating_add(ledger_info.min_persistent_entry_ttl - 1),
+                    ),
+                    _ => None,
+                },
+            };
             modified_entries.push(EntryChangeBytes {
-                key_xdr: encode(&entry.to_key(), "LedgerKey")?,
+                key_xdr,
+                before_xdr: diff
+                    .state_before
+                    .as_ref()
+                    .map(|before| encode(before, "LedgerEntry"))
+                    .transpose()?,
                 entry_xdr: diff
                     .state_after
                     .as_ref()
                     .map(|after| encode(after, "LedgerEntry"))
                     .transpose()?,
+                live_until,
             });
         }
 
@@ -438,6 +508,167 @@ impl Lane for P28Lane {
             interface_version,
             exports,
             imports,
+        })
+    }
+
+    fn assemble_entry(
+        &self,
+        data_xdr: &[u8],
+        last_modified_ledger_seq: u32,
+        ext_xdr: Option<&[u8]>,
+    ) -> Result<Vec<u8>, LaneError> {
+        let data: LedgerEntryData = decode(data_xdr, "LedgerEntryData")?;
+        let ext = match ext_xdr {
+            Some(bytes) => decode(bytes, "LedgerEntryExt")?,
+            None => LedgerEntryExt::V0,
+        };
+        encode(
+            &LedgerEntry {
+                last_modified_ledger_seq,
+                data,
+                ext,
+            },
+            "LedgerEntry",
+        )
+    }
+
+    fn invoke_contract(
+        &self,
+        contract_id: &str,
+        function: &str,
+        args_xdr: &[Vec<u8>],
+    ) -> Result<Vec<u8>, LaneError> {
+        let args: Vec<ScVal> = args_xdr
+            .iter()
+            .map(|a| decode(a, "ScVal"))
+            .collect::<Result<_, _>>()?;
+        let function_name = ScSymbol(StringM::try_from(function.as_bytes().to_vec()).map_err(
+            |_| LaneError::InvalidInput {
+                what: "function",
+                detail: "a function name is at most 32 characters".into(),
+            },
+        )?);
+        encode(
+            &HostFunction::InvokeContract(InvokeContractArgs {
+                contract_address: contract_address(contract_id)?,
+                function_name,
+                args: args.try_into().map_err(|_| invalid("ScVal arguments"))?,
+            }),
+            "HostFunction",
+        )
+    }
+
+    fn account_id(&self, strkey: &str) -> Result<Vec<u8>, LaneError> {
+        let account = AccountId::from_str(strkey).map_err(|e| LaneError::InvalidInput {
+            what: "account id",
+            detail: e.to_string(),
+        })?;
+        encode(&account, "AccountId")
+    }
+
+    fn transaction_resources(&self, data_xdr: &[u8]) -> Result<TransactionResources, LaneError> {
+        let data: SorobanTransactionData = decode(data_xdr, "SorobanTransactionData")?;
+        let keys = |keys: &[LedgerKey]| -> Result<Vec<Vec<u8>>, LaneError> {
+            keys.iter().map(|k| encode(k, "LedgerKey")).collect()
+        };
+        Ok(TransactionResources {
+            instructions: data.resources.instructions,
+            disk_read_bytes: data.resources.disk_read_bytes,
+            write_bytes: data.resources.write_bytes,
+            read_only: keys(&data.resources.footprint.read_only)?,
+            read_write: keys(&data.resources.footprint.read_write)?,
+            resource_fee: data.resource_fee,
+        })
+    }
+
+    fn describe_key(&self, key_xdr: &[u8]) -> String {
+        let Ok(key) = decode::<LedgerKey>(key_xdr, "LedgerKey") else {
+            return "an undecodable ledger key".into();
+        };
+        match &key {
+            LedgerKey::ContractData(data) => {
+                let value = spec::generic(&data.key)
+                    .map(|v| v.to_string())
+                    .unwrap_or_else(|_| data.key.name().to_string());
+                let what = if data.key == ScVal::LedgerKeyContractInstance {
+                    "instance".to_string()
+                } else {
+                    format!("{} data {value}", data.durability.name().to_lowercase())
+                };
+                format!("{} {what}", data.contract)
+            }
+            LedgerKey::ContractCode(code) => format!("contract code {}", hex(&code.hash.0)),
+            LedgerKey::Account(account) => format!("account {}", account.account_id),
+            LedgerKey::ConfigSetting(setting) => {
+                format!("config setting {}", setting.config_setting_id.name())
+            }
+            other => other.name().to_string(),
+        }
+    }
+
+    fn install(&self, wasm: &[u8], contract_id: Option<&str>) -> Result<Installed, LaneError> {
+        if wasm.len() < 8 || &wasm[..4] != b"\0asm" {
+            return Err(LaneError::InvalidWasm(
+                "missing the WASM magic header".into(),
+            ));
+        }
+        let wasm_hash: [u8; 32] = Sha256::digest(wasm).into();
+        let address = match contract_id {
+            Some(id) => contract_address(id)?,
+            // A stable id per executable, so installing the same WASM twice
+            // in a session addresses the same contract.
+            None => {
+                let mut seed = Sha256::new();
+                seed.update(b"signet-sandbox-install");
+                seed.update(wasm_hash);
+                ScAddress::Contract(ContractId(Hash(seed.finalize().into())))
+            }
+        };
+        let ScAddress::Contract(ContractId(Hash(id))) = &address else {
+            unreachable!("contract_address only returns contracts")
+        };
+        let code_key = LedgerKey::ContractCode(LedgerKeyContractCode {
+            hash: Hash(wasm_hash),
+        });
+        let code = LedgerEntry {
+            last_modified_ledger_seq: 0,
+            data: LedgerEntryData::ContractCode(ContractCodeEntry {
+                ext: ContractCodeEntryExt::V0,
+                hash: Hash(wasm_hash),
+                code: wasm
+                    .to_vec()
+                    .try_into()
+                    .map_err(|_| invalid("ContractCode"))?,
+            }),
+            ext: LedgerEntryExt::V0,
+        };
+        let instance = LedgerEntry {
+            last_modified_ledger_seq: 0,
+            data: LedgerEntryData::ContractData(ContractDataEntry {
+                ext: ExtensionPoint::V0,
+                contract: address.clone(),
+                key: ScVal::LedgerKeyContractInstance,
+                durability: ContractDataDurability::Persistent,
+                val: ScVal::ContractInstance(ScContractInstance {
+                    executable: ContractExecutable::Wasm(Hash(wasm_hash)),
+                    storage: None,
+                }),
+            }),
+            ext: LedgerEntryExt::V0,
+        };
+        Ok(Installed {
+            contract_id: address.to_string(),
+            wasm_hash,
+            entries: vec![
+                (
+                    encode(&code_key, "LedgerKey")?,
+                    encode(&code, "LedgerEntry")?,
+                ),
+                (
+                    self.contract_instance_key(*id),
+                    encode(&instance, "LedgerEntry")?,
+                ),
+            ],
         })
     }
 
@@ -907,8 +1138,8 @@ mod tests {
     struct Ledger(HashMap<Vec<u8>, StoredEntry>);
 
     impl ByteSnapshotSource for Ledger {
-        fn get(&self, key_xdr: &[u8]) -> Option<StoredEntry> {
-            self.0.get(key_xdr).cloned()
+        fn get(&self, key_xdr: &[u8]) -> crate::lanes::SourceResult {
+            Ok(self.0.get(key_xdr).cloned())
         }
     }
 

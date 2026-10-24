@@ -7,53 +7,27 @@
 //! the state the panic interrupted may be inconsistent.
 
 use std::any::Any;
-use std::io::{self, BufRead, Write};
+use std::cell::RefCell;
 use std::panic::{catch_unwind, AssertUnwindSafe};
-use std::sync::Mutex;
+use std::rc::Rc;
+use std::time::Instant;
 
 use serde_json::{json, Map, Value};
 
-use crate::framing::{Line, LineReader};
+use crate::framing::Line;
 use crate::lanes::LaneRegistry;
+use crate::ledger::fetch::FetchingSource;
 use crate::ledger::verbs::{
     ledger_checkpoint, ledger_get, ledger_open, ledger_put, ledger_rollback, OpenLedger,
 };
+use crate::simulate::{contract_install, contract_swap, ledger_import, simulate, status};
 use crate::spec_verbs::{spec_decode_val, spec_encode_args, spec_extract};
+use crate::stdio::Channel;
 use crate::xdr_helpers::{tx_decode, wasm_inspect, xdr_keys};
 use crate::PROTOCOL_VERSION;
 
 /// Exit status after a panic in the message loop.
 pub const PANIC_EXIT_CODE: i32 = 101;
-
-/// The single serialised writer for protocol output: one JSON object and a
-/// newline per call, flushed, under a lock so lines never interleave.
-pub struct Output<W> {
-    inner: Mutex<W>,
-}
-
-impl<W: Write> Output<W> {
-    pub fn new(inner: W) -> Self {
-        Self {
-            inner: Mutex::new(inner),
-        }
-    }
-
-    pub fn send(&self, message: &Value) -> io::Result<()> {
-        let mut line = serde_json::to_vec(message).map_err(io::Error::other)?;
-        line.push(b'\n');
-        // A poisoned lock only means a writer panicked; the stream is still
-        // usable for the best-effort `internal_panic` line.
-        let mut inner = self.inner.lock().unwrap_or_else(|e| e.into_inner());
-        inner.write_all(&line)?;
-        inner.flush()
-    }
-
-    /// Consumes the writer, returning what was written to it.
-    #[cfg(test)]
-    pub fn into_inner(self) -> W {
-        self.inner.into_inner().unwrap_or_else(|e| e.into_inner())
-    }
-}
 
 /// What to do with one handled line: send `reply`, then exit if `exit` is set.
 pub struct Step {
@@ -91,16 +65,23 @@ fn invalid_field(id: &Value, path: &str, expected: &str) -> Step {
     )
 }
 
-#[derive(Default)]
 pub struct Dispatcher {
     greeted: bool,
     /// The session's open ledger, if any (`ledger_open`).
     ledger: Option<OpenLedger>,
+    /// The stdio channel, for the `ledger_fetch`es a call needs (#531).
+    channel: Rc<RefCell<Channel>>,
+    started: Instant,
 }
 
 impl Dispatcher {
-    pub fn new() -> Self {
-        Self::default()
+    pub fn new(channel: Rc<RefCell<Channel>>) -> Self {
+        Self {
+            greeted: false,
+            ledger: None,
+            channel,
+            started: Instant::now(),
+        }
     }
 
     pub fn handle(&mut self, line: Line) -> Step {
@@ -177,6 +158,16 @@ impl Dispatcher {
                 json!({ "kind": "handshake_required", "received_type": ty }),
             );
         }
+        // Reads that miss the session's ledger go to Go through this source;
+        // a fresh one per request, so `misses` are this request's.
+        let fork = self.ledger.as_ref().map(|open| {
+            Rc::new(FetchingSource::new(
+                open.store.clone(),
+                self.channel.clone(),
+                open.lane,
+                open.fetch,
+            ))
+        });
         match ty {
             "hello" => self.hello(&id, &object),
             "ledger_open" => Step::reply(ledger_open(&mut self.ledger, &id, &object)),
@@ -187,9 +178,28 @@ impl Dispatcher {
             "xdr_keys" => Step::reply(xdr_keys(&self.ledger, &id, &object)),
             "tx_decode" => Step::reply(tx_decode(&self.ledger, &id, &object)),
             "wasm_inspect" => Step::reply(wasm_inspect(&self.ledger, &id, &object)),
-            "spec_extract" => Step::reply(spec_extract(&self.ledger, &id, &object)),
-            "spec_encode_args" => Step::reply(spec_encode_args(&self.ledger, &id, &object)),
-            "spec_decode_val" => Step::reply(spec_decode_val(&self.ledger, &id, &object)),
+            "spec_extract" => {
+                Step::reply(spec_extract(&self.ledger, fork.as_deref(), &id, &object))
+            }
+            "spec_encode_args" => Step::reply(spec_encode_args(
+                &self.ledger,
+                fork.as_deref(),
+                &id,
+                &object,
+            )),
+            "spec_decode_val" => {
+                Step::reply(spec_decode_val(&self.ledger, fork.as_deref(), &id, &object))
+            }
+            "simulate" => Step::reply(simulate(&mut self.ledger, fork.as_ref(), &id, &object)),
+            "contract_install" => Step::reply(contract_install(&mut self.ledger, &id, &object)),
+            "contract_swap" => Step::reply(contract_swap(
+                &mut self.ledger,
+                fork.as_deref(),
+                &id,
+                &object,
+            )),
+            "ledger_import" => Step::reply(ledger_import(&mut self.ledger, &id, &object)),
+            "status" => Step::reply(status(&self.ledger, self.started, &id)),
             "shutdown" => Step {
                 reply: json!({ "version": PROTOCOL_VERSION, "id": id, "type": "result" }),
                 exit: Some(0),
@@ -252,15 +262,14 @@ fn panic_message(payload: &(dyn Any + Send)) -> String {
 
 /// Runs the message loop until EOF, `shutdown`, an I/O failure or a panic, and
 /// returns the process exit code.
-pub fn serve<R, W, H>(input: R, output: &Output<W>, max_line: usize, mut handle: H) -> i32
+pub fn serve<H>(channel: &Rc<RefCell<Channel>>, mut handle: H) -> i32
 where
-    R: BufRead,
-    W: Write,
     H: FnMut(Line) -> Step,
 {
-    let mut reader = LineReader::new(input, max_line);
     loop {
-        let line = match reader.next_line() {
+        // The borrow ends before `handle` runs: a handler may fetch.
+        let next = channel.borrow_mut().next_line();
+        let line = match next {
             Ok(Some(line)) => line,
             Ok(None) => return 0,
             Err(e) => {
@@ -270,7 +279,7 @@ where
         };
         match catch_unwind(AssertUnwindSafe(|| handle(line))) {
             Ok(step) => {
-                if let Err(e) = output.send(&step.reply) {
+                if let Err(e) = channel.borrow_mut().send(&step.reply) {
                     tracing::error!("writing to stdout failed: {e}");
                     return 1;
                 }
@@ -282,8 +291,9 @@ where
                 let message = panic_message(payload.as_ref());
                 tracing::error!("panic while handling a message: {message}");
                 // Best effort: if this write fails too, Go's dead-pipe
-                // handling is the backstop.
-                let _ = output.send(&error_message(
+                // handling is the backstop. A panic mid-fetch leaves the
+                // channel unborrowed: the RefMut was dropped while unwinding.
+                let _ = channel.borrow_mut().send(&error_message(
                     &Value::Null,
                     "internal_panic",
                     message,
@@ -299,15 +309,27 @@ where
 mod tests {
     use super::*;
     use crate::framing::MAX_LINE_BYTES;
+    use crate::stdio::SharedBuf;
 
     const HELLO: &str = r#"{"version":1,"id":"hello","type":"hello","client_protocol_version":1}"#;
 
+    fn channel(input: &[u8], max_line: usize) -> (Rc<RefCell<Channel>>, SharedBuf) {
+        let out = SharedBuf::default();
+        let channel = Channel::new(
+            Box::new(std::io::Cursor::new(input.to_vec())),
+            Box::new(out.clone()),
+            max_line,
+        );
+        (Rc::new(RefCell::new(channel)), out)
+    }
+
     /// Runs `input` through the real dispatcher; returns the replies and the exit code.
     fn run_with(input: &[u8], max_line: usize) -> (Vec<Value>, i32) {
-        let output = Output::new(Vec::new());
-        let mut dispatcher = Dispatcher::new();
-        let code = serve(input, &output, max_line, |line| dispatcher.handle(line));
-        (parse_output(output.into_inner()), code)
+        let (channel, out) = channel(input, max_line);
+        let mut dispatcher = Dispatcher::new(channel.clone());
+        let code = serve(&channel, |line| dispatcher.handle(line));
+        let bytes = out.0.borrow().clone();
+        (parse_output(bytes), code)
     }
 
     fn run(input: &str) -> (Vec<Value>, i32) {
@@ -465,16 +487,11 @@ mod tests {
 
     #[test]
     fn a_handler_panic_writes_internal_panic_and_exits_non_zero() {
-        let output = Output::new(Vec::new());
-        let code = serve(
-            format!("{HELLO}\n{HELLO}\n").as_bytes(),
-            &output,
-            MAX_LINE_BYTES,
-            |_| panic!("boom"),
-        );
+        let (channel, out) = channel(format!("{HELLO}\n{HELLO}\n").as_bytes(), MAX_LINE_BYTES);
+        let code = serve(&channel, |_| panic!("boom"));
         assert_ne!(code, 0);
         assert_eq!(code, PANIC_EXIT_CODE);
-        let replies = parse_output(output.into_inner());
+        let replies = parse_output(out.0.borrow().clone());
         // The loop stops at the first panic: one line, not one per input line.
         assert_eq!(replies.len(), 1);
         assert_error(&replies[0], "internal_panic", "panic");

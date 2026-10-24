@@ -83,6 +83,9 @@ type ContractError struct {
 	Message          string        `json:"message"`
 	Decoded          *DecodedError `json:"decoded,omitempty"`
 	DiagnosticEvents []string      `json:"diagnostic_events"`
+	Cost             *Cost         `json:"cost,omitempty"`
+	Misses           []string      `json:"misses,omitempty"`
+	Ledger           *LedgerInfo   `json:"ledger,omitempty"`
 }
 
 // DecodedError is a contracterror read from the contract's spec (#546).
@@ -91,6 +94,23 @@ type DecodedError struct {
 	ErrorName  string `json:"error_name,omitempty"`
 	ErrorValue *int   `json:"error_value,omitempty"`
 	ErrorDoc   string `json:"error_doc,omitempty"`
+	// Candidates lists every error-enum case at this code when more than
+	// one contracterror enum has one.
+	Candidates []ErrorCandidate `json:"candidates,omitempty"`
+}
+
+// ErrorCandidate is one error-enum case a contract error code may be.
+type ErrorCandidate struct {
+	ErrorEnum string `json:"error_enum"`
+	ErrorName string `json:"error_name"`
+	ErrorDoc  string `json:"error_doc,omitempty"`
+}
+
+// LedgerInfo is the ledger a call ran against.
+type LedgerInfo struct {
+	Sequence  uint32 `json:"sequence"`
+	Timestamp uint64 `json:"timestamp"`
+	Protocol  int    `json:"protocol"`
 }
 
 // LedgerFetch is the simulator asking Go for entries mid-call (#531).
@@ -98,12 +118,32 @@ type LedgerFetch struct {
 	KeysXDR []string `json:"keys_xdr"`
 }
 
-// Entry is one ledger entry crossing the pipe. A nil EntryXDR means the key
-// does not exist.
+// Entry is one ledger entry crossing the pipe, as Go answers a
+// ledger_fetch. Either EntryXDR is a whole LedgerEntry (nil: the key does
+// not exist), or DataXDR, LastModifiedLedgerSeq and ExtXDR carry the pieces
+// RPC's getLedgerEntries returns and the simulator assembles the entry, so Go
+// never builds XDR.
 type Entry struct {
-	KeyXDR          string  `json:"key_xdr"`
-	EntryXDR        *string `json:"entry_xdr"`
-	LiveUntilLedger *uint32 `json:"live_until_ledger,omitempty"`
+	KeyXDR                string  `json:"key_xdr"`
+	EntryXDR              *string `json:"entry_xdr,omitempty"`
+	DataXDR               string  `json:"data_xdr,omitempty"`
+	LastModifiedLedgerSeq *uint32 `json:"last_modified_ledger_seq,omitempty"`
+	ExtXDR                string  `json:"ext_xdr,omitempty"`
+	LiveUntilLedger       *uint32 `json:"live_until_ledger,omitempty"`
+}
+
+// MarshalJSON keeps `entry_xdr: null` for an absent key, which omitempty
+// would otherwise drop.
+func (e Entry) MarshalJSON() ([]byte, error) {
+	if e.EntryXDR == nil && e.DataXDR == "" {
+		return json.Marshal(struct {
+			KeyXDR          string  `json:"key_xdr"`
+			EntryXDR        *string `json:"entry_xdr"`
+			LiveUntilLedger *uint32 `json:"live_until_ledger,omitempty"`
+		}{e.KeyXDR, nil, e.LiveUntilLedger})
+	}
+	type plain Entry
+	return json.Marshal(plain(e))
 }
 
 // LedgerEntries is Go's answer to a LedgerFetch.
@@ -111,11 +151,15 @@ type LedgerEntries struct {
 	Entries []Entry `json:"entries"`
 }
 
-// PutEntry is an entry written with ledger_put or ledger_import.
+// PutEntry is an entry written with ledger_put or ledger_import: EntryXDR,
+// or RPC's pieces (DataXDR, LastModifiedLedgerSeq, ExtXDR) instead.
 type PutEntry struct {
-	KeyXDR          string  `json:"key_xdr"`
-	EntryXDR        string  `json:"entry_xdr"`
-	LiveUntilLedger *uint32 `json:"live_until_ledger,omitempty"`
+	KeyXDR                string  `json:"key_xdr"`
+	EntryXDR              string  `json:"entry_xdr,omitempty"`
+	DataXDR               string  `json:"data_xdr,omitempty"`
+	LastModifiedLedgerSeq *uint32 `json:"last_modified_ledger_seq,omitempty"`
+	ExtXDR                string  `json:"ext_xdr,omitempty"`
+	LiveUntilLedger       *uint32 `json:"live_until_ledger,omitempty"`
 }
 
 // LedgerOpenParams opens or resets the session's ledger.
@@ -124,6 +168,9 @@ type LedgerOpenParams struct {
 	LedgerProtocol    *int    `json:"ledger_protocol,omitempty"`
 	Sequence          *uint32 `json:"sequence,omitempty"`
 	Timestamp         *uint64 `json:"timestamp,omitempty"`
+	// Fetch is "allow" (the default: misses become ledger_fetch) or "deny"
+	// (a miss is a fetch_failed error; offline runs and bundle replay).
+	Fetch string `json:"fetch,omitempty"`
 }
 
 // LedgerOpenResult answers ledger_open.
@@ -224,22 +271,63 @@ type ContractSwapResult struct {
 type SimulateParams struct {
 	ContractID    string `json:"contract_id"`
 	Function      string `json:"function"`
-	Args          []any  `json:"args"`
+	Args          any    `json:"args"` // a map by argument name, or a slice in order
 	SourceAccount string `json:"source_account,omitempty"`
+	Diagnostics   bool   `json:"diagnostics,omitempty"`
+	DryRun        bool   `json:"dry_run,omitempty"`
 }
 
 // SimulateResult answers a simulate that executed, whatever it returned.
 type SimulateResult struct {
-	ReturnValueXDR string   `json:"return_value_xdr"`
-	Events         []Event  `json:"events"`
-	Cost           Cost     `json:"cost"`
-	Logs           []string `json:"logs"`
+	ReturnValueXDR string          `json:"return_value_xdr"`
+	ReturnValue    json.RawMessage `json:"return_value,omitempty"`
+	Events         []Event         `json:"events"`
+	Cost           Cost            `json:"cost"`
+	Logs           []string        `json:"logs"`
+
+	DiagnosticEvents []string        `json:"diagnostic_events,omitempty"`
+	Auth             []string        `json:"auth,omitempty"`
+	ModifiedEntries  []ModifiedEntry `json:"modified_entries,omitempty"`
+	Resources        *Resources      `json:"resources,omitempty"`
+	Fee              *Fee            `json:"fee,omitempty"`
+	// Misses are the keys this call fetched (#531), for prefetching.
+	Misses []string    `json:"misses,omitempty"`
+	Ledger *LedgerInfo `json:"ledger,omitempty"`
 }
 
-// Event is one contract event, as XDR.
+// Event is one contract event, as XDR, with its spec decoding when there
+// is one.
 type Event struct {
-	Type     string `json:"type"`
-	EventXDR string `json:"event_xdr"`
+	Type     string          `json:"type"`
+	EventXDR string          `json:"event_xdr"`
+	Decoded  json.RawMessage `json:"decoded,omitempty"`
+}
+
+// ModifiedEntry is one entry a call wrote: nil BeforeXDR is a creation, nil
+// AfterXDR a deletion.
+type ModifiedEntry struct {
+	KeyXDR    string  `json:"key_xdr"`
+	BeforeXDR *string `json:"before_xdr"`
+	AfterXDR  *string `json:"after_xdr"`
+}
+
+// Resources is what the call needs, from its simulated transaction data.
+type Resources struct {
+	Instructions  uint32    `json:"instructions"`
+	DiskReadBytes uint32    `json:"disk_read_bytes"`
+	WriteBytes    uint32    `json:"write_bytes"`
+	Footprint     Footprint `json:"footprint"`
+}
+
+// Footprint is the keys a call reads and writes.
+type Footprint struct {
+	ReadOnly  []string `json:"read_only"`
+	ReadWrite []string `json:"read_write"`
+}
+
+// Fee is the call's raw resource fee in stroops (no RPC adjustment).
+type Fee struct {
+	ResourceFee int64 `json:"resource_fee"`
 }
 
 // Cost is what a call consumed.

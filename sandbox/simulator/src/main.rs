@@ -6,10 +6,14 @@ mod dispatch;
 mod framing;
 mod lanes;
 mod ledger;
+mod simulate;
 mod spec_verbs;
+mod stdio;
 mod xdr_helpers;
 
+use std::cell::RefCell;
 use std::io;
+use std::rc::Rc;
 
 use tracing_subscriber::EnvFilter;
 
@@ -59,14 +63,13 @@ fn init_logging() {
 
 fn run_message_loop() -> i32 {
     init_logging();
-    let output = dispatch::Output::new(io::stdout());
-    let mut dispatcher = dispatch::Dispatcher::new();
-    dispatch::serve(
-        io::stdin().lock(),
-        &output,
+    let channel = Rc::new(RefCell::new(stdio::Channel::new(
+        Box::new(io::stdin().lock()),
+        Box::new(io::stdout()),
         framing::MAX_LINE_BYTES,
-        |line| dispatcher.handle(line),
-    )
+    )));
+    let mut dispatcher = dispatch::Dispatcher::new(channel.clone());
+    dispatch::serve(&channel, |line| dispatcher.handle(line))
 }
 
 #[cfg(test)]

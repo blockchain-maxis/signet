@@ -29,16 +29,14 @@
 use std::collections::HashMap;
 use std::rc::Rc;
 
-use crate::lanes::ByteSnapshotSource;
+use std::collections::HashSet;
+
+use crate::lanes::{ByteSnapshotSource, SourceResult};
 
 /// Which layer an entry came from — the provenance half every consumer of
 /// `ledger_get` sees, so a surprising value can always be traced to the fork,
 /// a `--set-storage` override, or a session write.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-// `Fork` and `Session` are constructed by `insert_base`/`apply_modified`,
-// whose production callers are #531 (ledger_fetch answers) and #534
-// (simulate); until those land they are exercised by the unit tests.
-#[allow(dead_code)]
 pub enum Source {
     Fork,
     Override,
@@ -67,7 +65,6 @@ pub struct Provenance {
 
 /// One stored slot: a live entry with its expiry, or a deletion marker.
 #[derive(Clone, Debug)]
-#[allow(dead_code)] // `Tombstone` is written by `apply_modified` (see `Source`).
 enum Slot {
     Entry {
         entry: Rc<[u8]>,
@@ -75,6 +72,9 @@ enum Slot {
         provenance: Provenance,
     },
     Tombstone {
+        // Kept so a deletion is traceable like any write (`ledger_get` does
+        // not report deletions yet).
+        #[allow(dead_code)]
         provenance: Provenance,
     },
 }
@@ -100,7 +100,6 @@ pub enum Lookup {
 type KeyBytes = Vec<u8>;
 
 /// An entry written by [`LayeredStore::apply_modified`] or `ledger_put`.
-#[allow(dead_code)] // produced by #534's simulate handler; unit-tested today.
 pub struct Write {
     /// `LedgerKey` XDR.
     pub key: Vec<u8>,
@@ -112,6 +111,9 @@ pub struct Write {
 /// The layered, checkpointable ledger store.
 pub struct LayeredStore {
     base: HashMap<KeyBytes, Slot>,
+    /// Keys the fork asked the network for and learned do not exist: the
+    /// negative cache that stops a session refetching them (#531).
+    absent: HashSet<KeyBytes>,
     overrides: HashMap<KeyBytes, Slot>,
     /// Frozen session patches, oldest first. A checkpoint freezes `current`.
     frozen: Vec<HashMap<KeyBytes, Slot>>,
@@ -128,6 +130,7 @@ impl LayeredStore {
     pub fn new(sequence: u32) -> Self {
         Self {
             base: HashMap::new(),
+            absent: HashSet::new(),
             overrides: HashMap::new(),
             frozen: Vec::new(),
             current: HashMap::new(),
@@ -136,21 +139,19 @@ impl LayeredStore {
         }
     }
 
-    #[allow(dead_code)] // consumed by #531/#534; unit-tested today.
     pub fn sequence(&self) -> u32 {
         self.sequence
     }
 
     /// Advance (or rewind, for tests) the simulated sequence. Archival is
     /// evaluated lazily at read time against this value.
-    #[allow(dead_code)] // consumed by #531/#534; unit-tested today.
+    #[allow(dead_code)] // ledger time overrides (#558); unit-tested today.
     pub fn set_sequence(&mut self, sequence: u32) {
         self.sequence = sequence;
     }
 
     /// Total slots held across base, overrides and every session patch.
     /// Grows with entries written, never with checkpoints taken.
-    #[allow(dead_code)] // consumed by #531/#534; unit-tested today.
     pub fn stored_entry_count(&self) -> usize {
         self.stored
     }
@@ -161,7 +162,6 @@ impl LayeredStore {
     }
 
     /// Seed one fork entry, as a `ledger_fetch` answer does.
-    #[allow(dead_code)] // consumed by #531/#534; unit-tested today.
     pub fn insert_base(
         &mut self,
         key: &[u8],
@@ -181,6 +181,17 @@ impl LayeredStore {
         if self.base.insert(key.to_vec(), slot).is_none() {
             self.stored += 1;
         }
+    }
+
+    /// Record that the network has no entry at `key` (#531).
+    pub fn insert_absent(&mut self, key: &[u8]) {
+        self.absent.insert(key.to_vec());
+    }
+
+    /// Whether any layer has an answer for `key` (an entry, a deletion, or a
+    /// known absence). A key nobody knows is one the fork has to fetch.
+    pub fn knows(&self, key: &[u8]) -> bool {
+        self.slot_for(key).is_some() || self.absent.contains(key)
     }
 
     /// Apply one `--set-storage` override (`ledger_put`).
@@ -203,7 +214,6 @@ impl LayeredStore {
     /// creations, updates, TTL extensions (same entry, higher `live_until`)
     /// and deletions (tombstones) all land here, so call 2 sees call 1's
     /// writes while the fork and the overrides stay untouched.
-    #[allow(dead_code)] // consumed by #531/#534; unit-tested today.
     pub fn apply_modified<I>(&mut self, writes: I)
     where
         I: IntoIterator<Item = Write>,
@@ -293,13 +303,13 @@ impl ByteSnapshotSource for LayeredStore {
     /// cannot touch. An archived entry maps to `None` as well — the host must
     /// treat it exactly like the network would, where the footprint fails
     /// until a restore, not like a value that happens to still be around.
-    fn get(&self, key_xdr: &[u8]) -> Option<(Rc<[u8]>, Option<u32>)> {
-        match self.lookup(key_xdr) {
+    fn get(&self, key_xdr: &[u8]) -> SourceResult {
+        Ok(match self.lookup(key_xdr) {
             Lookup::Live {
                 entry, live_until, ..
             } => Some((entry, live_until)),
             Lookup::Archived { .. } | Lookup::Absent => None,
-        }
+        })
     }
 }
 
@@ -448,7 +458,7 @@ mod tests {
         assert_eq!(provenance.source, Source::Fork);
 
         // The host's view refuses it outright, like the network would.
-        assert!(ByteSnapshotSource::get(&store, &key(1)).is_none());
+        assert!(ByteSnapshotSource::get(&store, &key(1)).unwrap().is_none());
 
         // A TTL extension applied from a simulate result revives it.
         store.apply_modified([Write {

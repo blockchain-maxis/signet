@@ -11,8 +11,8 @@ use base64::Engine;
 use serde_json::{json, Map, Value};
 
 use crate::dispatch::error_message;
-use crate::lanes::{DecodeTarget, KeyRequest, Lane, LaneError, LaneRegistry};
-use crate::ledger::store::Lookup;
+use crate::lanes::{ByteSnapshotSource, DecodeTarget, KeyRequest, Lane, LaneError, LaneRegistry};
+use crate::ledger::fetch::FetchingSource;
 use crate::ledger::verbs::OpenLedger;
 use crate::PROTOCOL_VERSION;
 
@@ -73,9 +73,11 @@ fn lane_for(ledger: &Option<OpenLedger>) -> &'static dyn Lane {
         .map_or_else(|| LaneRegistry::builtin().newest(), |open| open.lane)
 }
 
-/// The executable a `source` names, with the lane to read it.
+/// The executable a `source` names, with the lane to read it. An installed
+/// contract is read through `fork`, which fetches what the ledger lacks.
 pub fn resolve_source(
     ledger: &Option<OpenLedger>,
+    fork: Option<&FetchingSource>,
     id: &Value,
     object: &Map<String, Value>,
     field: &str,
@@ -97,7 +99,7 @@ pub fn resolve_source(
         }
         (None, Some(Value::String(contract_id))) => {
             let path = format!("{field}.contract_id");
-            let Some(open) = ledger.as_ref() else {
+            let (Some(open), Some(fork)) = (ledger.as_ref(), fork) else {
                 return Err(error_message(
                     id,
                     "bad_request",
@@ -105,9 +107,12 @@ pub fn resolve_source(
                     json!({ "kind": "no_open_ledger" }),
                 ));
             };
-            wasm_of_contract(open, contract_id)
+            wasm_of_contract(fork, open.lane, contract_id)
                 .map(|wasm| (wasm, open.lane))
                 .map_err(|reason| {
+                    if let Some(failure) = fork.failure() {
+                        return fetch_failed(id, open.lane, &failure);
+                    }
                     error_message(
                         id,
                         "bad_request",
@@ -124,15 +129,37 @@ pub fn resolve_source(
     }
 }
 
-/// The WASM an installed contract runs, read from the open ledger.
-pub fn wasm_of_contract(open: &OpenLedger, contract_id: &str) -> Result<Vec<u8>, String> {
-    let lane = open.lane;
-    let live = |key: &[u8], what: &str| match open.store.lookup(key) {
-        Lookup::Live { entry, .. } => Ok(entry),
-        Lookup::Archived { live_until, .. } => Err(format!(
-            "the {what} is archived (live until ledger {live_until})"
+/// A source that gave up, as the catalogue's `fetch_failed` error naming the
+/// key in words.
+pub fn fetch_failed(
+    id: &Value,
+    lane: &dyn Lane,
+    failure: &crate::ledger::fetch::FetchFailure,
+) -> Value {
+    error_message(
+        id,
+        "fetch_failed",
+        failure.message.clone(),
+        json!({
+            "kind": failure.kind,
+            "key_xdr": BASE64.encode(&failure.key),
+            "key": lane.describe_key(&failure.key),
+        }),
+    )
+}
+
+/// The WASM an installed contract runs, read through `src`.
+pub fn wasm_of_contract(
+    src: &dyn ByteSnapshotSource,
+    lane: &dyn Lane,
+    contract_id: &str,
+) -> Result<Vec<u8>, String> {
+    let live = |key: &[u8], what: &str| match src.get(key) {
+        Ok(Some((entry, _))) => Ok(entry),
+        Ok(None) => Err(format!(
+            "the {what} is not in the ledger (absent or archived)"
         )),
-        Lookup::Absent => Err(format!("the {what} is not in the ledger")),
+        Err(_) => Err(format!("the {what} could not be fetched")),
     };
     let key = lane
         .ledger_keys(&KeyRequest::ContractInstance {
@@ -154,8 +181,13 @@ pub fn wasm_of_contract(open: &OpenLedger, contract_id: &str) -> Result<Vec<u8>,
 
 /// `spec_extract`: the spec's entries as XDR, and the whole `SpecJson` v1
 /// document as `spec`.
-pub fn spec_extract(ledger: &Option<OpenLedger>, id: &Value, object: &Map<String, Value>) -> Value {
-    let (wasm, lane) = match resolve_source(ledger, id, object, "source") {
+pub fn spec_extract(
+    ledger: &Option<OpenLedger>,
+    fork: Option<&FetchingSource>,
+    id: &Value,
+    object: &Map<String, Value>,
+) -> Value {
+    let (wasm, lane) = match resolve_source(ledger, fork, id, object, "source") {
         Ok(found) => found,
         Err(reply) => return reply,
     };
@@ -175,10 +207,11 @@ pub fn spec_extract(ledger: &Option<OpenLedger>, id: &Value, object: &Map<String
 /// `spec_encode_args`: JSON arguments to `ScVal` XDR, one per input.
 pub fn spec_encode_args(
     ledger: &Option<OpenLedger>,
+    fork: Option<&FetchingSource>,
     id: &Value,
     object: &Map<String, Value>,
 ) -> Value {
-    let (wasm, lane) = match resolve_source(ledger, id, object, "source") {
+    let (wasm, lane) = match resolve_source(ledger, fork, id, object, "source") {
         Ok(found) => found,
         Err(reply) => return reply,
     };
@@ -204,10 +237,11 @@ pub fn spec_encode_args(
 /// type. `event_xdr` decodes a contract event.
 pub fn spec_decode_val(
     ledger: &Option<OpenLedger>,
+    fork: Option<&FetchingSource>,
     id: &Value,
     object: &Map<String, Value>,
 ) -> Value {
-    let (wasm, lane) = match resolve_source(ledger, id, object, "source") {
+    let (wasm, lane) = match resolve_source(ledger, fork, id, object, "source") {
         Ok(found) => found,
         Err(reply) => return reply,
     };

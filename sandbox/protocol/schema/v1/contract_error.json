@@ -54,6 +54,26 @@
           "type": "string",
           "minLength": 1,
           "description": "Doc comment of the case"
+        },
+        "candidates": {
+          "type": "array",
+          "description": "Every error-enum case at this code, when more than one enum has one",
+          "items": {
+            "type": "object",
+            "properties": {
+              "error_enum": {
+                "type": "string"
+              },
+              "error_name": {
+                "type": "string"
+              },
+              "error_doc": {
+                "type": "string"
+              }
+            },
+            "required": ["error_enum", "error_name"],
+            "additionalProperties": false
+          }
         }
       },
       "required": [],
@@ -68,6 +88,51 @@
         "description": "ContractEvent, base64 XDR"
       },
       "description": "Diagnostic events recorded before the failure"
+    },
+    "cost": {
+      "type": "object",
+      "properties": {
+        "cpu_insns": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "mem_bytes": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "required": ["cpu_insns", "mem_bytes"],
+      "additionalProperties": false
+    },
+    "misses": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "pattern": "^[A-Za-z0-9+/]+={0,2}$",
+        "description": "LedgerKey fetched from Go during this call (#531)"
+      },
+      "description": "Keys the call fetched, in order: what Go can prefetch next time (#552)"
+    },
+    "ledger": {
+      "type": "object",
+      "description": "The ledger the call ran against",
+      "properties": {
+        "sequence": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "timestamp": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "protocol": {
+          "type": "integer",
+          "minimum": 1
+        }
+      },
+      "required": ["sequence", "timestamp", "protocol"],
+      "additionalProperties": false
     }
   },
   "required": ["version", "id", "type", "kind", "code", "message", "diagnostic_events"],

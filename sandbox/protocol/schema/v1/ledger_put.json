@@ -20,28 +20,81 @@
     "entries": {
       "type": "array",
       "items": {
-        "type": "object",
-        "properties": {
-          "key_xdr": {
-            "type": "string",
-            "minLength": 1,
-            "pattern": "^[A-Za-z0-9+/]+={0,2}$",
-            "description": "LedgerKey, base64 XDR"
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "key_xdr": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^[A-Za-z0-9+/]+={0,2}$",
+                "description": "LedgerKey, base64 XDR"
+              },
+              "entry_xdr": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^[A-Za-z0-9+/]+={0,2}$",
+                "description": "LedgerEntry, base64 XDR"
+              },
+              "live_until_ledger": {
+                "type": "integer",
+                "description": "Last ledger the entry is live, for entries that expire",
+                "minimum": 0
+              }
+            },
+            "required": ["key_xdr", "entry_xdr"],
+            "additionalProperties": false
           },
-          "entry_xdr": {
-            "type": "string",
-            "minLength": 1,
-            "pattern": "^[A-Za-z0-9+/]+={0,2}$",
-            "description": "LedgerEntry, base64 XDR"
-          },
-          "live_until_ledger": {
-            "type": "integer",
-            "description": "Last ledger the entry is live, for entries that expire",
-            "minimum": 0
+          {
+            "type": "object",
+            "properties": {
+              "key_xdr": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^[A-Za-z0-9+/]+={0,2}$",
+                "description": "LedgerKey"
+              },
+              "data_xdr": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^[A-Za-z0-9+/]+={0,2}$",
+                "description": "LedgerEntryData, as RPC getLedgerEntries returns it in `xdr`"
+              },
+              "last_modified_ledger_seq": {
+                "type": "integer",
+                "minimum": 0,
+                "description": "RPC's lastModifiedLedgerSeq"
+              },
+              "ext_xdr": {
+                "oneOf": [
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "pattern": "^[A-Za-z0-9+/]+={0,2}$",
+                    "description": "LedgerEntryExt, RPC's extXdr"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "live_until_ledger": {
+                "oneOf": [
+                  {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["key_xdr", "data_xdr", "last_modified_ledger_seq"],
+            "additionalProperties": false,
+            "description": "An entry in the pieces RPC returns; the simulator assembles the LedgerEntry, so Go never builds XDR"
           }
-        },
-        "required": ["key_xdr", "entry_xdr"],
-        "additionalProperties": false
+        ]
       },
       "description": "Entries to write",
       "minItems": 1

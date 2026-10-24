@@ -36,6 +36,10 @@
       "type": "integer",
       "description": "Ledger close time, Unix seconds",
       "minimum": 0
+    },
+    "fetch": {
+      "enum": ["allow", "deny"],
+      "description": "Whether a read the ledger cannot answer is fetched from Go with ledger_fetch (default allow). deny is for offline runs and bundle replay (#573): a miss is a fetch_failed error naming the key."
     }
   },
   "required": ["version", "id", "type", "network_passphrase"],

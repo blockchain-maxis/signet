@@ -28,14 +28,29 @@
       "description": "Function name"
     },
     "args": {
-      "type": "array",
-      "items": true,
-      "description": "Arguments as JSON values, in declaration order"
+      "description": "Arguments as JSON in @signet/spec's functionArgsSchema shape: an object keyed by argument name, or an array in declaration order",
+      "oneOf": [
+        {
+          "type": "array",
+          "items": true
+        },
+        {
+          "type": "object"
+        }
+      ]
     },
     "source_account": {
       "type": "string",
       "minLength": 1,
       "description": "Invoking account (G...); a default is used if omitted"
+    },
+    "diagnostics": {
+      "type": "boolean",
+      "description": "Record diagnostic events (default false)"
+    },
+    "dry_run": {
+      "type": "boolean",
+      "description": "Do not apply the call's writes to the session (default false)"
     }
   },
   "required": ["version", "id", "type", "contract_id", "function", "args"],
@@ -78,6 +93,10 @@
                 "minLength": 1,
                 "pattern": "^[A-Za-z0-9+/]+={0,2}$",
                 "description": "ContractEvent, base64 XDR"
+              },
+              "decoded": {
+                "type": "object",
+                "description": "The event decoded with the contract's spec (#546)"
               }
             },
             "required": ["type", "event_xdr"],
@@ -106,6 +125,155 @@
           "items": {
             "type": "string"
           }
+        },
+        "return_value": {
+          "description": "The return value decoded with the contract's spec (#546), when it decodes"
+        },
+        "diagnostic_events": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9+/]+={0,2}$",
+            "description": "DiagnosticEvent"
+          }
+        },
+        "auth": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9+/]+={0,2}$",
+            "description": "SorobanAuthorizationEntry recorded for the call"
+          }
+        },
+        "modified_entries": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "key_xdr": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^[A-Za-z0-9+/]+={0,2}$",
+                "description": "LedgerKey"
+              },
+              "before_xdr": {
+                "oneOf": [
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "pattern": "^[A-Za-z0-9+/]+={0,2}$",
+                    "description": "LedgerEntry before the call"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "after_xdr": {
+                "oneOf": [
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "pattern": "^[A-Za-z0-9+/]+={0,2}$",
+                    "description": "LedgerEntry after the call"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["key_xdr", "before_xdr", "after_xdr"],
+            "additionalProperties": false
+          }
+        },
+        "resources": {
+          "type": "object",
+          "properties": {
+            "instructions": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "disk_read_bytes": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "write_bytes": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "footprint": {
+              "type": "object",
+              "properties": {
+                "read_only": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "minLength": 1,
+                    "pattern": "^[A-Za-z0-9+/]+={0,2}$",
+                    "description": "LedgerKey"
+                  }
+                },
+                "read_write": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "minLength": 1,
+                    "pattern": "^[A-Za-z0-9+/]+={0,2}$",
+                    "description": "LedgerKey"
+                  }
+                }
+              },
+              "required": ["read_only", "read_write"],
+              "additionalProperties": false
+            }
+          },
+          "required": ["instructions", "disk_read_bytes", "write_bytes", "footprint"],
+          "additionalProperties": false,
+          "description": "From the simulated SorobanTransactionData, unadjusted"
+        },
+        "fee": {
+          "type": "object",
+          "properties": {
+            "resource_fee": {
+              "type": "integer",
+              "description": "Raw resource fee in stroops, with no adjustment (RPC pads by default)"
+            }
+          },
+          "required": ["resource_fee"],
+          "additionalProperties": false
+        },
+        "misses": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9+/]+={0,2}$",
+            "description": "LedgerKey fetched from Go during this call (#531)"
+          },
+          "description": "Keys the call fetched, in order: what Go can prefetch next time (#552)"
+        },
+        "ledger": {
+          "type": "object",
+          "description": "The ledger the call ran against",
+          "properties": {
+            "sequence": {
+              "type": "integer",
+              "minimum": 1
+            },
+            "timestamp": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "protocol": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          "required": ["sequence", "timestamp", "protocol"],
+          "additionalProperties": false
         }
       },
       "required": ["version", "id", "type", "return_value_xdr", "events", "cost", "logs"],

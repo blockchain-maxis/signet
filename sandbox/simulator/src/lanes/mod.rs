@@ -25,13 +25,23 @@ pub mod p28;
 /// `LedgerKey`'s bytes with the live `LedgerEntry`'s bytes and its
 /// `live_until` ledger, or `None` for anything the host must not touch
 /// (absent, deleted, or archived).
+///
+/// `Err` means the source could not answer at all (a `ledger_fetch` Go
+/// refused, or a miss in deny mode). The lane aborts the run; the source
+/// keeps the reason, and the caller reports it instead of the host's error.
 pub trait ByteSnapshotSource {
-    fn get(&self, key_xdr: &[u8]) -> Option<(Rc<[u8]>, Option<u32>)>;
+    fn get(&self, key_xdr: &[u8]) -> SourceResult;
 }
 
+/// What a [`ByteSnapshotSource`] answers: an entry's XDR and `live_until`,
+/// nothing, or a source that gave up.
+pub type SourceResult = Result<Option<(Rc<[u8]>, Option<u32>)>, SourceFailed>;
+
+/// A snapshot source that gave up; the reason stays with the source.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub struct SourceFailed;
+
 /// One `InvokeHostFunction` simulation request.
-// Built by #534's `simulate` handler; exercised by the lane tests until then.
-#[allow(dead_code)]
 #[derive(Clone, Debug)]
 pub struct SimulateBytes {
     pub network_passphrase: String,
@@ -47,22 +57,59 @@ pub struct SimulateBytes {
 }
 
 /// One ledger entry a simulation created, updated or deleted.
-#[allow(dead_code)] // consumed by #534's simulate handler.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct EntryChangeBytes {
     /// `LedgerKey` XDR.
     pub key_xdr: Vec<u8>,
+    /// `LedgerEntry` XDR before the run; `None` when the run created it.
+    pub before_xdr: Option<Vec<u8>>,
     /// `LedgerEntry` XDR after the run; `None` when the run deleted it.
     pub entry_xdr: Option<Vec<u8>>,
+    /// The entry's `live_until` after the run: unchanged for an existing
+    /// entry, the network's minimum TTL for a new one.
+    pub live_until: Option<u32>,
+}
+
+/// An invocation that ran and failed: the contract returned an error, or the
+/// host trapped (budget, a panic in the contract, a missing entry).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct InvocationFailure {
+    /// The `contracterror` code, when the contract itself said no.
+    pub contract_code: Option<u32>,
+    /// The host's error type and code (`Contract`, `3`; `Budget`, `ExceededLimit`).
+    pub error_type: String,
+    pub error_code: String,
+    /// The host's own description, for the message.
+    pub detail: String,
+}
+
+/// What a `SorobanTransactionData` says the call needs and costs.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct TransactionResources {
+    pub instructions: u32,
+    pub disk_read_bytes: u32,
+    pub write_bytes: u32,
+    /// Footprint `LedgerKey` XDR.
+    pub read_only: Vec<Vec<u8>>,
+    pub read_write: Vec<Vec<u8>>,
+    pub resource_fee: i64,
+}
+
+/// A contract set up by `contract_install`: the entries to write.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct Installed {
+    pub contract_id: String,
+    pub wasm_hash: [u8; 32],
+    /// `(LedgerKey XDR, LedgerEntry XDR)` for the code and the instance.
+    pub entries: Vec<(Vec<u8>, Vec<u8>)>,
 }
 
 /// What a simulation produced, as XDR bytes.
-#[allow(dead_code)] // consumed by #534's simulate handler.
 #[derive(Clone, Debug)]
 pub struct SimulateResultBytes {
-    /// The returned `ScVal` XDR, or the host error's text when the
-    /// invocation itself failed (a contract error, not a lane failure).
-    pub return_value: Result<Vec<u8>, String>,
+    /// The returned `ScVal` XDR, or how the invocation failed (a contract
+    /// or host error, not a lane failure).
+    pub return_value: Result<Vec<u8>, InvocationFailure>,
     /// `ContractEvent` XDR, in emission order. Empty for failed invocations.
     pub contract_events_xdr: Vec<Vec<u8>>,
     /// `DiagnosticEvent` XDR; populated only when diagnostics were enabled.
@@ -77,7 +124,6 @@ pub struct SimulateResultBytes {
 }
 
 /// The outcome of pointing a contract instance at another executable.
-#[allow(dead_code)] // consumed by the `contract_swap` handler.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SwapResultBytes {
     /// The rewritten instance `LedgerEntry` XDR.
@@ -212,7 +258,6 @@ pub trait Lane: Sync {
     fn check_ledger_entry(&self, entry_xdr: &[u8]) -> Result<(), LaneError>;
 
     /// Run one `InvokeHostFunction` against `src` in recording mode.
-    #[allow(dead_code)] // called by #534's simulate handler.
     fn simulate(
         &self,
         request: &SimulateBytes,
@@ -220,12 +265,11 @@ pub trait Lane: Sync {
     ) -> Result<SimulateResultBytes, LaneError>;
 
     /// The `LedgerKey` XDR of a contract's instance entry.
-    #[allow(dead_code)] // called by the `contract_swap` handler.
+    #[allow(dead_code)] // the lane's own tests; handlers use `ledger_keys`.
     fn contract_instance_key(&self, contract_id: [u8; 32]) -> Vec<u8>;
 
     /// Point a contract instance entry at the executable `wasm_hash`, as an
     /// upgrade would, keeping its storage.
-    #[allow(dead_code)] // called by the `contract_swap` handler.
     fn swap(
         &self,
         instance_entry_xdr: &[u8],
@@ -252,6 +296,37 @@ pub trait Lane: Sync {
 
     /// What an executable declares (`wasm_inspect`).
     fn inspect_wasm(&self, wasm: &[u8]) -> Result<WasmInspection, LaneError>;
+
+    /// A whole `LedgerEntry` from the pieces RPC's `getLedgerEntries` gives:
+    /// `LedgerEntryData` XDR, `lastModifiedLedgerSeq`, and `extXdr`.
+    fn assemble_entry(
+        &self,
+        data_xdr: &[u8],
+        last_modified_ledger_seq: u32,
+        ext_xdr: Option<&[u8]>,
+    ) -> Result<Vec<u8>, LaneError>;
+
+    /// The `HostFunction` XDR that invokes `function` on a contract with
+    /// already encoded `ScVal` arguments.
+    fn invoke_contract(
+        &self,
+        contract_id: &str,
+        function: &str,
+        args_xdr: &[Vec<u8>],
+    ) -> Result<Vec<u8>, LaneError>;
+
+    /// The `AccountId` XDR for a `G...` strkey.
+    fn account_id(&self, strkey: &str) -> Result<Vec<u8>, LaneError>;
+
+    /// What a `SorobanTransactionData` says about resources and fee.
+    fn transaction_resources(&self, data_xdr: &[u8]) -> Result<TransactionResources, LaneError>;
+
+    /// A `LedgerKey` in words, for messages (`contract data CAS…: Owner("alice")`).
+    fn describe_key(&self, key_xdr: &[u8]) -> String;
+
+    /// The code and instance entries that install `wasm` at `contract_id`,
+    /// or at an id derived from the executable's hash.
+    fn install(&self, wasm: &[u8], contract_id: Option<&str>) -> Result<Installed, LaneError>;
 
     /// The executable hash a contract instance `LedgerEntry` runs.
     fn instance_wasm_hash(&self, entry_xdr: &[u8]) -> Result<[u8; 32], LaneError>;
@@ -284,7 +359,6 @@ pub trait Lane: Sync {
 
     /// The error-enum cases a contract error code resolves to; several when
     /// the contract declares more than one error enum (#546).
-    #[allow(dead_code)] // called by simulate's contract_error (#546).
     fn error_cases(&self, wasm: &[u8], code: u32) -> Result<Vec<ErrorCase>, LaneError>;
 }
 

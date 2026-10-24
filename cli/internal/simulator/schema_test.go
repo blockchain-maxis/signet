@@ -59,17 +59,25 @@ func TestMessagesMatchTheSchemas(t *testing.T) {
 	hash := strings.Repeat("ab", 32)
 	src := Source{WasmBase64: "AGFzbQEAAAA="}
 	sim := SimulateResult{ReturnValueXDR: b64, Events: []Event{{Type: "contract", EventXDR: b64}}, Cost: Cost{CPUInsns: 1, MemBytes: 2}, Logs: []string{"hi"}}
+	full := sim
+	full.ReturnValue = json.RawMessage(`{"a":1}`)
+	full.Events = []Event{{Type: "contract", EventXDR: b64, Decoded: json.RawMessage(`{"name":"transfer"}`)}}
+	full.DiagnosticEvents, full.Auth, full.Misses = []string{b64}, []string{b64}, []string{b64}
+	full.ModifiedEntries = []ModifiedEntry{{KeyXDR: b64, BeforeXDR: nil, AfterXDR: sp(b64)}}
+	full.Resources = &Resources{Instructions: 1, DiskReadBytes: 2, WriteBytes: 3, Footprint: Footprint{ReadOnly: []string{b64}, ReadWrite: []string{}}}
+	full.Fee = &Fee{ResourceFee: 100}
+	full.Ledger = &LedgerInfo{Sequence: 5, Timestamp: 6, Protocol: 28}
 
 	requests := map[string]any{
-		TypeLedgerOpen:       LedgerOpenParams{NetworkPassphrase: "Test SDF Network ; September 2015", LedgerProtocol: ip(28), Sequence: u32(5)},
+		TypeLedgerOpen:       LedgerOpenParams{NetworkPassphrase: "Test SDF Network ; September 2015", LedgerProtocol: ip(28), Sequence: u32(5), Fetch: "deny"},
 		TypeLedgerPut:        LedgerPutParams{Entries: []PutEntry{{KeyXDR: b64, EntryXDR: b64, LiveUntilLedger: u32(9)}}},
 		TypeLedgerGet:        LedgerGetParams{KeysXDR: []string{b64}},
 		TypeLedgerCheckpoint: LedgerCheckpointParams{Label: "x"},
 		TypeLedgerRollback:   LedgerRollbackParams{Checkpoint: "cp-1"},
-		TypeLedgerImport:     LedgerImportParams{LedgerSequence: 7, Entries: []PutEntry{{KeyXDR: b64, EntryXDR: b64}}},
+		TypeLedgerImport:     LedgerImportParams{LedgerSequence: 7, Entries: []PutEntry{{KeyXDR: b64, EntryXDR: b64}, {KeyXDR: b64, DataXDR: b64, LastModifiedLedgerSeq: u32(4), ExtXDR: "AAAAAA=="}}},
 		TypeContractInstall:  ContractInstallParams{WasmBase64: "AGFzbQEAAAA=", ContractID: registry},
 		TypeContractSwap:     ContractSwapParams{ContractID: registry, WasmHash: hash},
-		TypeSimulate:         SimulateParams{ContractID: registry, Function: "f", Args: []any{"a", 1, map[string]any{"k": true}}, SourceAccount: "GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN"},
+		TypeSimulate:         SimulateParams{ContractID: registry, Function: "f", Args: map[string]any{"a": 1, "b": []any{"x"}}, SourceAccount: "GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN", Diagnostics: true, DryRun: true},
 		TypeSpecExtract:      SpecExtractParams{Source: Source{ContractID: registry}},
 		TypeSpecEncodeArgs:   SpecEncodeArgsParams{Source: src, Function: "f", Args: map[string]any{"handle": "a"}},
 		TypeSpecDecodeVal:    SpecDecodeValParams{Source: src, Function: "f", ValXDR: b64},
@@ -97,7 +105,7 @@ func TestMessagesMatchTheSchemas(t *testing.T) {
 		TypeLedgerImport:     LedgerImportResult{Imported: 1, LedgerSequence: 7},
 		TypeContractInstall:  ContractInstallResult{ContractID: registry, WasmHash: hash},
 		TypeContractSwap:     ContractSwapResult{ContractID: registry, PreviousWasmHash: hash, WasmHash: hash},
-		TypeSimulate:         sim,
+		TypeSimulate:         full,
 		TypeSpecExtract:      SpecExtractResult{SpecEntriesXDR: []string{b64}, WasmHash: hash, Spec: json.RawMessage(`{"schemaVersion":1,"wasmHash":"` + hash + `","entriesXdr":["` + b64 + `"]}`)},
 		TypeSpecEncodeArgs:   SpecEncodeArgsResult{ArgsXDR: []string{b64}},
 		TypeSpecDecodeVal:    SpecDecodeValResult{Value: json.RawMessage(`{"a":1}`)},
@@ -134,10 +142,10 @@ func TestMessagesMatchTheSchemas(t *testing.T) {
 	others := map[string]any{
 		TypeHello:         Hello{ClientProtocolVersion: ProtocolVersion},
 		TypeHelloAck:      HelloAck{ServerProtocolVersion: 1, SimulatorVersion: "0.1.0", Commit: "abc", Lanes: []Lane{{LedgerProtocol: 28, EnvHost: "28.0.2", Simulation: "28.0.2"}}},
-		TypeContractError: ContractError{Kind: "contract", Code: "Error(Contract, #2)", Message: "m", Decoded: &DecodedError{ErrorEnum: "Error", ErrorName: "X", ErrorValue: ip(2)}, DiagnosticEvents: []string{b64}},
+		TypeContractError: ContractError{Kind: "contract", Code: "Error(Contract, #2)", Message: "m", Decoded: &DecodedError{ErrorEnum: "Error", ErrorName: "X", ErrorValue: ip(2), Candidates: []ErrorCandidate{{ErrorEnum: "A", ErrorName: "X"}}}, DiagnosticEvents: []string{b64}, Cost: &Cost{CPUInsns: 1}, Misses: []string{b64}, Ledger: &LedgerInfo{Sequence: 1, Protocol: 28}},
 		TypeError:         ErrorMessage{Code: "bad_request", Message: "m", Detail: map[string]any{"kind": "invalid_json"}},
 		TypeLedgerFetch:   LedgerFetch{KeysXDR: []string{b64}},
-		TypeLedgerEntries: LedgerEntries{Entries: []Entry{{KeyXDR: b64, EntryXDR: sp(b64), LiveUntilLedger: u32(1)}, {KeyXDR: b64}}},
+		TypeLedgerEntries: LedgerEntries{Entries: []Entry{{KeyXDR: b64, EntryXDR: sp(b64), LiveUntilLedger: u32(1)}, {KeyXDR: b64}, {KeyXDR: b64, DataXDR: b64, LastModifiedLedgerSeq: u32(9), ExtXDR: "AAAAAA==", LiveUntilLedger: u32(99)}}},
 	}
 	for typ, body := range others {
 		t.Run(typ, func(t *testing.T) {

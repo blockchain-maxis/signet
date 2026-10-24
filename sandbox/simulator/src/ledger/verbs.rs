@@ -10,19 +10,28 @@ use crate::dispatch::error_message;
 use crate::lanes::{Lane, LaneRegistry, UnsupportedLedgerProtocol};
 use crate::PROTOCOL_VERSION;
 
+use std::cell::RefCell;
+use std::collections::BTreeSet;
+use std::rc::Rc;
+
+use super::fetch::FetchMode;
 use super::store::{LayeredStore, Lookup};
 
 /// One open ledger per process: the session every sandbox command shares.
-// The passphrase, lane and close time are read by #534's simulate handler;
-// `ledger_open` carries them until then.
-#[allow(dead_code)]
 pub struct OpenLedger {
-    pub store: LayeredStore,
+    /// Shared with the fetching snapshot source a call reads through (#531).
+    pub store: Rc<RefCell<LayeredStore>>,
     pub network_passphrase: String,
     /// The lane that runs this ledger's protocol; it alone decodes the XDR
     /// the store holds (#533).
     pub lane: &'static dyn Lane,
     pub timestamp: u64,
+    /// Whether a miss may be fetched from Go (`ledger_open`'s `fetch`).
+    pub fetch: FetchMode,
+    /// Contracts set up with `contract_install`.
+    pub installed: BTreeSet<String>,
+    /// `simulate` calls run on this ledger; seeds each call's PRNG.
+    pub calls: u64,
 }
 
 fn invalid_field(id: &Value, path: &str, expected: &str) -> Value {
@@ -63,6 +72,51 @@ fn decode_entry(lane: &dyn Lane, id: &Value, path: &str, value: &str) -> Result<
     lane.check_ledger_entry(&bytes)
         .map_err(|_| invalid_field(id, path, "a base64 LedgerEntry"))?;
     Ok(bytes)
+}
+
+/// An entry in either wire form: `entry_xdr` (a whole `LedgerEntry`), or the
+/// pieces RPC's `getLedgerEntries` returns — `data_xdr` (`LedgerEntryData`),
+/// `last_modified_ledger_seq` and optionally `ext_xdr` — which the lane
+/// assembles, so Go never builds XDR.
+pub fn entry_of(
+    lane: &dyn Lane,
+    id: &Value,
+    at: &str,
+    item: &Map<String, Value>,
+) -> Result<Vec<u8>, Value> {
+    match (
+        item.get("entry_xdr").and_then(Value::as_str),
+        item.get("data_xdr").and_then(Value::as_str),
+    ) {
+        (Some(entry), None) => decode_entry(lane, id, &format!("{at}.entry_xdr"), entry),
+        (None, Some(data)) => {
+            let data_bytes = decode_b64(id, &format!("{at}.data_xdr"), data)?;
+            let Some(last_modified) = item
+                .get("last_modified_ledger_seq")
+                .and_then(Value::as_u64)
+                .and_then(|n| u32::try_from(n).ok())
+            else {
+                return Err(invalid_field(
+                    id,
+                    &format!("{at}.last_modified_ledger_seq"),
+                    "a ledger sequence (required with data_xdr)",
+                ));
+            };
+            let ext = match item.get("ext_xdr").and_then(Value::as_str) {
+                Some(ext) => Some(decode_b64(id, &format!("{at}.ext_xdr"), ext)?),
+                None => None,
+            };
+            lane.assemble_entry(&data_bytes, last_modified, ext.as_deref())
+                .map_err(|_| {
+                    invalid_field(id, &format!("{at}.data_xdr"), "a base64 LedgerEntryData")
+                })
+        }
+        _ => Err(invalid_field(
+            id,
+            &format!("{at}.entry_xdr"),
+            "a string, or `data_xdr` with `last_modified_ledger_seq` instead (exactly one)",
+        )),
+    }
 }
 
 /// The catalogue's `unsupported_ledger_protocol` error (schema/v1/error.json):
@@ -125,12 +179,21 @@ pub fn ledger_open(
             None => return invalid_field(id, "timestamp", "a non-negative integer"),
         },
     };
+    let fetch = match object.get("fetch").and_then(Value::as_str) {
+        None if object.get("fetch").is_none() => FetchMode::Allow,
+        Some("allow") => FetchMode::Allow,
+        Some("deny") => FetchMode::Deny,
+        _ => return invalid_field(id, "fetch", "\"allow\" or \"deny\""),
+    };
 
     *ledger = Some(OpenLedger {
-        store: LayeredStore::new(sequence),
+        store: Rc::new(RefCell::new(LayeredStore::new(sequence))),
         network_passphrase: passphrase.to_string(),
         lane,
         timestamp,
+        fetch,
+        installed: BTreeSet::new(),
+        calls: 0,
     });
     json!({
         "version": PROTOCOL_VERSION,
@@ -167,9 +230,7 @@ pub fn ledger_put(
         let Some(key_xdr) = item.get("key_xdr").and_then(Value::as_str) else {
             return invalid_field(id, &format!("entries[{index}].key_xdr"), "a string");
         };
-        let Some(entry_xdr) = item.get("entry_xdr").and_then(Value::as_str) else {
-            return invalid_field(id, &format!("entries[{index}].entry_xdr"), "a string");
-        };
+        let at = format!("entries[{index}]");
         let live_until = match item.get("live_until_ledger") {
             None | Some(Value::Null) => None,
             Some(value) => match value.as_u64() {
@@ -187,12 +248,7 @@ pub fn ledger_put(
             Ok(key) => key,
             Err(error) => return error,
         };
-        let entry = match decode_entry(
-            open.lane,
-            id,
-            &format!("entries[{index}].entry_xdr"),
-            entry_xdr,
-        ) {
+        let entry = match entry_of(open.lane, id, &at, item) {
             Ok(entry) => entry,
             Err(error) => return error,
         };
@@ -200,8 +256,9 @@ pub fn ledger_put(
     }
 
     let written = writes.len();
+    let mut store = open.store.borrow_mut();
     for (key, entry, live_until) in writes {
-        open.store.insert_override(&key, entry, live_until);
+        store.insert_override(&key, entry, live_until);
     }
     json!({
         "version": PROTOCOL_VERSION,
@@ -236,7 +293,7 @@ pub fn ledger_get(ledger: &Option<OpenLedger>, id: &Value, object: &Map<String, 
             Ok(key) => key,
             Err(error) => return error,
         };
-        out.push(match open.store.lookup(&key) {
+        out.push(match open.store.borrow().lookup(&key) {
             Lookup::Live {
                 entry,
                 live_until,
@@ -284,7 +341,7 @@ pub fn ledger_checkpoint(ledger: &mut Option<OpenLedger>, id: &Value) -> Value {
     let Some(open) = ledger.as_mut() else {
         return no_open_ledger(id);
     };
-    let checkpoint = open.store.checkpoint();
+    let checkpoint = open.store.borrow_mut().checkpoint();
     json!({
         "version": PROTOCOL_VERSION,
         "id": id,
@@ -311,7 +368,7 @@ pub fn ledger_rollback(
     else {
         return invalid_field(id, "checkpoint", "a handle from ledger_checkpoint");
     };
-    if open.store.rollback(index).is_err() {
+    if open.store.borrow_mut().rollback(index).is_err() {
         return error_message(
             id,
             "bad_request",
