@@ -1,0 +1,43 @@
+name: fuzz
+
+on:
+  pull_request:
+    paths:
+      - "sandbox/**"
+  schedule:
+    - cron: "0 3 * * 1"
+  workflow_dispatch:
+
+jobs:
+  fuzz-smoke:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@nightly
+      - run: cargo install cargo-fuzz --locked
+      - name: Run fuzz targets for 60s
+        working-directory: sandbox/fuzz
+        run: |
+          for t in framing dispatch xdr_params; do
+            cargo +nightly fuzz run "$t" -- -max_total_time=60
+          done
+
+  fuzz-long:
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@nightly
+      - run: cargo install cargo-fuzz --locked
+      - name: Run fuzz targets for 30 minutes total
+        working-directory: sandbox/fuzz
+        run: |
+          for t in framing dispatch xdr_params; do
+            cargo +nightly fuzz run "$t" -- -max_total_time=600
+          done
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: fuzz-crashes
+          path: sandbox/fuzz/artifacts/
