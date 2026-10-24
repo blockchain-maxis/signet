@@ -168,9 +168,24 @@ pub fn wasm_of_contract(
         .map_err(|e| e.to_string())?
         .remove(0);
     let instance = live(&key.key_xdr, "contract instance")?;
-    let hash = lane
-        .instance_wasm_hash(&instance)
-        .map_err(|e| e.to_string())?;
+    let info = lane.instance_info(&instance).map_err(|e| e.to_string())?;
+    let hash = match (info.wasm_hash, info.external_ref) {
+        (Some(hash), _) => hash,
+        (None, Some(external)) => {
+            let reference = live(
+                &external.key_xdr,
+                &format!("executable `{}` of {}", external.tag, external.owner),
+            )?;
+            lane.external_ref_wasm_hash(&reference)
+                .map_err(|e| e.to_string())?
+        }
+        (None, None) => {
+            return Err(format!(
+                "contract {contract_id} is a {} contract, with no WASM spec",
+                info.executable
+            ))
+        }
+    };
     let code_key = lane
         .ledger_keys(&KeyRequest::ContractCode { wasm_hash: hash })
         .map_err(|e| e.to_string())?

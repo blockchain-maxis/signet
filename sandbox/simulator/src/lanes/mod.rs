@@ -97,6 +97,29 @@ pub struct TransactionResources {
     pub resource_fee: i64,
 }
 
+/// A contract instance, read without running it.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct InstanceInfo {
+    /// `wasm`, `stellar_asset` or `external_ref` (CAP-85).
+    pub executable: &'static str,
+    /// The executable's hash, for a WASM contract.
+    pub wasm_hash: Option<[u8; 32]>,
+    /// For an `external_ref` contract: the owner's `ExecutableTag` entry key
+    /// that holds the hash of the WASM it runs, and the owner and tag.
+    pub external_ref: Option<ExternalRef>,
+    /// Entries in the instance's own storage map.
+    pub storage_entries: usize,
+}
+
+/// A CAP-85 executable reference, as plain values.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ExternalRef {
+    pub owner: String,
+    pub tag: String,
+    /// `LedgerKey` XDR of the owner's entry holding the WASM hash.
+    pub key_xdr: Vec<u8>,
+}
+
 /// A contract set up by `contract_install`: the entries to write.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Installed {
@@ -338,8 +361,12 @@ pub trait Lane: Sync {
     /// or at an id derived from the executable's hash.
     fn install(&self, wasm: &[u8], contract_id: Option<&str>) -> Result<Installed, LaneError>;
 
-    /// The executable hash a contract instance `LedgerEntry` runs.
-    fn instance_wasm_hash(&self, entry_xdr: &[u8]) -> Result<[u8; 32], LaneError>;
+    /// What a contract instance `LedgerEntry` holds (`contract_info`, #550).
+    fn instance_info(&self, entry_xdr: &[u8]) -> Result<InstanceInfo, LaneError>;
+
+    /// The WASM hash an executable-reference entry (an owner's
+    /// `ExecutableTag` `LedgerEntry`) holds.
+    fn external_ref_wasm_hash(&self, entry_xdr: &[u8]) -> Result<[u8; 32], LaneError>;
 
     /// The WASM bytes a contract code `LedgerEntry` holds.
     fn code_wasm(&self, entry_xdr: &[u8]) -> Result<Vec<u8>, LaneError>;

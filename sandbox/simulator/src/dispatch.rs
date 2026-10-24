@@ -21,7 +21,8 @@ use crate::ledger::verbs::{
     ledger_checkpoint, ledger_get, ledger_open, ledger_put, ledger_rollback, OpenLedger,
 };
 use crate::simulate::{
-    contract_install, contract_swap, ledger_import, load_network_config, simulate, status,
+    contract_info, contract_install, contract_swap, ledger_import, load_network_config, simulate,
+    status,
 };
 use crate::spec_verbs::{spec_decode_val, spec_encode_args, spec_extract};
 use crate::stdio::Channel;
@@ -194,6 +195,9 @@ impl Dispatcher {
             }
             "simulate" => Step::reply(simulate(&mut self.ledger, fork.as_ref(), &id, &object)),
             "contract_install" => Step::reply(contract_install(&mut self.ledger, &id, &object)),
+            "contract_info" => {
+                Step::reply(contract_info(&self.ledger, fork.as_ref(), &id, &object))
+            }
             "contract_swap" => Step::reply(contract_swap(
                 &mut self.ledger,
                 fork.as_deref(),

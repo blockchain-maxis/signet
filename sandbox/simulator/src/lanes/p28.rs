@@ -30,9 +30,9 @@ use soroban_simulation::simulation::{
 use soroban_simulation::NetworkConfig;
 
 use super::{
-    ByteSnapshotSource, DecodeTarget, DerivedKey, EntryChangeBytes, ErrorCase, Installed,
-    InterfaceVersion, InvocationFailure, KeyRequest, Lane, LaneError, SimulateBytes,
-    SimulateResultBytes, SwapResultBytes, TransactionResources, WasmInspection,
+    ByteSnapshotSource, DecodeTarget, DerivedKey, EntryChangeBytes, ErrorCase, ExternalRef,
+    Installed, InstanceInfo, InterfaceVersion, InvocationFailure, KeyRequest, Lane, LaneError,
+    SimulateBytes, SimulateResultBytes, SwapResultBytes, TransactionResources, WasmInspection,
 };
 
 /// The ledger protocol this lane runs: the pinned host's interface version.
@@ -695,7 +695,7 @@ impl Lane for P28Lane {
         })
     }
 
-    fn instance_wasm_hash(&self, entry_xdr: &[u8]) -> Result<[u8; 32], LaneError> {
+    fn instance_info(&self, entry_xdr: &[u8]) -> Result<InstanceInfo, LaneError> {
         let entry: LedgerEntry = decode(entry_xdr, "LedgerEntry")?;
         let LedgerEntryData::ContractData(data) = &entry.data else {
             return Err(LaneError::NotAContractInstance);
@@ -703,9 +703,47 @@ impl Lane for P28Lane {
         let ScVal::ContractInstance(instance) = &data.val else {
             return Err(LaneError::NotAContractInstance);
         };
-        match &instance.executable {
-            ContractExecutable::Wasm(Hash(hash)) => Ok(*hash),
-            _ => Err(LaneError::NotAContractInstance),
+        let (executable, wasm_hash, external_ref) = match &instance.executable {
+            ContractExecutable::Wasm(Hash(hash)) => ("wasm", Some(*hash), None),
+            ContractExecutable::StellarAsset => ("stellar_asset", None, None),
+            // CAP-85: the owner keeps the WASM hash in a persistent entry
+            // keyed by the tag, the key the host itself resolves.
+            ContractExecutable::ExternalRef(external) => {
+                let key = LedgerKey::ContractData(LedgerKeyContractData {
+                    contract: external.executable_owner.clone(),
+                    key: ScVal::ExecutableTag(external.tag.clone()),
+                    durability: ContractDataDurability::Persistent,
+                });
+                (
+                    "external_ref",
+                    None,
+                    Some(ExternalRef {
+                        owner: external.executable_owner.to_string(),
+                        tag: external.tag.to_utf8_string_lossy(),
+                        key_xdr: encode(&key, "LedgerKey")?,
+                    }),
+                )
+            }
+        };
+        Ok(InstanceInfo {
+            executable,
+            wasm_hash,
+            external_ref,
+            storage_entries: instance.storage.as_ref().map_or(0, |m| m.len()),
+        })
+    }
+
+    fn external_ref_wasm_hash(&self, entry_xdr: &[u8]) -> Result<[u8; 32], LaneError> {
+        let entry: LedgerEntry = decode(entry_xdr, "LedgerEntry")?;
+        let LedgerEntryData::ContractData(data) = &entry.data else {
+            return Err(invalid("executable reference entry"));
+        };
+        match &data.val {
+            ScVal::Bytes(bytes) => bytes
+                .as_slice()
+                .try_into()
+                .map_err(|_| invalid("32-byte WASM hash")),
+            _ => Err(invalid("executable reference entry holding a WASM hash")),
         }
     }
 
@@ -1512,5 +1550,59 @@ mod tests {
             }),
             Err(LaneError::InvalidInput { .. })
         ));
+    }
+
+    #[test]
+    fn an_external_ref_instance_names_the_entry_holding_its_wasm_hash() {
+        use soroban_env_host::xdr::{ContractExecutableExternalRef, ScBytes, ScString};
+        let owner = ScAddress::Contract(ContractId(Hash([9; 32])));
+        let tag = ScString("v2".try_into().unwrap());
+        let instance = LedgerEntry {
+            last_modified_ledger_seq: 1,
+            data: LedgerEntryData::ContractData(ContractDataEntry {
+                ext: ExtensionPoint::V0,
+                contract: ScAddress::Contract(ContractId(Hash([1; 32]))),
+                key: ScVal::LedgerKeyContractInstance,
+                durability: ContractDataDurability::Persistent,
+                val: ScVal::ContractInstance(ScContractInstance {
+                    executable: ContractExecutable::ExternalRef(ContractExecutableExternalRef {
+                        executable_owner: owner.clone(),
+                        tag: tag.clone(),
+                    }),
+                    storage: None,
+                }),
+            }),
+            ext: LedgerEntryExt::V0,
+        };
+        let info = P28
+            .instance_info(&instance.to_xdr(Limits::none()).unwrap())
+            .unwrap();
+        assert_eq!(info.executable, "external_ref");
+        assert_eq!(info.wasm_hash, None);
+        let external = info.external_ref.unwrap();
+        assert_eq!(external.tag, "v2");
+        let key: LedgerKey = LedgerKey::from_xdr(&external.key_xdr, Limits::none()).unwrap();
+        let LedgerKey::ContractData(data) = key else {
+            panic!("{key:?}")
+        };
+        assert_eq!(data.contract, owner);
+        assert_eq!(data.key, ScVal::ExecutableTag(tag));
+
+        let reference = LedgerEntry {
+            last_modified_ledger_seq: 1,
+            data: LedgerEntryData::ContractData(ContractDataEntry {
+                ext: ExtensionPoint::V0,
+                contract: owner,
+                key: data.key,
+                durability: ContractDataDurability::Persistent,
+                val: ScVal::Bytes(ScBytes(vec![7; 32].try_into().unwrap())),
+            }),
+            ext: LedgerEntryExt::V0,
+        };
+        assert_eq!(
+            P28.external_ref_wasm_hash(&reference.to_xdr(Limits::none()).unwrap())
+                .unwrap(),
+            [7; 32]
+        );
     }
 }

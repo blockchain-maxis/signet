@@ -34,6 +34,9 @@ type LatestLedger struct {
 	ID              string `json:"id"`
 	ProtocolVersion int    `json:"protocolVersion"`
 	Sequence        uint32 `json:"sequence"`
+	// CloseTime is the ledger's close time in Unix seconds, as a decimal
+	// string; empty from an RPC too old to report it.
+	CloseTime string `json:"closeTime,omitempty"`
 }
 
 // GetLatestLedger reports the newest ledger the RPC has ingested.

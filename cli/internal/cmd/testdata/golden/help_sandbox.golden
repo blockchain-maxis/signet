@@ -16,6 +16,10 @@ binary, then on PATH.
 
 Usage:
   signet sandbox [flags]
+  signet sandbox [command]
+
+Available Commands:
+  fork        Pin a fork of a deployed contract at the network's latest ledger
 
 Flags:
   -h, --help                        help for sandbox
@@ -30,6 +34,8 @@ Global Flags:
       --sign-with-key string   identity to sign with, for non-interactive use (same value as STELLAR_SIGN_WITH_KEY; not remembered)
       --source string          identity to sign as (remembered in the config file for next time)
       --url string             Signet deployment URL (overrides SIGNET_URL, the config file, and the default)
+
+Use "signet sandbox [command] --help" for more information about a command.
 -- stderr --
 (empty)
 -- exit 0 --

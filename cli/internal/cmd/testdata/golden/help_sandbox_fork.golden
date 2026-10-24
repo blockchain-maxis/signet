@@ -1,0 +1,34 @@
+$ signet sandbox fork --help
+-- stdout --
+Pin a fork of a deployed contract at the network's latest ledger and cache
+what a session needs to start: the contract's instance, its executable, and
+the network's configuration. Later commands on the same fork read from the
+cache instead of the network.
+
+Forking is the first step of every sandbox session; run it alone to warm the
+cache, or to see what a session will run against. --json prints the fork's
+manifest.
+
+Usage:
+  signet sandbox fork <contract> [flags]
+
+Examples:
+  signet sandbox fork CASFJHI5PQSRWS7JV25CF7FOMRKIVBP3RXRP3E2GH2CV4BCAG7FUJRCN
+  signet sandbox fork CC… --network mainnet --rpc-url https://my-rpc.example
+
+Flags:
+  -h, --help   help for fork
+
+Global Flags:
+      --context string              deployment context to use (overrides SIGNET_CONTEXT and the config file's current context)
+      --insecure                    allow a plain-http deployment URL on a non-local host (signed challenges travel in cleartext; use only against a deployment you control)
+      --json                        write a single JSON result to stdout instead of human-readable output (diagnostics go to stderr)
+      --network string              Stellar network to talk to (overrides SIGNET_NETWORK, the context, and default "testnet")
+      --network-passphrase string   passphrase of a custom --network (checked against the RPC's getNetwork)
+      --rpc-url string              Stellar RPC to fork from (overrides the context's rpc-url; testnet defaults to https://soroban-testnet.stellar.org)
+      --sign-with-key string        identity to sign with, for non-interactive use (same value as STELLAR_SIGN_WITH_KEY; not remembered)
+      --source string               identity to sign as (remembered in the config file for next time)
+      --url string                  Signet deployment URL (overrides SIGNET_URL, the config file, and the default)
+-- stderr --
+(empty)
+-- exit 0 --

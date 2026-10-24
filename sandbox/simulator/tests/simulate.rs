@@ -473,3 +473,33 @@ fn a_missing_config_setting_fails_the_open_and_names_it() {
         "{fork}"
     );
 }
+
+#[test]
+fn contract_info_reads_and_fetches_a_contract_without_running_it() {
+    let mut sim = forked();
+    let at_open = sim.fetched.len();
+    let info = sim.send(json!({ "type": "contract_info", "contract_id": REGISTRY }));
+    assert_eq!(info["type"], "result", "{info}");
+    assert_eq!(info["executable"], "wasm");
+    assert_eq!(
+        info["wasm_hash"],
+        "936996c74b7d383c56ec174857b15927cdd29478c6909da332b4dec8b67335fe"
+    );
+    assert!(info["storage_entries"].as_u64().unwrap() > 0, "{info}");
+    assert!(info["wasm_size"].as_u64().unwrap() > 1000, "{info}");
+    assert_eq!(info["misses"].as_array().unwrap().len(), 2);
+    assert_eq!(sim.fetched.len(), at_open + 2);
+
+    let account = sim.send(json!({ "type": "contract_info", "contract_id": WALLET }));
+    assert_eq!(account["code"], "bad_request", "{account}");
+    assert_eq!(account["detail"]["path"], "contract_id");
+    let missing = sim.send(json!({
+        "type": "contract_info",
+        "contract_id": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAABSC4",
+    }));
+    assert_eq!(missing["code"], "bad_request", "{missing}");
+    assert!(
+        missing["message"].as_str().unwrap().contains("no contract"),
+        "{missing}"
+    );
+}

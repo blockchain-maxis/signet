@@ -1,0 +1,128 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://signet.dev/schemas/sandbox/v1/contract_info.json",
+  "title": "contract_info",
+  "description": "Read a contract without running it (#550): its executable, the WASM it runs (following a CAP-85 executable reference), and its instance storage. The instance, any reference entry and the code are fetched like any other read, so a fork holds them afterwards.",
+  "type": "object",
+  "properties": {
+    "version": {
+      "const": 1,
+      "description": "Wire protocol version; checked on every message"
+    },
+    "id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Caller-assigned; echoed on the response"
+    },
+    "type": {
+      "const": "contract_info"
+    },
+    "contract_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The contract (C...)"
+    }
+  },
+  "required": ["version", "id", "type", "contract_id"],
+  "additionalProperties": false,
+  "definitions": {
+    "result": {
+      "type": "object",
+      "properties": {
+        "version": {
+          "const": 1,
+          "description": "Wire protocol version; checked on every message"
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Echoes the id of the contract_info request"
+        },
+        "type": {
+          "const": "result"
+        },
+        "contract_id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "executable": {
+          "enum": ["wasm", "stellar_asset", "external_ref"]
+        },
+        "wasm_hash": {
+          "oneOf": [
+            {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "The WASM the contract runs; null for a Stellar Asset Contract"
+        },
+        "external_ref": {
+          "oneOf": [
+            {
+              "type": "object",
+              "properties": {
+                "owner": {
+                  "type": "string"
+                },
+                "tag": {
+                  "type": "string"
+                }
+              },
+              "required": ["owner", "tag"],
+              "additionalProperties": false
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "description": "For a CAP-85 contract, the executable owner and tag"
+        },
+        "storage_entries": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Entries in the instance's own storage map"
+        },
+        "instance_live_until": {
+          "oneOf": [
+            {
+              "type": "integer",
+              "minimum": 0
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "wasm_size": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Size of the executable in bytes"
+        },
+        "misses": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9+/]+={0,2}$",
+            "description": "LedgerKey fetched for this request"
+          }
+        }
+      },
+      "required": [
+        "version",
+        "id",
+        "type",
+        "contract_id",
+        "executable",
+        "wasm_hash",
+        "storage_entries",
+        "misses"
+      ],
+      "additionalProperties": false
+    }
+  }
+}

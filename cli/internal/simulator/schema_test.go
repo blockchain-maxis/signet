@@ -77,6 +77,7 @@ func TestMessagesMatchTheSchemas(t *testing.T) {
 		TypeLedgerImport:     LedgerImportParams{LedgerSequence: 7, Entries: []PutEntry{{KeyXDR: b64, EntryXDR: b64}, {KeyXDR: b64, DataXDR: b64, LastModifiedLedgerSeq: u32(4), ExtXDR: "AAAAAA=="}}},
 		TypeContractInstall:  ContractInstallParams{WasmBase64: "AGFzbQEAAAA=", ContractID: registry},
 		TypeContractSwap:     ContractSwapParams{ContractID: registry, WasmHash: hash},
+		TypeContractInfo:     ContractInfoParams{ContractID: registry},
 		TypeSimulate:         SimulateParams{ContractID: registry, Function: "f", Args: map[string]any{"a": 1, "b": []any{"x"}}, SourceAccount: "GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN", Diagnostics: true, DryRun: true},
 		TypeSpecExtract:      SpecExtractParams{Source: Source{ContractID: registry}},
 		TypeSpecEncodeArgs:   SpecEncodeArgsParams{Source: src, Function: "f", Args: map[string]any{"handle": "a"}},
@@ -105,6 +106,7 @@ func TestMessagesMatchTheSchemas(t *testing.T) {
 		TypeLedgerImport:     LedgerImportResult{Imported: 1, LedgerSequence: 7},
 		TypeContractInstall:  ContractInstallResult{ContractID: registry, WasmHash: hash},
 		TypeContractSwap:     ContractSwapResult{ContractID: registry, PreviousWasmHash: hash, WasmHash: hash},
+		TypeContractInfo:     ContractInfoResult{ContractID: registry, Executable: "wasm", WasmHash: sp(hash), StorageEntries: 3, InstanceLiveUntil: u32(9), WasmSize: 6240, Misses: []string{b64}},
 		TypeSimulate:         full,
 		TypeSpecExtract:      SpecExtractResult{SpecEntriesXDR: []string{b64}, WasmHash: hash, Spec: json.RawMessage(`{"schemaVersion":1,"wasmHash":"` + hash + `","entriesXdr":["` + b64 + `"]}`)},
 		TypeSpecEncodeArgs:   SpecEncodeArgsResult{ArgsXDR: []string{b64}},
@@ -192,7 +194,7 @@ func TestEveryRequestSchemaHasAGoStruct(t *testing.T) {
 	for _, typ := range []string{
 		TypeHello, TypeHelloAck, TypeError, TypeContractError, TypeLedgerFetch, TypeLedgerEntries,
 		TypeLedgerOpen, TypeLedgerPut, TypeLedgerGet, TypeLedgerCheckpoint, TypeLedgerRollback,
-		TypeLedgerImport, TypeContractInstall, TypeContractSwap, TypeSimulate, TypeSpecExtract,
+		TypeLedgerImport, TypeContractInstall, TypeContractSwap, TypeContractInfo, TypeSimulate, TypeSpecExtract,
 		TypeSpecEncodeArgs, TypeSpecDecodeVal, TypeSpecDiff, TypeLayoutCheck, TypeDiffResults,
 		TypeXDRKeys, TypeTxDecode, TypeWasmInspect, TypeStatus, TypeShutdown,
 	} {

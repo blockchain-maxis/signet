@@ -95,6 +95,13 @@ type Manifest struct {
 	// Lanes are the host lanes (ledger protocols) runs on this fork used.
 	Lanes     []int     `json:"lanes"`
 	CreatedAt time.Time `json:"createdAt"`
+
+	// Executable is wasm, stellar_asset or external_ref (CAP-85), and
+	// WasmHash the executable the contract ran at the fork ledger.
+	Executable string `json:"executable,omitempty"`
+	WasmHash   string `json:"wasmHash,omitempty"`
+	// InstanceStorageEntries counts the instance's own storage map.
+	InstanceStorageEntries int `json:"instanceStorageEntries"`
 }
 
 // ID is the manifest's fork id.
@@ -102,8 +109,10 @@ func (m Manifest) ID() string { return ID(m.Contract, m.ForkLedger) }
 
 // Entry is a ledger entry as the fork holds it.
 type Entry struct {
-	Key                   string  `json:"key"`
+	Key string `json:"key"`
+	// XDR is the LedgerEntryData RPC returned, and ExtXDR its extXdr.
 	XDR                   string  `json:"xdr"`
+	ExtXDR                string  `json:"extXdr,omitempty"`
 	LastModifiedLedgerSeq uint32  `json:"lastModifiedLedgerSeq"`
 	LiveUntilLedgerSeq    *uint32 `json:"liveUntilLedgerSeq,omitempty"`
 	// FetchedAtLedger is the RPC's latest ledger when the entry was fetched.

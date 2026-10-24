@@ -350,6 +350,105 @@ fn apply(store: &mut LayeredStore, run: &SimulateResultBytes) {
     }));
 }
 
+/// `contract_info`: what a contract is, read (and fetched) without running
+/// it: its executable, the executable's hash and code (fetched too, so a
+/// fork holds it), and how many entries its instance storage holds.
+pub fn contract_info(
+    ledger: &Option<OpenLedger>,
+    fork: Option<&Rc<FetchingSource>>,
+    id: &Value,
+    object: &Map<String, Value>,
+) -> Value {
+    let (Some(open), Some(fork)) = (ledger.as_ref(), fork) else {
+        return no_open_ledger(id);
+    };
+    let lane = open.lane;
+    let Some(contract_id) = object.get("contract_id").and_then(Value::as_str) else {
+        return invalid_field(id, "contract_id", "a contract id (C...)");
+    };
+    let instance_key = match lane.ledger_keys(&KeyRequest::ContractInstance {
+        contract_id: contract_id.to_string(),
+    }) {
+        Ok(mut keys) => keys.remove(0).key_xdr,
+        Err(e) => return invalid_field(id, "contract_id", &format!("a contract id (C...): {e}")),
+    };
+    let fetch_error = || {
+        fork.failure()
+            .map_or_else(|| no_open_ledger(id), |f| fetch_failed(id, lane, &f))
+    };
+    let (instance, live_until) = match fork.get(&instance_key) {
+        Ok(Some(found)) => found,
+        Ok(None) => {
+            return error_message(
+                id,
+                "bad_request",
+                format!("there is no contract {contract_id} in this ledger"),
+                json!({ "kind": "invalid_field", "path": "contract_id", "reason": "no instance entry" }),
+            )
+        }
+        Err(_) => return fetch_error(),
+    };
+    let info = match lane.instance_info(&instance) {
+        Ok(info) => info,
+        Err(e) => return invalid_field(id, "contract_id", &format!("a contract instance: {e}")),
+    };
+    let mut wasm_hash = info.wasm_hash;
+    if let Some(external) = &info.external_ref {
+        match fork.get(&external.key_xdr) {
+            Ok(Some((reference, _))) => match lane.external_ref_wasm_hash(&reference) {
+                Ok(hash) => wasm_hash = Some(hash),
+                Err(e) => return invalid_field(id, "contract_id", &format!("a contract whose executable reference resolves: {e}")),
+            },
+            Ok(None) => {
+                return error_message(
+                    id,
+                    "bad_request",
+                    format!(
+                        "contract {contract_id} runs executable `{}` of {}, which is not in this ledger",
+                        external.tag, external.owner
+                    ),
+                    json!({ "kind": "invalid_field", "path": "contract_id", "reason": "executable reference missing" }),
+                )
+            }
+            Err(_) => return fetch_error(),
+        }
+    }
+    let mut reply = json!({
+        "contract_id": contract_id,
+        "executable": info.executable,
+        "wasm_hash": wasm_hash.map(|h| hex(&h)),
+        "external_ref": info.external_ref.as_ref().map(|r| json!({ "owner": r.owner, "tag": r.tag })),
+        "storage_entries": info.storage_entries,
+        "instance_live_until": live_until,
+        "misses": [],
+    });
+    if let Some(hash) = wasm_hash {
+        let code_key = match lane.ledger_keys(&KeyRequest::ContractCode { wasm_hash: hash }) {
+            Ok(mut keys) => keys.remove(0).key_xdr,
+            Err(e) => return invalid_field(id, "contract_id", &e.to_string()),
+        };
+        match fork.get(&code_key) {
+            Ok(Some((code, _))) => {
+                reply["wasm_size"] = json!(lane.code_wasm(&code).map(|w| w.len()).unwrap_or(0));
+            }
+            Ok(None) => {
+                return error_message(
+                    id,
+                    "bad_request",
+                    format!(
+                        "contract {contract_id} runs executable {}, which is not in this ledger",
+                        hex(&hash)
+                    ),
+                    json!({ "kind": "invalid_field", "path": "contract_id", "reason": "executable missing" }),
+                )
+            }
+            Err(_) => return fetch_error(),
+        }
+    }
+    reply["misses"] = json!(b64_all(&fork.misses()));
+    result(id, reply)
+}
+
 /// `contract_install`: put an executable and an instance running it into the
 /// ledger, at `contract_id` or at an id derived from the executable.
 pub fn contract_install(

@@ -133,6 +133,28 @@ On any failure stdout stays empty (in both modes) and the error goes to stderr
 with a non-zero exit code — stdout is always safe to parse as either the one
 JSON object or nothing at all.
 
+### `signet sandbox fork`
+
+```sh
+signet sandbox fork CASFJHI5PQSRWS7JV25CF7FOMRKIVBP3RXRP3E2GH2CV4BCAG7FUJRCN
+# Forked CASF…RCN on testnet at ledger 4887004 (protocol 28, 3s ago) · wasm 9369…fe · instance storage 3 entries
+```
+
+Pins a fork of a deployed contract at the network's latest ledger. The
+contract simulator opens a ledger at that sequence and reads the contract
+without running it; every entry it needs (the network's `ConfigSetting`
+entries, the contract's instance, a CAP-85 executable reference, the code) is
+fetched from RPC and kept in the fork cache under `os.UserCacheDir()/signet/forks/`.
+`--json` prints the fork's manifest.
+
+- An account address (`G…`/`M…`) or anything that is not a valid `C…` strkey
+  exits `2`, before any network call; so does a contract the network does not
+  have at that ledger (and no fork is kept).
+- A network running a ledger protocol the bundled simulator has no lane for
+  exits `11`, naming both.
+- An RPC serving another network than `--network` exits `3` (see "Sandbox
+  network and RPC" below).
+
 ### Global `--json`
 
 `--json` is a persistent flag on the root, so it works on every command and

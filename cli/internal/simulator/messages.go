@@ -24,6 +24,7 @@ const (
 	TypeLedgerImport     = "ledger_import"
 	TypeContractInstall  = "contract_install"
 	TypeContractSwap     = "contract_swap"
+	TypeContractInfo     = "contract_info"
 	TypeSimulate         = "simulate"
 	TypeSpecExtract      = "spec_extract"
 	TypeSpecEncodeArgs   = "spec_encode_args"
@@ -131,6 +132,9 @@ type Entry struct {
 	ExtXDR                string  `json:"ext_xdr,omitempty"`
 	LiveUntilLedger       *uint32 `json:"live_until_ledger,omitempty"`
 }
+
+// Absent is the Entry for a key the network does not have.
+func Absent(keyXDR string) Entry { return Entry{KeyXDR: keyXDR} }
 
 // MarshalJSON keeps `entry_xdr: null` for an absent key, which omitempty
 // would otherwise drop.
@@ -270,6 +274,29 @@ type ContractSwapResult struct {
 	ContractID       string `json:"contract_id"`
 	PreviousWasmHash string `json:"previous_wasm_hash"`
 	WasmHash         string `json:"wasm_hash"`
+}
+
+// ContractInfoParams reads a contract without running it (#550).
+type ContractInfoParams struct {
+	ContractID string `json:"contract_id"`
+}
+
+// ContractInfoResult answers contract_info.
+type ContractInfoResult struct {
+	ContractID        string       `json:"contract_id"`
+	Executable        string       `json:"executable"` // wasm, stellar_asset or external_ref
+	WasmHash          *string      `json:"wasm_hash"`
+	ExternalRef       *ExternalRef `json:"external_ref,omitempty"`
+	StorageEntries    int          `json:"storage_entries"`
+	InstanceLiveUntil *uint32      `json:"instance_live_until,omitempty"`
+	WasmSize          int          `json:"wasm_size,omitempty"`
+	Misses            []string     `json:"misses"`
+}
+
+// ExternalRef is a CAP-85 executable reference.
+type ExternalRef struct {
+	Owner string `json:"owner"`
+	Tag   string `json:"tag"`
 }
 
 // SimulateParams runs a function with JSON arguments (#545).

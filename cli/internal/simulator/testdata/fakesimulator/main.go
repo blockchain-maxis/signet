@@ -17,6 +17,10 @@
 //	FAKESIM_IGNORE_TERM  ignore SIGTERM (and log that it arrived)
 //	FAKESIM_LOG          append "<pid> <line>" for every line read
 //	FAKESIM_VERSION      the release `--version` reports
+//	FAKESIM_SCRIPT       a JSON file of {"<type>": {"fetch": [keys], "reply": {...}}}:
+//	                     a request of that type first asks Go for the keys
+//	                     with ledger_fetch, then answers with the reply
+//	                     (type "result" unless it says otherwise)
 package main
 
 import (
@@ -185,8 +189,57 @@ type state struct {
 	entries     int
 }
 
+// scripted is one FAKESIM_SCRIPT step.
+type scripted struct {
+	Fetch []string       `json:"fetch"`
+	Reply map[string]any `json:"reply"`
+}
+
+func loadScript() map[string]scripted {
+	path := os.Getenv("FAKESIM_SCRIPT")
+	if path == "" {
+		return nil
+	}
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		fatal("read script: %v", err)
+	}
+	var script map[string]scripted
+	if err := json.Unmarshal(raw, &script); err != nil {
+		fatal("script is not JSON: %v", err)
+	}
+	return script
+}
+
+func runScript(id any, step scripted, lines <-chan []byte) {
+	if len(step.Fetch) > 0 {
+		keys := make([]any, len(step.Fetch))
+		for i, k := range step.Fetch {
+			keys[i] = k
+		}
+		emit(map[string]any{"version": 1, "id": "sim-1", "type": "ledger_fetch", "keys_xdr": keys})
+		answer, ok := <-lines
+		if !ok {
+			os.Exit(0)
+		}
+		var m map[string]any
+		_ = json.Unmarshal(answer, &m)
+		if str(m["type"]) == "error" {
+			detail, _ := m["detail"].(map[string]any)
+			emit(errMsg(id, "fetch_failed", str(detail["kind"]), str(m["message"])))
+			return
+		}
+	}
+	reply := map[string]any{"version": 1, "id": id, "type": "result"}
+	for k, v := range step.Reply {
+		reply[k] = v
+	}
+	emit(reply)
+}
+
 func serve(lines <-chan []byte) {
 	st := &state{contracts: map[string]string{}, checkpoints: map[string]bool{}}
+	script := loadScript()
 	greeted := false
 	for b := range lines {
 		var m map[string]any
@@ -207,6 +260,10 @@ func serve(lines <-chan []byte) {
 				"simulator_version": "0.0.0-fake", "commit": "fake",
 				"lanes": []any{map[string]any{"ledger_protocol": 28, "env_host": "28.0.2", "simulation": "28.0.2"}},
 			})
+			continue
+		}
+		if step, ok := script[typ]; ok {
+			runScript(id, step, lines)
 			continue
 		}
 		switch typ {
