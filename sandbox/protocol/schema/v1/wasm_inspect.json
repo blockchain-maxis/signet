@@ -60,7 +60,9 @@
         },
         "custom_sections": {
           "type": "array",
-          "items": { "type": "string" },
+          "items": {
+            "type": "string"
+          },
           "description": "Every custom section's name, in file order (a name may repeat)"
         },
         "interface_version": {
@@ -83,7 +85,9 @@
               "required": ["protocol", "pre_release"],
               "additionalProperties": false
             },
-            { "type": "null" }
+            {
+              "type": "null"
+            }
           ]
         },
         "exports": {
@@ -99,12 +103,20 @@
           "items": {
             "type": "object",
             "properties": {
-              "module": { "type": "string" },
-              "name": { "type": "string" }
+              "module": {
+                "type": "string"
+              },
+              "name": {
+                "type": "string"
+              }
             },
             "required": ["module", "name"],
             "additionalProperties": false
           }
+        },
+        "upgradeable": {
+          "enum": ["wasm", "executable-ref", "none"],
+          "description": "Whether the executable can replace its own code on-chain (#540): it imports update_current_contract_wasm (l.6) or, from protocol 28, update_current_contract_executable_ref (l.j). A contract upgraded from outside, through a proxy or factory, reports none."
         }
       },
       "required": [
@@ -116,7 +128,8 @@
         "custom_sections",
         "interface_version",
         "exports",
-        "imports"
+        "imports",
+        "upgradeable"
       ],
       "additionalProperties": false
     }

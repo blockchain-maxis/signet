@@ -279,6 +279,7 @@ pub fn wasm_inspect(ledger: &Option<OpenLedger>, id: &Value, object: &Map<String
                 .iter()
                 .map(|(module, name)| json!({ "module": module, "name": name }))
                 .collect::<Vec<_>>(),
+            "upgradeable": inspection.upgradeable,
         }),
     )
 }

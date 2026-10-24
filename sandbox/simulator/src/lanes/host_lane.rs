@@ -91,6 +91,27 @@ impl SnapshotSource for BytesSnapshot {
     }
 }
 
+/// The host imports that change a contract's own code on-chain, as
+/// soroban-env-common's `env.json` exports them for this lane: module `l`,
+/// `6` (`update_current_contract_wasm`) and, from protocol 28, `j`
+/// (`update_current_contract_executable_ref`).
+const UPDATE_WASM_IMPORT: (&str, &str) = ("l", "6");
+const UPDATE_EXECUTABLE_REF_IMPORT: (&str, &str) = ("l", "j");
+
+/// Whether an executable can replace its own code on-chain (#540): it must
+/// import one of the update functions. A contract upgraded from outside (a
+/// proxy or factory pattern) does not show here.
+fn upgradeability(imports: &[(String, String)]) -> &'static str {
+    let has = |(module, name): (&str, &str)| imports.iter().any(|(m, n)| m == module && n == name);
+    if has(UPDATE_WASM_IMPORT) {
+        "wasm"
+    } else if has(UPDATE_EXECUTABLE_REF_IMPORT) {
+        "executable-ref"
+    } else {
+        "none"
+    }
+}
+
 /// How an invocation failed, in the host's terms.
 fn invocation_failure(error: &HostError) -> InvocationFailure {
     let detail = format!("{:?}", error.error);
@@ -521,6 +542,7 @@ impl Lane for HostLane {
             }
         }
 
+        let upgradeable = upgradeability(&imports);
         Ok(WasmInspection {
             wasm_hash: Sha256::digest(wasm).into(),
             size_bytes: wasm.len(),
@@ -528,6 +550,7 @@ impl Lane for HostLane {
             interface_version,
             exports,
             imports,
+            upgradeable,
         })
     }
 
@@ -1602,4 +1625,28 @@ mod tests {
             [7; 32]
         );
     }
+
+    fn read_fixture(path: &str) -> Vec<u8> {
+        let path = format!("{}/../../{path}", env!("CARGO_MANIFEST_DIR"));
+        std::fs::read(&path).unwrap_or_else(|e| panic!("{path}: {e}"))
+    }
+
+    #[test]
+    fn the_registry_cannot_upgrade_itself_and_counter_v1_can() {
+        let registry = read_fixture("packages/spec/fixtures/identity-registry.wasm");
+        assert_eq!(LANE.inspect_wasm(&registry).unwrap().upgradeable, "none");
+        let counter = read_fixture("sandbox/fixtures/wasm/counter_v1.wasm");
+        assert_eq!(LANE.inspect_wasm(&counter).unwrap().upgradeable, "wasm");
+    }
+
+    #[test]
+    fn an_executable_ref_update_import_is_reported_as_such() {
+        let imports = |pairs: &[(&str, &str)]| -> Vec<(String, String)> {
+            pairs.iter().map(|(m, n)| (m.to_string(), n.to_string())).collect()
+        };
+        assert_eq!(upgradeability(&imports(&[("l", "j"), ("x", "1")])), "executable-ref");
+        assert_eq!(upgradeability(&imports(&[("l", "j"), ("l", "6")])), "wasm");
+        assert_eq!(upgradeability(&imports(&[("l", "7")])), "none");
+    }
+
 }

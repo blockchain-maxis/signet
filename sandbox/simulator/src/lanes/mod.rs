@@ -202,6 +202,9 @@ pub struct WasmInspection {
     /// Imported functions as `(module, name)`, in file order: the host
     /// functions the executable calls.
     pub imports: Vec<(String, String)>,
+    /// `wasm`, `executable-ref` or `none`: whether the executable can replace
+    /// its own code on-chain (#540), read from its imports.
+    pub upgradeable: &'static str,
 }
 
 /// A Soroban environment interface version: the ledger protocol, and a

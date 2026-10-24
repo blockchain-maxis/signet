@@ -116,7 +116,7 @@ func TestMessagesMatchTheSchemas(t *testing.T) {
 		TypeDiffResults:      DiffResultsResult{Equal: true, Differences: []json.RawMessage{}},
 		TypeXDRKeys:          XDRKeysResult{Keys: []BuiltKey{{Kind: "account", Subject: "G…", KeyXDR: b64}}},
 		TypeTxDecode:         nil, // the transaction body is passed through as JSON
-		TypeWasmInspect:      WasmInspectResult{WasmHash: hash, SizeBytes: 8, CustomSections: []string{"contractspecv0"}, InterfaceVersion: &InterfaceVersion{Protocol: 22}, Exports: []string{"f"}, Imports: []WasmImport{{Module: "x", Name: "_"}}},
+		TypeWasmInspect:      WasmInspectResult{WasmHash: hash, SizeBytes: 8, CustomSections: []string{"contractspecv0"}, InterfaceVersion: &InterfaceVersion{Protocol: 22}, Exports: []string{"f"}, Imports: []WasmImport{{Module: "x", Name: "_"}}, Upgradeable: "none"},
 		TypeStatus:           StatusResult{UptimeMS: 5, LedgerOpen: true, LedgerSequence: u32(1), Entries: 1, Contracts: 1, NetworkConfig: json.RawMessage(`{}`), BaseReserve: u32(5000000)},
 		TypeShutdown:         nil,
 	}

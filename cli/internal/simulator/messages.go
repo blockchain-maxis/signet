@@ -511,6 +511,9 @@ type WasmInspectResult struct {
 	InterfaceVersion *InterfaceVersion `json:"interface_version"`
 	Exports          []string          `json:"exports"`
 	Imports          []WasmImport      `json:"imports"`
+	// Upgradeable is wasm, executable-ref or none: whether the executable
+	// can replace its own code on-chain (#540).
+	Upgradeable string `json:"upgradeable"`
 }
 
 // InterfaceVersion is contractenvmetav0's interface version; nil when the

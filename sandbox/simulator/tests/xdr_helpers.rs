@@ -294,6 +294,7 @@ fn a_fixture_contract_declares_its_interface_version_and_sections() {
             "interface_version": { "protocol": 28, "pre_release": 0 },
             "exports": ["add"],
             "imports": [],
+            "upgradeable": "none",
         })
     );
 }
