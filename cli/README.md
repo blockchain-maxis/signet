@@ -179,8 +179,8 @@ written to the config file.
 
 ## Adding a command
 
-Commands are grouped in `signet --help` (*Identity & linking*, *Deployments*,
-*Contracts*, *Other*) and register themselves, so a new command is a one-file
+Commands are grouped in `signet --help` (_Identity & linking_, _Deployments_,
+_Contracts_, _Other_) and register themselves, so a new command is a one-file
 change:
 
 1. Create `internal/cmd/<name>.go` with a constructor that takes no arguments:
@@ -210,7 +210,7 @@ change:
 
 2. Pick the group with `register`: `groupIdentity`, `groupDeployments`,
    `groupContracts` or `groupOther` (`commands.go`). A group with no commands is
-   left out of `--help`; *Contracts* appears with the first command registered
+   left out of `--help`; _Contracts_ appears with the first command registered
    into it.
 3. Output goes through `internal/output`, never `fmt.Print*` on stdout: call
    `Printer.Result` once with the value and a human renderer, and
@@ -228,23 +228,23 @@ Stable and documented — scripts and CI wrapping this command can branch on
 the code instead of scraping message text, which is free to change between
 releases.
 
-| Code | Meaning |
-|------|---------|
-| `0` | Success |
-| `1` | Generic/unexpected error |
-| `2` | Invalid input (e.g. a malformed handle or public key, or `unlink` run non-interactively without `--yes`) |
-| `3` | Configuration error — the config file, a flag/env var, or the local `stellar` CLI (missing, or older than the required minimum version) is unusable |
-| `4` | No identity — `stellar` couldn't resolve the requested identity |
-| `5` | Signing failed |
-| `6` | Network error — a Signet deployment couldn't be reached, or returned an unexpected response |
-| `7` | Timed out |
-| `8` | Approval rejected — the developer (or the deployment, on their behalf) explicitly declined |
-| `9` | Already linked — the target wallet already has a conflicting binding |
-| `10` | Diff found — a sandbox comparison found a difference; a finding, not a failure (like `grep`'s exit 1) |
-| `11` | Host unsupported — the simulator can't serve this network (protocol version, host functions, or network id it doesn't model) |
-| `12` | Build failed — the contract under test failed to build, so there was nothing to run |
-| `13` | Simulator failure — the simulator itself failed, as opposed to a contract call failing inside a working simulator (the distinction `docs/CLI_RUST_BRIDGE.md` §3 keeps) |
-| `130` | Interrupted — the developer pressed Ctrl-C while the command was waiting (for example `link` abandoning a pairing) |
+| Code  | Meaning                                                                                                                                                                |
+| ----- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `0`   | Success                                                                                                                                                                |
+| `1`   | Generic/unexpected error                                                                                                                                               |
+| `2`   | Invalid input (e.g. a malformed handle or public key, or `unlink` run non-interactively without `--yes`)                                                               |
+| `3`   | Configuration error — the config file, a flag/env var, or the local `stellar` CLI (missing, or older than the required minimum version) is unusable                    |
+| `4`   | No identity — `stellar` couldn't resolve the requested identity                                                                                                        |
+| `5`   | Signing failed                                                                                                                                                         |
+| `6`   | Network error — a Signet deployment couldn't be reached, or returned an unexpected response                                                                            |
+| `7`   | Timed out                                                                                                                                                              |
+| `8`   | Approval rejected — the developer (or the deployment, on their behalf) explicitly declined                                                                             |
+| `9`   | Already linked — the target wallet already has a conflicting binding                                                                                                   |
+| `10`  | Diff found — a sandbox comparison found a difference; a finding, not a failure (like `grep`'s exit 1)                                                                  |
+| `11`  | Host unsupported — the simulator can't serve this network (protocol version, host functions, or network id it doesn't model)                                           |
+| `12`  | Build failed — the contract under test failed to build, so there was nothing to run                                                                                    |
+| `13`  | Simulator failure — the simulator itself failed, as opposed to a contract call failing inside a working simulator (the distinction `docs/CLI_RUST_BRIDGE.md` §3 keeps) |
+| `130` | Interrupted — the developer pressed Ctrl-C while the command was waiting (for example `link` abandoning a pairing)                                                     |
 
 Every code has a real caller now: `link` and `unlink` raise `3`–`9` between
 them (configuration, identity resolution, `stellar tx sign`, reaching the
@@ -368,14 +368,14 @@ GOOS=linux  GOARCH=amd64 go build -o bin/signet-linux-amd64  ./cmd/signet
 
 ## Layout
 
-| Path | Purpose |
-|------|---------|
-| `cmd/signet` | `main.go` — the binary's entrypoint |
-| `internal/cmd` | Cobra command tree |
-| `internal/config` | Resolves `--url`/`--source`/`SIGNET_URL`/the config file into the settings a run uses |
-| `internal/link` | `signet link` — validates a handle/public key and reports a structured result; the actual on-chain claim / API call is not yet implemented |
-| `internal/keys` | Resolves a named local identity to its public key, and checks the local `stellar` CLI is present and new enough, by shelling out to it; signing itself is not yet implemented |
-| `internal/spec` | Typed request/response models for a Signet deployment's HTTP API (scaffolded, not yet implemented) |
-| `internal/output` | The shared output layer: `Printer{JSON, Out, Err}` with `Result` (one JSON object or the human rendering), `Progress` and `Interactive` (stdout for a person, stderr under `--json`) |
-| `internal/exitcode` | The exit-code taxonomy (see "Exit codes" above) — its own leaf package so both `internal/cmd` and packages like `internal/keys` can depend on it without a cycle |
-| `internal/browser` | Opens a URL in the default browser for an approval flow, falling back to printing it — not yet wired into any command |
+| Path                | Purpose                                                                                                                                                                              |
+| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `cmd/signet`        | `main.go` — the binary's entrypoint                                                                                                                                                  |
+| `internal/cmd`      | Cobra command tree                                                                                                                                                                   |
+| `internal/config`   | Resolves `--url`/`--source`/`SIGNET_URL`/the config file into the settings a run uses                                                                                                |
+| `internal/link`     | `signet link` — validates a handle/public key and reports a structured result; the actual on-chain claim / API call is not yet implemented                                           |
+| `internal/keys`     | Resolves a named local identity to its public key, and checks the local `stellar` CLI is present and new enough, by shelling out to it; signing itself is not yet implemented        |
+| `internal/spec`     | Typed request/response models for a Signet deployment's HTTP API (scaffolded, not yet implemented)                                                                                   |
+| `internal/output`   | The shared output layer: `Printer{JSON, Out, Err}` with `Result` (one JSON object or the human rendering), `Progress` and `Interactive` (stdout for a person, stderr under `--json`) |
+| `internal/exitcode` | The exit-code taxonomy (see "Exit codes" above) — its own leaf package so both `internal/cmd` and packages like `internal/keys` can depend on it without a cycle                     |
+| `internal/browser`  | Opens a URL in the default browser for an approval flow, falling back to printing it — not yet wired into any command                                                                |
