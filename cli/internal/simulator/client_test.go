@@ -139,7 +139,7 @@ func TestTranscriptSimulate(t *testing.T) {
 	if res.ReturnValueXDR != "AAAAAwAAAAE=" || res.Cost.CPUInsns != 1234 {
 		t.Fatalf("simulate = %+v", res)
 	}
-	if ack := c.HelloAck(); ack.Commit != "fake" || len(ack.Lanes) != 1 || ack.Lanes[0].LedgerProtocol != 28 {
+	if ack := c.HelloAck(); ack.Commit != "fake" || len(ack.Lanes) != 2 || ack.Lanes[0].LedgerProtocol != 28 || ack.Lanes[1].LedgerProtocol != 29 {
 		t.Fatalf("hello_ack = %+v", ack)
 	}
 }
