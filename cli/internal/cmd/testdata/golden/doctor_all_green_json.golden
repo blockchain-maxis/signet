@@ -1,0 +1,6 @@
+$ signet doctor --json
+-- stdout --
+{"checks":[{"name":"config file","ok":true,"detail":"not present, defaults in use"},{"name":"stellar CLI","ok":true,"detail":"stellar <stellar-version>"},{"name":"cache directory","ok":true,"detail":"ready"}]}
+-- stderr --
+(empty)
+-- exit 0 --

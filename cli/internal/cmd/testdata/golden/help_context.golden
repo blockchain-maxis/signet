@@ -1,0 +1,32 @@
+$ signet context --help
+-- stdout --
+Manage named deployment contexts. Each context pairs a Signet deployment URL
+with a Stellar network and a default signing identity.
+
+Usage:
+  signet context [flags]
+  signet context [command]
+
+Available Commands:
+  add         Add a new deployment context
+  list        List all configured deployment contexts
+  remove      Remove a deployment context
+  show        Show details for a deployment context
+  use         Switch the active deployment context
+
+Flags:
+  -h, --help   help for context
+
+Global Flags:
+      --context string         deployment context to use (overrides SIGNET_CONTEXT and the config file's current context)
+      --insecure               allow a plain-http deployment URL on a non-local host (signed challenges travel in cleartext; use only against a deployment you control)
+      --json                   write a single JSON result to stdout instead of human-readable output (diagnostics go to stderr)
+      --network string         Stellar network to talk to (overrides SIGNET_NETWORK, the context, and default "testnet")
+      --sign-with-key string   identity to sign with, for non-interactive use (same value as STELLAR_SIGN_WITH_KEY; not remembered)
+      --source string          identity to sign as (remembered in the config file for next time)
+      --url string             Signet deployment URL (overrides SIGNET_URL, the config file, and the default)
+
+Use "signet context [command] --help" for more information about a command.
+-- stderr --
+(empty)
+-- exit 0 --

@@ -1,0 +1,6 @@
+$ signet unlink --url http://127.0.0.1:<port> --source alice --yes --json
+-- stdout --
+{"handle":"alice","publicKey":"GASAAEJC6P5UZGRLYJ2I2KYLR7RXGF44JZXDYGCFBN7T5VIHECUUEMCD","status":"unlinked"}
+-- stderr --
+(empty)
+-- exit 0 --

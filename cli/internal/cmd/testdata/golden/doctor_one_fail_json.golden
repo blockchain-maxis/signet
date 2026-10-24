@@ -1,0 +1,6 @@
+$ signet doctor --json
+-- stdout --
+{"checks":[{"name":"config file","ok":true,"detail":"not present, defaults in use"},{"name":"stellar CLI","ok":false,"detail":"configuration error: stellar CLI not found on PATH: \"stellar\" — install it from https://developers.stellar.org/docs/tools/cli/install-cli (<stellar-version> or newer is required)"},{"name":"cache directory","ok":true,"detail":"ready"}]}
+-- stderr --
+(empty)
+-- exit 0 --

@@ -1,0 +1,7 @@
+$ signet link --url http://127.0.0.1:<port> --network mainnet --source alice --no-browser
+-- stdout --
+(empty)
+-- stderr --
+(empty)
+-- exit 3 --
+configuration error: signet is set to network mainnet, but http://127.0.0.1:<port> serves testnet ("Test SDF Network ; September 2015"); use --network testnet, or signet context use <name> for a context on testnet

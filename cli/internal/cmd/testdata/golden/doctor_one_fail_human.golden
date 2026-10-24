@@ -1,0 +1,8 @@
+$ signet doctor
+-- stdout --
+config file: ok (not present, defaults in use)
+stellar CLI: fail (configuration error: stellar CLI not found on PATH: "stellar" — install it from https://developers.stellar.org/docs/tools/cli/install-cli (<stellar-version> or newer is required))
+cache directory: ok (ready)
+-- stderr --
+(empty)
+-- exit 0 --

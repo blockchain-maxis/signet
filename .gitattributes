@@ -1,3 +1,6 @@
 # Golden SVGs are compared byte for byte (#495). Keep them LF on every
 # checkout, including Windows with core.autocrlf, or the comparison fails.
 packages/visualiser/fixtures/__golden__/*.svg text eol=lf
+# CLI golden files (#609) are compared as text; keep them LF on every checkout
+# so a Windows clone with core.autocrlf sees the same bytes CI does.
+cli/internal/cmd/testdata/golden/*.golden text eol=lf

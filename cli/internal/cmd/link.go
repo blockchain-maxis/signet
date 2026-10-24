@@ -8,6 +8,7 @@ import (
 	"net/url"
 	"os"
 	"os/signal"
+	"time"
 
 	"github.com/spf13/cobra"
 
@@ -117,7 +118,8 @@ signing goes through the stellar CLI.`,
 				},
 				// Progress goes through the Printer: stdout for a person,
 				// stderr under --json so the result stays parseable.
-				Report: printer.Progress,
+				Report:       printer.Progress,
+				PollInterval: linkPollInterval,
 			})
 			if err != nil {
 				return err
@@ -147,6 +149,10 @@ signing goes through the stellar CLI.`,
 
 	return cmd
 }
+
+// linkPollInterval overrides link.PollInterval when non-zero. A variable so a
+// test driving the whole command does not sleep real seconds between polls.
+var linkPollInterval time.Duration
 
 // originOf reduces a deployment URL to the scheme://host[:port] a browser will
 // send as its Origin header. A path or query on the configured URL is not part

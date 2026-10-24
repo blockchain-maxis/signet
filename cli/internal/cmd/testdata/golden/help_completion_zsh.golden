@@ -1,0 +1,43 @@
+$ signet completion zsh --help
+-- stdout --
+Generate the autocompletion script for the zsh shell.
+
+If shell completion is not already enabled in your environment you will need
+to enable it.  You can execute the following once:
+
+	echo "autoload -U compinit; compinit" >> ~/.zshrc
+
+To load completions in your current shell session:
+
+	source <(signet completion zsh)
+
+To load completions for every new session, execute once:
+
+#### Linux:
+
+	signet completion zsh > "${fpath[1]}/_signet"
+
+#### macOS:
+
+	signet completion zsh > $(brew --prefix)/share/zsh/site-functions/_signet
+
+You will need to start a new shell for this setup to take effect.
+
+Usage:
+  signet completion zsh [flags]
+
+Flags:
+  -h, --help              help for zsh
+      --no-descriptions   disable completion descriptions
+
+Global Flags:
+      --context string         deployment context to use (overrides SIGNET_CONTEXT and the config file's current context)
+      --insecure               allow a plain-http deployment URL on a non-local host (signed challenges travel in cleartext; use only against a deployment you control)
+      --json                   write a single JSON result to stdout instead of human-readable output (diagnostics go to stderr)
+      --network string         Stellar network to talk to (overrides SIGNET_NETWORK, the context, and default "testnet")
+      --sign-with-key string   identity to sign with, for non-interactive use (same value as STELLAR_SIGN_WITH_KEY; not remembered)
+      --source string          identity to sign as (remembered in the config file for next time)
+      --url string             Signet deployment URL (overrides SIGNET_URL, the config file, and the default)
+-- stderr --
+(empty)
+-- exit 0 --

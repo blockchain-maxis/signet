@@ -1,0 +1,6 @@
+$ signet unlink --url http://127.0.0.1:<port> --source alice --yes
+-- stdout --
+GASAAEJC6P5UZGRLYJ2I2KYLR7RXGF44JZXDYGCFBN7T5VIHECUUEMCD is not linked to a Signet profile. Nothing to unlink.
+-- stderr --
+(empty)
+-- exit 0 --

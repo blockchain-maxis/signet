@@ -1,0 +1,8 @@
+$ signet doctor
+-- stdout --
+config file: ok (not present, defaults in use)
+stellar CLI: ok (stellar <stellar-version>)
+cache directory: ok (ready)
+-- stderr --
+(empty)
+-- exit 0 --

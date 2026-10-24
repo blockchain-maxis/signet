@@ -326,6 +326,38 @@ installed, drop `-race` locally; CI (`ubuntu-latest`) always runs with it.
 "helper binary" pattern) so `ResolvePublicKey`'s `exec.Command` wiring is
 exercised for real, without needing the actual Stellar CLI installed.
 
+### Golden files
+
+Scripts parse `--json` output and people read the human output, so both
+change only on purpose. `internal/cmd/golden_output_test.go` runs real
+invocations and compares everything each one produces (stdout, stderr, and
+the error with its exit code) byte for byte against
+`internal/cmd/testdata/golden/*.golden`. It covers `--help` for every command,
+`link` (approved, rejected and expired), `unlink` and `whoami` (linked and not
+linked), `doctor` (all green and one failure) in both human and `--json`
+form, and the network-mismatch message.
+
+When a change to the output is deliberate, regenerate the goldens and commit
+them with the change:
+
+```bash
+go test ./internal/cmd -update
+git diff internal/cmd/testdata/golden   # review it like code
+```
+
+Without `-update`, any difference fails the test with a line diff (`-` the
+golden, `+` the new output). The `-update` flag is defined only in
+`internal/cmd`, so pass it to that package rather than to `./...`.
+
+Anything that changes between runs or machines is normalised by the helper
+(`normalizeGolden` in `internal/cmd/golden_test.go`), never edited by hand in a
+golden: random ports become `127.0.0.1:<port>`, the callback nonce becomes
+`<state>`, timestamps become `<timestamp>`, the temp directory becomes `<tmp>`,
+and the build version and the minimum `stellar` version become `<version>` and
+`<stellar-version>`. To cover a new volatile value, add a pattern there.
+`\r\n` is read as `\n`, and `.gitattributes` keeps the goldens LF, so the same
+files pass on Linux, macOS and Windows in CI.
+
 No cgo is used anywhere in this module, so it cross-compiles with the
 standard `GOOS`/`GOARCH` combinations, e.g.:
 

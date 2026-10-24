@@ -1,0 +1,26 @@
+$ signet whoami --help
+-- stdout --
+Prints the identity signet will sign as, its Stellar public key, the
+deployment it talks to, and the handle that key is currently attributed to —
+or that it is not linked yet.
+
+Never prints a secret key: the public key is resolved through the stellar CLI,
+which keeps key material out of signet entirely.
+
+Usage:
+  signet whoami [flags]
+
+Flags:
+  -h, --help   help for whoami
+
+Global Flags:
+      --context string         deployment context to use (overrides SIGNET_CONTEXT and the config file's current context)
+      --insecure               allow a plain-http deployment URL on a non-local host (signed challenges travel in cleartext; use only against a deployment you control)
+      --json                   write a single JSON result to stdout instead of human-readable output (diagnostics go to stderr)
+      --network string         Stellar network to talk to (overrides SIGNET_NETWORK, the context, and default "testnet")
+      --sign-with-key string   identity to sign with, for non-interactive use (same value as STELLAR_SIGN_WITH_KEY; not remembered)
+      --source string          identity to sign as (remembered in the config file for next time)
+      --url string             Signet deployment URL (overrides SIGNET_URL, the config file, and the default)
+-- stderr --
+(empty)
+-- exit 0 --
