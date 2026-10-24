@@ -69,7 +69,7 @@ func TestMessagesMatchTheSchemas(t *testing.T) {
 	full.Ledger = &LedgerInfo{Sequence: 5, Timestamp: 6, Protocol: 28}
 
 	requests := map[string]any{
-		TypeLedgerOpen:       LedgerOpenParams{NetworkPassphrase: "Test SDF Network ; September 2015", LedgerProtocol: ip(28), Sequence: u32(5), Fetch: "deny"},
+		TypeLedgerOpen:       LedgerOpenParams{NetworkPassphrase: "Test SDF Network ; September 2015", LedgerProtocol: ip(28), Sequence: u32(5), Fetch: "deny", BaseReserve: u32(5000000), Entries: []PutEntry{{KeyXDR: b64, DataXDR: b64, LastModifiedLedgerSeq: u32(1)}}},
 		TypeLedgerPut:        LedgerPutParams{Entries: []PutEntry{{KeyXDR: b64, EntryXDR: b64, LiveUntilLedger: u32(9)}}},
 		TypeLedgerGet:        LedgerGetParams{KeysXDR: []string{b64}},
 		TypeLedgerCheckpoint: LedgerCheckpointParams{Label: "x"},
@@ -97,7 +97,7 @@ func TestMessagesMatchTheSchemas(t *testing.T) {
 		TypeShutdown:    nil,
 	}
 	results := map[string]any{
-		TypeLedgerOpen:       LedgerOpenResult{LedgerProtocol: 28, Sequence: 1},
+		TypeLedgerOpen:       LedgerOpenResult{LedgerProtocol: 28, Sequence: 1, NetworkConfig: json.RawMessage(`{"min_persistent_ttl":4096}`)},
 		TypeLedgerPut:        LedgerPutResult{Written: 1},
 		TypeLedgerGet:        LedgerGetResult{Entries: []GotEntry{{KeyXDR: b64, EntryXDR: sp(b64), Provenance: &Provenance{Source: "fork", FetchedAtLedger: u32(3), LastModifiedLedgerSeq: 2}}, {KeyXDR: b64}}},
 		TypeLedgerCheckpoint: LedgerCheckpointResult{Checkpoint: "cp-1"},
@@ -115,7 +115,7 @@ func TestMessagesMatchTheSchemas(t *testing.T) {
 		TypeXDRKeys:          XDRKeysResult{Keys: []BuiltKey{{Kind: "account", Subject: "G…", KeyXDR: b64}}},
 		TypeTxDecode:         nil, // the transaction body is passed through as JSON
 		TypeWasmInspect:      WasmInspectResult{WasmHash: hash, SizeBytes: 8, CustomSections: []string{"contractspecv0"}, InterfaceVersion: &InterfaceVersion{Protocol: 22}, Exports: []string{"f"}, Imports: []WasmImport{{Module: "x", Name: "_"}}},
-		TypeStatus:           StatusResult{UptimeMS: 5, LedgerOpen: true, LedgerSequence: u32(1), Entries: 1, Contracts: 1},
+		TypeStatus:           StatusResult{UptimeMS: 5, LedgerOpen: true, LedgerSequence: u32(1), Entries: 1, Contracts: 1, NetworkConfig: json.RawMessage(`{}`), BaseReserve: u32(5000000)},
 		TypeShutdown:         nil,
 	}
 

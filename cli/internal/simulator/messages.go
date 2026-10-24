@@ -171,12 +171,17 @@ type LedgerOpenParams struct {
 	// Fetch is "allow" (the default: misses become ledger_fetch) or "deny"
 	// (a miss is a fetch_failed error; offline runs and bundle replay).
 	Fetch string `json:"fetch,omitempty"`
+	// BaseReserve is the network's base reserve in stroops (default 5000000).
+	BaseReserve *uint32 `json:"base_reserve,omitempty"`
+	// Entries seed the fork layer before the network config is loaded.
+	Entries []PutEntry `json:"entries,omitempty"`
 }
 
 // LedgerOpenResult answers ledger_open.
 type LedgerOpenResult struct {
-	LedgerProtocol int    `json:"ledger_protocol"`
-	Sequence       uint32 `json:"sequence"`
+	LedgerProtocol int             `json:"ledger_protocol"`
+	Sequence       uint32          `json:"sequence"`
+	NetworkConfig  json.RawMessage `json:"network_config,omitempty"`
 }
 
 // LedgerPutParams writes entries into the open ledger.
@@ -496,9 +501,11 @@ type WasmImport struct {
 
 // StatusResult answers status.
 type StatusResult struct {
-	UptimeMS       uint64  `json:"uptime_ms"`
-	LedgerOpen     bool    `json:"ledger_open"`
-	LedgerSequence *uint32 `json:"ledger_sequence"`
-	Entries        int     `json:"entries"`
-	Contracts      int     `json:"contracts"`
+	UptimeMS       uint64          `json:"uptime_ms"`
+	LedgerOpen     bool            `json:"ledger_open"`
+	LedgerSequence *uint32         `json:"ledger_sequence"`
+	Entries        int             `json:"entries"`
+	Contracts      int             `json:"contracts"`
+	NetworkConfig  json.RawMessage `json:"network_config,omitempty"`
+	BaseReserve    *uint32         `json:"base_reserve,omitempty"`
 }

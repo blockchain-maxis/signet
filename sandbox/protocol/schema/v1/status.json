@@ -66,6 +66,21 @@
           "type": "integer",
           "description": "Installed contracts",
           "minimum": 0
+        },
+        "network_config": {
+          "oneOf": [
+            {
+              "type": "object",
+              "description": "The effective network configuration loaded from the ledger's ConfigSetting entries (#535): limits, fee rates and TTLs"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "base_reserve": {
+          "type": "integer",
+          "minimum": 0
         }
       },
       "required": [

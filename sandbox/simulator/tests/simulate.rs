@@ -184,10 +184,13 @@ fn fresh_registry() -> (Sim, String) {
     let mut sim = Sim::start();
     let open = sim.send(json!({
         "type": "ledger_open", "network_passphrase": TESTNET, "sequence": 100, "timestamp": 1_790_000_000u64,
+        "entries": network_config_entries(),
     }));
     assert_eq!(open["type"], "result", "{open}");
-    let put = sim.send(json!({ "type": "ledger_put", "entries": network_config_entries() }));
-    assert_eq!(put["written"], 10, "{put}");
+    assert!(
+        sim.fetched.is_empty(),
+        "the config was passed in, not fetched"
+    );
     let installed = sim.send(json!({ "type": "contract_install", "wasm_base64": registry_wasm() }));
     assert_eq!(
         installed["wasm_hash"], "936996c74b7d383c56ec174857b15927cdd29478c6909da332b4dec8b67335fe",
@@ -322,26 +325,24 @@ fn forked() -> Sim {
 #[test]
 fn the_first_call_fetches_and_an_identical_second_call_fetches_nothing() {
     let mut sim = forked();
+    // Opening the fork fetched the network config (#535).
+    let at_open = sim.fetched.len();
+    assert_eq!(at_open, 10, "{:?}", sim.fetched);
+
     let first = sim.call(REGISTRY, "count", json!({}));
     assert_eq!(first["type"], "result", "{first}");
     let instance_key =
         fixture("registry-instance-entry.json")["request"]["params"]["keys"][0].clone();
     let code_key = fixture("registry-code-entry.json")["request"]["params"]["keys"][0].clone();
-    assert!(
-        sim.fetched
-            .contains(&instance_key.as_str().unwrap().to_string()),
-        "{:?}",
-        sim.fetched
+    assert_eq!(
+        sim.fetched[at_open..],
+        [
+            instance_key.as_str().unwrap().to_string(),
+            code_key.as_str().unwrap().to_string()
+        ],
+        "the first call fetches the instance, then its code"
     );
-    assert!(
-        sim.fetched
-            .contains(&code_key.as_str().unwrap().to_string()),
-        "{:?}",
-        sim.fetched
-    );
-    // The network config came the same way.
-    assert!(sim.fetched.len() >= 12, "{:?}", sim.fetched);
-    assert_eq!(first["misses"].as_array().unwrap().len(), sim.fetched.len());
+    assert_eq!(first["misses"], json!([instance_key, code_key]));
 
     let before = sim.fetched.len();
     let second = sim.call(REGISTRY, "count", json!({}));
@@ -373,9 +374,11 @@ fn the_first_call_fetches_and_an_identical_second_call_fetches_nothing() {
 #[test]
 fn deny_mode_names_the_key_it_would_have_fetched() {
     let mut sim = Sim::start();
-    sim.send(json!({
+    let open = sim.send(json!({
         "type": "ledger_open", "network_passphrase": TESTNET, "sequence": FORK_LEDGER, "fetch": "deny",
+        "entries": network_config_entries(),
     }));
+    assert_eq!(open["type"], "result", "{open}");
     let r = sim.call(REGISTRY, "count", json!({}));
     assert_eq!(r["code"], "fetch_failed", "{r}");
     assert_eq!(r["detail"]["kind"], "denied");
@@ -407,4 +410,66 @@ fn status_reports_the_open_ledger() {
     assert_eq!(s["ledger_sequence"], 100);
     assert_eq!(s["contracts"], 1);
     assert_eq!(s["entries"], 12);
+    // The effective config is testnet's, as loaded at open (#535).
+    assert!(
+        s["network_config"]["min_persistent_ttl"].as_u64().unwrap() > 0,
+        "{s}"
+    );
+    assert!(
+        s["network_config"]["fee_per_write_1kb"].as_i64().unwrap() > 0,
+        "{s}"
+    );
+    assert_eq!(s["base_reserve"], 5_000_000);
+}
+
+#[test]
+fn a_fork_fetches_its_network_config_when_it_opens() {
+    let mut sim = Sim::start();
+    let open = sim.send(
+        json!({ "type": "ledger_open", "network_passphrase": TESTNET, "sequence": FORK_LEDGER }),
+    );
+    assert_eq!(open["type"], "result", "{open}");
+    assert_eq!(sim.fetched.len(), 10, "{:?}", sim.fetched);
+    assert!(
+        open["network_config"]["tx_max_instructions"]
+            .as_i64()
+            .unwrap()
+            > 0,
+        "{open}"
+    );
+}
+
+#[test]
+fn a_missing_config_setting_fails_the_open_and_names_it() {
+    let mut sim = Sim::start();
+    let mut entries = network_config_entries();
+    // ContractLedgerCostExtV0's key is the third of the ten.
+    let dropped = entries.remove(2);
+    assert_eq!(dropped["key_xdr"], "AAAACAAAAA8=");
+    let open = sim.send(json!({
+        "type": "ledger_open", "network_passphrase": TESTNET, "sequence": 100, "fetch": "deny", "entries": entries,
+    }));
+    assert_eq!(open["code"], "fetch_failed", "{open}");
+    assert_eq!(open["detail"]["kind"], "missing_config");
+    assert_eq!(
+        open["detail"]["missing"],
+        json!(["ContractLedgerCostExtV0"])
+    );
+    assert!(open["message"]
+        .as_str()
+        .unwrap()
+        .contains("ContractLedgerCostExtV0"));
+    // The ledger did not stay open.
+    assert_eq!(sim.send(json!({ "type": "status" }))["ledger_open"], false);
+
+    // On a fork, a setting the network lacks is just as fatal.
+    sim.entries.remove("AAAACAAAAA8=");
+    let fork = sim.send(
+        json!({ "type": "ledger_open", "network_passphrase": TESTNET, "sequence": FORK_LEDGER }),
+    );
+    assert_eq!(
+        fork["detail"]["missing"],
+        json!(["ContractLedgerCostExtV0"]),
+        "{fork}"
+    );
 }

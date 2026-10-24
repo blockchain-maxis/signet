@@ -145,6 +145,7 @@ pub fn simulate(
         network_passphrase: open.network_passphrase.clone(),
         sequence,
         timestamp: open.timestamp,
+        base_reserve: open.base_reserve,
         host_function_xdr,
         source_account_xdr,
         prng_seed: call_seed(open.calls),
@@ -558,6 +559,68 @@ pub fn ledger_import(
     )
 }
 
+/// The second half of `ledger_open` (#535): the network's `ConfigSetting`
+/// entries must be there, from `entries` or fetched from Go, and the lane
+/// must load them. Fees, limits and TTLs come from them, never from
+/// defaults, so a missing setting fails the open with `fetch_failed` /
+/// `missing_config` naming every one that is missing.
+pub fn load_network_config(
+    open: &mut OpenLedger,
+    fork: &Rc<FetchingSource>,
+    id: &Value,
+) -> Result<Value, Value> {
+    let lane = open.lane;
+    let keys = lane.ledger_keys(&KeyRequest::NetworkConfig).map_err(|e| {
+        invalid_field(
+            id,
+            "ledger_protocol",
+            &format!("a protocol with a network config: {e}"),
+        )
+    })?;
+    let mut missing = Vec::new();
+    for key in &keys {
+        // In deny mode an unknown key is simply missing; asking the source
+        // would record a denial instead.
+        if open.fetch == crate::ledger::fetch::FetchMode::Deny
+            && !open.store.borrow().knows(&key.key_xdr)
+        {
+            missing.push(key.subject.clone());
+            continue;
+        }
+        match fork.get(&key.key_xdr) {
+            Ok(Some(_)) => {}
+            Ok(None) => missing.push(key.subject.clone()),
+            Err(_) => {
+                return Err(fork
+                    .failure()
+                    .map_or_else(|| no_open_ledger(id), |f| fetch_failed(id, lane, &f)))
+            }
+        }
+    }
+    if !missing.is_empty() {
+        return Err(error_message(
+            id,
+            "fetch_failed",
+            format!(
+                "the ledger lacks network configuration the host needs: {} (fetch the `network_config` keys from `xdr_keys`, or pass them in `entries`)",
+                missing.join(", ")
+            ),
+            json!({ "kind": "missing_config", "missing": missing }),
+        ));
+    }
+    let src: Rc<dyn ByteSnapshotSource> = fork.clone();
+    let config = lane.network_config(src).map_err(|e| {
+        error_message(
+            id,
+            "fetch_failed",
+            format!("the ledger's network configuration does not load: {e}"),
+            json!({ "kind": "missing_config", "reason": e.to_string() }),
+        )
+    })?;
+    open.network_config = config.clone();
+    Ok(config)
+}
+
 /// `status`: what the simulator is holding.
 pub fn status(ledger: &Option<OpenLedger>, started: Instant, id: &Value) -> Value {
     let uptime_ms = u64::try_from(started.elapsed().as_millis()).unwrap_or(u64::MAX);
@@ -576,6 +639,8 @@ pub fn status(ledger: &Option<OpenLedger>, started: Instant, id: &Value) -> Valu
                     "ledger_sequence": store.sequence(),
                     "entries": store.stored_entry_count(),
                     "contracts": open.installed.len(),
+                    "network_config": open.network_config,
+                    "base_reserve": open.base_reserve,
                 }),
             )
         }

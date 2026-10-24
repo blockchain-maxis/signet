@@ -20,7 +20,9 @@ use crate::ledger::fetch::FetchingSource;
 use crate::ledger::verbs::{
     ledger_checkpoint, ledger_get, ledger_open, ledger_put, ledger_rollback, OpenLedger,
 };
-use crate::simulate::{contract_install, contract_swap, ledger_import, simulate, status};
+use crate::simulate::{
+    contract_install, contract_swap, ledger_import, load_network_config, simulate, status,
+};
 use crate::spec_verbs::{spec_decode_val, spec_encode_args, spec_extract};
 use crate::stdio::Channel;
 use crate::xdr_helpers::{tx_decode, wasm_inspect, xdr_keys};
@@ -170,7 +172,7 @@ impl Dispatcher {
         });
         match ty {
             "hello" => self.hello(&id, &object),
-            "ledger_open" => Step::reply(ledger_open(&mut self.ledger, &id, &object)),
+            "ledger_open" => Step::reply(self.open(&id, &object)),
             "ledger_put" => Step::reply(ledger_put(&mut self.ledger, &id, &object)),
             "ledger_get" => Step::reply(ledger_get(&self.ledger, &id, &object)),
             "ledger_checkpoint" => Step::reply(ledger_checkpoint(&mut self.ledger, &id)),
@@ -209,6 +211,34 @@ impl Dispatcher {
                 format!("unknown message type `{other}`"),
                 json!({ "kind": "unknown_type", "type": other }),
             ),
+        }
+    }
+
+    /// `ledger_open`, then the network config it must carry (#535). A ledger
+    /// whose config is missing does not stay open.
+    fn open(&mut self, id: &Value, object: &Map<String, Value>) -> Value {
+        let mut reply = ledger_open(&mut self.ledger, id, object);
+        if reply["type"] != "result" {
+            return reply;
+        }
+        let Some(open) = self.ledger.as_mut() else {
+            return reply;
+        };
+        let fork = Rc::new(FetchingSource::new(
+            open.store.clone(),
+            self.channel.clone(),
+            open.lane,
+            open.fetch,
+        ));
+        match load_network_config(open, &fork, id) {
+            Ok(config) => {
+                reply["network_config"] = config;
+                reply
+            }
+            Err(error) => {
+                self.ledger = None;
+                error
+            }
         }
     }
 

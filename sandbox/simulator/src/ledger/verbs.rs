@@ -32,7 +32,15 @@ pub struct OpenLedger {
     pub installed: BTreeSet<String>,
     /// `simulate` calls run on this ledger; seeds each call's PRNG.
     pub calls: u64,
+    /// The network's base reserve in stroops (`ledger_open`'s `base_reserve`).
+    pub base_reserve: u32,
+    /// The effective network configuration, loaded when the ledger opened
+    /// (#535), for `status`.
+    pub network_config: Value,
 }
+
+/// The base reserve of every public Stellar network, 0.5 XLM.
+pub const DEFAULT_BASE_RESERVE: u32 = 5_000_000;
 
 fn invalid_field(id: &Value, path: &str, expected: &str) -> Value {
     error_message(
@@ -186,14 +194,54 @@ pub fn ledger_open(
         _ => return invalid_field(id, "fetch", "\"allow\" or \"deny\""),
     };
 
+    let base_reserve = match object.get("base_reserve") {
+        None => DEFAULT_BASE_RESERVE,
+        Some(value) => match value.as_u64().and_then(|n| u32::try_from(n).ok()) {
+            Some(reserve) => reserve,
+            None => return invalid_field(id, "base_reserve", "a stroop amount"),
+        },
+    };
+    // Seed entries (a hand-built ledger, or a fork's network config) go into
+    // the fork layer, as if fetched at the open sequence.
+    let mut store = LayeredStore::new(sequence);
+    if let Some(entries) = object.get("entries") {
+        let Some(entries) = entries.as_array() else {
+            return invalid_field(id, "entries", "an array");
+        };
+        for (index, item) in entries.iter().enumerate() {
+            let at = format!("entries[{index}]");
+            let Some(item) = item.as_object() else {
+                return invalid_field(id, &at, "an object");
+            };
+            let Some(key_xdr) = item.get("key_xdr").and_then(Value::as_str) else {
+                return invalid_field(id, &format!("{at}.key_xdr"), "a string");
+            };
+            let key = match decode_key(lane, id, &format!("{at}.key_xdr"), key_xdr) {
+                Ok(key) => key,
+                Err(error) => return error,
+            };
+            let entry = match entry_of(lane, id, &at, item) {
+                Ok(entry) => entry,
+                Err(error) => return error,
+            };
+            let live_until = item
+                .get("live_until_ledger")
+                .and_then(Value::as_u64)
+                .and_then(|n| u32::try_from(n).ok());
+            store.insert_base(&key, entry, live_until, sequence);
+        }
+    }
+
     *ledger = Some(OpenLedger {
-        store: Rc::new(RefCell::new(LayeredStore::new(sequence))),
+        store: Rc::new(RefCell::new(store)),
         network_passphrase: passphrase.to_string(),
         lane,
         timestamp,
         fetch,
         installed: BTreeSet::new(),
         calls: 0,
+        base_reserve,
+        network_config: Value::Null,
     });
     json!({
         "version": PROTOCOL_VERSION,

@@ -40,6 +40,92 @@
     "fetch": {
       "enum": ["allow", "deny"],
       "description": "Whether a read the ledger cannot answer is fetched from Go with ledger_fetch (default allow). deny is for offline runs and bundle replay (#573): a miss is a fetch_failed error naming the key."
+    },
+    "base_reserve": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "The network's base reserve in stroops (default 5000000, every public network's)"
+    },
+    "entries": {
+      "type": "array",
+      "items": {
+        "oneOf": [
+          {
+            "type": "object",
+            "properties": {
+              "key_xdr": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^[A-Za-z0-9+/]+={0,2}$",
+                "description": "LedgerKey, base64 XDR"
+              },
+              "entry_xdr": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^[A-Za-z0-9+/]+={0,2}$",
+                "description": "LedgerEntry, base64 XDR"
+              },
+              "live_until_ledger": {
+                "type": "integer",
+                "description": "Last ledger the entry is live, for entries that expire",
+                "minimum": 0
+              }
+            },
+            "required": ["key_xdr", "entry_xdr"],
+            "additionalProperties": false
+          },
+          {
+            "type": "object",
+            "properties": {
+              "key_xdr": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^[A-Za-z0-9+/]+={0,2}$",
+                "description": "LedgerKey"
+              },
+              "data_xdr": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^[A-Za-z0-9+/]+={0,2}$",
+                "description": "LedgerEntryData, as RPC getLedgerEntries returns it in `xdr`"
+              },
+              "last_modified_ledger_seq": {
+                "type": "integer",
+                "minimum": 0,
+                "description": "RPC's lastModifiedLedgerSeq"
+              },
+              "ext_xdr": {
+                "oneOf": [
+                  {
+                    "type": "string",
+                    "minLength": 1,
+                    "pattern": "^[A-Za-z0-9+/]+={0,2}$",
+                    "description": "LedgerEntryExt, RPC's extXdr"
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              },
+              "live_until_ledger": {
+                "oneOf": [
+                  {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": ["key_xdr", "data_xdr", "last_modified_ledger_seq"],
+            "additionalProperties": false,
+            "description": "An entry in the pieces RPC returns; the simulator assembles the LedgerEntry, so Go never builds XDR"
+          }
+        ]
+      },
+      "description": "Entries to seed the fork layer with before the network config is loaded: a hand-built ledger, or a fork's ConfigSetting entries"
     }
   },
   "required": ["version", "id", "type", "network_passphrase"],
@@ -70,6 +156,10 @@
           "type": "integer",
           "description": "Starting sequence",
           "minimum": 1
+        },
+        "network_config": {
+          "type": "object",
+          "description": "The effective network configuration loaded from the ledger's ConfigSetting entries (#535): limits, fee rates and TTLs"
         }
       },
       "required": ["version", "id", "type", "ledger_protocol", "sequence"],

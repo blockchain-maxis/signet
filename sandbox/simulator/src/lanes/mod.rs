@@ -48,6 +48,8 @@ pub struct SimulateBytes {
     pub sequence: u32,
     /// Ledger close time, Unix seconds.
     pub timestamp: u64,
+    /// The network's base reserve, in stroops (not an on-ledger setting).
+    pub base_reserve: u32,
     /// `HostFunction` XDR.
     pub host_function_xdr: Vec<u8>,
     /// `AccountId` XDR of the invoking account.
@@ -256,6 +258,14 @@ pub trait Lane: Sync {
     fn check_ledger_key(&self, key_xdr: &[u8]) -> Result<(), LaneError>;
     /// Whether `entry_xdr` is a `LedgerEntry` this lane can decode.
     fn check_ledger_entry(&self, entry_xdr: &[u8]) -> Result<(), LaneError>;
+
+    /// The network configuration `src` holds, as plain JSON for `status`
+    /// and `ledger_open` (#535): limits, fee rates and TTLs. A missing
+    /// setting is [`LaneError::NetworkConfig`] naming it.
+    fn network_config(
+        &self,
+        src: Rc<dyn ByteSnapshotSource>,
+    ) -> Result<serde_json::Value, LaneError>;
 
     /// Run one `InvokeHostFunction` against `src` in recording mode.
     fn simulate(

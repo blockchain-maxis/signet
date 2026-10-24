@@ -40,9 +40,6 @@ pub const LEDGER_PROTOCOL: u32 = 28;
 pub const ENV_HOST_VERSION: &str = "28.0.2";
 pub const SIMULATION_VERSION: &str = "28.0.2";
 
-/// Network base reserve, in stroops; not part of the on-ledger Soroban config.
-const BASE_RESERVE_STROOPS: u32 = 5_000_000;
-
 /// Custom WASM section that holds the contract spec.
 const SPEC_SECTION: &str = "contractspecv0";
 
@@ -176,6 +173,32 @@ impl Lane for P28Lane {
         decode::<LedgerEntry>(entry_xdr, "LedgerEntry").map(|_| ())
     }
 
+    fn network_config(&self, src: Rc<dyn ByteSnapshotSource>) -> Result<Value, LaneError> {
+        let snapshot = BytesSnapshot(src);
+        let config = NetworkConfig::load_from_snapshot(&snapshot)
+            .map_err(|e| LaneError::NetworkConfig(e.to_string()))?;
+        let fees = &config.fee_configuration;
+        let rent = &config.rent_fee_configuration;
+        Ok(json!({
+            "tx_max_instructions": config.tx_max_instructions,
+            "tx_memory_limit": config.tx_memory_limit,
+            "min_temporary_ttl": config.min_temp_entry_ttl,
+            "min_persistent_ttl": config.min_persistent_entry_ttl,
+            "max_entry_ttl": config.max_entry_ttl,
+            "fee_per_instruction_increment": fees.fee_per_instruction_increment,
+            "fee_per_disk_read_entry": fees.fee_per_disk_read_entry,
+            "fee_per_write_entry": fees.fee_per_write_entry,
+            "fee_per_disk_read_1kb": fees.fee_per_disk_read_1kb,
+            "fee_per_write_1kb": fees.fee_per_write_1kb,
+            "fee_per_historical_1kb": fees.fee_per_historical_1kb,
+            "fee_per_contract_event_1kb": fees.fee_per_contract_event_1kb,
+            "fee_per_transaction_size_1kb": fees.fee_per_transaction_size_1kb,
+            "fee_per_rent_1kb": rent.fee_per_rent_1kb,
+            "persistent_rent_rate_denominator": rent.persistent_rent_rate_denominator,
+            "temporary_rent_rate_denominator": rent.temporary_rent_rate_denominator,
+        }))
+    }
+
     fn simulate(
         &self,
         request: &SimulateBytes,
@@ -192,7 +215,7 @@ impl Lane for P28Lane {
             sequence_number: request.sequence,
             timestamp: request.timestamp,
             network_id: Sha256::digest(request.network_passphrase.as_bytes()).into(),
-            base_reserve: BASE_RESERVE_STROOPS,
+            base_reserve: request.base_reserve,
             ..LedgerInfo::default()
         };
         network_config.fill_config_fields_in_ledger_info(&mut ledger_info);
@@ -1165,6 +1188,7 @@ mod tests {
             network_passphrase: "Test SDF Network ; September 2015".to_string(),
             sequence: 100,
             timestamp: 1_700_000_000,
+            base_reserve: 5_000_000,
             host_function_xdr,
             source_account_xdr: AccountId(PublicKey::PublicKeyTypeEd25519(Uint256([1; 32])))
                 .to_xdr(Limits::none())
