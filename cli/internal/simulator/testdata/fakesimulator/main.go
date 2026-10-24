@@ -16,6 +16,7 @@
 //	FAKESIM_EXIT_EARLY   exit with this code before the handshake
 //	FAKESIM_IGNORE_TERM  ignore SIGTERM (and log that it arrived)
 //	FAKESIM_LOG          append "<pid> <line>" for every line read
+//	FAKESIM_VERSION      the release `--version` reports
 package main
 
 import (
@@ -38,6 +39,14 @@ var (
 )
 
 func main() {
+	if len(os.Args) > 1 && os.Args[1] == "--version" {
+		v := os.Getenv("FAKESIM_VERSION")
+		if v == "" {
+			v = "0.0.0-fake"
+		}
+		fmt.Printf("signet-simulator %s (commit fake) protocol 1 lanes 28\n", v)
+		return
+	}
 	if path := os.Getenv("FAKESIM_LOG"); path != "" {
 		f, err := os.OpenFile(path, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o600)
 		if err != nil {

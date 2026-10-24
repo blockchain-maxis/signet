@@ -21,6 +21,9 @@ Deployments:
   config      Inspect and update settings in the current context
   context     Manage named deployment contexts
 
+Contracts:
+  sandbox     Run a deployed contract's functions locally against forked state
+
 Other:
   bug-report  Print a redacted bug report and a pre-filled issue link
   completion  Generate the autocompletion script for the specified shell

@@ -197,6 +197,9 @@ var cannotFail = map[string]bool{
 	// reads local state, so neither fails on normal use.
 	"doctor":     true,
 	"bug-report": true,
+	// sandbox itself only prints help; its subcommands that execute are
+	// covered under `failing` as they land.
+	"sandbox": true,
 }
 
 func TestEveryCommandIsCoveredByTheJSONErrorRule(t *testing.T) {
