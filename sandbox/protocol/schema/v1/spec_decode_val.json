@@ -2,7 +2,7 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "https://signet.dev/schemas/sandbox/v1/spec_decode_val.json",
   "title": "spec_decode_val (request)",
-  "description": "Decode a ScVal to JSON using the type a function declares for its return value.",
+  "description": "Decode XDR to JSON with a contract's spec: a function's return value (val_xdr + function), a value of a named type (val_xdr + as_type), or a contract event (event_xdr). The JSON shape is the one spec_encode_args accepts; a failed Result decodes to {\"error\": {code, name, enum, doc, candidates?}}.",
   "type": "object",
   "properties": {
     "version": {
@@ -50,16 +50,27 @@
     "function": {
       "type": "string",
       "minLength": 1,
-      "description": "Function whose return type to decode as"
+      "description": "Decode val_xdr as this function's return type"
     },
     "val_xdr": {
       "type": "string",
       "minLength": 1,
       "pattern": "^[A-Za-z0-9+/]+={0,2}$",
       "description": "ScVal, base64 XDR"
+    },
+    "as_type": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Decode val_xdr as this user-defined type instead of a function's return type"
+    },
+    "event_xdr": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9+/]+={0,2}$",
+      "description": "ContractEvent, base64 XDR: decoded by the contract's event spec when one matches"
     }
   },
-  "required": ["version", "id", "type", "source", "function", "val_xdr"],
+  "required": ["version", "id", "type", "source"],
   "additionalProperties": false,
   "definitions": {
     "result": {
@@ -85,5 +96,16 @@
       "required": ["version", "id", "type", "value"],
       "additionalProperties": false
     }
-  }
+  },
+  "oneOf": [
+    {
+      "required": ["val_xdr", "function"]
+    },
+    {
+      "required": ["val_xdr", "as_type"]
+    },
+    {
+      "required": ["event_xdr"]
+    }
+  ]
 }

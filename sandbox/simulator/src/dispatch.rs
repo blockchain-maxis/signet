@@ -18,7 +18,7 @@ use crate::lanes::LaneRegistry;
 use crate::ledger::verbs::{
     ledger_checkpoint, ledger_get, ledger_open, ledger_put, ledger_rollback, OpenLedger,
 };
-use crate::spec_verbs::{spec_encode_args, spec_extract};
+use crate::spec_verbs::{spec_decode_val, spec_encode_args, spec_extract};
 use crate::xdr_helpers::{tx_decode, wasm_inspect, xdr_keys};
 use crate::PROTOCOL_VERSION;
 
@@ -189,6 +189,7 @@ impl Dispatcher {
             "wasm_inspect" => Step::reply(wasm_inspect(&self.ledger, &id, &object)),
             "spec_extract" => Step::reply(spec_extract(&self.ledger, &id, &object)),
             "spec_encode_args" => Step::reply(spec_encode_args(&self.ledger, &id, &object)),
+            "spec_decode_val" => Step::reply(spec_decode_val(&self.ledger, &id, &object)),
             "shutdown" => Step {
                 reply: json!({ "version": PROTOCOL_VERSION, "id": id, "type": "result" }),
                 exit: Some(0),

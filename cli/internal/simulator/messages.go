@@ -282,11 +282,15 @@ type SpecEncodeArgsResult struct {
 	ArgsXDR []string `json:"args_xdr"`
 }
 
-// SpecDecodeValParams decodes a ScVal as a function's return type.
+// SpecDecodeValParams decodes XDR with a contract's spec: ValXDR as
+// Function's return type or as the named AsType, or EventXDR as a contract
+// event. Set exactly one of those three combinations.
 type SpecDecodeValParams struct {
 	Source   Source `json:"source"`
-	Function string `json:"function"`
-	ValXDR   string `json:"val_xdr"`
+	Function string `json:"function,omitempty"`
+	AsType   string `json:"as_type,omitempty"`
+	ValXDR   string `json:"val_xdr,omitempty"`
+	EventXDR string `json:"event_xdr,omitempty"`
 }
 
 // SpecDecodeValResult answers spec_decode_val.

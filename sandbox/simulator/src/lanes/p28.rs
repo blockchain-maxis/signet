@@ -27,8 +27,9 @@ use soroban_simulation::simulation::{
 use soroban_simulation::NetworkConfig;
 
 use super::{
-    ByteSnapshotSource, DerivedKey, EntryChangeBytes, ErrorCase, InterfaceVersion, KeyRequest,
-    Lane, LaneError, SimulateBytes, SimulateResultBytes, SwapResultBytes, WasmInspection,
+    ByteSnapshotSource, DecodeTarget, DerivedKey, EntryChangeBytes, ErrorCase, InterfaceVersion,
+    KeyRequest, Lane, LaneError, SimulateBytes, SimulateResultBytes, SwapResultBytes,
+    WasmInspection,
 };
 
 /// The ledger protocol this lane runs: the pinned host's interface version.
@@ -479,15 +480,18 @@ impl Lane for P28Lane {
             .collect()
     }
 
-    fn decode_return(
+    fn decode(
         &self,
         wasm: &[u8],
-        function: &str,
-        val_xdr: &[u8],
+        target: DecodeTarget<'_>,
+        xdr: &[u8],
     ) -> Result<Value, LaneError> {
         let spec = spec::Spec::from_wasm(wasm)?;
-        let val: ScVal = decode(val_xdr, "ScVal")?;
-        spec.decode_return(function, &val)
+        match target {
+            DecodeTarget::Return(function) => spec.decode_return(function, &decode(xdr, "ScVal")?),
+            DecodeTarget::Type(name) => spec.decode_as(name, &decode(xdr, "ScVal")?),
+            DecodeTarget::Event => spec.decode_event(&decode(xdr, "ContractEvent")?),
+        }
     }
 
     fn error_cases(&self, wasm: &[u8], code: u32) -> Result<Vec<ErrorCase>, LaneError> {

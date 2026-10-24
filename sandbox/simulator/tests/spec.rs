@@ -116,3 +116,35 @@ fn a_contract_source_needs_an_open_ledger() {
     })]);
     assert_eq!(replies[0]["detail"]["kind"], "no_open_ledger");
 }
+
+#[test]
+fn spec_decode_val_names_a_contract_error() {
+    // ScVal::Error(ScError::Contract(3)): SCV_ERROR, SCE_CONTRACT, code 3.
+    let error_3 = BASE64.encode([0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 3]);
+    // ScVal::U32(7).
+    let seven = BASE64.encode([0, 0, 0, 3, 0, 0, 0, 7]);
+    let source = json!({ "wasm_base64": fixture("identity-registry") });
+    let replies = exchange(&[
+        json!({
+            "version": 1, "id": "d1", "type": "spec_decode_val", "source": source,
+            "function": "claim", "val_xdr": error_3,
+        }),
+        json!({
+            "version": 1, "id": "d2", "type": "spec_decode_val", "source": source,
+            "function": "count", "val_xdr": seven,
+        }),
+        json!({
+            "version": 1, "id": "d3", "type": "spec_decode_val", "source": source,
+            "function": "count", "val_xdr": error_3,
+        }),
+    ]);
+    assert_eq!(
+        replies[0]["value"]["error"]["name"], "HandleTaken",
+        "{}",
+        replies[0]
+    );
+    assert_eq!(replies[0]["value"]["error"]["code"], 3);
+    assert_eq!(replies[1]["value"], 7);
+    assert_eq!(replies[2]["code"], "bad_request");
+    assert_eq!(replies[2]["detail"]["path"], "val_xdr");
+}

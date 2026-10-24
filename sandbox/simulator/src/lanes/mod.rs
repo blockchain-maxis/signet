@@ -173,6 +173,17 @@ pub enum LaneError {
     Decode(String),
 }
 
+/// What [`Lane::decode`] decodes its XDR as.
+#[derive(Clone, Copy, Debug)]
+pub enum DecodeTarget<'a> {
+    /// A `ScVal` returned by this function.
+    Return(&'a str),
+    /// A `ScVal` of this user-defined type.
+    Type(&'a str),
+    /// A `ContractEvent`.
+    Event,
+}
+
 /// One contract error case a code resolves to (#546).
 #[allow(dead_code)] // read by spec_decode_val and simulate (#546).
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -261,14 +272,14 @@ pub trait Lane: Sync {
         args: &serde_json::Value,
     ) -> Result<Vec<Vec<u8>>, LaneError>;
 
-    /// Decode a function's return `ScVal` XDR to JSON in the shape
-    /// `encode_args` accepts (#546).
-    #[allow(dead_code)] // called by spec_decode_val (#546).
-    fn decode_return(
+    /// Decode XDR to JSON with the contract's spec (`spec_decode_val`,
+    /// #546): a function's return `ScVal`, a `ScVal` of a named type, or a
+    /// `ContractEvent`.
+    fn decode(
         &self,
         wasm: &[u8],
-        function: &str,
-        val_xdr: &[u8],
+        target: DecodeTarget<'_>,
+        xdr: &[u8],
     ) -> Result<serde_json::Value, LaneError>;
 
     /// The error-enum cases a contract error code resolves to; several when

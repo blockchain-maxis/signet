@@ -11,7 +11,7 @@ use base64::Engine;
 use serde_json::{json, Map, Value};
 
 use crate::dispatch::error_message;
-use crate::lanes::{KeyRequest, Lane, LaneError, LaneRegistry};
+use crate::lanes::{DecodeTarget, KeyRequest, Lane, LaneError, LaneRegistry};
 use crate::ledger::store::Lookup;
 use crate::ledger::verbs::OpenLedger;
 use crate::PROTOCOL_VERSION;
@@ -196,5 +196,56 @@ pub fn spec_encode_args(
         ),
         Err(e @ LaneError::InvalidInput { .. }) => refused(id, "function", &e),
         Err(e) => refused(id, "args", &e),
+    }
+}
+
+/// `spec_decode_val`: XDR to JSON with the contract's types. `val_xdr` with
+/// `function` decodes a return value; with `as_type`, a value of that named
+/// type. `event_xdr` decodes a contract event.
+pub fn spec_decode_val(
+    ledger: &Option<OpenLedger>,
+    id: &Value,
+    object: &Map<String, Value>,
+) -> Value {
+    let (wasm, lane) = match resolve_source(ledger, id, object, "source") {
+        Ok(found) => found,
+        Err(reply) => return reply,
+    };
+    let text = |field: &str| object.get(field).and_then(Value::as_str);
+    let (path, target, b64) = match (text("val_xdr"), text("event_xdr")) {
+        (Some(val), None) => match (text("function"), text("as_type")) {
+            (Some(function), None) => ("function", DecodeTarget::Return(function), val),
+            (None, Some(name)) => ("as_type", DecodeTarget::Type(name), val),
+            _ => {
+                return invalid_field(
+                    id,
+                    "function",
+                    "set, or `as_type` set instead (exactly one), with `val_xdr`",
+                )
+            }
+        },
+        (None, Some(event)) => ("event_xdr", DecodeTarget::Event, event),
+        _ => {
+            return invalid_field(
+                id,
+                "val_xdr",
+                "set, or `event_xdr` set instead (exactly one)",
+            )
+        }
+    };
+    let xdr_field = if matches!(target, DecodeTarget::Event) {
+        "event_xdr"
+    } else {
+        "val_xdr"
+    };
+    let Ok(xdr) = BASE64.decode(b64) else {
+        return invalid_field(id, xdr_field, "base64");
+    };
+    match lane.decode(&wasm, target, &xdr) {
+        Ok(value) => result(id, json!({ "value": value })),
+        Err(e @ (LaneError::InvalidXdr { .. } | LaneError::Decode(_))) => {
+            refused(id, xdr_field, &e)
+        }
+        Err(e) => refused(id, path, &e),
     }
 }

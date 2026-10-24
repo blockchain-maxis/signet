@@ -29,10 +29,11 @@ use std::str::FromStr;
 use serde_json::{json, Map, Value};
 use sha2::{Digest, Sha256};
 use soroban_env_host::xdr::{
-    BytesM, Duration, Int128Parts, Int256Parts, Limited, Limits, ReadXdr, ScAddress, ScBytes,
-    ScEnvMetaEntry, ScError, ScMap, ScMapEntry, ScMetaEntry, ScSpecEntry, ScSpecFunctionV0,
-    ScSpecTypeDef, ScSpecUdtUnionCaseV0, ScString, ScSymbol, ScVal, ScVec, StringM, TimePoint,
-    UInt128Parts, UInt256Parts, VecM,
+    BytesM, ContractEvent, ContractEventBody, Duration, Int128Parts, Int256Parts, Limited, Limits,
+    ReadXdr, ScAddress, ScBytes, ScEnvMetaEntry, ScError, ScMap, ScMapEntry, ScMetaEntry,
+    ScSpecEntry, ScSpecEventDataFormat, ScSpecEventParamLocationV0, ScSpecFunctionV0,
+    ScSpecTypeDef, ScSpecTypeUdt, ScSpecUdtUnionCaseV0, ScString, ScSymbol, ScVal, ScVec, StringM,
+    TimePoint, UInt128Parts, UInt256Parts, VecM,
 };
 
 use super::{custom_sections, encode, hex, LaneError, SPEC_SECTION};
@@ -101,7 +102,6 @@ impl Spec {
 
     /// Every error-enum case whose value is `code`, as `(enum, name, doc)`.
     /// More than one when the contract declares several error enums.
-    #[allow(dead_code)] // consumed by #546.
     pub fn error_cases(&self, code: u32) -> Vec<(String, String, String)> {
         let mut out = Vec::new();
         for entry in &self.entries {
@@ -1134,7 +1134,6 @@ fn i256(v: &Value, path: &str) -> Result<[u64; 4], LaneError> {
 
 // ─── ScVal → JSON ──────────────────────────────────────────────────────────────
 
-#[allow(dead_code)] // consumed by #546.
 fn decode_error(path: &str, expected: &str, val: &ScVal) -> LaneError {
     LaneError::Decode(format!(
         "{}expected {expected}, got {}",
@@ -1147,7 +1146,6 @@ fn decode_error(path: &str, expected: &str, val: &ScVal) -> LaneError {
     ))
 }
 
-#[allow(dead_code)] // consumed by #546.
 fn u256_text(limbs: [u64; 4]) -> String {
     // Repeated division by 10 over big-endian limbs.
     let mut n = limbs;
@@ -1168,7 +1166,6 @@ fn u256_text(limbs: [u64; 4]) -> String {
     String::from_utf8(digits).expect("digits are ASCII")
 }
 
-#[allow(dead_code)] // consumed by #546.
 fn i256_text(limbs: [u64; 4]) -> String {
     if limbs[0] >> 63 == 0 {
         return u256_text(limbs);
@@ -1183,12 +1180,10 @@ fn i256_text(limbs: [u64; 4]) -> String {
     format!("-{}", u256_text(mag))
 }
 
-#[allow(dead_code)] // consumed by #546.
 fn b64(bytes: &[u8]) -> String {
     super::base64(bytes)
 }
 
-#[allow(dead_code)] // spec_decode_val and simulate decode with these (#546).
 impl Spec {
     /// Decode a value as `ty`, into the same JSON shape [`Spec::encode`]
     /// accepts, so `decode(encode(x)) == x`.
@@ -1377,8 +1372,8 @@ impl Spec {
         })
     }
 
-    /// Decode a function's return value. A `Result` output that failed is
-    /// returned as its error code.
+    /// Decode a function's return value. A `Result` output that failed
+    /// decodes to `{"error": …}` naming the error (see [`Spec::error_json`]).
     pub fn decode_return(&self, function: &str, val: &ScVal) -> Result<Value, LaneError> {
         let f = self
             .function(function)
@@ -1386,27 +1381,166 @@ impl Spec {
                 what: "function",
                 detail: format!("the contract has no function `{function}`"),
             })?;
-        match f.outputs.first() {
-            None => match val {
-                ScVal::Void => Ok(Value::Null),
-                other => Err(decode_error("", "void", other)),
-            },
-            Some(ty) => self.decode(ty, val, "", 0),
+        match (f.outputs.first(), val) {
+            (None, ScVal::Void) => Ok(Value::Null),
+            (None, other) => Err(decode_error("", "void", other)),
+            (Some(ScSpecTypeDef::Result(_)), ScVal::Error(e)) => {
+                Ok(json!({ "error": self.error_json(e) }))
+            }
+            (Some(ty), _) => self.decode(ty, val, "", 0),
+        }
+    }
+
+    /// Decode a value as the named type the spec defines.
+    pub fn decode_as(&self, type_name: &str, val: &ScVal) -> Result<Value, LaneError> {
+        if self.udt(type_name).is_none() {
+            return Err(LaneError::InvalidInput {
+                what: "type",
+                detail: format!("the contract defines no type `{type_name}`"),
+            });
+        }
+        let ty = ScSpecTypeDef::Udt(ScSpecTypeUdt {
+            name: StringM::try_from(type_name.as_bytes().to_vec()).map_err(|_| {
+                LaneError::InvalidInput {
+                    what: "type",
+                    detail: "names are at most 60 bytes".into(),
+                }
+            })?,
+        });
+        self.decode(&ty, val, "", 0)
+    }
+
+    /// An error as `{code, name, enum, doc}` from the spec's error enums.
+    /// When the contract declares several enums with a case at this code,
+    /// every one is listed under `candidates` and the first is used. A host
+    /// error (a trap, the budget) is `{type, code}` in the host's terms.
+    pub fn error_json(&self, e: &ScError) -> Value {
+        let ScError::Contract(code) = e else {
+            let (ty, code) = host_error_parts(e);
+            return json!({ "type": ty, "code": code });
+        };
+        let cases = self.error_cases(*code);
+        let case = |(en, name, doc): &(String, String, String)| json!({ "enum": en, "name": name, "doc": doc, "code": code });
+        match cases.as_slice() {
+            [] => json!({ "code": code }),
+            [one] => case(one),
+            [first, ..] => {
+                let mut out = case(first);
+                out["candidates"] = Value::Array(cases.iter().map(case).collect());
+                out
+            }
+        }
+    }
+
+    /// A contract event: its topics and data generically, and, when the
+    /// contract declares an event spec (`ScSpecEventV0`) whose prefix
+    /// topics match, the event's name and its parameters decoded by type.
+    pub fn decode_event(&self, event: &ContractEvent) -> Result<Value, LaneError> {
+        let ContractEventBody::V0(body) = &event.body;
+        let topics: Vec<Value> = body.topics.iter().map(generic).collect::<Result<_, _>>()?;
+        let mut out = json!({
+            "contract_id": event.contract_id.as_ref().map(|id| ScAddress::Contract(id.clone()).to_string()),
+            "type": event.type_.name().to_lowercase(),
+            "name": Value::Null,
+            "topics": topics,
+            "data": generic(&body.data)?,
+        });
+        let Some(spec) = self.entries.iter().find_map(|e| match e {
+            ScSpecEntry::EventV0(ev) if prefix_matches(ev, &body.topics) => Some(ev),
+            _ => None,
+        }) else {
+            return Ok(out);
+        };
+        out["name"] = json!(spec.name.to_utf8_string_lossy());
+        let mut params = Map::new();
+        let mut rest = body.topics.iter().skip(spec.prefix_topics.len());
+        let data_params: Vec<_> = spec
+            .params
+            .iter()
+            .filter(|p| p.location == ScSpecEventParamLocationV0::Data)
+            .collect();
+        for p in spec
+            .params
+            .iter()
+            .filter(|p| p.location == ScSpecEventParamLocationV0::TopicList)
+        {
+            let name = p.name.to_utf8_string_lossy();
+            let Some(topic) = rest.next() else {
+                return Ok(out);
+            };
+            params.insert(name.clone(), self.decode(&p.type_, topic, &name, 0)?);
+        }
+        match spec.data_format {
+            ScSpecEventDataFormat::SingleValue => {
+                if let Some(p) = data_params.first() {
+                    let name = p.name.to_utf8_string_lossy();
+                    params.insert(name.clone(), self.decode(&p.type_, &body.data, &name, 0)?);
+                }
+            }
+            ScSpecEventDataFormat::Vec => {
+                if let ScVal::Vec(Some(items)) = &body.data {
+                    for (p, item) in data_params.iter().zip(items.iter()) {
+                        let name = p.name.to_utf8_string_lossy();
+                        params.insert(name.clone(), self.decode(&p.type_, item, &name, 0)?);
+                    }
+                }
+            }
+            ScSpecEventDataFormat::Map => {
+                if let ScVal::Map(Some(entries)) = &body.data {
+                    for p in &data_params {
+                        let name = p.name.to_utf8_string_lossy();
+                        let found = entries.iter().find(|e| matches!(&e.key, ScVal::Symbol(s) if s.0.to_utf8_string_lossy() == name));
+                        if let Some(e) = found {
+                            params.insert(name.clone(), self.decode(&p.type_, &e.val, &name, 0)?);
+                        }
+                    }
+                }
+            }
+        }
+        out["params"] = Value::Object(params);
+        Ok(out)
+    }
+}
+
+fn error_json(e: &ScError) -> Value {
+    match e {
+        ScError::Contract(n) => json!(n),
+        other => {
+            let (ty, code) = host_error_parts(other);
+            json!({ "type": ty, "code": code })
         }
     }
 }
 
-#[allow(dead_code)] // consumed by #546.
-fn error_json(e: &ScError) -> Value {
+/// A host error's type and code in the host's own words
+/// (`Error(Budget, ExceededLimit)` → `("Budget", "ExceededLimit")`).
+pub fn host_error_parts(e: &ScError) -> (String, String) {
     match e {
-        ScError::Contract(n) => json!(n),
-        other => json!(format!("{other:?}")),
+        ScError::Contract(n) => ("Contract".into(), n.to_string()),
+        ScError::WasmVm(c) => ("WasmVm".into(), c.name().into()),
+        ScError::Context(c) => ("Context".into(), c.name().into()),
+        ScError::Storage(c) => ("Storage".into(), c.name().into()),
+        ScError::Object(c) => ("Object".into(), c.name().into()),
+        ScError::Crypto(c) => ("Crypto".into(), c.name().into()),
+        ScError::Events(c) => ("Events".into(), c.name().into()),
+        ScError::Budget(c) => ("Budget".into(), c.name().into()),
+        ScError::Value(c) => ("Value".into(), c.name().into()),
+        ScError::Auth(c) => ("Auth".into(), c.name().into()),
     }
+}
+
+fn prefix_matches(ev: &soroban_env_host::xdr::ScSpecEventV0, topics: &[ScVal]) -> bool {
+    !ev.prefix_topics.is_empty()
+        && topics.len() >= ev.prefix_topics.len()
+        && ev
+            .prefix_topics
+            .iter()
+            .zip(topics)
+            .all(|(want, got)| matches!(got, ScVal::Symbol(s) if s.0 == want.0))
 }
 
 /// A value with no declared type, decoded by its own shape: the same JSON
 /// forms as above, with maps as `[key, value]` pairs.
-#[allow(dead_code)] // consumed by #546.
 pub fn generic(val: &ScVal) -> Result<Value, LaneError> {
     Ok(match val {
         ScVal::Bool(b) => json!(b),
@@ -1743,5 +1877,309 @@ mod tests {
         assert!(cases.len() >= 2, "{cases:?}");
         let registry = Spec::from_wasm(&fixture("identity-registry")).unwrap();
         assert_eq!(registry.error_cases(3)[0].1, "HandleTaken");
+    }
+
+    #[test]
+    fn a_taken_handle_decodes_to_its_error_name() {
+        let registry = Spec::from_wasm(&fixture("identity-registry")).unwrap();
+        let got = registry
+            .decode_return("claim", &ScVal::Error(ScError::Contract(3)))
+            .unwrap();
+        assert_eq!(got["error"]["name"], "HandleTaken");
+        assert_eq!(got["error"]["code"], 3);
+        assert_eq!(got["error"]["enum"], "Error");
+        assert!(got["error"]["doc"].is_string());
+        assert!(got["error"].get("candidates").is_none());
+        // A successful claim returns void.
+        assert_eq!(
+            registry.decode_return("claim", &ScVal::Void).unwrap(),
+            Value::Null
+        );
+    }
+
+    #[test]
+    fn a_code_shared_by_two_error_enums_lists_both() {
+        let spec = Spec::from_wasm(&fixture("errors_multi")).unwrap();
+        let got = spec.error_json(&ScError::Contract(1));
+        let names: Vec<&str> = got["candidates"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|c| c["name"].as_str().unwrap())
+            .collect();
+        assert!(
+            names.contains(&"Missing") && names.contains(&"Denied"),
+            "{got}"
+        );
+    }
+
+    #[test]
+    fn a_host_error_keeps_the_hosts_terms() {
+        use soroban_env_host::xdr::ScErrorCode;
+        let spec = zoo();
+        assert_eq!(
+            spec.error_json(&ScError::Budget(ScErrorCode::ExceededLimit)),
+            json!({ "type": "Budget", "code": "ExceededLimit" })
+        );
+    }
+
+    #[test]
+    fn events_decode_by_their_spec() {
+        use soroban_env_host::xdr::{
+            ContractEventType, ContractEventV0, ContractId, ExtensionPoint, Hash,
+        };
+        let spec = Spec::from_wasm(&fixture("events")).unwrap();
+        let from = "GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN";
+        let to = "CASFJHI5PQSRWS7JV25CF7FOMRKIVBP3RXRP3E2GH2CV4BCAG7FUJRCN";
+        let addr = |s: &str| ScVal::Address(ScAddress::from_str(s).unwrap());
+        let sym = |s: &str| ScVal::Symbol(ScSymbol(s.try_into().unwrap()));
+        let amount = ScVal::I128(Int128Parts { hi: 0, lo: 250 });
+        let data = ScVal::Map(Some(
+            ScMap::sorted_from(vec![ScMapEntry {
+                key: sym("amount"),
+                val: amount.clone(),
+            }])
+            .unwrap(),
+        ));
+        let event = ContractEvent {
+            ext: ExtensionPoint::V0,
+            contract_id: Some(ContractId(Hash([7; 32]))),
+            type_: ContractEventType::Contract,
+            body: ContractEventBody::V0(ContractEventV0 {
+                topics: vec![sym("transfer"), addr(from), addr(to)]
+                    .try_into()
+                    .unwrap(),
+                data: data.clone(),
+            }),
+        };
+        let got = spec.decode_event(&event).unwrap();
+        assert_eq!(got["name"], "Transfer", "{got}");
+        assert_eq!(
+            got["params"],
+            json!({ "from": from, "to": to, "amount": "250" })
+        );
+        assert_eq!(got["type"], "contract");
+
+        // An event no spec entry matches still decodes generically.
+        let other = ContractEvent {
+            body: ContractEventBody::V0(ContractEventV0 {
+                topics: vec![sym("mystery")].try_into().unwrap(),
+                data,
+            }),
+            ..event
+        };
+        let got = spec.decode_event(&other).unwrap();
+        assert_eq!(got["name"], Value::Null);
+        assert_eq!(got["topics"], json!(["mystery"]));
+        assert_eq!(got["data"], json!([["amount", "250"]]));
+        assert!(got.get("params").is_none());
+    }
+
+    /// A small deterministic generator, so the property test needs no
+    /// dependency and fails the same way every time.
+    struct Gen(u64);
+
+    impl Gen {
+        fn next(&mut self) -> u64 {
+            self.0 ^= self.0 << 13;
+            self.0 ^= self.0 >> 7;
+            self.0 ^= self.0 << 17;
+            self.0
+        }
+        fn below(&mut self, n: u64) -> u64 {
+            self.next() % n
+        }
+        fn digits(&mut self, max_len: u64, negative: bool) -> String {
+            let len = 1 + self.below(max_len);
+            let mut s: String = (0..len)
+                .map(|_| char::from(b'0' + self.below(10) as u8))
+                .collect();
+            s = s.trim_start_matches('0').to_string();
+            if s.is_empty() {
+                return "0".into();
+            }
+            if negative && self.below(2) == 0 {
+                s.insert(0, '-');
+            }
+            s
+        }
+        fn bytes(&mut self, n: usize) -> String {
+            let raw: Vec<u8> = (0..n).map(|_| self.next() as u8).collect();
+            super::super::base64(&raw)
+        }
+        fn word(&mut self) -> String {
+            let len = 1 + self.below(8);
+            (0..len)
+                .map(|_| char::from(b'a' + self.below(26) as u8))
+                .collect()
+        }
+
+        /// A JSON value `spec` accepts for `ty`, in the canonical form
+        /// decoding produces.
+        fn value(&mut self, spec: &Spec, ty: &ScSpecTypeDef, depth: usize) -> Value {
+            let shallow = depth > 4;
+            match ty {
+                ScSpecTypeDef::Bool => json!(self.below(2) == 0),
+                ScSpecTypeDef::Void => Value::Null,
+                ScSpecTypeDef::U32 => json!(self.next() as u32),
+                ScSpecTypeDef::I32 => json!(self.next() as i32),
+                ScSpecTypeDef::U64 | ScSpecTypeDef::Timepoint | ScSpecTypeDef::Duration => {
+                    json!(self.next().to_string())
+                }
+                ScSpecTypeDef::I64 => json!((self.next() as i64).to_string()),
+                ScSpecTypeDef::U128 => {
+                    json!(((u128::from(self.next()) << 64) | u128::from(self.next())).to_string())
+                }
+                ScSpecTypeDef::I128 => json!((((u128::from(self.next()) << 64)
+                    | u128::from(self.next()))
+                    as i128)
+                    .to_string()),
+                ScSpecTypeDef::U256 => json!(self.digits(77, false)),
+                ScSpecTypeDef::I256 => json!(self.digits(76, true)),
+                ScSpecTypeDef::Bytes => {
+                    let n = self.below(12) as usize;
+                    json!(self.bytes(n))
+                }
+                ScSpecTypeDef::BytesN(b) => json!(self.bytes(b.n as usize)),
+                ScSpecTypeDef::String => json!(format!("{} ü", self.word())),
+                ScSpecTypeDef::Symbol => json!(self.word()),
+                ScSpecTypeDef::Address | ScSpecTypeDef::MuxedAddress => {
+                    let pick = [
+                        "GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN",
+                        "CASFJHI5PQSRWS7JV25CF7FOMRKIVBP3RXRP3E2GH2CV4BCAG7FUJRCN",
+                    ];
+                    json!(pick[self.below(2) as usize])
+                }
+                ScSpecTypeDef::Option(o) => {
+                    if shallow || self.below(3) == 0 {
+                        Value::Null
+                    } else {
+                        self.value(spec, &o.value_type, depth + 1)
+                    }
+                }
+                ScSpecTypeDef::Result(r) => self.value(spec, &r.ok_type, depth + 1),
+                ScSpecTypeDef::Vec(v) => {
+                    let n = if shallow { 0 } else { self.below(4) };
+                    Value::Array(
+                        (0..n)
+                            .map(|_| self.value(spec, &v.element_type, depth + 1))
+                            .collect(),
+                    )
+                }
+                ScSpecTypeDef::Tuple(t) => Value::Array(
+                    t.value_types
+                        .iter()
+                        .map(|e| self.value(spec, e, depth + 1))
+                        .collect(),
+                ),
+                ScSpecTypeDef::Map(m) => {
+                    let n = if shallow { 0 } else { self.below(4) };
+                    let mut pairs: Vec<(ScVal, Value)> = Vec::new();
+                    for _ in 0..n {
+                        let k = self.value(spec, &m.key_type, depth + 1);
+                        let encoded = spec.encode(&m.key_type, &k, "k", 0).unwrap();
+                        if pairs.iter().any(|(e, _)| *e == encoded) {
+                            continue;
+                        }
+                        let v = self.value(spec, &m.value_type, depth + 1);
+                        pairs.push((encoded, json!([k, v])));
+                    }
+                    pairs.sort_by(|a, b| a.0.cmp(&b.0));
+                    Value::Array(pairs.into_iter().map(|(_, p)| p).collect())
+                }
+                ScSpecTypeDef::Udt(u) => {
+                    let name = u.name.to_utf8_string_lossy();
+                    match spec.udt(&name).unwrap() {
+                        ScSpecEntry::UdtStructV0(st) => {
+                            let tuple = st
+                                .fields
+                                .iter()
+                                .all(|f| f.name.to_utf8_string_lossy().parse::<u32>().is_ok());
+                            if tuple {
+                                Value::Array(
+                                    st.fields
+                                        .iter()
+                                        .map(|f| self.value(spec, &f.type_, depth + 1))
+                                        .collect(),
+                                )
+                            } else {
+                                Value::Object(
+                                    st.fields
+                                        .iter()
+                                        .map(|f| {
+                                            (
+                                                f.name.to_utf8_string_lossy(),
+                                                self.value(spec, &f.type_, depth + 1),
+                                            )
+                                        })
+                                        .collect(),
+                                )
+                            }
+                        }
+                        ScSpecEntry::UdtUnionV0(un) => {
+                            let case = &un.cases[self.below(un.cases.len() as u64) as usize];
+                            match case {
+                                ScSpecUdtUnionCaseV0::VoidV0(v) => {
+                                    json!({ "tag": v.name.to_utf8_string_lossy() })
+                                }
+                                ScSpecUdtUnionCaseV0::TupleV0(t) => json!({
+                                    "tag": t.name.to_utf8_string_lossy(),
+                                    "values": t.type_.iter().map(|ty| self.value(spec, ty, depth + 1)).collect::<Vec<_>>(),
+                                }),
+                            }
+                        }
+                        ScSpecEntry::UdtEnumV0(e) => {
+                            json!(e.cases[self.below(e.cases.len() as u64) as usize].value)
+                        }
+                        ScSpecEntry::UdtErrorEnumV0(e) => {
+                            json!(e.cases[self.below(e.cases.len() as u64) as usize].value)
+                        }
+                        _ => unreachable!(),
+                    }
+                }
+                ScSpecTypeDef::Val | ScSpecTypeDef::Error => Value::Null,
+            }
+        }
+    }
+
+    #[test]
+    fn decode_of_encode_is_the_identity_for_generated_values() {
+        let mut gen = Gen(0x5eed_5eed_5eed_5eed);
+        let mut checked = 0;
+        for name in [
+            "types_zoo",
+            "identity-registry",
+            "errors_multi",
+            "events",
+            "undocumented",
+        ] {
+            let spec = Spec::from_wasm(&fixture(name)).unwrap();
+            for f in spec.entries.iter().filter_map(|e| match e {
+                ScSpecEntry::FunctionV0(f) => Some(f),
+                _ => None,
+            }) {
+                for input in f.inputs.iter() {
+                    if matches!(input.type_, ScSpecTypeDef::Val | ScSpecTypeDef::Error) {
+                        continue;
+                    }
+                    for _ in 0..50 {
+                        let x = gen.value(&spec, &input.type_, 0);
+                        let val = spec.encode(&input.type_, &x, "x", 0).unwrap_or_else(|e| {
+                            panic!("{name}.{}: encode {x}: {e}", f.name.to_utf8_string_lossy())
+                        });
+                        let back = spec.decode(&input.type_, &val, "x", 0).unwrap();
+                        assert_eq!(
+                            back,
+                            x,
+                            "{name}.{}({})",
+                            f.name.to_utf8_string_lossy(),
+                            input.name.to_utf8_string_lossy()
+                        );
+                        checked += 1;
+                    }
+                }
+            }
+        }
+        assert!(checked > 500, "only {checked} values checked");
     }
 }
