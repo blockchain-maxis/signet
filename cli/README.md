@@ -163,6 +163,21 @@ happens: `warn` (the default) prints
 `fail` exits `6`, and `refork` pins the latest ledger and runs once more. The
 manifest records `driftedEntries`.
 
+### `signet sandbox forks`
+
+```sh
+signet sandbox forks ls                 # ID, network, ledger, age, entries, size, drift (--json too)
+signet sandbox forks rm CASF…RCN@4887004
+signet sandbox forks rm --older-than 7d # also 2w, 36h; asks first
+signet sandbox forks rm --all --yes     # --yes is required when stdin is not a terminal
+signet sandbox forks refresh CASF…RCN@4887004
+```
+
+`refresh` forks the same contract again, on the same network and RPC, at the
+latest ledger; the old fork stays until removed. Saved calls live in
+`signet.dev.toml`, not the cache, so they carry over. A fork another process
+has open shows as `in use` and is not removed.
+
 ### Global `--json`
 
 `--json` is a persistent flag on the root, so it works on every command and

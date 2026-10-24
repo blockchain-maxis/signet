@@ -51,26 +51,13 @@ manifest.`,
 			defer stop()
 
 			printer := printerFor(cmd)
-			m, drift, err := createFork(ctx, cmd, deps, args[0], printer.Progress)
+			network, err := sandboxNetwork(cmd, deps)
 			if err != nil {
 				return err
 			}
-			if drift.Count() > 0 {
-				switch mode {
-				case "fail":
-					return fmt.Errorf("%w: %s — run with --drift=refork to pin a newer ledger, or --drift=warn to accept it",
-						exitcode.ErrNetwork, drift.Warning())
-				case "refork":
-					printer.Progress(drift.Warning() + "; forking again at the latest ledger")
-					if m, drift, err = createFork(ctx, cmd, deps, args[0], printer.Progress); err != nil {
-						return err
-					}
-					if drift.Count() > 0 {
-						printer.Progress(drift.Warning())
-					}
-				default:
-					printer.Progress(drift.Warning())
-				}
+			m, err := forkWithDrift(ctx, deps, network, args[0], mode, printer.Progress)
+			if err != nil {
+				return err
 			}
 			now := time.Now
 			if deps.Now != nil {
@@ -115,11 +102,32 @@ func startSimulator(ctx context.Context, deps Deps, warn func(string)) (*simulat
 // the ledger, opens it in the simulator (which fetches the network config),
 // and reads the contract through contract_info (which fetches its instance
 // and code), all through the fork's cache. It returns the saved manifest.
-func createFork(ctx context.Context, cmd *cobra.Command, deps Deps, contract string, progress func(string)) (m fork.Manifest, drift fork.Drift, err error) {
-	network, err := sandboxNetwork(cmd, deps)
-	if err != nil {
-		return fork.Manifest{}, fork.Drift{}, err
+// forkWithDrift creates a fork and applies the --drift mode to what it
+// fetched (#551).
+func forkWithDrift(ctx context.Context, deps Deps, network rpc.Network, contract, mode string, progress func(string)) (fork.Manifest, error) {
+	m, drift, err := createFork(ctx, deps, network, contract, progress)
+	if err != nil || drift.Count() == 0 {
+		return m, err
 	}
+	switch mode {
+	case "fail":
+		return fork.Manifest{}, fmt.Errorf("%w: %s — run with --drift=refork to pin a newer ledger, or --drift=warn to accept it",
+			exitcode.ErrNetwork, drift.Warning())
+	case "refork":
+		progress(drift.Warning() + "; forking again at the latest ledger")
+		if m, drift, err = createFork(ctx, deps, network, contract, progress); err != nil {
+			return fork.Manifest{}, err
+		}
+		if drift.Count() > 0 {
+			progress(drift.Warning())
+		}
+	default:
+		progress(drift.Warning())
+	}
+	return m, nil
+}
+
+func createFork(ctx context.Context, deps Deps, network rpc.Network, contract string, progress func(string)) (m fork.Manifest, drift fork.Drift, err error) {
 	client, _, err := rpc.Connect(ctx, network, deps.RPCOptions...)
 	if err != nil {
 		return fork.Manifest{}, fork.Drift{}, err
