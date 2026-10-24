@@ -260,17 +260,21 @@ type SpecExtractParams struct {
 	Source Source `json:"source"`
 }
 
-// SpecExtractResult answers spec_extract.
+// SpecExtractResult answers spec_extract. Spec is the whole SpecJson v1
+// document (packages/spec/schema/spec-json.v1.schema.json), kept as JSON.
 type SpecExtractResult struct {
-	SpecEntriesXDR []string `json:"spec_entries_xdr"`
-	WasmHash       string   `json:"wasm_hash"`
+	SpecEntriesXDR []string        `json:"spec_entries_xdr"`
+	WasmHash       string          `json:"wasm_hash"`
+	Spec           json.RawMessage `json:"spec"`
 }
 
-// SpecEncodeArgsParams encodes JSON arguments to ScVals from a spec.
+// SpecEncodeArgsParams encodes JSON arguments to ScVals from a spec. Args is
+// a map keyed by argument name, or a slice in declaration order, in
+// @signet/spec's functionArgsSchema shape.
 type SpecEncodeArgsParams struct {
 	Source   Source `json:"source"`
 	Function string `json:"function"`
-	Args     []any  `json:"args"`
+	Args     any    `json:"args"`
 }
 
 // SpecEncodeArgsResult answers spec_encode_args.

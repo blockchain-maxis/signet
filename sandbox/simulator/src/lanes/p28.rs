@@ -27,8 +27,8 @@ use soroban_simulation::simulation::{
 use soroban_simulation::NetworkConfig;
 
 use super::{
-    ByteSnapshotSource, DerivedKey, EntryChangeBytes, InterfaceVersion, KeyRequest, Lane,
-    LaneError, SimulateBytes, SimulateResultBytes, SwapResultBytes, WasmInspection,
+    ByteSnapshotSource, DerivedKey, EntryChangeBytes, ErrorCase, InterfaceVersion, KeyRequest,
+    Lane, LaneError, SimulateBytes, SimulateResultBytes, SwapResultBytes, WasmInspection,
 };
 
 /// The ledger protocol this lane runs: the pinned host's interface version.
@@ -41,6 +41,8 @@ const BASE_RESERVE_STROOPS: u32 = 5_000_000;
 
 /// Custom WASM section that holds the contract spec.
 const SPEC_SECTION: &str = "contractspecv0";
+
+mod spec;
 
 pub struct P28Lane;
 
@@ -436,6 +438,70 @@ impl Lane for P28Lane {
             exports,
             imports,
         })
+    }
+
+    fn instance_wasm_hash(&self, entry_xdr: &[u8]) -> Result<[u8; 32], LaneError> {
+        let entry: LedgerEntry = decode(entry_xdr, "LedgerEntry")?;
+        let LedgerEntryData::ContractData(data) = &entry.data else {
+            return Err(LaneError::NotAContractInstance);
+        };
+        let ScVal::ContractInstance(instance) = &data.val else {
+            return Err(LaneError::NotAContractInstance);
+        };
+        match &instance.executable {
+            ContractExecutable::Wasm(Hash(hash)) => Ok(*hash),
+            _ => Err(LaneError::NotAContractInstance),
+        }
+    }
+
+    fn code_wasm(&self, entry_xdr: &[u8]) -> Result<Vec<u8>, LaneError> {
+        let entry: LedgerEntry = decode(entry_xdr, "LedgerEntry")?;
+        match entry.data {
+            LedgerEntryData::ContractCode(code) => Ok(code.code.to_vec()),
+            _ => Err(invalid("ContractCode LedgerEntry")),
+        }
+    }
+
+    fn spec_document(&self, wasm: &[u8]) -> Result<Value, LaneError> {
+        spec::spec_json(wasm)
+    }
+
+    fn encode_args(
+        &self,
+        wasm: &[u8],
+        function: &str,
+        args: &Value,
+    ) -> Result<Vec<Vec<u8>>, LaneError> {
+        let spec = spec::Spec::from_wasm(wasm)?;
+        spec.encode_args(function, args)?
+            .iter()
+            .map(|v| encode(v, "ScVal"))
+            .collect()
+    }
+
+    fn decode_return(
+        &self,
+        wasm: &[u8],
+        function: &str,
+        val_xdr: &[u8],
+    ) -> Result<Value, LaneError> {
+        let spec = spec::Spec::from_wasm(wasm)?;
+        let val: ScVal = decode(val_xdr, "ScVal")?;
+        spec.decode_return(function, &val)
+    }
+
+    fn error_cases(&self, wasm: &[u8], code: u32) -> Result<Vec<ErrorCase>, LaneError> {
+        let spec = spec::Spec::from_wasm(wasm)?;
+        Ok(spec
+            .error_cases(code)
+            .into_iter()
+            .map(|(enum_name, name, doc)| ErrorCase {
+                enum_name,
+                name,
+                code,
+                doc,
+            })
+            .collect())
     }
 }
 

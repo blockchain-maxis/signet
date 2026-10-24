@@ -159,6 +159,28 @@ pub enum LaneError {
     /// that it does not recognise.
     #[error("{what} is not valid: {detail}")]
     InvalidInput { what: &'static str, detail: String },
+    /// A JSON argument that does not fit the type the contract's spec
+    /// declares (#545). `path` names it (`wallet`, `handles[2]`).
+    #[error("{path}: expected {expected}, got {got}")]
+    Argument {
+        path: String,
+        expected: String,
+        got: String,
+    },
+    /// A value that does not have the type the spec says it should (#546).
+    #[allow(dead_code)] // raised by spec_decode_val (#546).
+    #[error("{0}")]
+    Decode(String),
+}
+
+/// One contract error case a code resolves to (#546).
+#[allow(dead_code)] // read by spec_decode_val and simulate (#546).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct ErrorCase {
+    pub enum_name: String,
+    pub name: String,
+    pub code: u32,
+    pub doc: String,
 }
 
 // ─── The lane ──────────────────────────────────────────────────────────────────
@@ -219,6 +241,40 @@ pub trait Lane: Sync {
 
     /// What an executable declares (`wasm_inspect`).
     fn inspect_wasm(&self, wasm: &[u8]) -> Result<WasmInspection, LaneError>;
+
+    /// The executable hash a contract instance `LedgerEntry` runs.
+    fn instance_wasm_hash(&self, entry_xdr: &[u8]) -> Result<[u8; 32], LaneError>;
+
+    /// The WASM bytes a contract code `LedgerEntry` holds.
+    fn code_wasm(&self, entry_xdr: &[u8]) -> Result<Vec<u8>, LaneError>;
+
+    /// The `SpecJson` v1 document for an executable (`spec_extract`, #545):
+    /// packages/spec/schema/spec-json.v1.schema.json.
+    fn spec_document(&self, wasm: &[u8]) -> Result<serde_json::Value, LaneError>;
+
+    /// Encode a function's JSON arguments (an object by name, or an array in
+    /// declaration order) to `ScVal` XDR, one per declared input.
+    fn encode_args(
+        &self,
+        wasm: &[u8],
+        function: &str,
+        args: &serde_json::Value,
+    ) -> Result<Vec<Vec<u8>>, LaneError>;
+
+    /// Decode a function's return `ScVal` XDR to JSON in the shape
+    /// `encode_args` accepts (#546).
+    #[allow(dead_code)] // called by spec_decode_val (#546).
+    fn decode_return(
+        &self,
+        wasm: &[u8],
+        function: &str,
+        val_xdr: &[u8],
+    ) -> Result<serde_json::Value, LaneError>;
+
+    /// The error-enum cases a contract error code resolves to; several when
+    /// the contract declares more than one error enum (#546).
+    #[allow(dead_code)] // called by simulate's contract_error (#546).
+    fn error_cases(&self, wasm: &[u8], code: u32) -> Result<Vec<ErrorCase>, LaneError>;
 }
 
 // ─── Registry ──────────────────────────────────────────────────────────────────

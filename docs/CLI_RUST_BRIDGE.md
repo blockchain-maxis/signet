@@ -141,8 +141,8 @@ unit test fails the build if a versioned type leaks outside `lanes/`.
 | `contract_install`  | Install an executable                                                                                                                          | `wasm_base64`; optional `contract_id`                                     | `contract_id`, `wasm_hash`                                                                    |
 | `contract_swap`     | Point an installed contract at another executable, as an upgrade would                                                                         | `contract_id`, `wasm_hash`                                                | `contract_id`, `previous_wasm_hash`, `wasm_hash`                                              |
 | `simulate`          | Run a function ([#534](https://github.com/blockchain-maxis/signet/issues/534))                                                                 | `contract_id`, `function`, `args[]` (JSON); optional `source_account`     | `return_value_xdr`, `events[]`, `cost`, `logs[]`                                              |
-| `spec_extract`      | Read the spec out of an executable                                                                                                             | `source`: `{wasm_base64}` or `{contract_id}`                              | `spec_entries_xdr[]`, `wasm_hash`                                                             |
-| `spec_encode_args`  | Encode JSON arguments to ScVals from a spec                                                                                                    | `source`, `function`, `args[]`                                            | `args_xdr[]`                                                                                  |
+| `spec_extract`      | Read the spec out of an executable                                                                                                             | `source`: `{wasm_base64}` or `{contract_id}`                              | `spec_entries_xdr[]`, `wasm_hash`, `spec` (the SpecJson v1 document `@signet/spec` produces)  |
+| `spec_encode_args`  | Encode JSON arguments to ScVals from a spec                                                                                                    | `source`, `function`, `args` (an object by name, or an array in order)    | `args_xdr[]`                                                                                  |
 | `spec_decode_val`   | Decode a ScVal to JSON as a function's return type                                                                                             | `source`, `function`, `val_xdr`                                           | `value`                                                                                       |
 | `spec_diff`         | Compare the interfaces of two executables                                                                                                      | `old`, `new` (each a `source`)                                            | `compatible`, `changes[]`                                                                     |
 | `layout_check`      | Check that stored-data layout survives an upgrade                                                                                              | `old`, `new`                                                              | `compatible`, `issues[]`                                                                      |
@@ -167,6 +167,16 @@ contract's spec
 ([#545](https://github.com/blockchain-maxis/signet/issues/545)); this replaces
 the earlier sketch of an `args_xdr` list built in Go. `spec_encode_args` and
 `spec_decode_val` expose the same encoding on their own.
+
+The JSON shape is `@signet/spec`'s `functionArgsSchema` (the shape
+`@stellar/stellar-sdk`'s `contract.Spec#jsonSchema` describes), so the terminal,
+the local UI and saved calls share one encoding: `u32`/`i32` are numbers; 64-bit
+and wider integers, `timepoint` and `duration` are decimal strings; bytes are
+base64; addresses are strkeys; maps are arrays of `[key, value]` pairs; structs
+are objects; unions are `{"tag": case, "values": [...]}`; enums are numbers. An
+`Option` argument may be left out. A value that does not fit is a `bad_request`
+/ `invalid_field` whose `detail.path` is `args.<path>` and whose message names
+it, for example `wallet: expected Address (G… or C…), got number`.
 
 ```jsonc
 // Go -> Rust

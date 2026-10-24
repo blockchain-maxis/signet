@@ -77,7 +77,8 @@
                   "invalid_field",
                   "unknown_type",
                   "handshake_required",
-                  "already_greeted"
+                  "already_greeted",
+                  "no_open_ledger"
                 ]
               }
             }

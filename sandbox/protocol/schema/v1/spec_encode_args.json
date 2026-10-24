@@ -53,9 +53,16 @@
       "description": "Function name"
     },
     "args": {
-      "type": "array",
-      "items": true,
-      "description": "Arguments as JSON values"
+      "description": "Arguments as JSON in @signet/spec's functionArgsSchema shape: an object keyed by argument name, or an array in declaration order. An Option argument may be left out.",
+      "oneOf": [
+        {
+          "type": "array",
+          "items": true
+        },
+        {
+          "type": "object"
+        }
+      ]
     }
   },
   "required": ["version", "id", "type", "source", "function", "args"],

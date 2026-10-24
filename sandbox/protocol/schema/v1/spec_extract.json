@@ -80,9 +80,14 @@
           "type": "string",
           "pattern": "^[0-9a-f]{64}$",
           "description": "Executable hash"
+        },
+        "spec": {
+          "type": "object",
+          "description": "The whole SpecJson v1 document (packages/spec/schema/spec-json.v1.schema.json): entriesXdr, the flattened functions/types/errors views, and build/env from contractmetav0/contractenvmetav0",
+          "required": ["schemaVersion", "wasmHash", "entriesXdr"]
         }
       },
-      "required": ["version", "id", "type", "spec_entries_xdr", "wasm_hash"],
+      "required": ["version", "id", "type", "spec_entries_xdr", "wasm_hash", "spec"],
       "additionalProperties": false
     }
   }

@@ -620,6 +620,11 @@ jobs:
       - name: Check protocol transcripts
         run: node protocol/check-transcripts.mjs
 
+      # spec_extract (#545) must emit SpecJson v1, the document the TS reader
+      # in packages/spec produces. `cargo test` above built the binary.
+      - name: Check spec_extract against SpecJson v1
+        run: node protocol/check-spec-json.mjs
+
   security:
     name: dependency audit
     runs-on: ubuntu-latest
