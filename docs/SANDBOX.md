@@ -63,6 +63,13 @@ resource_tolerance = { instructions = "10%", fee = "10%" }
 - `[diff]` leaves out events by topic prefix and tolerates resource changes up
   to a percentage, for `instructions`, `read_bytes`, `write_bytes` and `fee`.
 
+The quickest way to build the suite is to explore with `signet sandbox call`
+and keep what is worth keeping: `--save` appends the call as a `[[call]]`
+(named after its function, or `--save="a name"`), with its arguments as they
+were parsed and `expect = "unchanged"`. It finds `signet.dev.toml` by walking
+up from the working directory, writes nothing when there is none, and only
+appends: what is already in the file, comments included, stays as it was.
+
 Editors with [Taplo](https://taplo.tamasfe.dev) can validate the file against
 [`sandbox/protocol/schema/v1/signet-dev-toml.json`](../sandbox/protocol/schema/v1/signet-dev-toml.json);
 the CLI's tests hold this page's example to that schema.

@@ -87,6 +87,10 @@ type registryRPC struct {
 	latest []map[string]any
 }
 
+// registryTestdata is absolute, so a test that changes directory still
+// reaches the fixtures.
+var registryTestdata, _ = filepath.Abs(filepath.Join("..", "rpc", "testdata", "registry"))
+
 func newRegistryRPC(t *testing.T) *registryRPC {
 	r := &registryRPC{t: t, override: map[string]any{}}
 	r.srv = httptest.NewServer(http.HandlerFunc(r.serve))
@@ -95,7 +99,7 @@ func newRegistryRPC(t *testing.T) *registryRPC {
 }
 
 func (r *registryRPC) fixture(method string) map[string]any {
-	raw, err := os.ReadFile(filepath.Join("..", "rpc", "testdata", "registry", method+".json"))
+	raw, err := os.ReadFile(filepath.Join(registryTestdata, method+".json"))
 	if err != nil {
 		r.t.Fatalf("fixture %s: %v", method, err)
 	}

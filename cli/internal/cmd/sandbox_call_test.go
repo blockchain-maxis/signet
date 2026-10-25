@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/blockchain-maxis/signet/cli/internal/config"
+	"github.com/blockchain-maxis/signet/cli/internal/devconfig"
 	"github.com/blockchain-maxis/signet/cli/internal/exitcode"
 	"github.com/blockchain-maxis/signet/cli/internal/fork"
 	"github.com/blockchain-maxis/signet/cli/internal/jsonschema"
@@ -567,5 +568,38 @@ func TestOverrideArgumentsAndFiles(t *testing.T) {
 	got, err = readOverridesFile(write("version = 1\naddress = \"CASFJHI5PQSRWS7JV25CF7FOMRKIVBP3RXRP3E2GH2CV4BCAG7FUJRCN\"\n[[call]]\nname = \"c\"\nfunction = \"count\"\nexpect = \"ok\"\n[[override]]\ndurability = \"instance\"\nkey = \"Count\"\nvalue = \"u32:7\"\n"))
 	if err != nil || len(got) != 1 || got[0].value != "u32:7" {
 		t.Fatalf("signet.dev.toml: %+v %v", got, err)
+	}
+}
+
+func TestSandboxCallSaveAppendsToSignetDevToml(t *testing.T) {
+	e := newCallEnv(t)
+	dir := t.TempDir()
+	t.Chdir(dir)
+
+	// No file: say how to make one, and write nothing.
+	_, _, err := e.run(registryContract, "count", "--save")
+	if ExitCode(err) != exitcode.InvalidInput || !strings.Contains(err.Error(), "signet dev init") {
+		t.Fatalf("no file: %v", err)
+	}
+
+	path := filepath.Join(dir, "signet.dev.toml")
+	_ = os.WriteFile(path, []byte("version = 1 # mine\n"), 0o644)
+	_ = os.MkdirAll(filepath.Join(dir, "src"), 0o755)
+	t.Chdir(filepath.Join(dir, "src"))
+	if _, stderr, err := e.run(registryContract, "claim", "--arg", "handle=bob", "--arg", "wallet="+testWallet, "--save"); err != nil {
+		t.Fatalf("%v\n%s", err, stderr)
+	}
+	if _, stderr, err := e.run(registryContract, "count", "--save=count is stable"); err != nil {
+		t.Fatalf("%v\n%s", err, stderr)
+	}
+	f, err := devconfig.Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(f.Calls) != 2 || f.Calls[0].Name != "claim" || f.Calls[0].Args["handle"] != "bob" || f.Calls[1].Name != "count is stable" {
+		t.Fatalf("calls = %+v", f.Calls)
+	}
+	if _, _, err := e.run(registryContract, "count", "--save=count is stable"); ExitCode(err) != exitcode.InvalidInput {
+		t.Fatalf("duplicate name: %v", err)
 	}
 }

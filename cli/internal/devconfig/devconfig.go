@@ -34,10 +34,14 @@
 package devconfig
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
+	"path/filepath"
 	"regexp"
+	"sort"
+	"strconv"
 	"strings"
 
 	"github.com/BurntSushi/toml"
@@ -214,6 +218,11 @@ func Parse(path string, raw []byte) (*File, error) {
 		}
 	}
 	for _, key := range md.Undecoded() {
+		// A call's args are free-form JSON-shaped values, nested tables
+		// included; #545 checks them against the contract.
+		if len(key) > 2 && key[0] == "call" && key[1] == "args" {
+			continue
+		}
 		errs = append(errs, &Error{Path: path, Line: lineOf(raw, key.String()), Msg: fmt.Sprintf("unknown key %q", key.String())})
 	}
 	errs = append(errs, f.check(path, raw)...)
@@ -389,4 +398,125 @@ func (f *File) Encode() ([]byte, error) {
 		return nil, err
 	}
 	return []byte(b.String()), nil
+}
+
+// Find walks up from dir to the nearest signet.dev.toml; "" when there is
+// none.
+func Find(dir string) string {
+	for {
+		candidate := filepath.Join(dir, FileName)
+		if info, err := os.Stat(candidate); err == nil && !info.IsDir() {
+			return candidate
+		}
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			return ""
+		}
+		dir = parent
+	}
+}
+
+// AppendCall adds a [[call]] table to the end of the file at path (#561),
+// leaving everything already there, comments included, byte for byte. The
+// name must be new; the result must still parse, or nothing is written.
+func AppendCall(path string, call Call) error {
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		return err
+	}
+	existing, err := Parse(path, raw)
+	if err != nil {
+		return err
+	}
+	for _, c := range existing.Calls {
+		if c.Name == call.Name {
+			return &Error{Path: path, Msg: fmt.Sprintf("a call named %q is already saved; pick another name", call.Name)}
+		}
+	}
+	block, err := renderCall(call)
+	if err != nil {
+		return &Error{Path: path, Msg: err.Error()}
+	}
+	text := string(raw)
+	if text != "" && !strings.HasSuffix(text, "\n") {
+		text += "\n"
+	}
+	text += "\n" + block
+	if _, err := Parse(path, []byte(text)); err != nil {
+		return err
+	}
+	return os.WriteFile(path, []byte(text), 0o644)
+}
+
+// renderCall writes one [[call]] table, its args as an inline table of
+// the call's JSON arguments.
+func renderCall(c Call) (string, error) {
+	args, err := inlineValue(c.Args)
+	if err != nil {
+		return "", err
+	}
+	expect, _ := c.Expect.MarshalText()
+	return fmt.Sprintf("[[call]]\nname = %s\nfunction = %s\nargs = %s\nexpect = %s\n",
+		tomlString(c.Name), tomlString(c.Function), args, tomlString(string(expect))), nil
+}
+
+func tomlString(s string) string {
+	raw, _ := json.Marshal(s)
+	return string(raw)
+}
+
+var bareKey = regexp.MustCompile(`^[A-Za-z0-9_-]+$`)
+
+// inlineValue writes a JSON value as TOML. A null (an Option left out) is
+// dropped from a table; TOML has no null to put in a list.
+func inlineValue(v any) (string, error) {
+	switch v := v.(type) {
+	case nil:
+		return "", errors.New("a null inside a list cannot be saved: TOML has no null")
+	case string:
+		return tomlString(v), nil
+	case bool:
+		return strconv.FormatBool(v), nil
+	case json.Number:
+		return v.String(), nil
+	case float64:
+		return strconv.FormatFloat(v, 'f', -1, 64), nil
+	case int, int64, uint32, uint64:
+		return fmt.Sprint(v), nil
+	case []any:
+		parts := make([]string, len(v))
+		for i, item := range v {
+			s, err := inlineValue(item)
+			if err != nil {
+				return "", err
+			}
+			parts[i] = s
+		}
+		return "[" + strings.Join(parts, ", ") + "]", nil
+	case map[string]any:
+		keys := make([]string, 0, len(v))
+		for k, item := range v {
+			if item != nil {
+				keys = append(keys, k)
+			}
+		}
+		sort.Strings(keys)
+		parts := make([]string, len(keys))
+		for i, k := range keys {
+			s, err := inlineValue(v[k])
+			if err != nil {
+				return "", err
+			}
+			key := k
+			if !bareKey.MatchString(k) {
+				key = tomlString(k)
+			}
+			parts[i] = key + " = " + s
+		}
+		if len(parts) == 0 {
+			return "{}", nil
+		}
+		return "{ " + strings.Join(parts, ", ") + " }", nil
+	}
+	return "", fmt.Errorf("cannot save a %T", v)
 }

@@ -16,6 +16,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/blockchain-maxis/signet/cli/internal/devconfig"
 	"github.com/blockchain-maxis/signet/cli/internal/exitcode"
 	"github.com/blockchain-maxis/signet/cli/internal/fork"
 	"github.com/blockchain-maxis/signet/cli/internal/render"
@@ -90,6 +91,7 @@ func newSandboxCallCmd() *cobra.Command {
 		setStorage    []string
 		unsetStorage  []string
 		overridesFile string
+		save          string
 	)
 	cmd := &cobra.Command{
 		Use:   "call <contract> <function>",
@@ -178,6 +180,18 @@ result's footer.`,
 					return &inputError{fmt.Sprintf("--wasm: %v", err)}
 				}
 			}
+			// --save needs a signet.dev.toml to append to: find it before
+			// the call runs, and write nothing when there is none (#561).
+			devFile := ""
+			if cmd.Flags().Changed("save") {
+				cwd, err := os.Getwd()
+				if err != nil {
+					return err
+				}
+				if devFile = devconfig.Find(cwd); devFile == "" {
+					return &inputError{fmt.Sprintf("--save: no %s in %s or any directory above; signet dev init %s writes one", devconfig.FileName, cwd, contract)}
+				}
+			}
 			network, err := sandboxNetwork(cmd, deps)
 			if err != nil {
 				return err
@@ -216,11 +230,20 @@ result's footer.`,
 					printer.Progress(drift.Warning())
 				}
 			}
+			if devFile != "" {
+				name, err := saveCall(devFile, save, function, callArgs)
+				if err != nil {
+					return err
+				}
+				printer.Progress(fmt.Sprintf("Saved %q to %s (expect unchanged).", name, devFile))
+			}
 			return printer.Result(res, func(w io.Writer) error {
 				return render.Render(w, callView(res), callProvenance(res), now(deps), render.StyleFor(cmd.OutOrStdout()))
 			})
 		},
 	}
+	cmd.Flags().StringVar(&save, "save", "", "append this call to signet.dev.toml as a [[call]] expected unchanged, under a name (default: the function's)")
+	cmd.Flags().Lookup("save").NoOptDefVal = saveDefaultName
 	cmd.Flags().StringArrayVar(&rawArgs, "arg", nil, "a named argument, name=value (JSON, or a plain string); repeat for each")
 	cmd.Flags().StringVar(&argsFile, "args-file", "", "a JSON file holding an object of named arguments")
 	cmd.Flags().StringVar(&sourceAccount, "source-account", "", "the account (G…) the call runs as")
@@ -353,6 +376,38 @@ func (m ledgerMove) at(forkLedger uint32, forkTime time.Time) *simulator.LedgerO
 		return nil
 	}
 	return &o
+}
+
+// saveDefaultName is what a bare --save holds: name the call after its
+// function.
+const saveDefaultName = "\x00"
+
+// saveCall appends the call to the signet.dev.toml at path (#561): its
+// function and its arguments as they were parsed, expected unchanged. A
+// bare --save names it after the function, numbered if that is taken.
+func saveCall(path, name, function string, args map[string]any) (string, error) {
+	if name == saveDefaultName {
+		existing, err := devconfig.Load(path)
+		if err != nil {
+			return "", &inputError{err.Error()}
+		}
+		taken := map[string]bool{}
+		for _, c := range existing.Calls {
+			taken[c.Name] = true
+		}
+		name = function
+		for n := 2; taken[name]; n++ {
+			name = fmt.Sprintf("%s %d", function, n)
+		}
+	}
+	if args == nil {
+		args = map[string]any{}
+	}
+	call := devconfig.Call{Name: name, Function: function, Args: args, Expect: devconfig.Expect{Kind: "unchanged"}}
+	if err := devconfig.AppendCall(path, call); err != nil {
+		return "", &inputError{"--save: " + err.Error()}
+	}
+	return name, nil
 }
 
 // parseCallArgs reads --arg name=value and --args-file into one object.

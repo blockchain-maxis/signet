@@ -275,6 +275,9 @@ is none) in the local simulator. Nothing is submitted.
   # ✗ HandleTaken (#3): …
   ```
 
+- `--save [name]` appends the call to the nearest `signet.dev.toml` (walking
+  up from the working directory) as a `[[call]]` expected `unchanged`; see
+  [`docs/SANDBOX.md`](../docs/SANDBOX.md#signetdevtoml).
 - A Stellar Asset Contract's code is built into the host, so nothing is
   fetched for it; its instance, balances and trustlines are fetched when read.
   Like `stellar snapshot create`, a fork holds only the holders' entries the

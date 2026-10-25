@@ -175,3 +175,53 @@ func TestCallsAreCheckedAgainstTheDeployedContract(t *testing.T) {
 		}
 	}
 }
+
+func TestAppendCallKeepsTheFileAndReparses(t *testing.T) {
+	path := filepath.Join(t.TempDir(), FileName)
+	original := "# the registry's checks\nversion = 1   # schema\n\n[[call]]\nname = \"count\"   # keep me\nfunction = \"count\"\nexpect = \"unchanged\""
+	if err := os.WriteFile(path, []byte(original), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	args := map[string]any{
+		"handle": "alice", "wallet": "GA5Z", "n": float64(5), "flags": []any{true, false},
+		"opt": nil, "nested": map[string]any{"odd key": "x"},
+	}
+	if err := AppendCall(path, Call{Name: "claim alice", Function: "claim", Args: args, Expect: Expect{Kind: "unchanged"}}); err != nil {
+		t.Fatal(err)
+	}
+	raw, _ := os.ReadFile(path)
+	if !strings.HasPrefix(string(raw), original+"\n") {
+		t.Fatalf("the original is not kept byte for byte:\n%s", raw)
+	}
+	f, err := Parse(path, raw)
+	if err != nil {
+		t.Fatalf("%v\n%s", err, raw)
+	}
+	saved := f.Calls[1]
+	delete(args, "opt") // an Option left out
+	got, _ := json.Marshal(saved.Args)
+	want, _ := json.Marshal(args)
+	if saved.Name != "claim alice" || saved.Function != "claim" || saved.Expect.Kind != "unchanged" || string(got) != string(want) {
+		t.Fatalf("saved %+v (args %s, want %s)\n%s", saved, got, want, raw)
+	}
+
+	if err := AppendCall(path, Call{Name: "count", Function: "count", Expect: Expect{Kind: "unchanged"}}); err == nil || !strings.Contains(err.Error(), `"count" is already saved`) {
+		t.Fatalf("duplicate: %v", err)
+	}
+	if after, _ := os.ReadFile(path); string(after) != string(raw) {
+		t.Fatal("a refused save changed the file")
+	}
+}
+
+func TestFindWalksUp(t *testing.T) {
+	root := t.TempDir()
+	deep := filepath.Join(root, "a", "b")
+	_ = os.MkdirAll(deep, 0o755)
+	if Find(deep) != "" {
+		t.Fatal("found a file that is not there")
+	}
+	_ = os.WriteFile(filepath.Join(root, FileName), []byte("version = 1\n"), 0o644)
+	if got := Find(deep); got != filepath.Join(root, FileName) {
+		t.Fatalf("Find = %q", got)
+	}
+}
