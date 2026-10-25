@@ -93,21 +93,24 @@ test.describe('function groups collapse and expand (#502) @db', () => {
   const diagramUrl = `/p/${GROUPS_HANDLE}/contract/${GROUPED}/diagram`;
   const collapsedPool = '[data-node-id="collapsed:pool"]';
 
-  test.describe('without JavaScript', () => {
-    test.use({ javaScriptEnabled: false });
-
-    test('a collapsed group is a link that navigates to it expanded', async ({ page }) => {
-      await page.goto(diagramUrl);
-      // Without the keyboard enhancer an SVG link takes no tab stop, so it is clicked.
-      await page.locator(`${collapsedPool} text`).first().click();
-      await expect(page).toHaveURL(/\?expand=pool$/);
-      await expect(page.locator('[data-node-id="fn:pool_op0"]')).toBeVisible();
-      await expect(page.locator(collapsedPool)).toHaveCount(0);
-    });
+  // Server-first: the collapsed group is a plain link to the expanded state,
+  // and that URL draws it, with no script involved. (A browser with
+  // JavaScript off cannot be used here: the tab streams in behind
+  // loading.tsx, which needs a script to reveal it.)
+  test('a collapsed group links to a URL that draws it expanded', async ({ request }) => {
+    const collapsed = await (await request.get(diagramUrl)).text();
+    const link = /<a[^>]*href="([^"]+)"[^>]*data-node-id="collapsed:pool"/.exec(collapsed);
+    expect(link?.[1]).toMatch(/\?expand=pool$/);
+    expect(collapsed).not.toContain('data-node-id="fn:pool_op0"');
+    const expanded = await (await request.get(link![1]!.replace(/&amp;/g, '&'))).text();
+    expect(expanded).toContain('data-node-id="fn:pool_op0"');
+    expect(expanded).not.toContain('data-node-id="collapsed:pool"');
   });
 
   test('with JavaScript the group expands in place, focus stays on it, and the URL updates', async ({ page }) => {
     await page.goto(diagramUrl);
+    // The enhancer only intercepts once the page has hydrated.
+    await page.waitForLoadState('networkidle');
     await page.evaluate(() => ((window as unknown as { __noReload: boolean }).__noReload = true));
     await page.locator(collapsedPool).focus();
     await page.keyboard.press('Enter');

@@ -40,18 +40,24 @@ test.describe('contract page accessibility @db', () => {
   test.beforeAll(async () => {
     const { prisma } = await import('@signet/db');
     const deployer = Keypair.random().publicKey();
-    const profile = await prisma.profile.create({
-      data: {
+    // A worker can run this group's tests one after another, running this
+    // hook each time with the same handle: it converges instead of failing.
+    const profile = await prisma.profile.upsert({
+      where: { handle },
+      update: {},
+      create: {
         handle,
         wallets: { create: { pubkey: deployer, source: 'onchain', isPrimary: true } },
       },
       include: { wallets: true },
     });
-    await prisma.contract.create({
-      data: {
+    await prisma.contract.upsert({
+      where: { address },
+      update: {},
+      create: {
         address,
         walletId: profile.wallets[0]!.id,
-        deployerPubkey: deployer,
+        deployerPubkey: profile.wallets[0]!.pubkey,
         deployedAt: new Date(),
         deployTxHash: randomBytes(32).toString('hex'),
         network: 'testnet',
