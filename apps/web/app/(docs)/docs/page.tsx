@@ -94,90 +94,152 @@ export default function DocsPage() {
 
         <H id="reading-a-contract-diagram">Reading a contract diagram</H>
         <p className="mt-4 text-[14px] leading-[1.7] text-[#b8b5a8]">
-          The contract diagram is a picture of a Soroban contract&#8217;s public
-          interface, drawn from its compiled spec. It is 
-          <strong>not live yet</strong>: the <strong>Diagram</strong> tab on a
-          contract page is a placeholder while the drawing code is built, so
-          this section describes what the diagram is designed to show and how
-          to read it once it ships. The design is in{' '}
-          <code>docs/CONTRACT_VISUALISER_DESIGN.md</code>.
+          The <strong>Diagram</strong> tab on a contract page is a picture of a
+          Soroban contract&#8217;s public interface, drawn from its compiled
+          spec: which functions it exposes and which data types they take and
+          return. Everything solid in it is <strong>declared</strong> by the
+          contract. Anything dashed is <strong>observed</strong>: seen in
+          transactions Signet indexed, never promised by the contract. The
+          legend under each diagram lists exactly the shapes and lines it uses.
         </p>
 
         <Sub>Nodes</Sub>
         <ul className="mt-3 space-y-2 text-[14px] leading-[1.7] text-[#b8b5a8]">
           <li>
-            <strong>Function node</strong> — one exported function from the
-            contract spec, labelled with its name and linking to that
-            function&#8217;s entry in the generated docs.
+            <strong>Function</strong> (rounded box, <code>fn</code>): one
+            exported function. It links to that function in the generated docs.
           </li>
           <li>
-            <strong>Type node</strong> — a struct, enum or union the spec
-            defines and a function refers to. Types sit in a second column to the
-            right of the functions.
+            <strong>Struct, enum and union</strong> (square box; a union has a
+            cut corner): a data type the spec defines and a function uses. Types
+            sit in columns to the right of the functions, nested types further
+            right.
+          </li>
+          <li>
+            <strong>Stub</strong> (dashed box): a type the spec names but does
+            not define, linked to the docs instead of drawn.
+          </li>
+          <li>
+            <strong>Collapsed group</strong> (dashed box such as 
+            <code>pool_* (12)</code>): a group of functions folded into one box.
+            Select it to draw its functions; a <strong>Collapse</strong> link
+            folds it again.
+          </li>
+          <li>
+            <strong>Contract</strong> (box ringed in the observed colour): another
+            contract this one has been seen calling, named by its asset, its
+            Signet profile, or its short address.
           </li>
         </ul>
         <p className="mt-3 text-[14px] leading-[1.7] text-[#b8b5a8]">
-          Errors and events are not nodes. They are listed below the diagram,
-          because they relate to many functions at once and drawing them as
-          nodes would add lines without adding meaning.
+          Errors and events are not nodes. They relate to many functions at once,
+          so they are listed in the docs tabs instead of adding lines here.
         </p>
 
-        <Sub>Edges</Sub>
+        <Sub>Lines</Sub>
+        <ul className="mt-3 space-y-2 text-[14px] leading-[1.7] text-[#b8b5a8]">
+          <li>
+            <strong>Argument</strong> (solid, filled arrow): the type is one of
+            the function&#8217;s inputs.
+          </li>
+          <li>
+            <strong>Return</strong> (solid, open arrow): the function gives the
+            type back.
+          </li>
+          <li>
+            <strong>Field</strong> (thin solid line): one type contains another.
+          </li>
+          <li>
+            <strong>Call</strong> (dashed, dotted or dash-dot, with a count): this
+            contract was seen calling another one. The pattern says how Signet
+            knows: an authorisation tree, an event the other contract emitted, or
+            only its presence in the transaction&#8217;s footprint. Thicker lines
+            were seen more often.
+          </li>
+        </ul>
         <p className="mt-3 text-[14px] leading-[1.7] text-[#b8b5a8]">
-          Every edge is an arrow drawn from the spec alone. An arrow from a
-          function to a type means the type appears in the function&#8217;s
-          arguments or return value; an arrow from one type to another means it
-          appears as a field. Signet does not draw call arrows between
-          contracts yet, and an argument that is merely named{' '}
-          <code>token</code> or <code>pool</code> is never drawn as a
-          relationship.
+          An argument merely named <code>token</code> or <code>pool</code> is
+          never drawn as a relationship: only the types are.
         </p>
 
         <Sub>Groups</Sub>
         <p className="mt-3 text-[14px] leading-[1.7] text-[#b8b5a8]">
-          Soroban contracts conventionally prefix related functions (for
-          example <code>admin_</code> or <code>pool_</code>). The diagram
-          clusters functions that share a prefix into a <strong>group</strong>,
-          which can collapse so a large contract stays scannable. Grouping is a
-          reading aid based on naming, not something the language enforces.
+          Soroban contracts conventionally prefix related functions, for example 
+          <code>admin_</code> or <code>pool_</code>. The diagram clusters
+          functions that share a prefix into a group, with the well-known
+          lifecycle entrypoints (<code>init</code>, <code>upgrade</code> and the
+          like) in their own. A contract with more than 25 functions starts with
+          every group collapsed. Grouping is a reading aid based on naming, not
+          something the language enforces.
         </p>
 
         <Sub>When there is no diagram</Sub>
         <p className="mt-3 text-[14px] leading-[1.7] text-[#b8b5a8]">
-          A diagram is only drawn when it adds something. A contract with no
-          spec-derived edges, such as the registry, gets no diagram because the
-          generated docs already say everything it could. A contract with more
-          than about 60 nodes after grouping gets the grouped function list
-          with a note that its surface is too large to diagram usefully. Text
-          never renders smaller than 12px; a wide diagram scrolls inside its
-          own box instead of shrinking.
+          A diagram is only drawn when it adds something. A contract whose
+          functions use no types of their own, such as the registry, gets no
+          diagram, because its docs already say everything a picture could. A
+          contract with more than 60 nodes after grouping gets the function list
+          with a note that it is too large to diagram usefully. Text never
+          renders smaller than 12px: a wide diagram scrolls inside its own box
+          instead of shrinking.
+        </p>
+
+        <Sub>What is observed, and how far it reaches</Sub>
+        <ul className="mt-3 space-y-2 text-[14px] leading-[1.7] text-[#b8b5a8]">
+          <li>
+            <strong>Read/write marks</strong>: a <code>W</code>, <code>R</code> 
+            or <code>?</code> on a function says it was seen writing state, seen
+            only reading, or never seen at all. <code>R</code> means no write was
+            observed, not that the function cannot write.
+          </li>
+          <li>
+            <strong>Activity</strong>: the line above the diagram and the count
+            on each function come from indexed calls over the chosen range.
+          </li>
+          <li>
+            <strong>Storage view</strong>: the storage keys the contract has been
+            seen using, grouped as instance, persistent and temporary, with the
+            functions that read and wrote them.
+          </li>
+        </ul>
+        <p className="mt-3 text-[14px] leading-[1.7] text-[#b8b5a8]">
+          Each of these says under it what it was built from: how many
+          transactions, between which ledgers. Signet only sees calls made since
+          it began indexing a contract, within the RPC&#8217;s retention window
+          (about 7 days on testnet), and keeps a limited number per contract, so
+          a quiet or new contract shows little, and that absence is not
+          evidence.
         </p>
 
         <Sub>What the diagram cannot show</Sub>
         <ul className="mt-3 space-y-2 text-[14px] leading-[1.7] text-[#b8b5a8]">
           <li>
-            <strong>Mutability</strong> — the Soroban spec does not say whether
-            a function writes state, only that it exists. A function that looks
-            read-only may still mutate storage.
+            <strong>Whether a function can write state</strong>: the spec does
+            not say. A mark only reports what was seen.
           </li>
           <li>
-            <strong>State layout</strong> — the spec describes the interface,
-            not storage keys or what is stored.
+            <strong>A storage schema</strong>: Soroban contracts do not declare
+            one. The storage view lists keys seen in use, never the keys that
+            could exist.
           </li>
           <li>
-            <strong>Calls to other contracts</strong> — the spec lists what a
-            contract exposes, not what it invokes.
+            <strong>Calls nobody made</strong>: call lines come from transactions,
+            so a call path no one has used yet is not drawn.
           </li>
           <li>
-            <strong>Which function emits which event</strong> — the spec
-            declares events, not who raises them.
+            <strong>Which function emits which event</strong>: the spec declares
+            events, not who raises them.
           </li>
         </ul>
+
+        <Sub>Saving a diagram</Sub>
         <p className="mt-3 text-[14px] leading-[1.7] text-[#b8b5a8]">
-          The design adds a read/write mark and a cross-contract call graph in
-          later phases, from simulation and from Signet&#8217;s indexer. Those
-          are marked as observed rather than declared, and are not available
-          today.
+          <strong>Download SVG</strong> saves the interface diagram with the
+          contract&#8217;s address, network and WASM hash printed under it; 
+          <strong>Download PNG</strong> saves the same at twice the size; the
+          storage view has its own SVG download. Every diagram state is also a
+          link: the URL keeps the search, the expanded groups, the activity range
+          and a focused node.
         </p>
 
         <H>Linking your deploy wallet</H>

@@ -1,11 +1,13 @@
 # Design: visualise a contract for non-developers
 
-**Status:** phase 1 in progress, not shipped. The
-[`@signet/visualiser`](../packages/visualiser/) package has the text metrics,
-theme tokens, SVG renderer, edge routing and worth-drawing decision; the graph
-builder, layout, interactive enhancer and the web Diagram tab are not built
-yet, and phases 2 and 3 have not started. Plain-language reading guide: the
-"Reading a contract diagram" section of the site's `/docs` page. This document
+**Status:** phase 1 built, phases 2 and 3 in place as observed overlays.
+The [`@signet/visualiser`](../packages/visualiser/README.md) package draws the
+interface (graph, grouping with collapse, layout, routing, SVG renderer,
+outline, interactive enhancers), and the web Diagram tab and `signet visualise`
+use it. The read/write marks, call graph, storage view and
+activity overlay are drawn from indexed calls and labelled as observed.
+Plain-language reading guide: the "Reading a contract diagram" section of the
+site's `/docs` page. This document
 exists to settle the shape before code, and — like the sandbox note — because
 investigating it changes what should be built. It is the third consumer of the
 shared spec reader that `CONTRACT_DOCS_DESIGN.md` §5 specifies and auto-docs

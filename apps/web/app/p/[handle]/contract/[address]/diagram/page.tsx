@@ -30,6 +30,12 @@ export default async function DiagramPage({
           </>
         )}
         <EmbedButton handle={handle} address={address} />
+        <a
+          href="/docs#reading-a-contract-diagram"
+          className="inline-block text-sm underline underline-offset-4 focus-visible:outline focus-visible:outline-2"
+        >
+          How to read this diagram
+        </a>
       </div>
       <ContractDiagram
         {...props}
