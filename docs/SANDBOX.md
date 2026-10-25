@@ -148,6 +148,16 @@ rebinding, and no other site can reach it, preflights included. The checks are
 listed in [`SECURITY_REVIEW.md`](SECURITY_REVIEW.md). Don't share the link
 while `signet dev` runs.
 
+The page is a view over the same session the terminal drives (#577), through
+an API under `/api/` that is local to the server and versioned with the
+binary: the session's provenance, the deployed and built specs and WASMs, a
+call as `signet sandbox call` runs it, the latest cycles, the fork's entries
+and the overrides, overrides added for the session, and a call saved to
+`signet.dev.toml` as `--save` saves it. `/api/events` streams
+`build.started`, `build.failed`, `cycle.completed` and `drift` as NDJSON. The
+API is described in
+[`sandbox/protocol/devui-openapi.yaml`](../sandbox/protocol/devui-openapi.yaml).
+
 ### The reload cycle
 
 Each build is compared with the deployed contract from the same state (#566).

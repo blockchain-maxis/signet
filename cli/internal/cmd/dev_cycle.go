@@ -6,12 +6,15 @@ import (
 	"os"
 	"reflect"
 	"sort"
+	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/blockchain-maxis/signet/cli/internal/bundle"
 	"github.com/blockchain-maxis/signet/cli/internal/dev"
 	"github.com/blockchain-maxis/signet/cli/internal/devconfig"
+	"github.com/blockchain-maxis/signet/cli/internal/devui"
 	"github.com/blockchain-maxis/signet/cli/internal/exitcode"
 	"github.com/blockchain-maxis/signet/cli/internal/fork"
 	"github.com/blockchain-maxis/signet/cli/internal/rpc"
@@ -30,6 +33,48 @@ type devSession struct {
 	forkID    string
 	// log is the session log export reads (#572); nil until started.
 	log *bundle.Log
+
+	// mu keeps a reload cycle and a UI request (#577) from using the
+	// simulator at once.
+	mu sync.Mutex
+	// cycles are the latest cycles, for the UI, oldest first.
+	cycles []storedCycle
+	// events is the UI's event stream; nil without --ui.
+	events *devui.Events
+}
+
+// storedCycle is a cycle as the UI fetches it.
+type storedCycle struct {
+	ID int `json:"id"`
+	dev.Cycle
+}
+
+// keptCycles bounds what the session keeps for the UI.
+const keptCycles = 50
+
+// publish sends an event to the UI, if one is listening.
+func (s *devSession) publish(typ string, data any) {
+	if s.events != nil {
+		s.events.Publish(typ, data)
+	}
+}
+
+// cycle is a stored cycle by id, or "latest".
+func (s *devSession) cycle(id string) (any, bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if len(s.cycles) == 0 {
+		return nil, false
+	}
+	if id == "latest" {
+		return s.cycles[len(s.cycles)-1], true
+	}
+	for _, c := range s.cycles {
+		if strconv.Itoa(c.ID) == id {
+			return c, true
+		}
+	}
+	return nil, false
 }
 
 func (s *devSession) Close() {
@@ -133,9 +178,25 @@ func (s *devSession) runCycle(ctx context.Context, wasmPath string, replays []de
 	if err != nil {
 		return dev.Cycle{}, fmt.Errorf("%w: reading the build: %v", exitcode.ErrConfiguration, err)
 	}
+	s.mu.Lock()
 	cycle, err := s.reloader.Cycle(ctx, wasm, replays)
+	id := 1
+	if err == nil {
+		if n := len(s.cycles); n > 0 {
+			id = s.cycles[n-1].ID + 1
+		}
+		s.cycles = append(s.cycles, storedCycle{ID: id, Cycle: cycle})
+		if len(s.cycles) > keptCycles {
+			s.cycles = s.cycles[len(s.cycles)-keptCycles:]
+		}
+	}
+	s.mu.Unlock()
 	if err != nil {
 		return dev.Cycle{}, fmt.Errorf("%w: %v", exitcode.ErrSimulator, err)
+	}
+	s.publish("cycle.completed", map[string]int{"id": id})
+	if n := s.manifest.DriftedEntries; n > 0 {
+		s.publish("drift", map[string]int{"count": n})
 	}
 	for _, line := range describeCycle(cycle) {
 		progress(line)
@@ -277,7 +338,10 @@ func describeSummary(s simulator.DiffSummary) string {
 // its overrides, starting the session over when they changed.
 func (s *devSession) applyFile(ctx context.Context, f *devconfig.File, contract string, progress func(string)) error {
 	if overrides := fileOverrides(f); !reflect.DeepEqual(overrides, s.overrides) {
-		if err := s.reset(ctx, overrides); err != nil {
+		s.mu.Lock()
+		err := s.reset(ctx, overrides)
+		s.mu.Unlock()
+		if err != nil {
 			return err
 		}
 		progress(fmt.Sprintf("storage overrides changed: %d applied, from a new base", len(overrides)))

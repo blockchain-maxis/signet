@@ -1,0 +1,199 @@
+openapi: 3.1.0
+info:
+  title: signet dev local UI API
+  version: '1'
+  description: |
+    The API the `signet dev --ui` page uses (#577), served by the CLI on
+    127.0.0.1 only. It is local to that server and versioned with the binary;
+    it is unrelated to Signet's public /api/v1.
+
+    Every request needs `Authorization: Bearer <token>`, the per-run token the
+    CLI puts in the page URL's fragment (#576), and a Host (and any Origin)
+    of the server itself. Request bodies are capped at 1 MB. The crate path,
+    RPC, network and simulator are fixed by the command line; nothing here
+    changes them.
+servers:
+  - url: http://127.0.0.1:{port}
+    variables:
+      port:
+        default: '0'
+        description: The ephemeral port the CLI printed
+security:
+  - token: []
+components:
+  securitySchemes:
+    token:
+      type: http
+      scheme: bearer
+  schemas:
+    Error:
+      type: object
+      properties:
+        error: { type: string }
+      required: [error]
+    Override:
+      type: object
+      properties:
+        id: { type: string, description: "file-<n> for signet.dev.toml's, ui-<n> for the UI's" }
+        durability: { enum: [instance, persistent, temporary] }
+        key: { type: string, description: The --set-storage key syntax }
+        value: { type: string }
+        unset: { type: boolean }
+      required: [durability, key]
+  responses:
+    BadRequest:
+      description: The session refused what the request asked
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    NotFound:
+      description: No such resource
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+paths:
+  /api/session:
+    get:
+      summary: The session's provenance
+      description: Fork (id, ledger, time, consistency, drifted entries), lane, crate, current build, and a summary of signet.dev.toml.
+      responses:
+        '200':
+          { description: The session, content: { application/json: { schema: { type: object } } } }
+  /api/spec:
+    get:
+      summary: A SpecJson document, of the deployed WASM or the local build
+      description: spec_extract's document (#545), which the page reads with @signet/spec's fromSpecJson.
+      parameters:
+        - { name: wasm, in: query, schema: { enum: [deployed, local], default: deployed } }
+      responses:
+        '200':
+          { description: SpecJson v1, content: { application/json: { schema: { type: object } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+  /api/wasm/{hash}:
+    get:
+      summary: An executable the session holds, by hex sha256
+      parameters:
+        - {
+            name: hash,
+            in: path,
+            required: true,
+            schema: { type: string, pattern: '^[0-9a-f]{64}$' },
+          }
+      responses:
+        '200':
+          {
+            description: The WASM,
+            content: { application/wasm: { schema: { type: string, format: binary } } },
+          }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /api/call:
+    post:
+      summary: Run one call as signet sandbox call does
+      description: The same parameters and wall-clock limits as the CLI (#536, #555); the answer is sandbox call's JSON result.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                function: { type: string }
+                args: { type: object }
+                source_account: { type: string }
+                auth_mode: { enum: [record, strict, enforce] }
+                ledger:
+                  type: object
+                  properties:
+                    sequence: { type: integer, minimum: 1 }
+                    timestamp: { type: integer, minimum: 0 }
+                overrides: { type: array, items: { $ref: '#/components/schemas/Override' } }
+                wasm: { enum: [deployed, local], default: deployed }
+              required: [function]
+      responses:
+        '200':
+          {
+            description: sandbox call's result (cli-call-result.json),
+            content: { application/json: { schema: { type: object } } },
+          }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '413': { description: The body is over 1 MB }
+  /api/cycles/{id}:
+    get:
+      summary: A reload cycle, by id or "latest"
+      description: Its calls with A/B results, diffs (#568), verdicts (#567), interface (#570) and layout (#571) checks.
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      responses:
+        '200':
+          { description: The cycle, content: { application/json: { schema: { type: object } } } }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /api/state:
+    get:
+      summary: Entries of one layer
+      description: fork (cached entries with decoded views and provenance), override (the file's and the UI's overrides), session (empty between cycles).
+      parameters:
+        - { name: layer, in: query, required: true, schema: { enum: [fork, override, session] } }
+      responses:
+        '200':
+          { description: The layer, content: { application/json: { schema: { type: object } } } }
+        '400': { $ref: '#/components/responses/BadRequest' }
+  /api/overrides:
+    post:
+      summary: Apply a storage override for this session (not saved to the file)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/Override' }
+      responses:
+        '200':
+          {
+            description: The override's id,
+            content:
+              {
+                application/json:
+                  { schema: { type: object, properties: { id: { type: string } } } },
+              },
+          }
+        '400': { $ref: '#/components/responses/BadRequest' }
+  /api/overrides/{id}:
+    delete:
+      summary: Remove an override the UI added
+      parameters:
+        - { name: id, in: path, required: true, schema: { type: string } }
+      responses:
+        '200': { description: Removed }
+        '404': { $ref: '#/components/responses/NotFound' }
+  /api/calls:
+    post:
+      summary: Save a call to signet.dev.toml, as sandbox call --save does (#561)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              properties:
+                name: { type: string }
+                function: { type: string }
+                args: { type: object }
+                expect: { type: string, default: unchanged }
+              required: [function]
+      responses:
+        '200': { description: Saved }
+        '400': { $ref: '#/components/responses/BadRequest' }
+  /api/events:
+    get:
+      summary: The session's events, as NDJSON over a chunked response
+      description: |
+        One JSON object per line: {"type":"build.started"}, {"type":"build.failed","data":{"message":…}},
+        {"type":"cycle.completed","data":{"id":…}}, {"type":"drift","data":{"count":…}}. Read it with
+        fetch streaming, which can send the token header; EventSource cannot.
+      responses:
+        '200':
+          {
+            description: The stream,
+            content: { application/x-ndjson: { schema: { type: string } } },
+          }

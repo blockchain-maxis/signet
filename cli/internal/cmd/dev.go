@@ -6,7 +6,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"net/http"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -236,7 +235,8 @@ func runDev(cmd *cobra.Command, args []string, path, pkg string, ci bool, deboun
 	}
 	if !ci {
 		if ui.on {
-			stopUI, err := startUI(ctx, cmd, setup.contract, m.Network, ui.noBrowser, printer.Progress)
+			sessionView := &uiSession{deps: deps, network: network, session: session, builder: builder, setup: &setup}
+			stopUI, err := startUI(ctx, cmd, sessionView, ui.noBrowser, printer.Progress)
 			if err != nil {
 				return err
 			}
@@ -499,6 +499,7 @@ func watchAndRebuild(ctx context.Context, setup devSetup, builder *dev.Builder, 
 		var bctx context.Context
 		bctx, cancel = context.WithCancel(ctx)
 		building, again = true, false
+		session.publish("build.started", nil)
 		go func() {
 			built, err := builder.Build(bctx)
 			results <- outcome{built, err}
@@ -557,6 +558,7 @@ func watchAndRebuild(ctx context.Context, setup devSetup, builder *dev.Builder, 
 				}
 			default:
 				progress("build failed:\n" + o.err.Error())
+				session.publish("build.failed", map[string]string{"message": o.err.Error()})
 			}
 			if again && ctx.Err() == nil {
 				progress("rebuilding for a newer change")
@@ -596,16 +598,12 @@ func gitignore(dir, pattern string) error {
 	return os.WriteFile(path, raw, 0o644)
 }
 
-// startUI serves the local UI (#576) until ctx ends, and opens it (or, with
-// --no-browser or no display, prints its URL). The token is only ever in
-// that URL's fragment.
-func startUI(ctx context.Context, cmd *cobra.Command, contract, network string, noBrowser bool, progress func(string)) (func(), error) {
-	api := http.NewServeMux()
-	api.HandleFunc("GET /api/health", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json")
-		_ = json.NewEncoder(w).Encode(map[string]any{"ok": true, "contract": contract, "network": network})
-	})
-	server, err := devui.New(devui.Options{Static: devui.Placeholder(), API: api})
+// startUI serves the local UI (#576) over the session (#577) until ctx
+// ends, and opens it (or, with --no-browser or no display, prints its URL).
+// The token is only ever in that URL's fragment.
+func startUI(ctx context.Context, cmd *cobra.Command, view *uiSession, noBrowser bool, progress func(string)) (func(), error) {
+	view.session.events = devui.NewEvents()
+	server, err := devui.New(devui.Options{Static: devui.Placeholder(), API: devui.NewAPI(view, view.session.events)})
 	if err != nil {
 		return nil, fmt.Errorf("%w: the UI server: %v", exitcode.ErrConfiguration, err)
 	}
