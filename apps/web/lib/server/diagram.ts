@@ -17,7 +17,15 @@
  * `{ ok: false }`. They never throw into the page (design §2.4).
  */
 
-import { fromSpecJson, LruSpecCache, type ContractSpec } from '@signet/spec';
+import {
+  classifyFunctions,
+  fromSpecJson,
+  LruSpecCache,
+  normaliseFootprint,
+  type ContractSpec,
+  type FootprintObservation,
+  type MutabilityMark,
+} from '@signet/spec';
 import {
   buildContractGraph,
   layoutContractGraph,
@@ -463,4 +471,162 @@ export async function labelCallees(
     labels.set(address, { kind: 'address', address, text: shortAddress(address), href: expert });
   }
   return labels;
+}
+
+// ── Mutability marks (#511) ────────────────────────────────────────────
+
+/** How many of each function's latest invocations decide its mark. */
+export const MUTABILITY_PER_FUNCTION = 50;
+
+/** As long as the activity snapshot lives (apps/indexer/src/workers/activity.ts). */
+export const MUTABILITY_TTL_MS = 5 * 60 * 1000;
+
+/** What a Soroban RPC keeps: why marks only reach as far back as the index. */
+export const RPC_RETENTION_NOTE =
+  'Soroban RPC keeps about 7 days of transactions, so calls older than what Signet indexed are not seen.';
+
+/**
+ * The read/write overlay for a contract's diagram (design §4.2): one mark per
+ * function of the current spec, from stored invocations, kept apart from the
+ * spec-only layout because it changes on its own schedule. Plain data, so a
+ * Server Component can hand it to the renderer.
+ */
+export interface MutabilityOverlay {
+  readonly wasmHash: string | null;
+  readonly marks: Readonly<Record<string, MutabilityMark>>;
+  /** Invocations of the current code that decided marks. */
+  readonly observations: number;
+  readonly firstLedger: number | null;
+  readonly lastLedger: number | null;
+  /** Invocations of an earlier code version, ignored. */
+  readonly staleObservations: number;
+  /** Why every mark is unknown, when they all are for a reason. */
+  readonly reason: string | null;
+  readonly retentionNote: string;
+}
+
+/** A stored `ContractInvocation`, as much of it as a mark needs. */
+export interface InvocationRow {
+  readonly function: string | null;
+  readonly txHash: string;
+  readonly ledger: number;
+  readonly successful: boolean;
+  readonly wasmHash: string | null;
+  readonly readOnly: unknown;
+  readonly readWrite: unknown;
+  readonly changed: unknown;
+}
+
+export interface MutabilityDeps {
+  getContractSpec?: DiagramDeps['getContractSpec'];
+  /** The latest `limit` invocations of `fn`; null when there is no database. */
+  invocations?: (request: { address: string; network: string; fn: string; limit: number }) => Promise<InvocationRow[] | null>;
+  now?: () => number;
+}
+
+const keys = (v: unknown): string[] => (Array.isArray(v) ? v.filter((k): k is string => typeof k === 'string') : []);
+
+async function prismaInvocations(request: { address: string; network: string; fn: string; limit: number }): Promise<InvocationRow[] | null> {
+  if (!process.env.DATABASE_URL) return null;
+  const { prisma } = await import('@signet/db');
+  return (prisma as any).contractInvocation.findMany({
+    where: { function: request.fn, contract: { address: request.address, network: request.network } },
+    orderBy: { ledger: 'desc' },
+    take: request.limit,
+    select: {
+      function: true,
+      txHash: true,
+      ledger: true,
+      successful: true,
+      wasmHash: true,
+      readOnly: true,
+      readWrite: true,
+      changed: true,
+    },
+  });
+}
+
+const mutabilityCache = new Map<string, { at: number; overlay: MutabilityOverlay }>();
+
+export function __resetMutabilityCache(): void {
+  mutabilityCache.clear();
+}
+
+function unknownFor(functions: readonly { name: string }[], wasmHash: string | null, reason: string): MutabilityOverlay {
+  const marks: Record<string, MutabilityMark> = {};
+  for (const fn of functions) {
+    marks[fn.name] = { kind: 'unknown', staleObservations: 0, unversionedObservations: 0, seededObservations: 0 };
+  }
+  return { wasmHash, marks, observations: 0, firstLedger: null, lastLedger: null, staleObservations: 0, reason, retentionNote: RPC_RETENTION_NOTE };
+}
+
+/**
+ * Reads a contract's stored invocations (#417), the latest
+ * `MUTABILITY_PER_FUNCTION` per function, normalises their keys (#509) and
+ * classifies them against the current spec. Cached for five minutes. With
+ * no database every mark is unknown, with the reason: the web app never
+ * simulates on a visitor's behalf (#521).
+ */
+export async function getMutabilityOverlay(
+  address: string,
+  network: string,
+  deps: MutabilityDeps = {},
+): Promise<MutabilityOverlay | null> {
+  const now = deps.now ?? Date.now;
+  try {
+    const resolveSpec = deps.getContractSpec ?? loadContractSpec;
+    const specResult = await resolveSpec({ address, network, wasmHash: null });
+    if (!specResult.ok) return null;
+    const spec = fromSpecJson(specResult.spec);
+    const key = `${network}:${address}:${spec.wasmHash}`;
+    const hit = mutabilityCache.get(key);
+    if (hit && now() - hit.at < MUTABILITY_TTL_MS) return hit.overlay;
+
+    const read = deps.invocations ?? prismaInvocations;
+    const observations: FootprintObservation[] = [];
+    for (const fn of spec.functions) {
+      const rows = await read({ address, network, fn: fn.name, limit: MUTABILITY_PER_FUNCTION });
+      if (rows === null) {
+        const overlay = unknownFor(spec.functions, spec.wasmHash, 'No indexed observations in this environment.');
+        mutabilityCache.set(key, { at: now(), overlay });
+        return overlay;
+      }
+      for (const row of rows) {
+        observations.push(
+          normaliseFootprint({
+            contract: address,
+            function: row.function,
+            source: 'transaction',
+            ledger: row.ledger,
+            txHash: row.txHash,
+            wasmHash: row.wasmHash,
+            readOnly: keys(row.readOnly),
+            readWrite: keys(row.readWrite),
+            changed: row.changed === null || row.changed === undefined ? null : keys(row.changed),
+            successful: row.successful,
+          }),
+        );
+      }
+    }
+    const classified = classifyFunctions(spec, observations);
+    const marks: Record<string, MutabilityMark> = {};
+    for (const [name, mark] of classified) marks[name] = mark;
+    const current = observations.filter((o) => o.wasmHash === spec.wasmHash);
+    const ledgers = current.map((o) => o.ledger);
+    const overlay: MutabilityOverlay = {
+      wasmHash: spec.wasmHash,
+      marks,
+      observations: current.length,
+      firstLedger: ledgers.length ? Math.min(...ledgers) : null,
+      lastLedger: ledgers.length ? Math.max(...ledgers) : null,
+      staleObservations: observations.filter((o) => o.wasmHash && o.wasmHash !== spec.wasmHash).length,
+      reason: observations.length === 0 ? 'No calls to this contract have been indexed yet.' : null,
+      retentionNote: RPC_RETENTION_NOTE,
+    };
+    mutabilityCache.set(key, { at: now(), overlay });
+    return overlay;
+  } catch (error) {
+    logger.warn({ address, network, error }, 'failed to compute mutability marks');
+    return null;
+  }
 }

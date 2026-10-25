@@ -194,3 +194,87 @@ test('works with PrismaDiagramStore when database is injected', async () => {
   assert.equal(res2.ok, true);
   assert.equal(layoutCalls, 1);
 });
+
+// ── Mutability marks (#511) ────────────────────────────────────────────
+
+import { Address } from '@stellar/stellar-sdk';
+import { __resetMutabilityCache, getMutabilityOverlay, type InvocationRow } from './diagram.ts';
+
+const twoFunctions: SpecJson = {
+  ...spec,
+  entriesXdr: ['read', 'write'].map((name) =>
+    xdr.ScSpecEntry.scSpecEntryFunctionV0(
+      new xdr.ScSpecFunctionV0({ doc: '', name, inputs: [], outputs: [] }),
+    ).toXDR('base64'),
+  ),
+  functions: ['read', 'write'].map((name) => ({ name, doc: '', isConstructor: false, inputs: [], outputs: [] })),
+};
+
+const stateKey = xdr.LedgerKey.contractData(
+  new xdr.LedgerKeyContractData({
+    contract: Address.fromString(address).toScAddress(),
+    key: xdr.ScVal.scvSymbol('Count'),
+    durability: xdr.ContractDataDurability.persistent(),
+  }),
+).toXDR('base64');
+
+const row = (fn: string, ledger: number, writes: boolean, wasmHash = hash): InvocationRow => ({
+  function: fn,
+  txHash: `${fn}-${ledger}`.padEnd(64, '0'),
+  ledger,
+  successful: true,
+  wasmHash,
+  readOnly: writes ? [] : [stateKey],
+  readWrite: writes ? [stateKey] : [],
+  changed: writes ? [stateKey] : [],
+});
+
+const specDeps = { getContractSpec: async () => ({ ok: true as const, spec: twoFunctions, wasmHash: hash }) as never };
+
+test('stored invocations become marks against the current spec', async () => {
+  __resetMutabilityCache();
+  const overlay = await getMutabilityOverlay(address, 'testnet', {
+    ...specDeps,
+    invocations: async ({ fn }) => (fn === 'write' ? [row('write', 120, true), row('write', 110, true)] : [row('read', 115, false)]),
+  });
+  assert.ok(overlay);
+  assert.equal(overlay.marks.write?.kind, 'writes');
+  assert.equal(overlay.marks.read?.kind, 'no-writes-seen');
+  assert.equal(overlay.observations, 3);
+  assert.deepEqual([overlay.firstLedger, overlay.lastLedger], [110, 120]);
+  assert.equal(overlay.reason, null);
+  assert.match(overlay.retentionNote, /7 days/);
+});
+
+test('with no database every mark is unknown, and says why', async () => {
+  __resetMutabilityCache();
+  const overlay = await getMutabilityOverlay(address, 'testnet', { ...specDeps, invocations: async () => null });
+  assert.ok(overlay);
+  assert.deepEqual(Object.values(overlay.marks).map((m) => m.kind), ['unknown', 'unknown']);
+  assert.equal(overlay.reason, 'No indexed observations in this environment.');
+});
+
+test('invocations of an older code version are counted as stale, not used', async () => {
+  __resetMutabilityCache();
+  const overlay = await getMutabilityOverlay(address, 'testnet', {
+    ...specDeps,
+    invocations: async ({ fn }) => (fn === 'write' ? [row('write', 90, true, 'b'.repeat(64))] : []),
+  });
+  assert.ok(overlay);
+  assert.equal(overlay.marks.write?.kind, 'unknown');
+  assert.equal(overlay.staleObservations, 1);
+  assert.equal(overlay.observations, 0);
+});
+
+test('marks are cached for five minutes', async () => {
+  __resetMutabilityCache();
+  let reads = 0;
+  let clock = 0;
+  const deps = { ...specDeps, now: () => clock, invocations: async () => (reads++, []) };
+  await getMutabilityOverlay(address, 'testnet', deps);
+  await getMutabilityOverlay(address, 'testnet', deps);
+  assert.equal(reads, 2); // two functions, read once
+  clock = 5 * 60 * 1000 + 1;
+  await getMutabilityOverlay(address, 'testnet', deps);
+  assert.equal(reads, 4);
+});
