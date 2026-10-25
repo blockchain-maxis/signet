@@ -22,34 +22,48 @@ stored, so these specs carry no `build` or `env` meta.
 
 ## Fixtures
 
-| Fixture             | Network | Address                                                    | Ledger   | WASM hash                                                          |
-| ------------------- | ------- | ---------------------------------------------------------- | -------- | ------------------------------------------------------------------ |
-| `identity-registry` | testnet | `CASFJHI5PQSRWS7JV25CF7FOMRKIVBP3RXRP3E2GH2CV4BCAG7FUJRCN` | 5042836  | `936996c74b7d383c56ec174857b15927cdd29478c6909da332b4dec8b67335fe` |
-| `soroswap-router`   | mainnet | `CAG5LRYQ5JVEUI5TEID72EYOVX44TTUJT5BQR2J6J77FH65PCCFAJDDH` | 64790398 | `4c3db3ebd2d6a2ab23de1f622eaabb39501539b4611b68622ec4e47f76c4ba07` |
-| `blend-pool-v1`     | mainnet | `CDVQVKOY2YSXS2IC7KN6MNASSHPAO7UN2UR2ON4OI2SKMFJNVAMDX6DP` | 64790462 | `baf978f10efdbcd85747868bef8832845ea6809f7643b67a4ac0cd669327fc2c` |
-| `axelar-its`        | mainnet | `CBDBMIOFHGWUFRYH3D3STI2DHBOWGDDBCRKQEUB4RGQEBVG74SEED6C6` | 64973281 | `27b2ef8c7288da0bf5cd997cb7ca02c71163b339c76c496ed7985994b25019a7` |
+| Fixture                  | Network | Address                                                    | Ledger   | WASM hash                                                          |
+| ------------------------ | ------- | ---------------------------------------------------------- | -------- | ------------------------------------------------------------------ |
+| `identity-registry`      | testnet | `CASFJHI5PQSRWS7JV25CF7FOMRKIVBP3RXRP3E2GH2CV4BCAG7FUJRCN` | 5042836  | `936996c74b7d383c56ec174857b15927cdd29478c6909da332b4dec8b67335fe` |
+| `soroswap-router`        | mainnet | `CAG5LRYQ5JVEUI5TEID72EYOVX44TTUJT5BQR2J6J77FH65PCCFAJDDH` | 64790398 | `4c3db3ebd2d6a2ab23de1f622eaabb39501539b4611b68622ec4e47f76c4ba07` |
+| `blend-pool-v1`          | mainnet | `CDVQVKOY2YSXS2IC7KN6MNASSHPAO7UN2UR2ON4OI2SKMFJNVAMDX6DP` | 64790462 | `baf978f10efdbcd85747868bef8832845ea6809f7643b67a4ac0cd669327fc2c` |
+| `axelar-its`             | mainnet | `CBDBMIOFHGWUFRYH3D3STI2DHBOWGDDBCRKQEUB4RGQEBVG74SEED6C6` | 64973281 | `27b2ef8c7288da0bf5cd997cb7ca02c71163b339c76c496ed7985994b25019a7` |
+| `testnet-lending-market` | testnet | `CBXZBQ6NW3TGPGLTR4JCG2VPVWFLCCHKDW75NJIXYXV7CJLNUO64VTFC` | 5377655  | `952ffc293517bf26f97c8453d2f61397757a3e9446ad888a837f5a91507bb3b6` |
 
 `capturedAtLedger` is the RPC endpoint's latest ledger read just after the
 spec was fetched, so it is an upper bound on the state that was read. A
 contract's spec is fixed by its WASM, so the hash is what identifies it.
 
-| Fixture             | Functions | Structs            | Unions | Error enums  | Size  |
-| ------------------- | --------- | ------------------ | ------ | ------------ | ----- |
-| `identity-registry` | 8         | 0                  | 0      | 1 (7 cases)  | 4 KB  |
-| `soroswap-router`   | 20        | 4 (event payloads) | 0      | 3            | 24 KB |
-| `blend-pool-v1`     | 18        | 16                 | 2      | 1            | 16 KB |
-| `axelar-its`        | 49        | 9                  | 2      | 1 (71 cases) | 15 KB |
+| Fixture                  | Functions | Structs            | Unions | Error enums  | Size  |
+| ------------------------ | --------- | ------------------ | ------ | ------------ | ----- |
+| `identity-registry`      | 8         | 0                  | 0      | 1 (7 cases)  | 4 KB  |
+| `soroswap-router`        | 20        | 4 (event payloads) | 0      | 3            | 24 KB |
+| `blend-pool-v1`          | 18        | 16                 | 2      | 1            | 16 KB |
+| `axelar-its`             | 49        | 9                  | 2      | 1 (71 cases) | 15 KB |
+| `testnet-lending-market` | 42        | 14                 | 4      | 1 (64 cases) | 27 KB |
 
 ## Provenance and licence
 
-| Fixture             | Source                                                                                                                                              | Licence                                                                                           |
-| ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
-| `identity-registry` | this repository, `packages/contracts/identity-registry`                                                                                             | Apache-2.0, [`LICENSE`](../../../LICENSE)                                                         |
-| `soroswap-router`   | <https://github.com/soroswap/core> (`contracts/router`)                                                                                             | Apache-2.0, <https://github.com/soroswap/core/blob/main/LICENSE>                                  |
-| `blend-pool-v1`     | <https://github.com/blend-capital/blend-contracts> (lending pool)                                                                                   | AGPL-3.0, <https://github.com/blend-capital/blend-contracts/blob/main/LICENSE>                    |
-| `axelar-its`        | <https://github.com/axelarnetwork/axelar-cgp-stellar> (`contracts/stellar-interchain-token-service`, tag `stellar-interchain-token-service-v2.1.1`) | Apache-2.0 or MIT, <https://github.com/axelarnetwork/axelar-cgp-stellar/blob/main/LICENSE-APACHE> |
+| Fixture                  | Source                                                                                                                                              | Licence                                                                                           |
+| ------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------- |
+| `identity-registry`      | this repository, `packages/contracts/identity-registry`                                                                                             | Apache-2.0, [`LICENSE`](../../../LICENSE)                                                         |
+| `soroswap-router`        | <https://github.com/soroswap/core> (`contracts/router`)                                                                                             | Apache-2.0, <https://github.com/soroswap/core/blob/main/LICENSE>                                  |
+| `blend-pool-v1`          | <https://github.com/blend-capital/blend-contracts> (lending pool)                                                                                   | AGPL-3.0, <https://github.com/blend-capital/blend-contracts/blob/main/LICENSE>                    |
+| `axelar-its`             | <https://github.com/axelarnetwork/axelar-cgp-stellar> (`contracts/stellar-interchain-token-service`, tag `stellar-interchain-token-service-v2.1.1`) | Apache-2.0 or MIT, <https://github.com/axelarnetwork/axelar-cgp-stellar/blob/main/LICENSE-APACHE> |
+| `testnet-lending-market` | unknown: a testnet deployment whose WASM meta names only its Rust and SDK versions, no source repository                                            | none stated; interface data read from the public ledger                                           |
 
 How each address and source were tied together:
+
+- `testnet-lending-market`: the contract whose real transactions
+  `packages/fixtures` already holds (`sac-transfer-call-get-transaction`,
+  `footprint-only-call-get-transaction`, #516). It is here for the call graph
+  golden (#543, `__golden__/calls/`), so the diagram is drawn from the
+  interface those transactions ran against. Its source is not known: the
+  deployed WASM's meta has `rsver 1.97.0` and `rssdkver 27.0.4` and nothing
+  else. `calls/usdc-sac-instance-entry.json` is the instance entry of the
+  Stellar Asset Contract its `repay_obligation_liquidity` pays (USDC), read
+  with `getLedgerEntries` at ledger 5377669, so the golden's callee label
+  comes from chain data as the web app's does (#517).
 
 - `identity-registry`: the address is the deployment documented in
   `docs/REGISTRY_INTEGRATION.md`; its hash equals the one in

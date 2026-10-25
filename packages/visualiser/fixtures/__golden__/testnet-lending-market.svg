@@ -1,0 +1,559 @@
+<svg
+  xmlns="http://www.w3.org/2000/svg"
+  role="img"
+  aria-labelledby="testnet-lending-market-title testnet-lending-market-desc"
+  class="contract-diagram"
+  width="287" height="2052" viewBox="0 0 287 2052"
+  font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="14"
+>
+  <title id="testnet-lending-market-title">testnet-lending-market (testnet CBXZBQ6NW3TGPGLTR4JCG2VPVWFLCCHKDW75NJIXYXV7CJLNUO64VTFC)</title>
+  <desc id="testnet-lending-market-desc">42 functions in 22 groups, 0 types, 0 references</desc>
+  <defs>
+  </defs>
+  <a id="diagram-fn-market" href="#fn-market" data-node-id="fn:market">
+    <rect id="testnet-lending-market-node-fn:market" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="52" width="71" height="28" rx="6" ry="6"/>
+    <title>market</title>
+    <text
+      class="diagram-node-label"
+      x="34"
+      y="66"
+      dominant-baseline="central"
+      fill="var(--viz-node-text)"
+    >
+      market
+    </text>
+  </a>
+  <a id="diagram-fn-reserve" href="#fn-reserve" data-node-id="fn:reserve">
+    <rect id="testnet-lending-market-node-fn:reserve" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="92" width="79" height="28" rx="6" ry="6"/>
+    <title>reserve</title>
+    <text
+      class="diagram-node-label"
+      x="34"
+      y="106"
+      dominant-baseline="central"
+      fill="var(--viz-node-text)"
+    >
+      reserve
+    </text>
+  </a>
+  <a id="diagram-fn-obligation" href="#fn-obligation" data-node-id="fn:obligation">
+    <rect id="testnet-lending-market-node-fn:obligation" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="132" width="104" height="28" rx="6" ry="6"/>
+    <title>obligation</title>
+    <text
+      class="diagram-node-label"
+      x="34"
+      y="146"
+      dominant-baseline="central"
+      fill="var(--viz-node-text)"
+    >
+      obligation
+    </text>
+  </a>
+  <a id="diagram-fn-redeem_fees" href="#fn-redeem_fees" data-node-id="fn:redeem_fees">
+    <rect id="testnet-lending-market-node-fn:redeem_fees" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="172" width="113" height="28" rx="6" ry="6"/>
+    <title>redeem_fees</title>
+    <text
+      class="diagram-node-label"
+      x="34"
+      y="186"
+      dominant-baseline="central"
+      fill="var(--viz-node-text)"
+    >
+      redeem_fees
+    </text>
+  </a>
+  <a id="diagram-fn-utilization" href="#fn-utilization" data-node-id="fn:utilization">
+    <rect id="testnet-lending-market-node-fn:utilization" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="212" width="113" height="28" rx="6" ry="6"/>
+    <title>utilization</title>
+    <text
+      class="diagram-node-label"
+      x="34"
+      y="226"
+      dominant-baseline="central"
+      fill="var(--viz-node-text)"
+    >
+      utilization
+    </text>
+  </a>
+  <a id="diagram-fn-reserve_list" href="#fn-reserve_list" data-node-id="fn:reserve_list">
+    <rect id="testnet-lending-market-node-fn:reserve_list" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="252" width="121" height="28" rx="6" ry="6"/>
+    <title>reserve_list</title>
+    <text
+      class="diagram-node-label"
+      x="34"
+      y="266"
+      dominant-baseline="central"
+      fill="var(--viz-node-text)"
+    >
+      reserve_list
+    </text>
+  </a>
+  <a id="diagram-fn-global_config" href="#fn-global_config" data-node-id="fn:global_config">
+    <rect id="testnet-lending-market-node-fn:global_config" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="292" width="130" height="28" rx="6" ry="6"/>
+    <title>global_config</title>
+    <text
+      class="diagram-node-label"
+      x="34"
+      y="306"
+      dominant-baseline="central"
+      fill="var(--viz-node-text)"
+    >
+      global_config
+    </text>
+  </a>
+  <a id="diagram-fn-socialize_loss" href="#fn-socialize_loss" data-node-id="fn:socialize_loss">
+    <rect id="testnet-lending-market-node-fn:socialize_loss" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="332" width="138" height="28" rx="6" ry="6"/>
+    <title>socialize_loss</title>
+    <text
+      class="diagram-node-label"
+      x="34"
+      y="346"
+      dominant-baseline="central"
+      fill="var(--viz-node-text)"
+    >
+      socialize_loss
+    </text>
+  </a>
+  <a id="diagram-fn-upgrade_ctoken" href="#fn-upgrade_ctoken" data-node-id="fn:upgrade_ctoken">
+    <rect id="testnet-lending-market-node-fn:upgrade_ctoken" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="372" width="138" height="28" rx="6" ry="6"/>
+    <title>upgrade_ctoken</title>
+    <text
+      class="diagram-node-label"
+      x="34"
+      y="386"
+      dominant-baseline="central"
+      fill="var(--viz-node-text)"
+    >
+      upgrade_ctoken
+    </text>
+  </a>
+  <a id="diagram-fn-accept_ownership" href="#fn-accept_ownership" data-node-id="fn:accept_ownership">
+    <rect id="testnet-lending-market-node-fn:accept_ownership" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="412" width="155" height="28" rx="6" ry="6"/>
+    <title>accept_ownership</title>
+    <text
+      class="diagram-node-label"
+      x="34"
+      y="426"
+      dominant-baseline="central"
+      fill="var(--viz-node-text)"
+    >
+      accept_ownership
+    </text>
+  </a>
+  <a id="diagram-fn-reserve_exchange" href="#fn-reserve_exchange" data-node-id="fn:reserve_exchange">
+    <rect id="testnet-lending-market-node-fn:reserve_exchange" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="452" width="155" height="28" rx="6" ry="6"/>
+    <title>reserve_exchange</title>
+    <text
+      class="diagram-node-label"
+      x="34"
+      y="466"
+      dominant-baseline="central"
+      fill="var(--viz-node-text)"
+    >
+      reserve_exchange
+    </text>
+  </a>
+  <a id="diagram-fn-obligation_stored" href="#fn-obligation_stored" data-node-id="fn:obligation_stored">
+    <rect id="testnet-lending-market-node-fn:obligation_stored" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="492" width="163" height="28" rx="6" ry="6"/>
+    <title>obligation_stored</title>
+    <text
+      class="diagram-node-label"
+      x="34"
+      y="506"
+      dominant-baseline="central"
+      fill="var(--viz-node-text)"
+    >
+      obligation_stored
+    </text>
+  </a>
+  <a id="diagram-fn-repay_and_withdraw" href="#fn-repay_and_withdraw" data-node-id="fn:repay_and_withdraw">
+    <rect id="testnet-lending-market-node-fn:repay_and_withdraw" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="532" width="172" height="28" rx="6" ry="6"/>
+    <title>repay_and_withdraw</title>
+    <text
+      class="diagram-node-label"
+      x="34"
+      y="546"
+      dominant-baseline="central"
+      fill="var(--viz-node-text)"
+    >
+      repay_and_withdraw
+    </text>
+  </a>
+  <a id="diagram-fn-liquidate_obligation" href="#fn-liquidate_obligation" data-node-id="fn:liquidate_obligation">
+    <rect id="testnet-lending-market-node-fn:liquidate_obligation" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="572" width="188" height="28" rx="6" ry="6"/>
+    <title>liquidate_obligation</title>
+    <text
+      class="diagram-node-label"
+      x="34"
+      y="586"
+      dominant-baseline="central"
+      fill="var(--viz-node-text)"
+    >
+      liquidate_obligation
+    </text>
+  </a>
+  <a id="diagram-fn-update_lending_market" href="#fn-update_lending_market" data-node-id="fn:update_lending_market">
+    <rect id="testnet-lending-market-node-fn:update_lending_market" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="612" width="197" height="28" rx="6" ry="6"/>
+    <title>update_lending_market</title>
+    <text
+      class="diagram-node-label"
+      x="34"
+      y="626"
+      dominant-baseline="central"
+      fill="var(--viz-node-text)"
+    >
+      update_lending_market
+    </text>
+  </a>
+  <a id="diagram-fn-update_reserve_config" href="#fn-update_reserve_config" data-node-id="fn:update_reserve_config">
+    <rect id="testnet-lending-market-node-fn:update_reserve_config" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="652" width="197" height="28" rx="6" ry="6"/>
+    <title>update_reserve_config</title>
+    <text
+      class="diagram-node-label"
+      x="34"
+      y="666"
+      dominant-baseline="central"
+      fill="var(--viz-node-text)"
+    >
+      update_reserve_config
+    </text>
+  </a>
+  <a id="diagram-fn-redeem_reserve_collateral" href="#fn-redeem_reserve_collateral" data-node-id="fn:redeem_reserve_collateral">
+    <rect id="testnet-lending-market-node-fn:redeem_reserve_collateral" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="692" width="230" height="28" rx="6" ry="6"/>
+    <title>redeem_reserve_collateral</title>
+    <text
+      class="diagram-node-label"
+      x="34"
+      y="706"
+      dominant-baseline="central"
+      fill="var(--viz-node-text)"
+    >
+      redeem_reserve_collateral
+    </text>
+  </a>
+  <a id="diagram-fn-apply_pending_global_admin" href="#fn-apply_pending_global_admin" data-node-id="fn:apply_pending_global_admin">
+    <rect id="testnet-lending-market-node-fn:apply_pending_global_admin" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="732" width="239" height="28" rx="6" ry="6"/>
+    <title>apply_pending_global_admin</title>
+    <text
+      class="diagram-node-label"
+      x="34"
+      y="746"
+      dominant-baseline="central"
+      fill="var(--viz-node-text)"
+    >
+      apply_pending_global_admin
+    </text>
+  </a>
+  <a id="diagram-fn-repay_obligation_liquidity" href="#fn-repay_obligation_liquidity" data-node-id="fn:repay_obligation_liquidity">
+    <rect id="testnet-lending-market-node-fn:repay_obligation_liquidity" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="772" width="239" height="28" rx="6" ry="6"/>
+    <title>repay_obligation_liquidity</title>
+    <text
+      class="diagram-node-label"
+      x="34"
+      y="786"
+      dominant-baseline="central"
+      fill="var(--viz-node-text)"
+    >
+      repay_obligation_liquidity
+    </text>
+  </a>
+  <a id="diagram-fn-borrow_obligation_liquidity" href="#fn-borrow_obligation_liquidity" data-node-id="fn:borrow_obligation_liquidity">
+    <rect id="testnet-lending-market-node-fn:borrow_obligation_liquidity" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="812" width="239" height="28" rx="6" ry="6"/>
+    <title>borrow_obligation_liquidity</title>
+    <text
+      class="diagram-node-label"
+      x="34"
+      y="826"
+      dominant-baseline="central"
+      fill="var(--viz-node-text)"
+    >
+      borrow_obligation_liquidi…
+    </text>
+  </a>
+  <a id="diagram-fn-mark_obligation_for_deleveraging" href="#fn-mark_obligation_for_deleveraging" data-node-id="fn:mark_obligation_for_deleveraging">
+    <rect id="testnet-lending-market-node-fn:mark_obligation_for_deleveraging" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="852" width="239" height="28" rx="6" ry="6"/>
+    <title>mark_obligation_for_deleveraging</title>
+    <text
+      class="diagram-node-label"
+      x="34"
+      y="866"
+      dominant-baseline="central"
+      fill="var(--viz-node-text)"
+    >
+      mark_obligation_for_delev…
+    </text>
+  </a>
+  <a id="diagram-fn-deposit_and_withdraw" href="#fn-deposit_and_withdraw" data-node-id="fn:deposit_and_withdraw">
+    <rect id="testnet-lending-market-node-fn:deposit_and_withdraw" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="936" width="188" height="28" rx="6" ry="6"/>
+    <title>deposit_and_withdraw</title>
+    <text
+      class="diagram-node-label"
+      x="34"
+      y="950"
+      dominant-baseline="central"
+      fill="var(--viz-node-text)"
+    >
+      deposit_and_withdraw
+    </text>
+  </a>
+  <a id="diagram-fn-deposit_reserve_liquidity" href="#fn-deposit_reserve_liquidity" data-node-id="fn:deposit_reserve_liquidity">
+    <rect id="testnet-lending-market-node-fn:deposit_reserve_liquidity" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="976" width="230" height="28" rx="6" ry="6"/>
+    <title>deposit_reserve_liquidity</title>
+    <text
+      class="diagram-node-label"
+      x="34"
+      y="990"
+      dominant-baseline="central"
+      fill="var(--viz-node-text)"
+    >
+      deposit_reserve_liquidity
+    </text>
+  </a>
+  <a id="diagram-fn-deposit_obligation_collateral" href="#fn-deposit_obligation_collateral" data-node-id="fn:deposit_obligation_collateral">
+    <rect id="testnet-lending-market-node-fn:deposit_obligation_collateral" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="1016" width="239" height="28" rx="6" ry="6"/>
+    <title>deposit_obligation_collateral</title>
+    <text
+      class="diagram-node-label"
+      x="34"
+      y="1030"
+      dominant-baseline="central"
+      fill="var(--viz-node-text)"
+    >
+      deposit_obligation_collat…
+    </text>
+  </a>
+  <a id="diagram-fn-deposit_liquidity_and_collateral" href="#fn-deposit_liquidity_and_collateral" data-node-id="fn:deposit_liquidity_and_collateral">
+    <rect id="testnet-lending-market-node-fn:deposit_liquidity_and_collateral" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="1056" width="239" height="28" rx="6" ry="6"/>
+    <title>deposit_liquidity_and_collateral</title>
+    <text
+      class="diagram-node-label"
+      x="34"
+      y="1070"
+      dominant-baseline="central"
+      fill="var(--viz-node-text)"
+    >
+      deposit_liquidity_and_col…
+    </text>
+  </a>
+  <a id="diagram-fn-flash_repay" href="#fn-flash_repay" data-node-id="fn:flash_repay">
+    <rect id="testnet-lending-market-node-fn:flash_repay" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="1140" width="113" height="28" rx="6" ry="6"/>
+    <title>flash_repay</title>
+    <text
+      class="diagram-node-label"
+      x="34"
+      y="1154"
+      dominant-baseline="central"
+      fill="var(--viz-node-text)"
+    >
+      flash_repay
+    </text>
+  </a>
+  <a id="diagram-fn-flash_borrow" href="#fn-flash_borrow" data-node-id="fn:flash_borrow">
+    <rect id="testnet-lending-market-node-fn:flash_borrow" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="1180" width="121" height="28" rx="6" ry="6"/>
+    <title>flash_borrow</title>
+    <text
+      class="diagram-node-label"
+      x="34"
+      y="1194"
+      dominant-baseline="central"
+      fill="var(--viz-node-text)"
+    >
+      flash_borrow
+    </text>
+  </a>
+  <a id="diagram-fn-flash_precheck" href="#fn-flash_precheck" data-node-id="fn:flash_precheck">
+    <rect id="testnet-lending-market-node-fn:flash_precheck" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="1220" width="138" height="28" rx="6" ry="6"/>
+    <title>flash_precheck</title>
+    <text
+      class="diagram-node-label"
+      x="34"
+      y="1234"
+      dominant-baseline="central"
+      fill="var(--viz-node-text)"
+    >
+      flash_precheck
+    </text>
+  </a>
+  <a id="diagram-fn-init_market" href="#fn-init_market" data-node-id="fn:init_market">
+    <rect id="testnet-lending-market-node-fn:init_market" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="1304" width="113" height="28" rx="6" ry="6"/>
+    <title>init_market</title>
+    <text
+      class="diagram-node-label"
+      x="34"
+      y="1318"
+      dominant-baseline="central"
+      fill="var(--viz-node-text)"
+    >
+      init_market
+    </text>
+  </a>
+  <a id="diagram-fn-init_reserve" href="#fn-init_reserve" data-node-id="fn:init_reserve">
+    <rect id="testnet-lending-market-node-fn:init_reserve" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="1344" width="121" height="28" rx="6" ry="6"/>
+    <title>init_reserve</title>
+    <text
+      class="diagram-node-label"
+      x="34"
+      y="1358"
+      dominant-baseline="central"
+      fill="var(--viz-node-text)"
+    >
+      init_reserve
+    </text>
+  </a>
+  <a id="diagram-fn-init_obligation" href="#fn-init_obligation" data-node-id="fn:init_obligation">
+    <rect id="testnet-lending-market-node-fn:init_obligation" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="1384" width="146" height="28" rx="6" ry="6"/>
+    <title>init_obligation</title>
+    <text
+      class="diagram-node-label"
+      x="34"
+      y="1398"
+      dominant-baseline="central"
+      fill="var(--viz-node-text)"
+    >
+      init_obligation
+    </text>
+  </a>
+  <a id="diagram-fn-refresh_reserve" href="#fn-refresh_reserve" data-node-id="fn:refresh_reserve">
+    <rect id="testnet-lending-market-node-fn:refresh_reserve" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="1468" width="146" height="28" rx="6" ry="6"/>
+    <title>refresh_reserve</title>
+    <text
+      class="diagram-node-label"
+      x="34"
+      y="1482"
+      dominant-baseline="central"
+      fill="var(--viz-node-text)"
+    >
+      refresh_reserve
+    </text>
+  </a>
+  <a id="diagram-fn-refresh_obligation" href="#fn-refresh_obligation" data-node-id="fn:refresh_obligation">
+    <rect id="testnet-lending-market-node-fn:refresh_obligation" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="1508" width="172" height="28" rx="6" ry="6"/>
+    <title>refresh_obligation</title>
+    <text
+      class="diagram-node-label"
+      x="34"
+      y="1522"
+      dominant-baseline="central"
+      fill="var(--viz-node-text)"
+    >
+      refresh_obligation
+    </text>
+  </a>
+  <a id="diagram-fn-refresh_reserve_no_price" href="#fn-refresh_reserve_no_price" data-node-id="fn:refresh_reserve_no_price">
+    <rect id="testnet-lending-market-node-fn:refresh_reserve_no_price" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="1548" width="222" height="28" rx="6" ry="6"/>
+    <title>refresh_reserve_no_price</title>
+    <text
+      class="diagram-node-label"
+      x="34"
+      y="1562"
+      dominant-baseline="central"
+      fill="var(--viz-node-text)"
+    >
+      refresh_reserve_no_price
+    </text>
+  </a>
+  <a id="diagram-fn-set_fee_collector" href="#fn-set_fee_collector" data-node-id="fn:set_fee_collector">
+    <rect id="testnet-lending-market-node-fn:set_fee_collector" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="1632" width="163" height="28" rx="6" ry="6"/>
+    <title>set_fee_collector</title>
+    <text
+      class="diagram-node-label"
+      x="34"
+      y="1646"
+      dominant-baseline="central"
+      fill="var(--viz-node-text)"
+    >
+      set_fee_collector
+    </text>
+  </a>
+  <a id="diagram-fn-set_ctoken_wasm_hash" href="#fn-set_ctoken_wasm_hash" data-node-id="fn:set_ctoken_wasm_hash">
+    <rect id="testnet-lending-market-node-fn:set_ctoken_wasm_hash" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="1672" width="188" height="28" rx="6" ry="6"/>
+    <title>set_ctoken_wasm_hash</title>
+    <text
+      class="diagram-node-label"
+      x="34"
+      y="1686"
+      dominant-baseline="central"
+      fill="var(--viz-node-text)"
+    >
+      set_ctoken_wasm_hash
+    </text>
+  </a>
+  <a id="diagram-fn-set_pending_global_admin" href="#fn-set_pending_global_admin" data-node-id="fn:set_pending_global_admin">
+    <rect id="testnet-lending-market-node-fn:set_pending_global_admin" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="1712" width="222" height="28" rx="6" ry="6"/>
+    <title>set_pending_global_admin</title>
+    <text
+      class="diagram-node-label"
+      x="34"
+      y="1726"
+      dominant-baseline="central"
+      fill="var(--viz-node-text)"
+    >
+      set_pending_global_admin
+    </text>
+  </a>
+  <a id="diagram-fn-withdraw_protocol_fees" href="#fn-withdraw_protocol_fees" data-node-id="fn:withdraw_protocol_fees">
+    <rect id="testnet-lending-market-node-fn:withdraw_protocol_fees" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="1796" width="205" height="28" rx="6" ry="6"/>
+    <title>withdraw_protocol_fees</title>
+    <text
+      class="diagram-node-label"
+      x="34"
+      y="1810"
+      dominant-baseline="central"
+      fill="var(--viz-node-text)"
+    >
+      withdraw_protocol_fees
+    </text>
+  </a>
+  <a id="diagram-fn-withdraw_collateral_and_redeem" href="#fn-withdraw_collateral_and_redeem" data-node-id="fn:withdraw_collateral_and_redeem">
+    <rect id="testnet-lending-market-node-fn:withdraw_collateral_and_redeem" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="1836" width="239" height="28" rx="6" ry="6"/>
+    <title>withdraw_collateral_and_redeem</title>
+    <text
+      class="diagram-node-label"
+      x="34"
+      y="1850"
+      dominant-baseline="central"
+      fill="var(--viz-node-text)"
+    >
+      withdraw_collateral_and_r…
+    </text>
+  </a>
+  <a id="diagram-fn-withdraw_obligation_collateral" href="#fn-withdraw_obligation_collateral" data-node-id="fn:withdraw_obligation_collateral">
+    <rect id="testnet-lending-market-node-fn:withdraw_obligation_collateral" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="1876" width="239" height="28" rx="6" ry="6"/>
+    <title>withdraw_obligation_collateral</title>
+    <text
+      class="diagram-node-label"
+      x="34"
+      y="1890"
+      dominant-baseline="central"
+      fill="var(--viz-node-text)"
+    >
+      withdraw_obligation_colla…
+    </text>
+  </a>
+  <a id="diagram-fn-upgrade" href="#fn-upgrade" data-node-id="fn:upgrade">
+    <rect id="testnet-lending-market-node-fn:upgrade" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="1960" width="79" height="28" rx="6" ry="6"/>
+    <title>upgrade</title>
+    <text
+      class="diagram-node-label"
+      x="34"
+      y="1974"
+      dominant-baseline="central"
+      fill="var(--viz-node-text)"
+    >
+      upgrade
+    </text>
+  </a>
+  <a id="diagram-fn-__constructor" href="#fn-__constructor" data-node-id="fn:__constructor">
+    <rect id="testnet-lending-market-node-fn:__constructor" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="2000" width="130" height="28" rx="6" ry="6"/>
+    <title>__constructor</title>
+    <text
+      class="diagram-node-label"
+      x="34"
+      y="2014"
+      dominant-baseline="central"
+      fill="var(--viz-node-text)"
+    >
+      __constructor
+    </text>
+  </a>
+</svg>

@@ -48,7 +48,9 @@ type EnvelopeInput = xdr.TransactionEnvelope | string;
 type MetaInput = xdr.TransactionMeta | string | null | undefined;
 
 function decodeEnvelope(envelope: EnvelopeInput): xdr.TransactionEnvelope {
-  return typeof envelope === 'string' ? xdr.TransactionEnvelope.fromXDR(envelope, 'base64') : envelope;
+  return typeof envelope === 'string'
+    ? xdr.TransactionEnvelope.fromXDR(envelope, 'base64')
+    : envelope;
 }
 
 function decodeMeta(meta: MetaInput): xdr.TransactionMeta | null {
@@ -68,7 +70,9 @@ function innerTransaction(envelope: xdr.TransactionEnvelope): xdr.Transaction | 
 }
 
 function contractAddress(scAddress: xdr.ScAddress): string | null {
-  return scAddress.switch().name === 'scAddressTypeContract' ? Address.fromScAddress(scAddress).toString() : null;
+  return scAddress.switch().name === 'scAddressTypeContract'
+    ? Address.fromScAddress(scAddress).toString()
+    : null;
 }
 
 interface InvokeOp {
@@ -114,7 +118,11 @@ function authNode(inv: xdr.SorobanAuthorizedInvocation): AuthNode {
   return { contract, functionName, children: inv.subInvocations().map(authNode) };
 }
 
-function walk(node: AuthNode, visit: (node: AuthNode, parent: AuthNode | null) => void, parent: AuthNode | null = null) {
+function walk(
+  node: AuthNode,
+  visit: (node: AuthNode, parent: AuthNode | null) => void,
+  parent: AuthNode | null = null,
+) {
   visit(node, parent);
   for (const child of node.children) walk(child, visit, node);
 }
@@ -190,7 +198,11 @@ export function invokedFunction(envelope: EnvelopeInput, contract: string): stri
 }
 
 /** Call edges out of `contract` observed in one transaction. */
-export function callEdgesFromTransaction(envelope: EnvelopeInput, meta: MetaInput, contract: string): CallEdge[] {
+export function callEdgesFromTransaction(
+  envelope: EnvelopeInput,
+  meta: MetaInput,
+  contract: string,
+): CallEdge[] {
   const tx = innerTransaction(decodeEnvelope(envelope));
   if (!tx) return [];
   const ops = invokeOps(tx);
@@ -205,7 +217,8 @@ export function callEdgesFromTransaction(envelope: EnvelopeInput, meta: MetaInpu
   for (const op of ops) {
     for (const tree of authTrees(op)) {
       walk(tree, (node, parent) => {
-        if (!parent || !node.contract || !parent.contract || node.contract === parent.contract) return;
+        if (!parent || !node.contract || !parent.contract || node.contract === parent.contract)
+          return;
         placedUnderCaller.add(node.contract);
         if (parent.contract !== contract) return;
         const key = `${node.contract}\u0000${node.functionName ?? ''}`;

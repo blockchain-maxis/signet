@@ -12,6 +12,7 @@ import {
   WASM_HASH_1,
   WASM_HASH_2,
 } from './fixtures/contracts';
+import { CALLEE_SAC } from './fixtures/docs-failures';
 
 /**
  * The contract page, end to end, against real rows (#463).
@@ -60,10 +61,9 @@ test.describe('contract page @db', () => {
 
   test('the identity strip shows the handle and the full address', async ({ page }) => {
     await page.goto(base(FIXTURE_HANDLE, CONTRACT_A));
-    await expect(page.getByRole('link', { name: `@${FIXTURE_HANDLE}`, exact: true })).toHaveAttribute(
-      'href',
-      `/p/${FIXTURE_HANDLE}`,
-    );
+    await expect(
+      page.getByRole('link', { name: `@${FIXTURE_HANDLE}`, exact: true }),
+    ).toHaveAttribute('href', `/p/${FIXTURE_HANDLE}`);
     await expect(
       page.getByRole('heading', { level: 1 }).locator(`[title="${CONTRACT_A}"]`),
     ).toBeVisible();
@@ -88,7 +88,10 @@ test.describe('contract page @db', () => {
     }
     // The first explorer link is the contract's own.
     await expect(
-      page.getByTestId('contract-header').getByRole('link', { name: /Stellar Expert/ }).first(),
+      page
+        .getByTestId('contract-header')
+        .getByRole('link', { name: /Stellar Expert/ })
+        .first(),
     ).toHaveAttribute('href', new RegExp(`/contract/${CONTRACT_A}$`));
   });
 
@@ -103,17 +106,34 @@ test.describe('contract page @db', () => {
     );
   });
 
-  test('the Overview summarises the interface and links each part to its tab (#449)', async ({ page }) => {
+  test('the Overview summarises the interface and links each part to its tab (#449)', async ({
+    page,
+  }) => {
     await page.goto(base(FIXTURE_HANDLE, CONTRACT_A));
     const root = base(FIXTURE_HANDLE, CONTRACT_A);
 
     // Fixture spec: 2 functions (1 documented), 1 type, 1 error case.
-    await expect(page.getByRole('link', { name: '2 functions' })).toHaveAttribute('href', `${root}/functions`);
-    await expect(page.getByRole('link', { name: '1 type', exact: true })).toHaveAttribute('href', `${root}/types`);
-    await expect(page.getByRole('link', { name: '1 error case' })).toHaveAttribute('href', `${root}/types`);
+    await expect(page.getByRole('link', { name: '2 functions' })).toHaveAttribute(
+      'href',
+      `${root}/functions`,
+    );
+    await expect(page.getByRole('link', { name: '1 type', exact: true })).toHaveAttribute(
+      'href',
+      `${root}/types`,
+    );
+    await expect(page.getByRole('link', { name: '1 error case' })).toHaveAttribute(
+      'href',
+      `${root}/types`,
+    );
     await expect(page.getByText('1 of 2 functions documented')).toBeVisible();
-    await expect(page.getByRole('link', { name: 'Open run locally' })).toHaveAttribute('href', `${root}/run`);
-    await expect(page.getByRole('link', { name: 'Open activity' })).toHaveAttribute('href', `${root}/activity`);
+    await expect(page.getByRole('link', { name: 'Open run locally' })).toHaveAttribute(
+      'href',
+      `${root}/run`,
+    );
+    await expect(page.getByRole('link', { name: 'Open activity' })).toHaveAttribute(
+      'href',
+      `${root}/activity`,
+    );
 
     // The seeded snapshot has non-zero counts but no `countedSince`, so it is
     // "not measured", not usage; and nothing on the tab is placeholder prose.
@@ -143,13 +163,17 @@ test.describe('contract page @db', () => {
     await expect(rows.nth(0)).toContainText('change observed by the indexer');
     await expect(rows.nth(0)).toContainText('5 Mar 2026');
     await expect(rows.nth(0)).toContainText('ledger 1,000,500');
-    await expect(rows.nth(0).getByRole('button', { name: new RegExp(`Copy WASM hash ${WASM_HASH_2}`) })).toBeVisible();
+    await expect(
+      rows.nth(0).getByRole('button', { name: new RegExp(`Copy WASM hash ${WASM_HASH_2}`) }),
+    ).toBeVisible();
 
     // Oldest version last (WASM_HASH_1, observed 1 Mar 2026)
     await expect(rows.nth(1)).toContainText('first seen by the indexer');
     await expect(rows.nth(1)).toContainText('1 Mar 2026');
     await expect(rows.nth(1)).toContainText('ledger 999,000');
-    await expect(rows.nth(1).getByRole('button', { name: new RegExp(`Copy WASM hash ${WASM_HASH_1}`) })).toBeVisible();
+    await expect(
+      rows.nth(1).getByRole('button', { name: new RegExp(`Copy WASM hash ${WASM_HASH_1}`) }),
+    ).toBeVisible();
 
     // Window sentence
     await expect(upgrades.getByTestId('upgrades-window-sentence')).toHaveText(
@@ -173,7 +197,9 @@ test.describe('contract page @db', () => {
     await expect(sections.nth(0).getByTestId('function-signature')).toHaveText('claim() -> ()');
     await expect(sections.nth(0)).toContainText('Claims a handle for a wallet.');
     await expect(sections.nth(1)).toHaveAttribute('id', 'fn-resolve');
-    await expect(sections.nth(1).getByTestId('function-signature')).toHaveText('resolve() -> Address');
+    await expect(sections.nth(1).getByTestId('function-signature')).toHaveText(
+      'resolve() -> Address',
+    );
 
     // The undocumented function renders its signature and nothing standing in for prose.
     await expect(sections.nth(1).locator('p')).toHaveCount(1);
@@ -197,7 +223,9 @@ test.describe('contract page @db', () => {
         'Built with Rust 1.91.1 · soroban-sdk 26.1.0',
       );
       await expect(strip.getByTestId('provenance-protocol')).toHaveText('Targets protocol 23');
-      await expect(strip.getByTestId('provenance-reader')).toContainText('Read with @stellar/stellar-sdk');
+      await expect(strip.getByTestId('provenance-reader')).toContainText(
+        'Read with @stellar/stellar-sdk',
+      );
       await expect(strip.getByRole('link', { name: /Stellar Expert/ })).toHaveAttribute(
         'href',
         new RegExp(`/contract/${CONTRACT_A}$`),
@@ -239,9 +267,7 @@ test.describe('contract page @db', () => {
     await expectNoSeriousA11yViolations(page, 'Types tab');
   });
 
-  test('Diagram tab renders its slot with the outline as text (#450, #499)', async ({
-    page,
-  }) => {
+  test('Diagram tab renders its slot with the outline as text (#450, #499)', async ({ page }) => {
     const root = base(FIXTURE_HANDLE, CONTRACT_A);
     await page.goto(`${root}/diagram`);
     const slot = page.getByTestId('slot-diagram');
@@ -277,7 +303,9 @@ test.describe('contract page @db', () => {
 
   test('the Run locally command contains the contract address', async ({ page }) => {
     await page.goto(`${base(FIXTURE_HANDLE, CONTRACT_A)}/run`);
-    await expect(page.locator('code', { hasText: `signet dev ${CONTRACT_A}` }).first()).toBeVisible();
+    await expect(
+      page.locator('code', { hasText: `signet dev ${CONTRACT_A}` }).first(),
+    ).toBeVisible();
   });
 
   test('a contract owned by a different profile is a 404 on all six tabs', async ({ request }) => {
@@ -297,7 +325,10 @@ test.describe('contract page @db', () => {
   });
 
   test('a malformed address is a 404', async ({ request }) => {
-    for (const address of [MALFORMED_ADDRESS, CONTRACT_A.slice(0, -1) + (CONTRACT_A.endsWith('A') ? 'B' : 'A')]) {
+    for (const address of [
+      MALFORMED_ADDRESS,
+      CONTRACT_A.slice(0, -1) + (CONTRACT_A.endsWith('A') ? 'B' : 'A'),
+    ]) {
       const res = await request.get(base(FIXTURE_HANDLE, address));
       expect(res.status(), address).toBe(404);
     }
@@ -415,8 +446,14 @@ test.describe('contract page @db', () => {
       for (let i = 0; i < copyCount; i++) {
         const box = await copyButtons.nth(i).boundingBox();
         expect(box, `copy button ${i} on ${tab.label}`).not.toBeNull();
-        expect(Math.round(box!.width), `copy button ${i} width on ${tab.label}`).toBeGreaterThanOrEqual(44);
-        expect(Math.round(box!.height), `copy button ${i} height on ${tab.label}`).toBeGreaterThanOrEqual(44);
+        expect(
+          Math.round(box!.width),
+          `copy button ${i} width on ${tab.label}`,
+        ).toBeGreaterThanOrEqual(44);
+        expect(
+          Math.round(box!.height),
+          `copy button ${i} height on ${tab.label}`,
+        ).toBeGreaterThanOrEqual(44);
       }
     }
 
@@ -433,12 +470,18 @@ test.describe('contract page @db', () => {
 
     const addressCopyBtn = header.getByRole('button', { name: new RegExp(CONTRACT_A) });
     await expect(addressCopyBtn).toHaveAttribute('title', CONTRACT_A);
-    const visibleAddressText = await addressCopyBtn.evaluate((el) => (el as HTMLElement).innerText.trim());
+    const visibleAddressText = await addressCopyBtn.evaluate((el) =>
+      (el as HTMLElement).innerText.trim(),
+    );
     expect(visibleAddressText).toContain('...');
 
-    const wasmCopyBtn = header.getByRole('button', { name: new RegExp(`Copy WASM hash ${WASM_HASH_2}`) });
+    const wasmCopyBtn = header.getByRole('button', {
+      name: new RegExp(`Copy WASM hash ${WASM_HASH_2}`),
+    });
     await expect(wasmCopyBtn).toHaveAttribute('title', WASM_HASH_2);
-    const visibleWasmText = await wasmCopyBtn.evaluate((el) => (el as HTMLElement).innerText.trim());
+    const visibleWasmText = await wasmCopyBtn.evaluate((el) =>
+      (el as HTMLElement).innerText.trim(),
+    );
     expect(visibleWasmText).toContain('...');
 
     const deployTxLink = header.getByRole('link', { name: DEPLOY_TX_A });
@@ -447,5 +490,40 @@ test.describe('contract page @db', () => {
       name: new RegExp(`Copy deploy transaction hash ${DEPLOY_TX_A}`),
     });
     await expect(deployTxCopyBtn).toHaveAttribute('title', DEPLOY_TX_A);
+  });
+
+  test('the diagram draws the contracts it calls: a SAC by its asset, linked to Stellar Expert (#543)', async ({
+    page,
+  }) => {
+    const expert = `https://stellar.expert/explorer/testnet/contract/${CALLEE_SAC}`;
+    // Stellar Expert is not ours to load in CI: answer for it.
+    await page.route('https://stellar.expert/**', (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: 'text/html',
+        body: '<title>Stellar Expert</title>',
+      }),
+    );
+    await page.goto(`${base(FIXTURE_HANDLE, CONTRACT_A)}/diagram`);
+
+    const callee = page.locator(`[data-node-id="callee:${CALLEE_SAC}"]`);
+    await expect(callee).toHaveCount(1);
+    await expect(callee.locator('text')).toHaveText(
+      /USDC \(asset contract, issuer G…[A-Z2-7]{4}\)/,
+    );
+    await expect(callee).toHaveAttribute('href', expert);
+
+    // The fixture's two `claim`s each paid it: one edge, counted twice, from claim.
+    const edge = page
+      .locator(`[data-edge-from="fn:claim"][data-edge-to="callee:${CALLEE_SAC}"]`)
+      .first();
+    await expect(edge).toHaveAttribute('data-edge-kind', 'call-auth-tree');
+    await expect(edge).toHaveAttribute('data-call-count', '2');
+    await expect(page.locator('.diagram-call-provenance')).toContainText(
+      'Calls observed in 4 transactions',
+    );
+
+    await callee.click();
+    await expect(page).toHaveURL(expert);
   });
 });

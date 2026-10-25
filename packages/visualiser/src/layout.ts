@@ -45,6 +45,16 @@
  * the spec order inside each group, so a group's functions stay contiguous and
  * match the docs. Every later column is ordered by four barycentre sweeps
  * (right, left, right, left) with ties broken by node id.
+ *
+ * ## Callees (#543)
+ *
+ * The phase-3 call graph is an overlay, not part of the spec's graph: given
+ * one, the contracts this one called form the right-most column, heaviest
+ * first, ties by address. Past `MAX_CALLEES` the rest collapse into one
+ * "+K other contracts" node unless the caller expands them. A call whose
+ * function is unknown starts from a "contract (function unknown)" anchor at
+ * the top of column 0. Each call edge carries its count, its evidence, and a
+ * stroke weight of 1, 2 or 3 by the tercile of its count.
  */
 
 import type { SpecType } from '@signet/spec';
@@ -53,6 +63,18 @@ import type { ContractGraph, GraphEdge, GraphEdgeKind, GraphNode } from './graph
 import type { DiagramModel } from './index.ts';
 import { MIN_TEXT_PX, textWidth, truncateLabel } from './metrics.ts';
 import type { RoutableEdge, RoutableNode } from './route.ts';
+import type { CallEvidence } from './observe/calls.ts';
+import type { CallGraphOverlay } from './observe/call-graph.ts';
+
+/** Callees drawn before the rest collapse into "+K other contracts" (#543). */
+export const MAX_CALLEES = 12;
+
+/** Node ids of the call-graph overlay. */
+export const CALL_ANCHOR_ID = 'call:anchor';
+export const CALLEES_MORE_ID = 'callees:more';
+export function calleeNodeId(address: string): string {
+  return `callee:${address}`;
+}
 
 /**
  * Bumped on any change to the algorithm or its defaults, so a cache keyed on
@@ -104,9 +126,46 @@ export interface LayoutGeometryOptions {
   margin?: number;
 }
 
+/** The overlays a layout can carry besides the spec's graph. */
+export interface LayoutOverlays {
+  /** The call graph (#543): callees, in the right-most column. */
+  calls?: {
+    overlay: CallGraphOverlay;
+    /** Plain-language callee labels by address (#517); the short address otherwise. */
+    labels?: ReadonlyMap<string, string>;
+    /** Draw every callee instead of collapsing past `MAX_CALLEES`. */
+    expand?: boolean;
+  };
+}
+
+/** A call edge's weight and evidence (#543). */
+export interface PositionedCall {
+  /** Transactions plus sandbox runs that made the call. */
+  count: number;
+  /** The strongest chain evidence; null when only sandbox runs saw it. */
+  evidence: CallEvidence | null;
+  sandboxRuns: number;
+  /** Stroke weight by the tercile of `count` among the drawn call edges. */
+  weight: 1 | 2 | 3;
+}
+
+/** What the call graph a diagram draws was observed over (#543). */
+export interface CallSummary {
+  transactions: number;
+  firstLedger: number | null;
+  lastLedger: number | null;
+  sandboxRuns: number;
+  /** Callees drawn, and callees collapsed into "+K other contracts". */
+  shown: number;
+  hidden: number;
+}
+
+/** The node kinds of the call-graph overlay. */
+export type CallNodeKind = 'callee' | 'callees-more' | 'call-anchor';
+
 /** A node with a position. Columns share an `x`, which `routeEdges` relies on. */
 export interface PositionedNode extends RoutableNode {
-  kind: GraphNode['kind'];
+  kind: GraphNode['kind'] | CallNodeKind;
   /** The full name. `label` is truncated to fit `maxNodeWidth`. */
   name: string;
   /** True when `label` is shorter than `name`. */
@@ -117,14 +176,20 @@ export interface PositionedNode extends RoutableNode {
   typeKind?: SpecType['kind'];
   /** The group box a function sits in, when the contract is grouped. */
   groupId?: string;
+  /** A callee's contract address. */
+  address?: string;
+  /** For "+K other contracts": the addresses it stands for. */
+  hiddenAddresses?: string[];
 }
 
 export interface PositionedEdge extends RoutableEdge {
   /** `<from>-><to>`, as in the graph. */
   id: string;
-  kinds: readonly GraphEdgeKind[];
+  kinds: readonly (GraphEdgeKind | 'call')[];
   /** True for the edge that closes a cycle: it runs right to left or loops. */
   back: boolean;
+  /** Set on a call edge of the call-graph overlay. */
+  call?: PositionedCall;
 }
 
 /** The box drawn around one function group. */
@@ -156,6 +221,8 @@ export interface PositionedDiagramModel extends DiagramModel {
   edges: PositionedEdge[];
   /** Empty when the contract is not grouped. */
   groups: PositionedGroup[];
+  /** Present when a call graph overlay drew at least one callee. */
+  calls?: CallSummary;
 }
 
 interface Geometry {
@@ -375,6 +442,7 @@ function orderFunctions(functions: readonly Extract<GraphNode, { kind: 'function
 export function layoutContractGraph(
   graph: ContractGraph,
   opts: LayoutGeometryOptions = {},
+  overlays: LayoutOverlays = {},
 ): PositionedDiagramModel {
   const geo = resolveGeometry(opts);
 
@@ -403,7 +471,9 @@ export function layoutContractGraph(
   graph.edges.forEach((edge, index) => {
     if (!nodeById.has(edge.from) || !nodeById.has(edge.to)) {
       const missing = nodeById.has(edge.from) ? edge.to : edge.from;
-      throw new Error(`Cannot lay out edge ${edge.from} -> ${edge.to}: node ${missing} does not exist`);
+      throw new Error(
+        `Cannot lay out edge ${edge.from} -> ${edge.to}: node ${missing} does not exist`,
+      );
     }
     const list = out.get(edge.from);
     if (list) list.push({ edge, index });
@@ -447,14 +517,31 @@ export function layoutContractGraph(
     else sweep(columns, leftwards, succs);
   }
 
+  // The call graph overlay: its own right-most column, and the anchor.
+  const calls = placeCalls(overlays.calls, functions, geo.nodeHeight);
+  if (calls.callees.length > 0) columns.push(calls.callees.map((c) => c.id));
+  if (calls.anchor) columns[0]!.unshift(CALL_ANCHOR_ID);
+
   // Sizes. A label wider than the cap is cut, and keeps its full name.
   const cell = textWidth('x', geo.fontSizePx);
   const maxCells = Math.floor((geo.maxNodeWidth - 2 * geo.nodePaddingX) / cell + 1e-9);
   const size = new Map<string, { label: string; width: number; truncated: boolean }>();
-  for (const node of graph.nodes) {
+  // A callee's plain-language label ("USDC (asset contract, issuer G…KZVN)")
+  // is the point of the column, so the overlay's nodes get half again the cap.
+  const callMaxWidth = Math.round(geo.maxNodeWidth * 1.5);
+  const callMaxCells = Math.floor((callMaxWidth - 2 * geo.nodePaddingX) / cell + 1e-9);
+  const sizedNodes: { id: string; name: string; call?: true }[] = [
+    ...graph.nodes,
+    ...calls.callees.map((c) => ({ ...c, call: true as const })),
+    ...(calls.anchor ? [{ id: CALL_ANCHOR_ID, name: ANCHOR_NAME, call: true as const }] : []),
+  ];
+  for (const node of sizedNodes) {
+    const cap = node.call ? callMaxWidth : geo.maxNodeWidth;
     const fits = Math.ceil(textWidth(node.name, geo.fontSizePx)) + 2 * geo.nodePaddingX;
-    const truncated = fits > geo.maxNodeWidth;
-    const label = truncated ? truncateLabel(node.name, maxCells) : node.name;
+    const truncated = fits > cap;
+    const label = truncated
+      ? truncateLabel(node.name, node.call ? callMaxCells : maxCells)
+      : node.name;
     size.set(node.id, {
       label,
       width: Math.ceil(textWidth(label, geo.fontSizePx)) + 2 * geo.nodePaddingX,
@@ -488,14 +575,26 @@ export function layoutContractGraph(
           0,
         ) +
         (groupMembers.length - 1) * geo.groupGap;
+  // The anchor sits above the functions, a group gap clear of the first box.
+  const anchorShift = calls.anchor
+    ? geo.nodeHeight + (groupMembers.length > 0 ? geo.groupGap : geo.rowGap)
+    : 0;
+  // A callee is tall enough to give every edge into it its own port band, so
+  // their count labels never overlap.
+  const heightOf = (id: string) => calls.heights.get(id) ?? geo.nodeHeight;
+  const columnStack = (column: readonly string[]) =>
+    column.length === 0
+      ? 0
+      : column.reduce((sum, id) => sum + heightOf(id), 0) + (column.length - 1) * geo.rowGap;
   const heights = columns.map((column, k) =>
-    k === 0 && groupMembers.length > 0 ? groupedHeight : stackHeight(column.length),
+    k === 0 && groupMembers.length > 0 ? groupedHeight + anchorShift : columnStack(column),
   );
   const tallest = Math.max(0, ...heights);
 
   const pos = new Map<string, { x: number; y: number }>();
   const groups: PositionedGroup[] = [];
-  let cursor = top;
+  if (calls.anchor) pos.set(CALL_ANCHOR_ID, { x: columnX[0]!, y: top });
+  let cursor = top + anchorShift;
   if (groupMembers.length > 0) {
     for (const { group, ids } of fnOrder.groups) {
       const boxY = cursor;
@@ -518,15 +617,18 @@ export function layoutContractGraph(
       cursor = boxY + height + geo.groupGap;
     }
   } else {
+    // The anchor, when there is one, is first in the column already.
     columns[0]!.forEach((id, i) => {
       pos.set(id, { x: columnX[0]!, y: top + i * (geo.nodeHeight + geo.rowGap) });
     });
   }
   for (let k = 1; k < columns.length; k++) {
     const offset = Math.floor((tallest - heights[k]!) / 2);
-    columns[k]!.forEach((id, i) => {
-      pos.set(id, { x: columnX[k]!, y: top + offset + i * (geo.nodeHeight + geo.rowGap) });
-    });
+    let y = top + offset;
+    for (const id of columns[k]!) {
+      pos.set(id, { x: columnX[k]!, y });
+      y += heightOf(id) + geo.rowGap;
+    }
   }
 
   const columnOf = new Map<string, number>();
@@ -553,6 +655,30 @@ export function layoutContractGraph(
     return positioned;
   });
 
+  const callNode = (id: string, kind: CallNodeKind, name: string): PositionedNode => {
+    const { label, width, truncated } = size.get(id)!;
+    const { x, y } = pos.get(id)!;
+    return {
+      id,
+      label,
+      x,
+      y,
+      width,
+      height: heightOf(id),
+      kind,
+      name,
+      truncated,
+      column: columnOf.get(id)!,
+    };
+  };
+  if (calls.anchor) nodes.push(callNode(CALL_ANCHOR_ID, 'call-anchor', ANCHOR_NAME));
+  for (const callee of calls.callees) {
+    const node = callNode(callee.id, callee.kind, callee.name);
+    if (callee.address !== undefined) node.address = callee.address;
+    if (callee.hidden !== undefined) node.hiddenAddresses = callee.hidden;
+    nodes.push(node);
+  }
+
   const edges: PositionedEdge[] = graph.edges.map((edge, index) => ({
     id: edge.id,
     from: edge.from,
@@ -560,15 +686,160 @@ export function layoutContractGraph(
     kinds: edge.kinds,
     back: back.has(index),
   }));
+  for (const call of calls.edges) {
+    edges.push({
+      id: `${call.from}->${call.to}`,
+      from: call.from,
+      to: call.to,
+      kinds: ['call'],
+      back: false,
+      call: call.call,
+    });
+  }
 
   const lastColumn = columns.length - 1;
-  const hasNodes = graph.nodes.length > 0;
-  return {
+  const hasNodes = sizedNodes.length > 0;
+  const model: PositionedDiagramModel = {
     layoutVersion: LAYOUT_VERSION,
     width: hasNodes ? columnX[lastColumn]! + columnWidth[lastColumn]! + side : 2 * geo.margin,
     height: top + tallest + geo.margin,
     nodes,
     edges,
     groups,
+  };
+  if (calls.summary) model.calls = calls.summary;
+  return model;
+}
+
+const ANCHOR_NAME = 'contract (function unknown)';
+
+/** Vertical room per edge entering a callee: one 12px count label and air. */
+const CALL_PORT_BAND = 16;
+
+interface PlacedCallee {
+  id: string;
+  kind: 'callee' | 'callees-more';
+  name: string;
+  address?: string;
+  hidden?: string[];
+}
+
+interface PlacedCalls {
+  callees: PlacedCallee[];
+  /** Callee heights, where more edges come in than one node height holds. */
+  heights: Map<string, number>;
+  anchor: boolean;
+  edges: { from: string; to: string; call: PositionedCall }[];
+  summary: CallSummary | null;
+}
+
+const EVIDENCE_RANK: Record<CallEvidence, number> = { footprint: 0, event: 1, 'auth-tree': 2 };
+
+/**
+ * The overlay's callees in column order, the edges into them (merged into
+ * "+K other contracts" past the cap), and whether any call needs the anchor.
+ * A call from a function the spec does not have starts from the anchor too.
+ */
+function placeCalls(
+  input: LayoutOverlays['calls'],
+  functions: readonly Extract<GraphNode, { kind: 'function' }>[],
+  nodeHeight: number,
+): PlacedCalls {
+  const none: PlacedCalls = {
+    callees: [],
+    heights: new Map(),
+    anchor: false,
+    edges: [],
+    summary: null,
+  };
+  if (!input || input.overlay.edges.length === 0) return none;
+  const { overlay } = input;
+  const fnId = new Map(functions.map((f) => [f.name, f.id]));
+
+  const weightOf = new Map<string, number>();
+  for (const e of overlay.edges) {
+    weightOf.set(e.to, (weightOf.get(e.to) ?? 0) + e.transactions + e.sandboxRuns);
+  }
+  const order = [...weightOf.keys()].sort(
+    (a, b) => weightOf.get(b)! - weightOf.get(a)! || compareStrings(a, b),
+  );
+  const collapse = !input.expand && order.length > MAX_CALLEES;
+  const shown = collapse ? order.slice(0, MAX_CALLEES) : order;
+  const hidden = collapse ? order.slice(MAX_CALLEES) : [];
+
+  const callees: PlacedCallee[] = shown.map((address) => ({
+    id: calleeNodeId(address),
+    kind: 'callee',
+    name: input.labels?.get(address) ?? `${address.slice(0, 4)}…${address.slice(-4)}`,
+    address,
+  }));
+  if (hidden.length > 0) {
+    callees.push({
+      id: CALLEES_MORE_ID,
+      kind: 'callees-more',
+      name: `+${hidden.length} other contract${hidden.length === 1 ? '' : 's'}`,
+      hidden,
+    });
+  }
+
+  const hiddenSet = new Set(hidden);
+  const merged = new Map<
+    string,
+    { from: string; to: string; count: number; evidence: CallEvidence | null; sandboxRuns: number }
+  >();
+  let anchor = false;
+  for (const e of overlay.edges) {
+    const from = (e.from !== null ? fnId.get(e.from) : undefined) ?? CALL_ANCHOR_ID;
+    if (from === CALL_ANCHOR_ID) anchor = true;
+    const to = hiddenSet.has(e.to) ? CALLEES_MORE_ID : calleeNodeId(e.to);
+    const key = `${from}->${to}`;
+    const m = merged.get(key) ?? { from, to, count: 0, evidence: null, sandboxRuns: 0 };
+    m.count += e.transactions + e.sandboxRuns;
+    m.sandboxRuns += e.sandboxRuns;
+    if (
+      e.evidence !== null &&
+      (m.evidence === null || EVIDENCE_RANK[e.evidence] > EVIDENCE_RANK[m.evidence])
+    ) {
+      m.evidence = e.evidence;
+    }
+    merged.set(key, m);
+  }
+
+  // Stroke weight by tercile of the drawn edges' counts.
+  const counts = [...merged.values()].map((m) => m.count).sort((a, b) => a - b);
+  const t1 = counts[Math.floor((counts.length - 1) / 3)]!;
+  const t2 = counts[Math.floor((2 * (counts.length - 1)) / 3)]!;
+  const edges = [...merged.values()].map((m) => ({
+    from: m.from,
+    to: m.to,
+    call: {
+      count: m.count,
+      evidence: m.evidence,
+      sandboxRuns: m.sandboxRuns,
+      weight: (m.count <= t1 ? 1 : m.count <= t2 ? 2 : 3) as 1 | 2 | 3,
+    },
+  }));
+
+  const incoming = new Map<string, number>();
+  for (const e of edges) incoming.set(e.to, (incoming.get(e.to) ?? 0) + 1);
+  const heights = new Map<string, number>();
+  for (const [id, n] of incoming) {
+    const needed = (n + 1) * CALL_PORT_BAND;
+    if (needed > nodeHeight) heights.set(id, needed);
+  }
+
+  return {
+    callees,
+    heights,
+    anchor,
+    edges,
+    summary: {
+      transactions: overlay.transactions,
+      firstLedger: overlay.firstLedger,
+      lastLedger: overlay.lastLedger,
+      sandboxRuns: overlay.sandboxRuns,
+      shown: shown.length,
+      hidden: hidden.length,
+    },
   };
 }

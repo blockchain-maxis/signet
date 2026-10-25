@@ -55,9 +55,7 @@ const TYPES: readonly SpecType[] = [
   {
     kind: 'struct',
     name: 'Limits',
-    fields: [
-      { name: 'per', type: { type: 'vec', element: { type: 'named', name: 'Amount' } } },
-    ],
+    fields: [{ name: 'per', type: { type: 'vec', element: { type: 'named', name: 'Amount' } } }],
   },
   { kind: 'struct', name: 'Amount', fields: [{ name: 'value', type: 'i128' }] },
   { kind: 'struct', name: 'CacheKey', fields: [{ name: 'owner', type: 'address' }] },
@@ -169,7 +167,13 @@ const FUNCTIONS: readonly SpecFunction[] = [
     ],
     outputs: [{ type: 'result', ok: 'u32', error: { type: 'named', name: 'ZooError' } }],
   },
-  { name: 'ints', doc: '', isConstructor: false, inputs: [{ name: 'a', type: 'u32' }], outputs: ['u32'] },
+  {
+    name: 'ints',
+    doc: '',
+    isConstructor: false,
+    inputs: [{ name: 'a', type: 'u32' }],
+    outputs: ['u32'],
+  },
   {
     name: 'who',
     doc: '',
@@ -217,7 +221,9 @@ function membersOf(type: SpecType | undefined): string[] {
   if (type === undefined) return [];
   if (type.kind === 'struct') return type.fields.flatMap((field) => namedIn(field.type));
   if (type.kind === 'union') {
-    return type.cases.flatMap((unionCase) => unionCase.fields.flatMap((field) => namedIn(field.type)));
+    return type.cases.flatMap((unionCase) =>
+      unionCase.fields.flatMap((field) => namedIn(field.type)),
+    );
   }
   return [];
 }
@@ -245,7 +251,10 @@ function namedIn(ref: TypeRef): string[] {
 
 test('DEFAULT_TYPE_DEPTH is the one level design §3 asks for', () => {
   assert.equal(DEFAULT_TYPE_DEPTH, 1);
-  assert.deepEqual(names(buildTypeGraph(MID_SIZE)), names(buildTypeGraph(MID_SIZE, { typeDepth: 1 })));
+  assert.deepEqual(
+    names(buildTypeGraph(MID_SIZE)),
+    names(buildTypeGraph(MID_SIZE, { typeDepth: 1 })),
+  );
 });
 
 test('typeDepth: 1 draws fewer nodes than typeDepth: Infinity', () => {
@@ -344,9 +353,7 @@ test('a recursive type yields a self-edge instead of an endless column', () => {
   const self = graph.edges.filter((edge) => edge.from === typeNodeId('PoolPair'));
   assert.deepEqual(
     self.map((edge) => [edge.to, edge.label, edge.role]),
-    [
-      [typeNodeId('PoolPair'), 'next', 'field'],
-    ],
+    [[typeNodeId('PoolPair'), 'next', 'field']],
   );
   assert.equal(nodeOf(graph, 'PoolPair').kind, 'inline');
 });
@@ -369,7 +376,9 @@ test('an error enum is not a type node, and an undefined name is missing', () =>
   assert.ok(!names(graph).includes('ZooError'));
   assert.ok(!names(graph).includes('Ghost'));
   assert.deepEqual(graph.missing, ['Ghost']);
-  assert.ok(graph.edges.every((edge) => !edge.to.includes('Ghost') && !edge.to.includes('ZooError')));
+  assert.ok(
+    graph.edges.every((edge) => !edge.to.includes('Ghost') && !edge.to.includes('ZooError')),
+  );
 });
 
 test('ids are the diagram ids, anchors are the docs anchors', () => {
@@ -378,12 +387,18 @@ test('ids are the diagram ids, anchors are the docs anchors', () => {
   assert.equal(functionNodeId('swap'), 'fn:swap');
   assert.equal(typeAnchor('Route'), 'type-Route');
   assert.ok(graph.nodes.every((node) => node.id === typeNodeId(node.name)));
-  assert.ok(graph.nodes.filter((node) => node.kind === 'stub').every((node) => node.anchor.length > 0));
+  assert.ok(
+    graph.nodes.filter((node) => node.kind === 'stub').every((node) => node.anchor.length > 0),
+  );
 });
 
 test('the graph is deterministic across runs', () => {
-  const first = JSON.stringify(buildTypeGraph(MID_SIZE, { typeDepth: 1, expandTypes: ['RouteStep'] }));
-  const second = JSON.stringify(buildTypeGraph(MID_SIZE, { expandTypes: ['RouteStep'], typeDepth: 1 }));
+  const first = JSON.stringify(
+    buildTypeGraph(MID_SIZE, { typeDepth: 1, expandTypes: ['RouteStep'] }),
+  );
+  const second = JSON.stringify(
+    buildTypeGraph(MID_SIZE, { expandTypes: ['RouteStep'], typeDepth: 1 }),
+  );
   assert.equal(first, second);
 });
 

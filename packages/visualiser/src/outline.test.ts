@@ -106,7 +106,11 @@ test('renderOutlineHtml renders accessible html with docs anchor links', () => {
   assert.ok(html.includes('<a href="#fn-submit">submit</a>'));
   assert.ok(html.includes('<a href="#type-Request">Request</a> (argument)'));
   assert.ok(html.includes('<a href="#type-Positions">Positions</a> (return)'));
-  assert.ok(html.includes('uses <a href="#type-Request">Request</a> (argument), <a href="#type-Positions">Positions</a> (return)'));
+  assert.ok(
+    html.includes(
+      'uses <a href="#type-Request">Request</a> (argument), <a href="#type-Positions">Positions</a> (return)',
+    ),
+  );
 
   // Type-level field connections
   assert.ok(html.includes('<a href="#type-PoolDataKey">PoolDataKey</a>'));
@@ -141,5 +145,7 @@ test('identity-registry fixture (0 edges): builds outline with 0 edge IDs', () =
   assert.equal(collectedEdgeIds.length, 0);
   assert.ok(outline.length > 0);
   const html = renderOutlineHtml(outline, (id) => `#${id}`);
-  assert.ok(html.includes('identity-registry') || html.includes('other') || html.includes('lifecycle'));
+  assert.ok(
+    html.includes('identity-registry') || html.includes('other') || html.includes('lifecycle'),
+  );
 });

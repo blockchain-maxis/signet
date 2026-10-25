@@ -27,6 +27,13 @@ const contractId = (byte: number) => StrKey.encodeContract(Buffer.alloc(32, byte
 export const NO_INTERFACE = contractId(0xd4);
 export const SAC = contractId(0xf6);
 export const RPC_DOWN = contractId(0xe5);
+/**
+ * A USDC Stellar Asset Contract that the contract-page fixture's contract
+ * calls (#543), with the METADATA the host writes for a credit asset, so its
+ * callee label is "USDC (asset contract, issuer G…)" (#517). No Contract row.
+ */
+export const CALLEE_SAC = contractId(0x5c);
+export const CALLEE_SAC_ISSUER = StrKey.encodeEd25519PublicKey(Buffer.alloc(32, 0x5d));
 
 const WALLET_3 = StrKey.encodeEd25519PublicKey(Buffer.alloc(32, 0xe3));
 
@@ -41,16 +48,35 @@ export function mockRpcUrl(): string {
   return `http://127.0.0.1:${Number(process.env.E2E_RPC_PORT ?? DEFAULT_PORT)}`;
 }
 
-function instanceEntry(address: string, executable: xdr.ContractExecutable): xdr.LedgerEntryData {
+function instanceEntry(
+  address: string,
+  executable: xdr.ContractExecutable,
+  storage: xdr.ScMapEntry[] | null = null,
+): xdr.LedgerEntryData {
   return xdr.LedgerEntryData.contractData(
     new xdr.ContractDataEntry({
       ext: new xdr.ExtensionPoint(0),
       contract: new Address(address).toScAddress(),
       key: xdr.ScVal.scvLedgerKeyContractInstance(),
       durability: xdr.ContractDataDurability.persistent(),
-      val: xdr.ScVal.scvContractInstance(new xdr.ScContractInstance({ executable, storage: null })),
+      val: xdr.ScVal.scvContractInstance(new xdr.ScContractInstance({ executable, storage })),
     }),
   );
+}
+
+/** A SAC's instance storage: the METADATA map the host writes for `CODE:ISSUER`. */
+function sacMetadata(code: string, issuer: string): xdr.ScMapEntry[] {
+  const sym = (s: string) => xdr.ScVal.scvSymbol(s);
+  return [
+    new xdr.ScMapEntry({
+      key: sym('METADATA'),
+      val: xdr.ScVal.scvMap([
+        new xdr.ScMapEntry({ key: sym('decimal'), val: xdr.ScVal.scvU32(7) }),
+        new xdr.ScMapEntry({ key: sym('name'), val: xdr.ScVal.scvString(`${code}:${issuer}`) }),
+        new xdr.ScMapEntry({ key: sym('symbol'), val: xdr.ScVal.scvString(code) }),
+      ]),
+    }),
+  ];
 }
 
 type Answer = { status: number; entries?: { key: string; xdr: string }[] };
@@ -86,6 +112,15 @@ function answerFor(keyXdr: string): Answer {
   if (address === SAC) {
     return reply(instanceEntry(address, xdr.ContractExecutable.contractExecutableStellarAsset()));
   }
+  if (address === CALLEE_SAC) {
+    return reply(
+      instanceEntry(
+        address,
+        xdr.ContractExecutable.contractExecutableStellarAsset(),
+        sacMetadata('USDC', CALLEE_SAC_ISSUER),
+      ),
+    );
+  }
   // Any other contract: not on the ledger. Same answer a real RPC gives.
   return { status: 200, entries: [] };
 }
@@ -98,26 +133,42 @@ export async function startMockRpc(): Promise<() => Promise<void>> {
     req.on('end', () => {
       let id: unknown = 1;
       try {
-        const rpc = JSON.parse(body) as { id?: unknown; method?: string; params?: { keys?: string[] } };
+        const rpc = JSON.parse(body) as {
+          id?: unknown;
+          method?: string;
+          params?: { keys?: string[] };
+        };
         id = rpc.id ?? 1;
         if (rpc.method !== 'getLedgerEntries') {
           res.writeHead(200, { 'content-type': 'application/json' });
-          res.end(JSON.stringify({ jsonrpc: '2.0', id, error: { code: -32601, message: 'method not found' } }));
+          res.end(
+            JSON.stringify({
+              jsonrpc: '2.0',
+              id,
+              error: { code: -32601, message: 'method not found' },
+            }),
+          );
           return;
         }
-        const answer = answerFor(rpc.params?.keys?.[0] ?? '');
-        if (answer.status !== 200) {
-          res.writeHead(answer.status);
+        // A batch is answered key by key; one key the RPC is "down" for fails it all.
+        const answers = (rpc.params?.keys ?? ['']).map(answerFor);
+        const failed = answers.find((a) => a.status !== 200);
+        if (failed) {
+          res.writeHead(failed.status);
           res.end();
           return;
         }
+        const answer = { entries: answers.flatMap((a) => a.entries ?? []) };
         res.writeHead(200, { 'content-type': 'application/json' });
         res.end(
           JSON.stringify({
             jsonrpc: '2.0',
             id,
             result: {
-              entries: (answer.entries ?? []).map((e) => ({ ...e, lastModifiedLedgerSeq: 1_000_000 })),
+              entries: (answer.entries ?? []).map((e) => ({
+                ...e,
+                lastModifiedLedgerSeq: 1_000_000,
+              })),
               latestLedger: 1_000_001,
             },
           }),

@@ -91,7 +91,11 @@ test('CSS file declares identical token values for dark mode (:root and [data-vi
     const expectedValue = VIZ_DARK_TOKENS[name];
 
     assert.equal(rootDecls[varName], expectedValue, `:root ${varName} matches VIZ_DARK_TOKENS`);
-    assert.equal(darkDecls[varName], expectedValue, `[data-viz-theme="dark"] ${varName} matches VIZ_DARK_TOKENS`);
+    assert.equal(
+      darkDecls[varName],
+      expectedValue,
+      `[data-viz-theme="dark"] ${varName} matches VIZ_DARK_TOKENS`,
+    );
   }
 });
 
@@ -99,7 +103,9 @@ test('CSS file declares identical token values for light mode (@media and [data-
   const fileContent = fs.readFileSync(tokensCssPath, 'utf8');
 
   // Extract @media (prefers-color-scheme: light) block
-  const mediaMatch = fileContent.match(/@media\s*\(prefers-color-scheme:\s*light\)\s*\{\s*:root\s*\{([^}]+)\}/);
+  const mediaMatch = fileContent.match(
+    /@media\s*\(prefers-color-scheme:\s*light\)\s*\{\s*:root\s*\{([^}]+)\}/,
+  );
   assert.ok(mediaMatch, '@media (prefers-color-scheme: light) block must exist in tokens.css');
   const mediaDecls = parseCssDeclarations(mediaMatch[1]!);
 
@@ -113,7 +119,11 @@ test('CSS file declares identical token values for light mode (@media and [data-
     const expectedValue = VIZ_LIGHT_TOKENS[name];
 
     assert.equal(mediaDecls[varName], expectedValue, `@media ${varName} matches VIZ_LIGHT_TOKENS`);
-    assert.equal(lightDecls[varName], expectedValue, `[data-viz-theme="light"] ${varName} matches VIZ_LIGHT_TOKENS`);
+    assert.equal(
+      lightDecls[varName],
+      expectedValue,
+      `[data-viz-theme="light"] ${varName} matches VIZ_LIGHT_TOKENS`,
+    );
   }
 });
 
@@ -184,16 +194,28 @@ function contrastRatio(hex1: string, hex2: string): number {
 
 test('WCAG AA contrast: nodeText against ground is >= 4.5:1 on both dark and light grounds', () => {
   const darkRatio = contrastRatio(VIZ_DARK_TOKENS.nodeText, VIZ_DARK_TOKENS.ground);
-  assert.ok(darkRatio >= 4.5, `Dark nodeText contrast ratio was ${darkRatio.toFixed(2)}, expected >= 4.5`);
+  assert.ok(
+    darkRatio >= 4.5,
+    `Dark nodeText contrast ratio was ${darkRatio.toFixed(2)}, expected >= 4.5`,
+  );
 
   const lightRatio = contrastRatio(VIZ_LIGHT_TOKENS.nodeText, VIZ_LIGHT_TOKENS.ground);
-  assert.ok(lightRatio >= 4.5, `Light nodeText contrast ratio was ${lightRatio.toFixed(2)}, expected >= 4.5`);
+  assert.ok(
+    lightRatio >= 4.5,
+    `Light nodeText contrast ratio was ${lightRatio.toFixed(2)}, expected >= 4.5`,
+  );
 });
 
 test('WCAG AA contrast: edge against ground is >= 3.0:1 on both dark and light grounds', () => {
   const darkEdgeRatio = contrastRatio(VIZ_DARK_TOKENS.edge, VIZ_DARK_TOKENS.ground);
-  assert.ok(darkEdgeRatio >= 3.0, `Dark edge contrast ratio was ${darkEdgeRatio.toFixed(2)}, expected >= 3.0`);
+  assert.ok(
+    darkEdgeRatio >= 3.0,
+    `Dark edge contrast ratio was ${darkEdgeRatio.toFixed(2)}, expected >= 3.0`,
+  );
 
   const lightEdgeRatio = contrastRatio(VIZ_LIGHT_TOKENS.edge, VIZ_LIGHT_TOKENS.ground);
-  assert.ok(lightEdgeRatio >= 3.0, `Light edge contrast ratio was ${lightEdgeRatio.toFixed(2)}, expected >= 3.0`);
+  assert.ok(
+    lightEdgeRatio >= 3.0,
+    `Light edge contrast ratio was ${lightEdgeRatio.toFixed(2)}, expected >= 3.0`,
+  );
 });

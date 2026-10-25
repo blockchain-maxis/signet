@@ -21,8 +21,13 @@
 
 import { VIZ_CSS_VARIABLES, type VizTokenName } from './tokens.ts';
 
-/** The node kinds the diagram distinguishes. */
-export type NodeKind = 'function' | 'struct' | 'union' | 'enum' | 'stub';
+/**
+ * The node kinds the diagram distinguishes. The last three belong to the
+ * phase-3 call graph (#543): another contract this one called, the collapsed
+ * "+K other contracts", and the anchor for calls whose function is unknown.
+ */
+export type NodeKind =
+  'function' | 'struct' | 'union' | 'enum' | 'stub' | 'callee' | 'callees-more' | 'call-anchor';
 
 /**
  * The outline a node is drawn with. `stub` is always a dashed outline, so a
@@ -32,7 +37,8 @@ export type NodeKind = 'function' | 'struct' | 'union' | 'enum' | 'stub';
 export type NodeShape = 'rect' | 'rounded-rect' | 'notched-rect' | 'dashed-outline-rect';
 
 /** The text token printed before a node's name, e.g. `fn transfer`. */
-export type NodePrefix = 'fn' | 'struct' | 'union' | 'enum' | 'stub';
+export type NodePrefix =
+  'fn' | 'struct' | 'union' | 'enum' | 'stub' | 'contract' | 'more' | 'anchor';
 
 /** One node kind's fixed visual treatment. */
 export interface NodeVocabulary {
@@ -44,17 +50,34 @@ export interface NodeVocabulary {
   readonly label: string;
 }
 
-/** The edge kinds the diagram distinguishes. */
-export type EdgeKind = 'arg' | 'return' | 'field' | 'observed';
+/**
+ * The edge kinds the diagram distinguishes. The `call-*` kinds are the
+ * phase-3 call graph (#543), one per kind of evidence for the call, weakest
+ * last: an auth tree names caller, callee and function; an event shows the
+ * callee ran; a footprint only that it was touched; a sandbox trace is a
+ * local run of the call.
+ */
+export type EdgeKind =
+  | 'arg'
+  | 'return'
+  | 'field'
+  | 'observed'
+  | 'call-auth-tree'
+  | 'call-event'
+  | 'call-footprint'
+  | 'call-sandbox';
 
-/** Solid for spec-derived edges; dashed for the weaker observed overlay. */
-export type DashPattern = 'solid' | 'dashed';
+/**
+ * Solid for spec-derived edges; the observed overlays use the others. A
+ * sandbox call is solid too, and tells itself apart by its `S` marker.
+ */
+export type DashPattern = 'solid' | 'dashed' | 'long-dash' | 'dash-dot' | 'dotted';
 
 /**
  * The stroke end-cap. A filled arrow for arguments, an open one for returns,
  * none for fields. `none` and the two arrow shapes stay readable without hue.
  */
-export type EdgeMarker = 'none' | 'open-arrow' | 'filled-arrow';
+export type EdgeMarker = 'none' | 'open-arrow' | 'filled-arrow' | 'sandbox-arrow';
 
 /** One edge kind's fixed visual treatment. */
 export interface EdgeVocabulary {
@@ -125,6 +148,24 @@ export const NODE_VOCABULARY: Record<NodeKind, NodeVocabulary> = {
     token: 'muted',
     label: 'stub (links to docs)',
   },
+  callee: {
+    shape: 'rect',
+    prefix: 'contract',
+    token: 'observed',
+    label: 'contract this one calls',
+  },
+  'callees-more': {
+    shape: 'dashed-outline-rect',
+    prefix: 'more',
+    token: 'muted',
+    label: 'more contracts (expands)',
+  },
+  'call-anchor': {
+    shape: 'notched-rect',
+    prefix: 'anchor',
+    token: 'muted',
+    label: 'this contract, calling function unknown',
+  },
 };
 
 /**
@@ -169,6 +210,42 @@ export const EDGE_VOCABULARY: Record<EdgeKind, EdgeVocabulary> = {
     requiresLabel: true,
     label: 'observed (dashed, labelled)',
   },
+  'call-auth-tree': {
+    dash: 'long-dash',
+    marker: 'filled-arrow',
+    strokeWidth: 'normal',
+    token: 'observed',
+    specDerived: false,
+    requiresLabel: true,
+    label: 'call, named by an auth tree (long dash)',
+  },
+  'call-event': {
+    dash: 'dash-dot',
+    marker: 'filled-arrow',
+    strokeWidth: 'normal',
+    token: 'observed',
+    specDerived: false,
+    requiresLabel: true,
+    label: 'call, the callee emitted an event (dash-dot)',
+  },
+  'call-footprint': {
+    dash: 'dotted',
+    marker: 'filled-arrow',
+    strokeWidth: 'normal',
+    token: 'observed',
+    specDerived: false,
+    requiresLabel: true,
+    label: 'call, the callee was in the footprint (dotted)',
+  },
+  'call-sandbox': {
+    dash: 'solid',
+    marker: 'sandbox-arrow',
+    strokeWidth: 'normal',
+    token: 'observed',
+    specDerived: false,
+    requiresLabel: true,
+    label: 'call, seen in a local sandbox run (solid, S)',
+  },
 };
 
 /** Write mark → glyph / square / token. Reserved for the phase-2 overlay. */
@@ -194,9 +271,27 @@ export const WRITE_MARK_VOCABULARY: Record<WriteMark, WriteMarkVocabulary> = {
 };
 
 /** Canonical render order, so the legend is deterministic whatever is passed. */
-export const NODE_KIND_ORDER: readonly NodeKind[] = ['function', 'struct', 'union', 'enum', 'stub'];
+export const NODE_KIND_ORDER: readonly NodeKind[] = [
+  'function',
+  'struct',
+  'union',
+  'enum',
+  'stub',
+  'callee',
+  'callees-more',
+  'call-anchor',
+];
 
-export const EDGE_KIND_ORDER: readonly EdgeKind[] = ['arg', 'return', 'field', 'observed'];
+export const EDGE_KIND_ORDER: readonly EdgeKind[] = [
+  'arg',
+  'return',
+  'field',
+  'observed',
+  'call-auth-tree',
+  'call-event',
+  'call-footprint',
+  'call-sandbox',
+];
 
 export const WRITE_MARK_ORDER: readonly WriteMark[] = ['write', 'read', 'unknown'];
 
@@ -233,8 +328,19 @@ function escapeXml(value: string): string {
 }
 
 /** Dash array per pattern; `undefined` keeps the stroke solid. */
-function dashArray(dash: DashPattern): string | undefined {
-  return dash === 'dashed' ? '5 3' : undefined;
+export function dashArray(dash: DashPattern): string | undefined {
+  switch (dash) {
+    case 'dashed':
+      return '5 3';
+    case 'long-dash':
+      return '10 4';
+    case 'dash-dot':
+      return '8 3 1.5 3';
+    case 'dotted':
+      return '1.5 3';
+    default:
+      return undefined;
+  }
 }
 
 /** Stroke width in user units. */
@@ -248,21 +354,50 @@ function strokeWidth(width: EdgeVocabulary['strokeWidth']): number {
  * top-right corner cut, which stays legible when the fill and stroke are the
  * same grey. Carries `data-node-shape` for tests and tooling.
  */
-export function nodeShapeSvg(shape: NodeShape, x: number, y: number, w: number, h: number): string {
+export function nodeShapeSvg(
+  shape: NodeShape,
+  x: number,
+  y: number,
+  w: number,
+  h: number,
+  attrs: NodeShapeAttrs = {},
+): string {
   const fill = shape === 'dashed-outline-rect' ? 'none' : cssVar('node');
-  const common = `data-node-shape="${shape}" fill="${fill}" stroke="${cssVar('edge')}"`;
+  const id = attrs.id ? `id="${escapeXml(attrs.id)}" ` : '';
+  const extraClass = attrs.className ? ` ${escapeXml(attrs.className)}` : '';
+  const stroke = attrs.stroke
+    ? `stroke="${cssVar(attrs.stroke)}" stroke-width="1.5"`
+    : `stroke="${cssVar('edge')}"`;
+  const common = `data-node-shape="${shape}" fill="${fill}" ${stroke}`;
   if (shape === 'notched-rect') {
     const notch = Math.min(7, w / 3, h / 3);
     const d = `M ${x} ${y} H ${x + w - notch} L ${x + w} ${y + notch} V ${y + h} H ${x} Z`;
-    return `<path class="viz-shape viz-shape--notched" ${common} d="${d}"/>`;
+    return `<path ${id}class="viz-shape viz-shape--notched${extraClass}" ${common} d="${d}"/>`;
   }
   const radius = shape === 'rounded-rect' ? 6 : 0;
   const dash = shape === 'dashed-outline-rect' ? ` stroke-dasharray="5 3"` : '';
-  return `<rect class="viz-shape viz-shape--${shape}" ${common} x="${x}" y="${y}" width="${w}" height="${h}" rx="${radius}" ry="${radius}"${dash}/>`;
+  return `<rect ${id}class="viz-shape viz-shape--${shape}${extraClass}" ${common} x="${x}" y="${y}" width="${w}" height="${h}" rx="${radius}" ry="${radius}"${dash}/>`;
 }
 
-/** Arrow marker `<path>` data per marker kind, as an SVG fragment. */
-function markerGlyph(marker: EdgeMarker): string {
+/** Optional extras on a node outline: its id, classes, and a stroke token. */
+export interface NodeShapeAttrs {
+  readonly id?: string;
+  readonly className?: string;
+  /** Ring the outline in this token, a little heavier, instead of the edge colour. */
+  readonly stroke?: VizTokenName;
+}
+
+/**
+ * Arrow marker `<path>` data per marker kind, as an SVG fragment. The
+ * sandbox arrow is a filled arrow in the observed colour; the `S` that tells
+ * it apart is drawn on the edge itself (and on the legend swatch), since a
+ * marker scales with the stroke and a letter inside one would not stay
+ * legible.
+ */
+export function markerGlyph(marker: EdgeMarker): string {
+  if (marker === 'sandbox-arrow') {
+    return `<path class="viz-arrow viz-arrow--sandbox" d="M0,0 L8,3 L0,6 Z" fill="${cssVar('observed')}"/>`;
+  }
   if (marker === 'open-arrow') {
     return `<path class="viz-arrow viz-arrow--open" d="M0,0 L8,3 L0,6" fill="none" stroke="${cssVar('edge')}" stroke-width="1.25"/>`;
   }
@@ -273,8 +408,16 @@ function markerGlyph(marker: EdgeMarker): string {
 }
 
 /** Marker id used by both the legend defs and its edge swatches. */
-function markerId(idPrefix: string, marker: EdgeMarker): string {
+export function markerId(idPrefix: string, marker: EdgeMarker): string {
   return marker === 'none' ? '' : `${idPrefix}-${marker}`;
+}
+
+/**
+ * The `S` badge a sandbox call edge carries at `(x, y)`: a ground-filled
+ * disc ringed in the observed colour, so the letter reads over the line.
+ */
+export function sandboxBadge(x: number, y: number): string {
+  return `<g class="viz-sandbox-badge" data-sandbox-badge=""><circle cx="${x}" cy="${y}" r="6" fill="${cssVar('ground')}" stroke="${cssVar('observed')}" stroke-width="1.25"/><text x="${x}" y="${y}" text-anchor="middle" dominant-baseline="central" font-size="9" font-weight="600" fill="${cssVar('observed')}">S</text></g>`;
 }
 
 /** Options for {@link renderLegend}. */
@@ -330,9 +473,18 @@ export function renderLegend(
     const vocab = NODE_VOCABULARY[kind];
     const y = padding + row * rowHeight;
     row += 1;
-    rows.push(nodeShapeSvg(vocab.shape, padding, y + 5, 22, 14));
     rows.push(
-      `<text class="viz-legend-label" data-node-kind="${kind}" data-node-prefix="${vocab.prefix}" x="${padding + 32}" y="${y + 12}" dominant-baseline="middle">${escapeXml(`${vocab.prefix} — ${vocab.label}`)}</text>`,
+      nodeShapeSvg(
+        vocab.shape,
+        padding,
+        y + 5,
+        22,
+        14,
+        vocab.token === 'observed' ? { stroke: 'observed' } : {},
+      ),
+    );
+    rows.push(
+      `<text class="viz-legend-label" fill="${cssVar('muted')}" data-node-kind="${kind}" data-node-prefix="${vocab.prefix}" x="${padding + 32}" y="${y + 12}" dominant-baseline="middle">${escapeXml(`${vocab.prefix} — ${vocab.label}`)}</text>`,
     );
   }
 
@@ -349,8 +501,9 @@ export function renderLegend(
     rows.push(
       `<line class="viz-edge-swatch" data-edge-kind="${kind}" data-edge-dash="${vocab.dash}" data-edge-marker="${vocab.marker}" x1="${x1}" y1="${y + 12}" x2="${x2}" y2="${y + 12}" stroke="${cssVar(vocab.token)}" stroke-width="${strokeWidth(vocab.strokeWidth)}"${dashAttr}${markerAttr}/>`,
     );
+    if (vocab.marker === 'sandbox-arrow') rows.push(sandboxBadge((x1 + x2) / 2, y + 12));
     rows.push(
-      `<text class="viz-legend-label" data-edge-label="${kind}" x="${padding + 32}" y="${y + 12}" dominant-baseline="middle">${escapeXml(vocab.label)}</text>`,
+      `<text class="viz-legend-label" fill="${cssVar('muted')}" data-edge-label="${kind}" x="${padding + 32}" y="${y + 12}" dominant-baseline="middle">${escapeXml(vocab.label)}</text>`,
     );
   }
 
@@ -377,7 +530,7 @@ export function renderLegend(
       `<text class="viz-mark-glyph" data-write-mark="${kind}" data-write-square="${vocab.square}" data-write-glyph="${vocab.glyph}" x="${padding + 7}" y="${y + 12}" text-anchor="middle" dominant-baseline="middle" fill="${glyphFill}">${vocab.glyph}</text>`,
     );
     rows.push(
-      `<text class="viz-legend-label" data-write-label="${kind}" x="${padding + 32}" y="${y + 12}" dominant-baseline="middle">${escapeXml(vocab.label)}</text>`,
+      `<text class="viz-legend-label" fill="${cssVar('muted')}" data-write-label="${kind}" x="${padding + 32}" y="${y + 12}" dominant-baseline="middle">${escapeXml(vocab.label)}</text>`,
     );
   }
 
@@ -385,7 +538,7 @@ export function renderLegend(
   // carries no dead defs.
   const usedMarkers = new Set(edgeKinds.map((kind) => EDGE_VOCABULARY[kind].marker));
   const defs: string[] = [];
-  for (const marker of ['open-arrow', 'filled-arrow'] as const) {
+  for (const marker of ['open-arrow', 'filled-arrow', 'sandbox-arrow'] as const) {
     if (!usedMarkers.has(marker)) continue;
     defs.push(
       `<marker id="${markerId(idPrefix, marker)}" markerWidth="8" markerHeight="8" refX="7.5" refY="3" orient="auto" markerUnits="strokeWidth">${markerGlyph(marker)}</marker>`,

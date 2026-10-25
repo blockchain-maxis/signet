@@ -3,431 +3,269 @@
   role="img"
   aria-labelledby="soroswap-router-title soroswap-router-desc"
   class="contract-diagram"
+  width="287" height="996" viewBox="0 0 287 996"
+  font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="14"
 >
   <title id="soroswap-router-title">soroswap-router (mainnet CAG5LRYQ5JVEUI5TEID72EYOVX44TTUJT5BQR2J6J77FH65PCCFAJDDH)</title>
   <desc id="soroswap-router-desc">20 functions in 9 groups, 0 types, 0 references</desc>
   <defs>
-    <marker id="arrowhead" markerWidth="10" markerHeight="7"
-      refX="9" refY="3.5" orient="auto" markerUnits="strokeWidth">
-      <path d="M0,0 L10,3.5 L0,7 Z" class="diagram-edge-marker" />
-    </marker>
   </defs>
   <a id="diagram-fn-add_liquidity" href="#fn-add_liquidity" data-node-id="fn:add_liquidity">
-    <rect
-      id="soroswap-router-node-fn:add_liquidity"
-      class="diagram-node diagram-node--function"
-      x="50"
-      y="50"
-      width="124"
-      height="28"
-      rx="4" ry="4"
-    />
+    <rect id="soroswap-router-node-fn:add_liquidity" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="52" width="130" height="28" rx="6" ry="6"/>
     <title>add_liquidity</title>
     <text
       class="diagram-node-label"
-      x="60"
-      y="68"
-      text-anchor="middle"
-      dominant-baseline="middle"
+      x="34"
+      y="66"
+      dominant-baseline="central"
+      fill="var(--viz-node-text)"
     >
       add_liquidity
     </text>
   </a>
   <a id="diagram-fn-remove_liquidity" href="#fn-remove_liquidity" data-node-id="fn:remove_liquidity">
-    <rect
-      id="soroswap-router-node-fn:remove_liquidity"
-      class="diagram-node diagram-node--function"
-      x="50"
-      y="50"
-      width="148"
-      height="28"
-      rx="4" ry="4"
-    />
+    <rect id="soroswap-router-node-fn:remove_liquidity" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="92" width="155" height="28" rx="6" ry="6"/>
     <title>remove_liquidity</title>
     <text
       class="diagram-node-label"
-      x="60"
-      y="68"
-      text-anchor="middle"
-      dominant-baseline="middle"
+      x="34"
+      y="106"
+      dominant-baseline="central"
+      fill="var(--viz-node-text)"
     >
       remove_liquidity
     </text>
   </a>
   <a id="diagram-fn-swap_exact_tokens_for_tokens" href="#fn-swap_exact_tokens_for_tokens" data-node-id="fn:swap_exact_tokens_for_tokens">
-    <rect
-      id="soroswap-router-node-fn:swap_exact_tokens_for_tokens"
-      class="diagram-node diagram-node--function"
-      x="50"
-      y="50"
-      width="228"
-      height="28"
-      rx="4" ry="4"
-    />
-    <title>swap_exact_tokens_for_tok…</title>
+    <rect id="soroswap-router-node-fn:swap_exact_tokens_for_tokens" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="132" width="239" height="28" rx="6" ry="6"/>
+    <title>swap_exact_tokens_for_tokens</title>
     <text
       class="diagram-node-label"
-      x="60"
-      y="68"
-      text-anchor="middle"
-      dominant-baseline="middle"
+      x="34"
+      y="146"
+      dominant-baseline="central"
+      fill="var(--viz-node-text)"
     >
       swap_exact_tokens_for_tok…
     </text>
   </a>
   <a id="diagram-fn-swap_tokens_for_exact_tokens" href="#fn-swap_tokens_for_exact_tokens" data-node-id="fn:swap_tokens_for_exact_tokens">
-    <rect
-      id="soroswap-router-node-fn:swap_tokens_for_exact_tokens"
-      class="diagram-node diagram-node--function"
-      x="50"
-      y="50"
-      width="228"
-      height="28"
-      rx="4" ry="4"
-    />
-    <title>swap_tokens_for_exact_tok…</title>
+    <rect id="soroswap-router-node-fn:swap_tokens_for_exact_tokens" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="172" width="239" height="28" rx="6" ry="6"/>
+    <title>swap_tokens_for_exact_tokens</title>
     <text
       class="diagram-node-label"
-      x="60"
-      y="68"
-      text-anchor="middle"
-      dominant-baseline="middle"
+      x="34"
+      y="186"
+      dominant-baseline="central"
+      fill="var(--viz-node-text)"
     >
       swap_tokens_for_exact_tok…
     </text>
   </a>
   <a id="diagram-fn-sort_tokens" href="#fn-sort_tokens" data-node-id="fn:sort_tokens">
-    <rect
-      id="soroswap-router-node-fn:sort_tokens"
-      class="diagram-node diagram-node--function"
-      x="50"
-      y="50"
-      width="108"
-      height="28"
-      rx="4" ry="4"
-    />
+    <rect id="soroswap-router-node-fn:sort_tokens" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="212" width="113" height="28" rx="6" ry="6"/>
     <title>sort_tokens</title>
     <text
       class="diagram-node-label"
-      x="60"
-      y="68"
-      text-anchor="middle"
-      dominant-baseline="middle"
+      x="34"
+      y="226"
+      dominant-baseline="central"
+      fill="var(--viz-node-text)"
     >
       sort_tokens
     </text>
   </a>
   <a id="diagram-fn-pair_for" href="#fn-pair_for" data-node-id="fn:pair_for">
-    <rect
-      id="soroswap-router-node-fn:pair_for"
-      class="diagram-node diagram-node--function"
-      x="50"
-      y="50"
-      width="84"
-      height="28"
-      rx="4" ry="4"
-    />
+    <rect id="soroswap-router-node-fn:pair_for" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="252" width="88" height="28" rx="6" ry="6"/>
     <title>pair_for</title>
     <text
       class="diagram-node-label"
-      x="60"
-      y="68"
-      text-anchor="middle"
-      dominant-baseline="middle"
+      x="34"
+      y="266"
+      dominant-baseline="central"
+      fill="var(--viz-node-text)"
     >
       pair_for
     </text>
   </a>
   <a id="diagram-fn-quote" href="#fn-quote" data-node-id="fn:quote">
-    <rect
-      id="soroswap-router-node-fn:quote"
-      class="diagram-node diagram-node--function"
-      x="50"
-      y="50"
-      width="60"
-      height="28"
-      rx="4" ry="4"
-    />
+    <rect id="soroswap-router-node-fn:quote" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="292" width="62" height="28" rx="6" ry="6"/>
     <title>quote</title>
     <text
       class="diagram-node-label"
-      x="60"
-      y="68"
-      text-anchor="middle"
-      dominant-baseline="middle"
+      x="34"
+      y="306"
+      dominant-baseline="central"
+      fill="var(--viz-node-text)"
     >
       quote
     </text>
   </a>
   <a id="diagram-fn-get_factory" href="#fn-get_factory" data-node-id="fn:get_factory">
-    <rect
-      id="soroswap-router-node-fn:get_factory"
-      class="diagram-node diagram-node--function"
-      x="50"
-      y="50"
-      width="108"
-      height="28"
-      rx="4" ry="4"
-    />
+    <rect id="soroswap-router-node-fn:get_factory" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="376" width="113" height="28" rx="6" ry="6"/>
     <title>get_factory</title>
     <text
       class="diagram-node-label"
-      x="60"
-      y="68"
-      text-anchor="middle"
-      dominant-baseline="middle"
+      x="34"
+      y="390"
+      dominant-baseline="central"
+      fill="var(--viz-node-text)"
     >
       get_factory
     </text>
   </a>
   <a id="diagram-fn-get_reserves" href="#fn-get_reserves" data-node-id="fn:get_reserves">
-    <rect
-      id="soroswap-router-node-fn:get_reserves"
-      class="diagram-node diagram-node--function"
-      x="50"
-      y="50"
-      width="116"
-      height="28"
-      rx="4" ry="4"
-    />
+    <rect id="soroswap-router-node-fn:get_reserves" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="416" width="121" height="28" rx="6" ry="6"/>
     <title>get_reserves</title>
     <text
       class="diagram-node-label"
-      x="60"
-      y="68"
-      text-anchor="middle"
-      dominant-baseline="middle"
+      x="34"
+      y="430"
+      dominant-baseline="central"
+      fill="var(--viz-node-text)"
     >
       get_reserves
     </text>
   </a>
   <a id="diagram-fn-get_amount_out" href="#fn-get_amount_out" data-node-id="fn:get_amount_out">
-    <rect
-      id="soroswap-router-node-fn:get_amount_out"
-      class="diagram-node diagram-node--function"
-      x="50"
-      y="50"
-      width="132"
-      height="28"
-      rx="4" ry="4"
-    />
+    <rect id="soroswap-router-node-fn:get_amount_out" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="456" width="138" height="28" rx="6" ry="6"/>
     <title>get_amount_out</title>
     <text
       class="diagram-node-label"
-      x="60"
-      y="68"
-      text-anchor="middle"
-      dominant-baseline="middle"
+      x="34"
+      y="470"
+      dominant-baseline="central"
+      fill="var(--viz-node-text)"
     >
       get_amount_out
     </text>
   </a>
   <a id="diagram-fn-get_amount_in" href="#fn-get_amount_in" data-node-id="fn:get_amount_in">
-    <rect
-      id="soroswap-router-node-fn:get_amount_in"
-      class="diagram-node diagram-node--function"
-      x="50"
-      y="50"
-      width="124"
-      height="28"
-      rx="4" ry="4"
-    />
+    <rect id="soroswap-router-node-fn:get_amount_in" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="496" width="130" height="28" rx="6" ry="6"/>
     <title>get_amount_in</title>
     <text
       class="diagram-node-label"
-      x="60"
-      y="68"
-      text-anchor="middle"
-      dominant-baseline="middle"
+      x="34"
+      y="510"
+      dominant-baseline="central"
+      fill="var(--viz-node-text)"
     >
       get_amount_in
     </text>
   </a>
   <a id="diagram-fn-get_amounts_out" href="#fn-get_amounts_out" data-node-id="fn:get_amounts_out">
-    <rect
-      id="soroswap-router-node-fn:get_amounts_out"
-      class="diagram-node diagram-node--function"
-      x="50"
-      y="50"
-      width="140"
-      height="28"
-      rx="4" ry="4"
-    />
+    <rect id="soroswap-router-node-fn:get_amounts_out" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="536" width="146" height="28" rx="6" ry="6"/>
     <title>get_amounts_out</title>
     <text
       class="diagram-node-label"
-      x="60"
-      y="68"
-      text-anchor="middle"
-      dominant-baseline="middle"
+      x="34"
+      y="550"
+      dominant-baseline="central"
+      fill="var(--viz-node-text)"
     >
       get_amounts_out
     </text>
   </a>
   <a id="diagram-fn-get_amounts_in" href="#fn-get_amounts_in" data-node-id="fn:get_amounts_in">
-    <rect
-      id="soroswap-router-node-fn:get_amounts_in"
-      class="diagram-node diagram-node--function"
-      x="50"
-      y="50"
-      width="132"
-      height="28"
-      rx="4" ry="4"
-    />
+    <rect id="soroswap-router-node-fn:get_amounts_in" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="576" width="138" height="28" rx="6" ry="6"/>
     <title>get_amounts_in</title>
     <text
       class="diagram-node-label"
-      x="60"
-      y="68"
-      text-anchor="middle"
-      dominant-baseline="middle"
+      x="34"
+      y="590"
+      dominant-baseline="central"
+      fill="var(--viz-node-text)"
     >
       get_amounts_in
     </text>
   </a>
   <a id="diagram-fn-router_pair_for" href="#fn-router_pair_for" data-node-id="fn:router_pair_for">
-    <rect
-      id="soroswap-router-node-fn:router_pair_for"
-      class="diagram-node diagram-node--function"
-      x="50"
-      y="50"
-      width="140"
-      height="28"
-      rx="4" ry="4"
-    />
+    <rect id="soroswap-router-node-fn:router_pair_for" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="660" width="146" height="28" rx="6" ry="6"/>
     <title>router_pair_for</title>
     <text
       class="diagram-node-label"
-      x="60"
-      y="68"
-      text-anchor="middle"
-      dominant-baseline="middle"
+      x="34"
+      y="674"
+      dominant-baseline="central"
+      fill="var(--viz-node-text)"
     >
       router_pair_for
     </text>
   </a>
   <a id="diagram-fn-router_quote" href="#fn-router_quote" data-node-id="fn:router_quote">
-    <rect
-      id="soroswap-router-node-fn:router_quote"
-      class="diagram-node diagram-node--function"
-      x="50"
-      y="50"
-      width="116"
-      height="28"
-      rx="4" ry="4"
-    />
+    <rect id="soroswap-router-node-fn:router_quote" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="700" width="121" height="28" rx="6" ry="6"/>
     <title>router_quote</title>
     <text
       class="diagram-node-label"
-      x="60"
-      y="68"
-      text-anchor="middle"
-      dominant-baseline="middle"
+      x="34"
+      y="714"
+      dominant-baseline="central"
+      fill="var(--viz-node-text)"
     >
       router_quote
     </text>
   </a>
   <a id="diagram-fn-router_get_amount_out" href="#fn-router_get_amount_out" data-node-id="fn:router_get_amount_out">
-    <rect
-      id="soroswap-router-node-fn:router_get_amount_out"
-      class="diagram-node diagram-node--function"
-      x="50"
-      y="50"
-      width="188"
-      height="28"
-      rx="4" ry="4"
-    />
+    <rect id="soroswap-router-node-fn:router_get_amount_out" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="740" width="197" height="28" rx="6" ry="6"/>
     <title>router_get_amount_out</title>
     <text
       class="diagram-node-label"
-      x="60"
-      y="68"
-      text-anchor="middle"
-      dominant-baseline="middle"
+      x="34"
+      y="754"
+      dominant-baseline="central"
+      fill="var(--viz-node-text)"
     >
       router_get_amount_out
     </text>
   </a>
   <a id="diagram-fn-router_get_amount_in" href="#fn-router_get_amount_in" data-node-id="fn:router_get_amount_in">
-    <rect
-      id="soroswap-router-node-fn:router_get_amount_in"
-      class="diagram-node diagram-node--function"
-      x="50"
-      y="50"
-      width="180"
-      height="28"
-      rx="4" ry="4"
-    />
+    <rect id="soroswap-router-node-fn:router_get_amount_in" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="780" width="188" height="28" rx="6" ry="6"/>
     <title>router_get_amount_in</title>
     <text
       class="diagram-node-label"
-      x="60"
-      y="68"
-      text-anchor="middle"
-      dominant-baseline="middle"
+      x="34"
+      y="794"
+      dominant-baseline="central"
+      fill="var(--viz-node-text)"
     >
       router_get_amount_in
     </text>
   </a>
   <a id="diagram-fn-router_get_amounts_out" href="#fn-router_get_amounts_out" data-node-id="fn:router_get_amounts_out">
-    <rect
-      id="soroswap-router-node-fn:router_get_amounts_out"
-      class="diagram-node diagram-node--function"
-      x="50"
-      y="50"
-      width="196"
-      height="28"
-      rx="4" ry="4"
-    />
+    <rect id="soroswap-router-node-fn:router_get_amounts_out" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="820" width="205" height="28" rx="6" ry="6"/>
     <title>router_get_amounts_out</title>
     <text
       class="diagram-node-label"
-      x="60"
-      y="68"
-      text-anchor="middle"
-      dominant-baseline="middle"
+      x="34"
+      y="834"
+      dominant-baseline="central"
+      fill="var(--viz-node-text)"
     >
       router_get_amounts_out
     </text>
   </a>
   <a id="diagram-fn-router_get_amounts_in" href="#fn-router_get_amounts_in" data-node-id="fn:router_get_amounts_in">
-    <rect
-      id="soroswap-router-node-fn:router_get_amounts_in"
-      class="diagram-node diagram-node--function"
-      x="50"
-      y="50"
-      width="188"
-      height="28"
-      rx="4" ry="4"
-    />
+    <rect id="soroswap-router-node-fn:router_get_amounts_in" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="860" width="197" height="28" rx="6" ry="6"/>
     <title>router_get_amounts_in</title>
     <text
       class="diagram-node-label"
-      x="60"
-      y="68"
-      text-anchor="middle"
-      dominant-baseline="middle"
+      x="34"
+      y="874"
+      dominant-baseline="central"
+      fill="var(--viz-node-text)"
     >
       router_get_amounts_in
     </text>
   </a>
   <a id="diagram-fn-initialize" href="#fn-initialize" data-node-id="fn:initialize">
-    <rect
-      id="soroswap-router-node-fn:initialize"
-      class="diagram-node diagram-node--function"
-      x="50"
-      y="50"
-      width="100"
-      height="28"
-      rx="4" ry="4"
-    />
+    <rect id="soroswap-router-node-fn:initialize" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="944" width="104" height="28" rx="6" ry="6"/>
     <title>initialize</title>
     <text
       class="diagram-node-label"
-      x="60"
-      y="68"
-      text-anchor="middle"
-      dominant-baseline="middle"
+      x="34"
+      y="958"
+      dominant-baseline="central"
+      fill="var(--viz-node-text)"
     >
       initialize
     </text>

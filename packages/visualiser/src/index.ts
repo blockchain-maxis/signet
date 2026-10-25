@@ -92,10 +92,18 @@ export {
 
 // Layered column layout (E-06): graph in, positioned diagram out.
 export {
+  CALL_ANCHOR_ID,
+  CALLEES_MORE_ID,
   LAYOUT_VERSION,
+  MAX_CALLEES,
   MAX_RAW_NODES,
+  calleeNodeId,
   layoutContractGraph,
+  type CallNodeKind,
+  type CallSummary,
   type LayoutGeometryOptions,
+  type LayoutOverlays,
+  type PositionedCall,
   type PositionedDiagramModel,
   type PositionedEdge,
   type PositionedGroup,
@@ -226,3 +234,14 @@ export type {
   SandboxTraceFrame,
   SandboxTraceStorage,
 } from './observe/sandbox.ts';
+
+// The phase-3 call graph overlay (#543): calls out of a contract from stored
+// invocations and sandbox runs, the provenance line, and the calls-only graph.
+export {
+  buildCallGraph,
+  callersOnly,
+  describeCallWindow,
+  type CallGraphEdge,
+  type CallGraphOverlay,
+  type CallGraphRow,
+} from './observe/call-graph.ts';

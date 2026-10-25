@@ -24,12 +24,17 @@ function makeGraph(input: {
   edges?: [from: string, to: string][];
 }): ContractGraph {
   const nodes: GraphNode[] = [
-    ...(input.functions ?? []).map(
-      (name): GraphNode => ({ id: `fn:${name}`, kind: 'function', name }),
-    ),
-    ...(input.types ?? []).map(
-      (name): GraphNode => ({ id: `type:${name}`, kind: 'type', name, typeKind: 'struct' }),
-    ),
+    ...(input.functions ?? []).map((name): GraphNode => ({
+      id: `fn:${name}`,
+      kind: 'function',
+      name,
+    })),
+    ...(input.types ?? []).map((name): GraphNode => ({
+      id: `type:${name}`,
+      kind: 'type',
+      name,
+      typeKind: 'struct',
+    })),
   ];
   const edges: GraphEdge[] = (input.edges ?? []).map(([from, to]) => {
     // `from` is always a full node id; `to` may be a bare type name.
@@ -71,7 +76,10 @@ test('Identity Registry: 8 functions lay out as one column of 8 nodes', () => {
 test('types_zoo: more than one column, and every edge runs left to right except those marked back', () => {
   const model = layoutContractGraph(fixtureGraph('types_zoo'));
 
-  assert.ok(columnsOf(model).length >= 2, 'functions and the types they reach are separate columns');
+  assert.ok(
+    columnsOf(model).length >= 2,
+    'functions and the types they reach are separate columns',
+  );
   assert.ok(model.edges.length > 0);
   for (const edge of model.edges) {
     const from = byId(model, edge.from);
@@ -191,7 +199,14 @@ test('a type nothing points at sits in column 1', () => {
 
 test('an edge into a function can only run backwards', () => {
   const model = layoutContractGraph(
-    makeGraph({ functions: ['run'], types: ['A'], edges: [['fn:run', 'A'], ['type:A', 'fn:run']] }),
+    makeGraph({
+      functions: ['run'],
+      types: ['A'],
+      edges: [
+        ['fn:run', 'A'],
+        ['type:A', 'fn:run'],
+      ],
+    }),
   );
 
   assert.deepEqual(
@@ -332,7 +347,10 @@ test('a grouped contract gets one box per group, with the members contiguous ins
     const lo = Math.min(...members.map((m) => m.y));
     const hi = Math.max(...members.map((m) => m.y));
     const strangers = model.nodes.filter((n) => n.column === 0 && n.groupId !== group.id);
-    assert.ok(strangers.every((n) => n.y < lo || n.y > hi), `${group.id} is contiguous`);
+    assert.ok(
+      strangers.every((n) => n.y < lo || n.y > hi),
+      `${group.id} is contiguous`,
+    );
   }
 });
 

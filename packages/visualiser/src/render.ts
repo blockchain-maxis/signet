@@ -5,10 +5,22 @@
  * (inlined), file export, the CLI, and the local UI.
  */
 
-import { VIZ_TOKENS, type VizTheme } from './tokens.ts';
-import type { PositionedDiagramModel } from './layout.ts';
+import { VIZ_CSS_VARIABLES, VIZ_TOKENS, type VizTheme, type VizTokenName } from './tokens.ts';
+import type { PositionedDiagramModel, PositionedEdge, PositionedNode } from './layout.ts';
 import { routeEdges } from './route.ts';
 import { textWidth } from './metrics.ts';
+import { describeCallWindow } from './observe/call-graph.ts';
+import {
+  EDGE_VOCABULARY,
+  NODE_VOCABULARY,
+  dashArray,
+  markerGlyph,
+  nodeShapeSvg,
+  renderLegend,
+  sandboxBadge,
+  type EdgeKind,
+  type NodeKind,
+} from './vocabulary.ts';
 
 import type { DiagramModel, DiagramNode, DiagramEdge } from './index.ts';
 
@@ -54,46 +66,202 @@ function escapeXml(s: string): string {
     .replace(/'/g, '&apos;');
 }
 
+/** A node as the renderer draws it: positioned, with what it is. */
+interface DrawnNode extends DiagramNode {
+  x: number;
+  y: number;
+  width: number;
+  height: number;
+  kind?: PositionedNode['kind'];
+  typeKind?: string;
+  name?: string;
+}
+
+const isPositioned = (n: DiagramNode): n is DrawnNode => {
+  const p = n as Partial<DrawnNode>;
+  return (
+    [p.x, p.y, p.width, p.height].every((v) => typeof v === 'number' && Number.isFinite(v)) &&
+    p.width! > 0 &&
+    p.height! > 0
+  );
+};
+
+const FONT_PX = 14;
+
+/** The call graph footer's note on what line weight and `×N` mean. */
+const WEIGHT_NOTE =
+  'A heavier line is a call made more often (by thirds of the counts); ×N is how many transactions and runs made it.';
+const PAD_X = 10;
+const MARGIN = 24;
+
+/**
+ * Geometry for a model that has none (a bare `DiagramModel`): functions
+ * stacked in one column, everything else in the next, in model order.
+ */
+function placeUnpositioned(model: DiagramModel): DrawnNode[] {
+  const rowStep = 40;
+  const widthOf = (n: DiagramNode) => Math.ceil(textWidth(n.label, FONT_PX)) + 2 * PAD_X;
+  const fns = model.nodes.filter((n) => n.id.startsWith('fn:'));
+  const rest = model.nodes.filter((n) => !n.id.startsWith('fn:'));
+  const firstWidth = Math.max(0, ...fns.map(widthOf));
+  const place = (list: DiagramNode[], x: number) =>
+    list.map((n, i) => ({ ...n, x, y: MARGIN + i * rowStep, width: widthOf(n), height: 28 }));
+  return [...place(fns, MARGIN), ...place(rest, MARGIN + firstWidth + 96)];
+}
+
+/** The vocabulary kind a drawn node is. */
+function nodeKindOf(node: DrawnNode): NodeKind {
+  switch (node.kind) {
+    case 'function':
+      return 'function';
+    case 'missing':
+      return 'stub';
+    case 'callee':
+    case 'callees-more':
+    case 'call-anchor':
+      return node.kind;
+    case 'type':
+      return node.typeKind === 'union' ? 'union' : node.typeKind === 'enum' ? 'enum' : 'struct';
+    default:
+      return node.id.startsWith('fn:') ? 'function' : 'struct';
+  }
+}
+
+/** The vocabulary kind a drawn edge is: a call by its evidence, else its first spec kind. */
+function edgeKindOf(edge: DiagramEdge): EdgeKind {
+  const positioned = edge as Partial<PositionedEdge>;
+  if (positioned.call) {
+    const evidence = positioned.call.evidence;
+    return evidence === null ? 'call-sandbox' : (`call-${evidence}` as EdgeKind);
+  }
+  const kinds = positioned.kinds ?? [];
+  if (kinds.includes('arg')) return 'arg';
+  if (kinds.includes('return')) return 'return';
+  return 'field';
+}
+
+const cssVar = (token: VizTokenName) => `var(${VIZ_CSS_VARIABLES[token]})`;
+
+/** Stroke width in user units: spec edges by vocabulary, calls by weight. */
+function edgeStrokeWidth(edge: DiagramEdge, kind: EdgeKind): number {
+  const call = (edge as Partial<PositionedEdge>).call;
+  if (call) return call.weight;
+  return EDGE_VOCABULARY[kind].strokeWidth === 'thin' ? 1 : 1.5;
+}
+
 /**
  * Renders a DiagramModel to an SVG string.
  *
  * The root is `<svg role="img" aria-labelledby>`, with `<title>` and `<desc>`
  * summarising counts. Every function node and type node is wrapped in `<a href>`
  * pointing to its docs anchor, carries `data-node-id`, and has an SVG
- * `<title>` with the full signature. Styling is only through classes and
- * `var(--viz-*)` custom properties.
+ * `<title>` with the full signature.
  *
- * No inline hex colours, no `<style>` block, no `<script>`, no animation
+ * A laid-out model (`layoutContractGraph`) is drawn where the layout put it,
+ * with every edge routed (`routeEdges`); a bare model gets a plain two-column
+ * placement. Nodes and edges are drawn in the visual vocabulary (issue 493). A call
+ * graph overlay (issue 543) adds its callee column, weighted call edges with a
+ * count label, a legend for what it draws and the window it was observed in.
+ *
+ * Styling is only through classes and `var(--viz-*)` custom properties. No
+ * inline hex colours, no `<style>` block, no `<script>`, no animation
  * elements. A standalone export adds a `<style>` block (issue 506).
  */
 export function renderDiagramSvg(model: DiagramModel, opts: RenderOptions): string {
   const { idPrefix, hrefForNode, title } = opts;
+  const prefix = escapeXml(idPrefix);
+
+  const nodes: DrawnNode[] = model.nodes.every(isPositioned)
+    ? (model.nodes as DrawnNode[])
+    : placeUnpositioned(model);
+  const byId = new Map(nodes.map((n) => [n.id, n] as const));
+  const edges = model.edges.filter((e) => byId.has(e.from) && byId.has(e.to));
+  const routed = routeEdges(nodes, edges);
 
   const functionNodes = model.nodes.filter((n) => n.id.startsWith('fn:'));
   const typeNodes = model.nodes.filter((n) => n.id.startsWith('type:'));
   const groupCount = new Set(
     functionNodes.map((n) => n.id.split(':')[1]?.split('_')[0] ?? 'default'),
   ).size;
+  const calls = (model as Partial<PositionedDiagramModel>).calls;
+  const callEdges = edges.filter((e) => (e as Partial<PositionedEdge>).call);
+  const calleeCount = nodes.filter((n) => n.kind === 'callee').length;
 
-  const desc = `${functionNodes.length} functions in ${groupCount} groups, ${typeNodes.length} types, ${model.edges.length} references`;
+  let desc = `${functionNodes.length} functions in ${groupCount} groups, ${typeNodes.length} types, ${model.edges.length - callEdges.length} references`;
+  if (calls) {
+    desc += `; calls ${calleeCount} other contract${calleeCount === 1 ? '' : 's'}`;
+    if (calls.hidden > 0) desc += ` and ${calls.hidden} more`;
+  }
 
-  const describedByAttr = opts.ariaDescribedBy ? ` aria-describedby="${escapeXml(opts.ariaDescribedBy)}"` : '';
+  // Canvas: the layout's size, or the drawn nodes' extent plus a margin.
+  const extentX = Math.max(0, ...nodes.map((n) => n.x + n.width)) + MARGIN;
+  const extentY = Math.max(0, ...nodes.map((n) => n.y + n.height)) + MARGIN;
+  const positioned = model as Partial<PositionedDiagramModel>;
+  const bodyHeight = Math.ceil(Math.max(positioned.height ?? 0, extentY));
+
+  // The legend and provenance line sit under a call graph.
+  const legendKinds = new Set<EdgeKind | NodeKind>();
+  if (calls) legendKinds.add('callee');
+  for (const e of callEdges) {
+    legendKinds.add(edgeKindOf(e));
+    // A call the chain showed may carry an S too: explain it whenever drawn.
+    if ((e as Partial<PositionedEdge>).call!.sandboxRuns > 0) legendKinds.add('call-sandbox');
+  }
+  if (calls && calls.hidden > 0) legendKinds.add('callees-more');
+  if (nodes.some((n) => n.kind === 'call-anchor')) legendKinds.add('call-anchor');
+  const provenance = calls ? describeCallWindow(calls) : '';
+
+  // Wide enough for the diagram, and for every footer line to be read whole.
+  const legendTextWidth = [...legendKinds].map((kind) =>
+    kind in NODE_VOCABULARY
+      ? textWidth(
+          `${NODE_VOCABULARY[kind as NodeKind].prefix} — ${NODE_VOCABULARY[kind as NodeKind].label}`,
+          FONT_PX,
+        ) + 40
+      : textWidth(EDGE_VOCABULARY[kind as EdgeKind].label, FONT_PX) + 40,
+  );
+  const footerTextWidth = calls
+    ? Math.max(textWidth(WEIGHT_NOTE, 12), textWidth(provenance, 12), ...legendTextWidth) +
+      2 * MARGIN
+    : 0;
+  const width = Math.ceil(Math.max(positioned.width ?? 0, extentX, footerTextWidth));
+
+  const legend = calls
+    ? renderLegend(legendKinds, {
+        idPrefix: `${idPrefix}legend`,
+        width: width - 2 * MARGIN,
+      })
+    : '';
+  const legendHeight = legend ? Number(/data-legend-height="(\d+)"/.exec(legend)![1]) : 0;
+  const footer = calls ? legendHeight + 3 * 20 + 8 : 0;
+  const height = bodyHeight + footer;
+
+  const describedByAttr = opts.ariaDescribedBy
+    ? ` aria-describedby="${escapeXml(opts.ariaDescribedBy)}"`
+    : '';
   const svgParts: string[] = [];
   svgParts.push('<svg');
   svgParts.push('  xmlns="http://www.w3.org/2000/svg"');
   svgParts.push('  role="img"');
-  svgParts.push(`  aria-labelledby="${escapeXml(idPrefix)}title ${escapeXml(idPrefix)}desc"${describedByAttr}`);
+  svgParts.push(`  aria-labelledby="${prefix}title ${prefix}desc"${describedByAttr}`);
   svgParts.push('  class="contract-diagram"');
+  svgParts.push(`  width="${width}" height="${height}" viewBox="0 0 ${width} ${height}"`);
+  svgParts.push(
+    `  font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="${FONT_PX}"`,
+  );
   svgParts.push('>');
-  svgParts.push(`  <title id="${escapeXml(idPrefix)}title">${escapeXml(title)}</title>`);
-  svgParts.push(`  <desc id="${escapeXml(idPrefix)}desc">${escapeXml(desc)}</desc>`);
+  svgParts.push(`  <title id="${prefix}title">${escapeXml(title)}</title>`);
+  svgParts.push(`  <desc id="${prefix}desc">${escapeXml(desc)}</desc>`);
 
-  // Defs for markers (arrowheads)
+  // Arrowheads, one per marker the edges use, namespaced by idPrefix.
+  const usedMarkers = new Set(edges.map((e) => EDGE_VOCABULARY[edgeKindOf(e)].marker));
   svgParts.push('  <defs>');
-  svgParts.push('    <marker id="arrowhead" markerWidth="10" markerHeight="7"');
-  svgParts.push('      refX="9" refY="3.5" orient="auto" markerUnits="strokeWidth">');
-  svgParts.push('      <path d="M0,0 L10,3.5 L0,7 Z" class="diagram-edge-marker" />');
-  svgParts.push('    </marker>');
+  for (const marker of ['filled-arrow', 'open-arrow', 'sandbox-arrow'] as const) {
+    if (!usedMarkers.has(marker)) continue;
+    svgParts.push(
+      `    <marker id="${prefix}${marker}" markerWidth="8" markerHeight="8" refX="7.5" refY="3" orient="auto" markerUnits="userSpaceOnUse">${markerGlyph(marker)}</marker>`,
+    );
+  }
   svgParts.push('  </defs>');
 
   const focusNode = opts.focus ? model.nodes.find((n) => n.id === opts.focus) : undefined;
@@ -115,19 +283,15 @@ export function renderDiagramSvg(model: DiagramModel, opts: RenderOptions): stri
   }
 
   // Edges first (so they render behind nodes)
-  for (const edge of model.edges) {
-    const fromNode = model.nodes.find((n) => n.id === edge.from);
-    const toNode = model.nodes.find((n) => n.id === edge.to);
-    if (!fromNode || !toNode) continue;
-
-    // Simple straight-line edge for now; issue 487 will add proper routing with ports
-    const fromX = 100;
-    const fromY = 100;
-    const toX = 300;
-    const toY = 100;
+  for (const edge of routed) {
+    const kind = edgeKindOf(edge);
+    const vocab = EDGE_VOCABULARY[kind];
+    const call = (edge as Partial<PositionedEdge>).call;
 
     const edgeId = `${idPrefix}edge-${escapeXml(edge.from)}-${escapeXml(edge.to)}`;
     let edgeClass = `diagram-edge${edge.label ? ' diagram-edge--labeled' : ''}`;
+    if (call)
+      edgeClass += ` diagram-edge--call diagram-edge--${kind} diagram-edge--w${call.weight}`;
     if (isFocusValid) {
       if (incidentEdgeIds.has(`${edge.from}->${edge.to}`)) {
         edgeClass += ' viz-edge--incident';
@@ -135,7 +299,8 @@ export function renderDiagramSvg(model: DiagramModel, opts: RenderOptions): stri
         edgeClass += ' viz-dimmed';
       }
     }
-    svgParts.push(`  <line`);
+    const dash = dashArray(vocab.dash);
+    svgParts.push(`  <polyline`);
     svgParts.push(`    id="${escapeXml(edgeId)}"`);
     svgParts.push(`    class="${edgeClass}"`);
     // Endpoints as data attributes (issue 500). Node ids contain `:` (e.g.
@@ -143,20 +308,38 @@ export function renderDiagramSvg(model: DiagramModel, opts: RenderOptions): stri
     // card enhancer matches incident edges by attribute value instead.
     svgParts.push(`    data-edge-from="${escapeXml(edge.from)}"`);
     svgParts.push(`    data-edge-to="${escapeXml(edge.to)}"`);
-    svgParts.push(`    x1="${fromX}" y1="${fromY}" x2="${toX}" y2="${toY}"`);
-    svgParts.push(`    marker-end="url(#arrowhead)"`);
+    svgParts.push(`    data-edge-kind="${kind}"`);
+    if (call) svgParts.push(`    data-call-count="${call.count}"`);
+    svgParts.push(`    points="${edge.polyline.map((p) => `${p.x},${p.y}`).join(' ')}"`);
+    svgParts.push(
+      `    fill="none" stroke="${cssVar(vocab.token)}" stroke-width="${edgeStrokeWidth(edge, kind)}"${dash ? ` stroke-dasharray="${dash}"` : ''}`,
+    );
+    if (vocab.marker !== 'none') svgParts.push(`    marker-end="url(#${prefix}${vocab.marker})"`);
     if (edge.label) {
       svgParts.push(`    data-edge-label="${escapeXml(edge.label)}"`);
     }
     svgParts.push(`  />`);
+
+    if (call) {
+      // The count rides the last leg, just short of the arrow; the S badge
+      // sits where that leg starts.
+      const end = edge.polyline[edge.polyline.length - 1]!;
+      const turn = edge.polyline[edge.polyline.length - 2] ?? end;
+      const calls = `${call.count} call${call.count === 1 ? '' : 's'}`;
+      svgParts.push(
+        `  <text class="diagram-edge-count" data-count-from="${escapeXml(edge.from)}" data-count-to="${escapeXml(edge.to)}" x="${end.x - 12}" y="${end.y - 3}" text-anchor="end" font-size="12" fill="${cssVar('muted')}" stroke="${cssVar('ground')}" stroke-width="3" paint-order="stroke"><title>${calls}</title>×${call.count}</text>`,
+      );
+      if (call.sandboxRuns > 0) svgParts.push(`  ${sandboxBadge(turn.x, turn.y)}`);
+    }
   }
 
   // Nodes
-  for (const node of model.nodes) {
+  for (const node of nodes) {
     const href = hrefForNode(node.id);
-    const nodeId = `${idPrefix}node-${escapeXml(node.id)}`;
+    const nodeId = `${idPrefix}node-${node.id}`;
     const label = escapeXml(node.label);
     const anchorId = `diagram-${escapeXml(node.id.replace(/:/g, '-'))}`;
+    const kind = nodeKindOf(node);
 
     let focusClass = '';
     let autofocusAttr = '';
@@ -175,42 +358,57 @@ export function renderDiagramSvg(model: DiagramModel, opts: RenderOptions): stri
     const isMatch = cleanQuery
       ? node.id.toLowerCase().includes(cleanQuery) || node.label.toLowerCase().includes(cleanQuery)
       : true;
-    const filterClass = cleanQuery && !isMatch ? ' viz-dimmed' : cleanQuery && isMatch ? ' viz-match' : '';
+    const filterClass =
+      cleanQuery && !isMatch ? ' viz-dimmed' : cleanQuery && isMatch ? ' viz-match' : '';
     const stateClass = focusClass + filterClass;
     const containerClass = stateClass ? ` class="${stateClass.trim()}"` : '';
 
     if (href) {
-      svgParts.push(`  <a id="${anchorId}" href="${escapeXml(href)}" data-node-id="${escapeXml(node.id)}"${containerClass}${autofocusAttr}>`);
+      svgParts.push(
+        `  <a id="${anchorId}" href="${escapeXml(href)}" data-node-id="${escapeXml(node.id)}"${containerClass}${autofocusAttr}>`,
+      );
     } else {
-      svgParts.push(`  <g id="${anchorId}" data-node-id="${escapeXml(node.id)}"${containerClass}${autofocusAttr}>`);
+      svgParts.push(
+        `  <g id="${anchorId}" data-node-id="${escapeXml(node.id)}"${containerClass}${autofocusAttr}>`,
+      );
     }
 
-    const isFunction = node.id.startsWith('fn:');
+    const isFunction = kind === 'function';
     let nodeClass = isFunction
       ? 'diagram-node diagram-node--function'
-      : 'diagram-node diagram-node--type';
+      : kind === 'struct' || kind === 'union' || kind === 'enum'
+        ? 'diagram-node diagram-node--type'
+        : `diagram-node diagram-node--${kind}`;
     if (stateClass) {
       nodeClass += stateClass;
     }
 
-    svgParts.push(`    <rect`);
-    svgParts.push(`      id="${escapeXml(nodeId)}"`);
-    svgParts.push(`      class="${nodeClass}"`);
-    svgParts.push(`      x="${isFunction ? 50 : 250}"`);
-    svgParts.push(`      y="${isFunction ? 50 : 150}"`);
-    svgParts.push(`      width="${label.length * 8 + 20}"`);
-    svgParts.push(`      height="28"`);
-    svgParts.push(`      rx="4" ry="4"`);
-    svgParts.push(`    />`);
+    // The outline in the node's vocabulary shape; a callee is ringed in the
+    // observed colour, as its edges are.
+    const shape = nodeShapeSvg(
+      NODE_VOCABULARY[kind].shape,
+      node.x,
+      node.y,
+      node.width,
+      node.height,
+      {
+        id: nodeId,
+        className: nodeClass,
+        ...(kind === 'callee' && { stroke: 'observed' as const }),
+      },
+    );
+    svgParts.push(`    ${shape}`);
 
-    svgParts.push(`    <title>${escapeXml(node.label)}</title>`);
+    svgParts.push(`    <title>${escapeXml(node.name ?? node.label)}</title>`);
 
     svgParts.push(`    <text`);
     svgParts.push(`      class="diagram-node-label"`);
-    svgParts.push(`      x="${isFunction ? 60 : 260}"`);
-    svgParts.push(`      y="${isFunction ? 68 : 168}"`);
-    svgParts.push(`      text-anchor="middle"`);
-    svgParts.push(`      dominant-baseline="middle"`);
+    svgParts.push(`      x="${node.x + PAD_X}"`);
+    svgParts.push(`      y="${node.y + node.height / 2}"`);
+    svgParts.push(`      dominant-baseline="central"`);
+    svgParts.push(
+      `      fill="${cssVar(kind === 'call-anchor' || kind === 'callees-more' || kind === 'stub' ? 'muted' : 'nodeText')}"`,
+    );
     svgParts.push(`    >`);
     svgParts.push(`      ${label}`);
     svgParts.push(`    </text>`);
@@ -220,6 +418,20 @@ export function renderDiagramSvg(model: DiagramModel, opts: RenderOptions): stri
     } else {
       svgParts.push(`  </g>`);
     }
+  }
+
+  if (calls) {
+    svgParts.push(
+      `  <g class="diagram-call-footer" transform="translate(${MARGIN - 8} ${bodyHeight})">`,
+    );
+    svgParts.push(`    ${legend}`);
+    svgParts.push(
+      `    <text class="diagram-call-weight" x="8" y="${legendHeight + 12}" font-size="12" fill="${cssVar('muted')}">${WEIGHT_NOTE}</text>`,
+    );
+    svgParts.push(
+      `    <text class="diagram-call-provenance" x="8" y="${legendHeight + 32}" font-size="12" fill="${cssVar('muted')}">${escapeXml(provenance)}</text>`,
+    );
+    svgParts.push('  </g>');
   }
 
   svgParts.push('</svg>');

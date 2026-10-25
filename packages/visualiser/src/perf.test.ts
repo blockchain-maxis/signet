@@ -144,10 +144,7 @@ function assertWithinBudgets(m: PerfMeasurement): void {
     m.medianMs <= BUDGET_LAYOUT_RENDER_MEDIAN_MS,
     `Layout + render median time exceeded budget: ${summary}`,
   );
-  assert.ok(
-    m.svgBytes <= BUDGET_SVG_MAX_BYTES,
-    `Rendered SVG size exceeded budget: ${summary}`,
-  );
+  assert.ok(m.svgBytes <= BUDGET_SVG_MAX_BYTES, `Rendered SVG size exceeded budget: ${summary}`);
   assert.ok(
     m.jsonBytes <= BUDGET_MODEL_JSON_MAX_BYTES,
     `Cached DiagramModel JSON size exceeded budget: ${summary}`,
@@ -157,7 +154,10 @@ function assertWithinBudgets(m: PerfMeasurement): void {
 test('perf budget: large real-contract fixture (axelar-its) stays within time, SVG, and JSON budgets', (t) => {
   const spec = loadFixture('axelar-its');
   const graph = buildContractGraph(spec);
-  assert.ok(graph.nodes.length >= 40, `expected >= 40 nodes in axelar-its, got ${graph.nodes.length}`);
+  assert.ok(
+    graph.nodes.length >= 40,
+    `expected >= 40 nodes in axelar-its, got ${graph.nodes.length}`,
+  );
 
   const m = measureLayoutAndRender('axelar-its', graph);
   t.diagnostic(formatSummary(m));

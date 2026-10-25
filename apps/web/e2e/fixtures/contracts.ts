@@ -1,4 +1,5 @@
 import { StrKey } from '@stellar/stellar-sdk';
+import { CALLEE_SAC } from './docs-failures';
 
 /**
  * Database fixture for the contract-page e2e (#463).
@@ -81,9 +82,33 @@ export async function seedContractFixture(): Promise<void> {
 
     // Fixture-only contracts.
     const contracts = [
-      { address: CONTRACT_A, wallet: wallets[0]!, pubkey: WALLET_1, network: CONFIGURED_NETWORK, tx: DEPLOY_TX_A, day: '2026-03-01', wasm: WASM_HASH_2 },
-      { address: CONTRACT_B, wallet: wallets[1]!, pubkey: WALLET_2, network: CONFIGURED_NETWORK, tx: 'b2'.repeat(32), day: '2026-02-01', wasm: WASM_HASH_1 },
-      { address: CONTRACT_C, wallet: wallets[0]!, pubkey: WALLET_1, network: OTHER_NETWORK, tx: 'c3'.repeat(32), day: '2026-01-01', wasm: WASM_HASH_1 },
+      {
+        address: CONTRACT_A,
+        wallet: wallets[0]!,
+        pubkey: WALLET_1,
+        network: CONFIGURED_NETWORK,
+        tx: DEPLOY_TX_A,
+        day: '2026-03-01',
+        wasm: WASM_HASH_2,
+      },
+      {
+        address: CONTRACT_B,
+        wallet: wallets[1]!,
+        pubkey: WALLET_2,
+        network: CONFIGURED_NETWORK,
+        tx: 'b2'.repeat(32),
+        day: '2026-02-01',
+        wasm: WASM_HASH_1,
+      },
+      {
+        address: CONTRACT_C,
+        wallet: wallets[0]!,
+        pubkey: WALLET_1,
+        network: OTHER_NETWORK,
+        tx: 'c3'.repeat(32),
+        day: '2026-01-01',
+        wasm: WASM_HASH_1,
+      },
     ];
     const rows = [];
     for (const c of contracts) {
@@ -109,11 +134,25 @@ export async function seedContractFixture(): Promise<void> {
     // Fixture-only snapshots. ContractSnapshot has no natural key, so replace.
     // (#429 adds `countedSince`; once that column exists, set it here the way
     // the snapshot worker does.)
-    await prisma.contractSnapshot.deleteMany({ where: { contractId: { in: rows.map((r) => r.id) } } });
+    await prisma.contractSnapshot.deleteMany({
+      where: { contractId: { in: rows.map((r) => r.id) } },
+    });
     await prisma.contractSnapshot.createMany({
       data: [
-        { contractId: a.id, capturedAt: at('2026-03-10T00:00:00Z'), txCount24h: 3, txCountTotal: 42, lastActivity: at('2026-03-10T08:30:00Z') },
-        { contractId: b.id, capturedAt: at('2026-03-10T00:00:00Z'), txCount24h: 0, txCountTotal: 7, lastActivity: at('2026-02-20T10:00:00Z') },
+        {
+          contractId: a.id,
+          capturedAt: at('2026-03-10T00:00:00Z'),
+          txCount24h: 3,
+          txCountTotal: 42,
+          lastActivity: at('2026-03-10T08:30:00Z'),
+        },
+        {
+          contractId: b.id,
+          capturedAt: at('2026-03-10T00:00:00Z'),
+          txCount24h: 0,
+          txCountTotal: 7,
+          lastActivity: at('2026-02-20T10:00:00Z'),
+        },
       ],
     });
 
@@ -127,7 +166,13 @@ export async function seedContractFixture(): Promise<void> {
       sdkVersion: '16.1.0',
       entriesXdr: [],
       functions: [
-        { name: 'claim', doc: 'Claims a handle for a wallet.', isConstructor: false, inputs: [], outputs: ['void'] },
+        {
+          name: 'claim',
+          doc: 'Claims a handle for a wallet.',
+          isConstructor: false,
+          inputs: [],
+          outputs: ['void'],
+        },
         { name: 'resolve', doc: '', isConstructor: false, inputs: [], outputs: ['address'] },
       ],
       types: [{ kind: 'struct', name: 'Binding', fields: [] }],
@@ -159,8 +204,18 @@ export async function seedContractFixture(): Promise<void> {
         readOnly: [],
         readWrite: [],
         eventsContractIds: [],
+        // Every `claim` pays a USDC asset contract (#543's call graph): the
+        // auth tree names the transfer, as the indexer records it (#516).
+        callEdges:
+          i % 2 === 0
+            ? [{ from: CONTRACT_A, to: CALLEE_SAC, function: 'transfer', evidence: 'auth-tree' }]
+            : [],
       };
-      await prisma.contractInvocation.upsert({ where: { id }, update: data, create: { id, ...data } });
+      await prisma.contractInvocation.upsert({
+        where: { id },
+        update: data,
+        create: { id, ...data },
+      });
     }
 
     // Fixture-only WASM version history for contract A (an upgrade from hash 1 to hash 2).
@@ -171,7 +226,12 @@ export async function seedContractFixture(): Promise<void> {
       await prisma.contractWasmVersion.upsert({
         where: { contractId_wasmHash: { contractId: a.id, wasmHash } },
         update: { observedAt: at(`${day}T12:00:00Z`), observedLedger: ledger },
-        create: { contractId: a.id, wasmHash, observedAt: at(`${day}T12:00:00Z`), observedLedger: ledger },
+        create: {
+          contractId: a.id,
+          wasmHash,
+          observedAt: at(`${day}T12:00:00Z`),
+          observedLedger: ledger,
+        },
       });
     }
   } finally {

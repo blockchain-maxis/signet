@@ -17,4 +17,6 @@ export interface ContractSlotProps {
   query?: string;
   /** Focused node ID (?focus=, #505) */
   focus?: string;
+  /** Draw every callee instead of collapsing the rest (?callees=all, #543) */
+  expandCallees?: boolean;
 }

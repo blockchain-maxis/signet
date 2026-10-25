@@ -105,7 +105,9 @@ test('diagramPanels handles declared events and build provenance', () => {
 
 test('renderPanelsHtml escapes special characters in strings', () => {
   const dummy = {
-    errors: [{ enumName: 'Bad<Enum>', name: 'Err&Special', value: 99, doc: 'Uses <b>bold</b> & "quotes"' }],
+    errors: [
+      { enumName: 'Bad<Enum>', name: 'Err&Special', value: 99, doc: 'Uses <b>bold</b> & "quotes"' },
+    ],
     events: [],
   };
 

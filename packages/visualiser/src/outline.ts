@@ -8,8 +8,14 @@
  * Pure and deterministic: no DOM, no clock, no randomness.
  */
 
-import type { PositionedDiagramModel, PositionedGroup, PositionedNode, PositionedEdge } from './layout.ts';
+import type {
+  PositionedDiagramModel,
+  PositionedGroup,
+  PositionedNode,
+  PositionedEdge,
+} from './layout.ts';
 import type { DiagramModel, DiagramNode, DiagramEdge } from './index.ts';
+import { describeCallWindow } from './observe/call-graph.ts';
 
 /** A node in the text-equivalent diagram outline hierarchy. */
 export interface OutlineNode {
@@ -19,8 +25,11 @@ export interface OutlineNode {
   readonly name: string;
   /** Synonym for name to fulfill node contracts. */
   readonly label: string;
-  /** Kind of item in the outline hierarchy. */
-  readonly kind: 'group' | 'function' | 'type';
+  /**
+   * Kind of item in the outline hierarchy. `callee` and `caller` are the call
+   * graph's (#543): another contract, and a function that called it.
+   */
+  readonly kind: 'group' | 'function' | 'type' | 'callee' | 'caller';
   /** Node ID in the underlying graph for docs linking. */
   readonly nodeId?: string;
   /** Edge ID this node represents, if reached via an edge. */
@@ -104,11 +113,15 @@ export function buildDiagramOutline(model: PositionedDiagramModel | DiagramModel
     nodesById.set(node.id, node);
   }
 
-  // Index outgoing edges by source node id
+  // Index outgoing edges by source node id. Call edges (#543) are not a
+  // function's types: they get their own section below.
+  const isCall = (edge: DiagramEdge | PositionedEdge) => 'call' in edge && edge.call !== undefined;
   const outgoingEdges = new Map<string, ResolvedEdge[]>();
   for (const edge of model.edges) {
+    if (isCall(edge)) continue;
     const id = edgeIdOf(edge);
-    const kinds = 'kinds' in edge && Array.isArray(edge.kinds) ? (edge.kinds as readonly string[]) : undefined;
+    const kinds =
+      'kinds' in edge && Array.isArray(edge.kinds) ? (edge.kinds as readonly string[]) : undefined;
     const resolved: ResolvedEdge = {
       id,
       from: edge.from,
@@ -347,7 +360,63 @@ export function buildDiagramOutline(model: PositionedDiagramModel | DiagramModel
     outline.push(typesGroup);
   }
 
+  const calls = callsSection(model, nodesById, isCall);
+  if (calls) outline.push(calls);
+
   return outline;
+}
+
+const EVIDENCE_WORDS: Record<string, string> = {
+  'auth-tree': 'named by an auth tree',
+  event: 'the callee emitted an event',
+  footprint: 'in the footprint',
+};
+
+/** The call graph as text: each callee, and the functions that called it. */
+function callsSection(
+  model: PositionedDiagramModel | DiagramModel,
+  nodesById: ReadonlyMap<string, PositionedNode | DiagramNode>,
+  isCall: (edge: DiagramEdge | PositionedEdge) => boolean,
+): OutlineNode | null {
+  const callEdges = (model.edges as PositionedEdge[]).filter(isCall);
+  if (callEdges.length === 0) return null;
+  const callees = model.nodes.filter(
+    (n) => 'kind' in n && (n.kind === 'callee' || n.kind === 'callees-more'),
+  );
+  const summary = 'calls' in model ? model.calls : undefined;
+  return {
+    id: 'group:calls',
+    name: 'calls to other contracts',
+    label: 'calls to other contracts',
+    kind: 'group',
+    ...(summary && { overlay: { provenance: describeCallWindow(summary) } }),
+    children: callees.map((callee) => ({
+      id: callee.id,
+      name: nameOfNode(callee, callee.id),
+      label: nameOfNode(callee, callee.id),
+      kind: 'callee' as const,
+      nodeId: callee.id,
+      children: callEdges
+        .filter((e) => e.to === callee.id)
+        .map((e) => {
+          const name = nameOfNode(nodesById.get(e.from), e.from);
+          const how = e.call!.evidence
+            ? EVIDENCE_WORDS[e.call!.evidence]!
+            : 'seen in a local sandbox run';
+          const sandbox =
+            e.call!.evidence && e.call!.sandboxRuns > 0 ? ', and in a local sandbox run' : '';
+          return {
+            id: e.from,
+            name,
+            label: name,
+            kind: 'caller' as const,
+            nodeId: e.from,
+            edgeId: e.id,
+            role: `${e.call!.count} call${e.call!.count === 1 ? '' : 's'}, ${how}${sandbox}`,
+          };
+        }),
+    })),
+  };
 }
 
 /** Escapes special characters for safe HTML inclusion. */
@@ -454,6 +523,16 @@ export function renderOutlineHtml(
     return `<li>${link}: contains<ul>${formattedFields}</ul></li>`;
   }
 
+  function renderCallee(callee: OutlineNode): string {
+    const link = renderLink(callee.nodeId ?? callee.id, callee.name);
+    const callers = (callee.children ?? [])
+      .map(
+        (c) => `${renderLink(c.nodeId ?? c.id, c.name)}${c.role ? ` (${escapeHtml(c.role)})` : ''}`,
+      )
+      .join(', ');
+    return `<li>${link}: called by ${callers}</li>`;
+  }
+
   const groupItems = outline.map((group) => {
     const groupTitle = `<span class="outline-group-name">${escapeHtml(group.name)}</span>`;
     const childrenHtml = (group.children ?? [])
@@ -461,10 +540,16 @@ export function renderOutlineHtml(
         if (child.kind === 'function') {
           return renderFunction(child);
         }
+        if (child.kind === 'callee') {
+          return renderCallee(child);
+        }
         return renderTypeItem(child);
       })
       .join('');
-    return `<li>${groupTitle}<ul>${childrenHtml}</ul></li>`;
+    const provenance = group.overlay?.provenance
+      ? `<li class="outline-provenance">${escapeHtml(group.overlay.provenance)}</li>`
+      : '';
+    return `<li>${groupTitle}<ul>${childrenHtml}${provenance}</ul></li>`;
   });
 
   return `<ul class="diagram-outline">${groupItems.join('')}</ul>`;

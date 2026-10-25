@@ -185,8 +185,18 @@ const registrySpec = {
     },
   ],
   errors: [
-    { enumName: 'RegistryError', name: 'HandleTaken', value: 1, doc: 'The handle belongs to someone else.' },
-    { enumName: 'RegistryError', name: 'NotOwner', value: 2, doc: 'The caller does not hold the handle.' },
+    {
+      enumName: 'RegistryError',
+      name: 'HandleTaken',
+      value: 1,
+      doc: 'The handle belongs to someone else.',
+    },
+    {
+      enumName: 'RegistryError',
+      name: 'NotOwner',
+      value: 2,
+      doc: 'The caller does not hold the handle.',
+    },
   ],
   events: [],
   build: { rustVersion: '1.91.1', sdkVersion: '26.1.0' },
@@ -219,7 +229,10 @@ const undocumentedSpec = {
           type: { type: 'map', key: 'symbol', value: { type: 'vec', element: 'bytes' } },
         },
         { name: 'observed_at_ledger_timestamp', type: 'timepoint' },
-        { name: 'maybe_previous_observation', type: { type: 'option', value: named('Observation') } },
+        {
+          name: 'maybe_previous_observation',
+          type: { type: 'option', value: named('Observation') },
+        },
       ],
       outputs: [named('Observation')],
     },
@@ -267,7 +280,12 @@ export async function seedDocsRegistryFixture(): Promise<void> {
       await prisma.contractSpec.upsert({
         where: { wasmHash: row.wasm },
         update: { schemaVersion: 1, sdkVersion: SDK_VERSION, specJson: row.spec },
-        create: { wasmHash: row.wasm, schemaVersion: 1, sdkVersion: SDK_VERSION, specJson: row.spec },
+        create: {
+          wasmHash: row.wasm,
+          schemaVersion: 1,
+          sdkVersion: SDK_VERSION,
+          specJson: row.spec,
+        },
       });
     }
   } finally {

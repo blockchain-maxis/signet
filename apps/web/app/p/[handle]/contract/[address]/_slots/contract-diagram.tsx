@@ -2,14 +2,19 @@ import { fromSpecJson, type ContractSpec, type SpecJson } from '@signet/spec';
 import {
   buildContractGraph,
   buildDiagramOutline,
+  callersOnly,
+  CALLEES_MORE_ID,
   diagramDecision,
   layoutContractGraph,
   renderDiagramSvg,
   renderOutlineHtml,
   typeAnchor,
   MAX_NODES,
+  type LayoutOverlays,
+  type PositionedDiagramModel,
 } from '@signet/visualiser';
 import { logger } from '@/lib/logger';
+import { loadContractCallGraph, type ContractCallGraph } from '@/lib/server/call-graph-source';
 import { SectionLabel } from '../../../_components/section-label';
 import { SlotPlaceholder } from './slot-placeholder';
 import type { ContractSlotProps } from './slot-props';
@@ -38,21 +43,44 @@ function specForGraph(json: SpecJson, { address, network }: ContractSlotProps): 
  * Following #499 (E-19), the outline sits after the SVG in a `<details>` labelled
  * "Diagram as text", and the SVG gets `aria-describedby="diagram-outline"`.
  */
-function DiagramBody(props: ContractSlotProps) {
+function DiagramBody(props: ContractSlotProps & { calls: ContractCallGraph | null }) {
   if (props.spec.kind !== 'spec') {
     return <SlotPlaceholder slot="diagram" props={props} />;
   }
 
   const spec = specForGraph(props.spec.spec as SpecJson, props);
   const graph = buildContractGraph(spec);
-  const model = layoutContractGraph(graph);
-  const decision = diagramDecision(graph, model);
+  const specModel = layoutContractGraph(graph);
+  const decision = diagramDecision(graph, specModel);
+
+  // The call graph (#543) rides on the spec diagram; when the interface is not
+  // worth drawing, the calls are drawn alone, from the functions that made them.
+  const { calls } = props;
+  const overlays: LayoutOverlays = calls
+    ? {
+        calls: {
+          overlay: calls.overlay,
+          labels: new Map([...calls.labels].map(([address, label]) => [address, label.text])),
+          expand: props.expandCallees,
+        },
+      }
+    : {};
+  const callsAlone = decision.kind !== 'draw' && calls !== null;
+  const model: PositionedDiagramModel =
+    decision.kind === 'draw'
+      ? layoutContractGraph(graph, {}, overlays)
+      : callsAlone
+        ? layoutContractGraph(callersOnly(graph, calls.overlay), {}, overlays)
+        : specModel;
 
   const basePath = `/p/${encodeURIComponent(props.handle)}/contract/${encodeURIComponent(props.address)}`;
   const hrefForNode = (nodeId: string) => {
     const node = model.nodes.find((n) => n.id === nodeId);
     if (node?.kind === 'function') return `${basePath}/functions#fn-${node.name}`;
     if (node?.kind === 'type') return `${basePath}/types#${typeAnchor(node.name)}`;
+    if (node?.kind === 'callee' && node.address)
+      return calls?.labels.get(node.address)?.href ?? null;
+    if (node?.id === CALLEES_MORE_ID) return `${basePath}/diagram?callees=all`;
     return null;
   };
 
@@ -68,26 +96,24 @@ function DiagramBody(props: ContractSlotProps) {
       <summary className="cursor-pointer font-medium text-[#f5f4ee] hover:text-[#e05a4b] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#e05a4b]">
         Diagram as text
       </summary>
-      <div
-        className="mt-4"
-        dangerouslySetInnerHTML={{ __html: outlineHtml }}
-      />
+      <div className="mt-4" dangerouslySetInnerHTML={{ __html: outlineHtml }} />
     </details>
   );
 
-  if (decision.kind === 'too-simple') {
+  if (decision.kind === 'too-simple' && !callsAlone) {
     return (
       <section data-testid="slot-diagram">
         <SectionLabel as="h2">Diagram</SectionLabel>
         <p className="mt-6 text-[13px] leading-[1.7] text-[#8a8779]">
-          This contract’s interface has no types to connect. The function list below is the complete picture.
+          This contract’s interface has no types to connect. The function list below is the complete
+          picture.
         </p>
         {outlineDetails}
       </section>
     );
   }
 
-  if (decision.kind === 'too-large') {
+  if (decision.kind === 'too-large' && !callsAlone) {
     logger.warn(
       { address: props.address, limit: MAX_NODES, observed: decision.nodeCount },
       'spec.limit.exceeded',
@@ -96,7 +122,8 @@ function DiagramBody(props: ContractSlotProps) {
       <section data-testid="slot-diagram">
         <SectionLabel as="h2">Diagram</SectionLabel>
         <p className="mt-6 text-[13px] leading-[1.7] text-[#8a8779]">
-          This contract’s interface has {decision.nodeCount} nodes, which is too large to diagram usefully on one canvas.
+          This contract’s interface has {decision.nodeCount} nodes, which is too large to diagram
+          usefully on one canvas.
         </p>
         {outlineDetails}
       </section>
@@ -159,10 +186,14 @@ function DiagramBody(props: ContractSlotProps) {
       {cleanQuery && totalMatches === 0 && (
         <p className="my-4 text-xs text-[#8a8779]">No functions or types match</p>
       )}
-      <div
-        className="overflow-x-auto"
-        dangerouslySetInnerHTML={{ __html: svg }}
-      />
+      {callsAlone && (
+        <p className="mb-4 text-[13px] leading-[1.7] text-[#8a8779]">
+          {decision.kind === 'too-large'
+            ? `This contract’s interface has ${decision.nodeCount} nodes, too many to diagram on one canvas, so this shows only the calls it makes to other contracts.`
+            : 'This contract’s interface has no types to connect, so this shows only the calls it makes to other contracts.'}
+        </p>
+      )}
+      <div className="overflow-x-auto" dangerouslySetInnerHTML={{ __html: svg }} />
       {outlineDetails}
     </section>
   );
@@ -172,7 +203,9 @@ function DiagramBody(props: ContractSlotProps) {
  * Bounded viewport container (#504): overflow: auto, max-height: 70vh, a
  * focusable `role="region"` so keyboard users can scroll a large diagram.
  */
-export function ContractDiagram(props: ContractSlotProps) {
+export async function ContractDiagram(props: ContractSlotProps) {
+  const calls =
+    props.spec.kind === 'spec' ? await loadContractCallGraph(props.address, props.network) : null;
   return (
     <div
       role="region"
@@ -180,7 +213,7 @@ export function ContractDiagram(props: ContractSlotProps) {
       tabIndex={0}
       className="viz-viewport max-h-[70vh] max-w-full overflow-auto outline-none focus-visible:ring-2 focus-visible:ring-[#60a5fa]"
     >
-      <DiagramBody {...props} />
+      <DiagramBody {...props} calls={calls} />
     </div>
   );
 }

@@ -48,17 +48,17 @@ test('the four drawn type kinds do not all collapse to one shape', () => {
   assert.ok(shapes.size >= 3);
 });
 
-test('stubs are the only dashed-outline node, so a link-out reads differently', () => {
+test('only link-outs are dashed outlines: a stub, and the collapsed callees', () => {
   for (const kind of NODE_KIND_ORDER) {
     const dashed = NODE_VOCABULARY[kind].shape === 'dashed-outline-rect';
-    assert.equal(dashed, kind === 'stub');
+    assert.equal(dashed, kind === 'stub' || kind === 'callees-more');
   }
 });
 
-test('node prefixes are the fixed set fn/struct/union/enum/stub', () => {
+test('node prefixes are the fixed set', () => {
   assert.deepEqual(
     new Set(NODE_KIND_ORDER.map((kind) => NODE_VOCABULARY[kind].prefix)),
-    new Set(['fn', 'struct', 'union', 'enum', 'stub']),
+    new Set(['fn', 'struct', 'union', 'enum', 'stub', 'contract', 'more', 'anchor']),
   );
 });
 
@@ -87,15 +87,25 @@ test('no two edge kinds share both a dash pattern and a marker', () => {
   }
 });
 
-test('spec-derived edges are solid and observed edges are dashed and labelled', () => {
+test('spec-derived edges are solid; observed edges are labelled and never read as spec edges', () => {
+  const specMarkers = new Set(
+    EDGE_KIND_ORDER.filter((k) => EDGE_VOCABULARY[k].specDerived).map(
+      (k) => EDGE_VOCABULARY[k].marker,
+    ),
+  );
   for (const kind of EDGE_KIND_ORDER) {
     const vocab = EDGE_VOCABULARY[kind];
     if (vocab.specDerived) {
       assert.equal(vocab.dash, 'solid', `${kind} must be solid`);
       assert.equal(vocab.requiresLabel, false);
     } else {
-      assert.equal(vocab.dash, 'dashed', `${kind} must be dashed`);
       assert.equal(vocab.requiresLabel, true, `${kind} must carry a label`);
+      // Solid only with a marker no spec edge uses (the sandbox's S arrow).
+      assert.ok(
+        vocab.dash !== 'solid' || !specMarkers.has(vocab.marker),
+        `${kind} would read as a spec edge`,
+      );
+      assert.notEqual(vocab.token, 'edge', `${kind} must not share the spec edges' colour`);
     }
   }
 });

@@ -169,7 +169,7 @@ test('the registry is too simple to draw: its golden is the function list, not a
   assert.equal(decision.kind, 'too-simple');
   assert.equal((svg.match(/diagram-node--function/g) ?? []).length, 8);
   assert.ok(!svg.includes('diagram-node--type'), 'no type nodes');
-  assert.ok(!svg.includes('<line'), 'no edges');
+  assert.ok(!svg.includes('<polyline'), 'no edges');
 });
 
 test('a contract worth drawing renders its types and edges', () => {
@@ -179,7 +179,7 @@ test('a contract worth drawing renders its types and edges', () => {
   assert.ok(drawn.length > 0, 'at least one fixture is drawn as a graph');
   for (const { name, svg } of drawn) {
     assert.ok(svg.includes('diagram-node--type'), `${name}: type nodes`);
-    assert.ok(svg.includes('<line'), `${name}: edges`);
+    assert.ok(svg.includes('<polyline'), `${name}: edges`);
   }
 });
 
