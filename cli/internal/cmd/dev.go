@@ -33,6 +33,7 @@ func newDevCmd() *cobra.Command {
 	var (
 		path, pkg string
 		ci        bool
+		debounce  time.Duration
 	)
 	cmd := &cobra.Command{
 		Use:   "dev [contract]",
@@ -53,13 +54,14 @@ when it does not; exit 3 for the others).`,
   signet dev init CASF…RCN --path ./contracts/registry`,
 		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runDev(cmd, args, path, pkg, ci)
+			return runDev(cmd, args, path, pkg, ci, debounce)
 		},
 	}
 	addRPCFlags(cmd)
 	cmd.Flags().StringVar(&path, "path", "", "the contract's crate directory (default: path in signet.dev.toml)")
 	cmd.Flags().StringVar(&pkg, "package", "", "the contract crate, when --path is a workspace with several (default: package in signet.dev.toml)")
 	cmd.Flags().BoolVar(&ci, "ci", false, "run once, non-interactively: a failed build exits 12")
+	cmd.Flags().DurationVar(&debounce, "debounce", dev.DefaultDebounce, "how long a burst of file changes must settle before one rebuild")
 	cmd.AddCommand(newDevInitCmd())
 	return cmd
 }
@@ -73,7 +75,7 @@ type devSetup struct {
 	fileDir  string
 }
 
-func runDev(cmd *cobra.Command, args []string, path, pkg string, ci bool) error {
+func runDev(cmd *cobra.Command, args []string, path, pkg string, ci bool, debounce time.Duration) error {
 	deps, err := depsFor(cmd)
 	if err != nil {
 		return err
@@ -201,6 +203,9 @@ func runDev(cmd *cobra.Command, args []string, path, pkg string, ci bool) error 
 		printer.Progress("build failed:\n" + buildErr.Error())
 	default:
 		return buildErr
+	}
+	if !ci {
+		return watchAndRebuild(ctx, setup, builder, debounce, printer.Progress)
 	}
 	return printer.Result(struct {
 		Contract   string `json:"contract"`
@@ -419,4 +424,92 @@ func plural(n int, one, many string) string {
 		return one
 	}
 	return many
+}
+
+// watchAndRebuild is the interactive loop (#565): every settled burst of
+// source changes rebuilds, a newer one cancelling a build in flight, and a
+// change to signet.dev.toml alone replays without a rebuild. It runs until
+// Ctrl-C.
+func watchAndRebuild(ctx context.Context, setup devSetup, builder *dev.Builder, debounce time.Duration, progress func(string)) error {
+	files := []string{}
+	if root := setup.crate.WorkspaceRoot; root != "" {
+		files = append(files, filepath.Join(root, "Cargo.toml"), filepath.Join(root, "Cargo.lock"))
+	}
+	devFile := ""
+	if setup.file != nil {
+		devFile = filepath.Join(setup.fileDir, devconfig.FileName)
+	}
+	crateDir := filepath.Dir(setup.crate.ManifestPath)
+	triggers, err := dev.Watch(ctx, dev.WatchOptions{CrateDir: crateDir, Files: files, DevFile: devFile, Debounce: debounce})
+	if err != nil {
+		return fmt.Errorf("%w: watching %s: %v", exitcode.ErrConfiguration, crateDir, err)
+	}
+	progress(fmt.Sprintf("watching %s for changes (Ctrl-C to stop)", crateDir))
+
+	type outcome struct {
+		built dev.Built
+		err   error
+	}
+	results := make(chan outcome, 1)
+	building, again := false, false
+	var cancel context.CancelFunc = func() {}
+	start := func() {
+		var bctx context.Context
+		bctx, cancel = context.WithCancel(ctx)
+		building, again = true, false
+		go func() {
+			built, err := builder.Build(bctx)
+			results <- outcome{built, err}
+		}()
+	}
+	defer func() { cancel() }()
+	for {
+		select {
+		case <-ctx.Done():
+			if building {
+				<-results
+			}
+			return nil
+		case t, ok := <-triggers:
+			if !ok {
+				return nil
+			}
+			if !t.Rebuild {
+				progress("signet.dev.toml changed: replaying on the current build")
+				continue
+			}
+			if building {
+				// Stop the stale build; the next starts once it has.
+				again = true
+				cancel()
+				continue
+			}
+			progress(fmt.Sprintf("changed: %s; rebuilding", strings.Join(relativeTo(crateDir, t.Paths), ", ")))
+			start()
+		case o := <-results:
+			building = false
+			switch {
+			case errors.Is(o.err, context.Canceled):
+			case o.err == nil:
+				progress(fmt.Sprintf("built %s in %s", filepath.Base(o.built.Wasm), o.built.Duration.Round(100*time.Millisecond)))
+			default:
+				progress("build failed:\n" + o.err.Error())
+			}
+			if again && ctx.Err() == nil {
+				progress("rebuilding for a newer change")
+				start()
+			}
+		}
+	}
+}
+
+func relativeTo(dir string, paths []string) []string {
+	out := make([]string, len(paths))
+	for i, p := range paths {
+		if rel, err := filepath.Rel(dir, p); err == nil && !strings.HasPrefix(rel, "..") {
+			p = rel
+		}
+		out[i] = p
+	}
+	return out
 }

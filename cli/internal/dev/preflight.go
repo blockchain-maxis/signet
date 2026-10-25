@@ -82,6 +82,8 @@ type Crate struct {
 	ManifestPath string
 	// TargetDir is cargo's target directory for the crate's workspace.
 	TargetDir string
+	// WorkspaceRoot holds the workspace Cargo.toml and Cargo.lock.
+	WorkspaceRoot string
 }
 
 // FindCrate is preflight step 4: path holds a Cargo.toml with a cdylib
@@ -97,6 +99,7 @@ func FindCrate(t Tools, path, pkg string) (Crate, error) {
 	}
 	var meta struct {
 		TargetDirectory string `json:"target_directory"`
+		WorkspaceRoot   string `json:"workspace_root"`
 		Packages        []struct {
 			Name         string `json:"name"`
 			ManifestPath string `json:"manifest_path"`
@@ -112,7 +115,7 @@ func FindCrate(t Tools, path, pkg string) (Crate, error) {
 	for _, p := range meta.Packages {
 		for _, target := range p.Targets {
 			if slices.Contains(target.CrateTypes, "cdylib") {
-				contracts = append(contracts, Crate{Name: p.Name, ManifestPath: p.ManifestPath, TargetDir: meta.TargetDirectory})
+				contracts = append(contracts, Crate{Name: p.Name, ManifestPath: p.ManifestPath, TargetDir: meta.TargetDirectory, WorkspaceRoot: meta.WorkspaceRoot})
 				break
 			}
 		}

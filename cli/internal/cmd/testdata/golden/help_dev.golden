@@ -26,6 +26,7 @@ Available Commands:
 
 Flags:
       --ci                          run once, non-interactively: a failed build exits 12
+      --debounce duration           how long a burst of file changes must settle before one rebuild (default 150ms)
       --drift string                when an entry fetched for the fork changed on-chain after the fork ledger: warn, fail (exit 6), or refork (pin the latest ledger and run once more) (default "warn")
   -h, --help                        help for dev
       --network-passphrase string   passphrase of a custom --network (checked against the RPC's getNetwork)

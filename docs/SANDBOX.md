@@ -116,6 +116,14 @@ were, and the previous WASM stays in use; a build that leaves an artifact older
 than itself is refused rather than run stale. `--ci` runs once and makes a
 failed build exit `12`.
 
+Without `--ci` it then watches until Ctrl-C (#565): the crate directory, new
+subdirectories included, the workspace `Cargo.toml` and `Cargo.lock`, and
+`signet.dev.toml`. `target/`, `.git/`, `.signet/` and editor swap and backup
+files (`*.swp`, `*~`, `.#*`) are ignored. A burst of changes rebuilds once it
+has settled for `--debounce` (150ms by default), since one editor save is
+several filesystem events; a change to `signet.dev.toml` alone replays the
+calls on the current build without rebuilding.
+
 ## Archive forks
 
 A lazy fork knows only the keys something has read and can mix ledgers.

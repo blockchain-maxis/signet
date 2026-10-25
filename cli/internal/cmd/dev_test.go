@@ -109,7 +109,7 @@ func TestDevPreflightNamesEachMissingPiece(t *testing.T) {
 	delete(e.rpc.override, "getLatestLedger")
 	e.rpc.mu.Unlock()
 
-	stdout, stderr, err := e.cli("dev", registryContract, "--path", crate, "--rpc-url", e.rpc.srv.URL)
+	stdout, stderr, err := e.cli("dev", registryContract, "--path", crate, "--rpc-url", e.rpc.srv.URL, "--ci")
 	if err != nil {
 		t.Fatalf("%v\n%s", err, stderr)
 	}
@@ -118,12 +118,8 @@ func TestDevPreflightNamesEachMissingPiece(t *testing.T) {
 		t.Fatalf("header and build:\n%s", stdout)
 	}
 
-	// A compile error: shown trimmed, and only --ci makes it exit 12.
+	// A compile error, shown trimmed: with --ci it exits 12.
 	t.Setenv("FAKESTELLAR_BUILD", "fail")
-	stdout, _, err = e.cli("dev", registryContract, "--path", crate, "--rpc-url", e.rpc.srv.URL)
-	if err != nil || !strings.Contains(stdout, "error[E0425]") || !strings.Contains(stdout, "and 1 more error") {
-		t.Fatalf("interactive build failure: %v\n%s", err, stdout)
-	}
 	expect("--ci", run("--ci"), exitcode.BuildFailed, "error[E0425]")
 }
 
@@ -138,7 +134,7 @@ func TestDevTakesWhatTheFlagsLeaveOutFromSignetDevToml(t *testing.T) {
 		t.Fatal(err)
 	}
 	t.Chdir(dir)
-	stdout, stderr, err := e.cli("dev", "--rpc-url", e.rpc.srv.URL)
+	stdout, stderr, err := e.cli("dev", "--rpc-url", e.rpc.srv.URL, "--ci")
 	if err != nil {
 		t.Fatalf("%v\n%s", err, stderr)
 	}
@@ -146,7 +142,7 @@ func TestDevTakesWhatTheFlagsLeaveOutFromSignetDevToml(t *testing.T) {
 		t.Fatalf("stdout:\n%s", stdout)
 	}
 	t.Chdir(t.TempDir())
-	if _, _, err := e.cli("dev", "--rpc-url", e.rpc.srv.URL); ExitCode(err) != exitcode.InvalidInput {
+	if _, _, err := e.cli("dev", "--rpc-url", e.rpc.srv.URL, "--ci"); ExitCode(err) != exitcode.InvalidInput {
 		t.Fatalf("no contract anywhere: %v", err)
 	}
 }
