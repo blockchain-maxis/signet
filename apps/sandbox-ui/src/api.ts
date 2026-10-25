@@ -57,6 +57,7 @@ export class ApiError extends Error {
 export interface Api {
   get<T>(path: string): Promise<T>;
   post<T>(path: string, body: unknown): Promise<T>;
+  del(path: string): Promise<void>;
   events(onEvent: (e: SessionEvent) => void, signal: AbortSignal): Promise<void>;
 }
 
@@ -104,6 +105,10 @@ export function createApi(token: string): Api {
           body: JSON.stringify(body),
         }),
       );
+    },
+    async del(path: string) {
+      const res = await fetch(`/api/${path}`, { method: 'DELETE', headers });
+      if (!res.ok) await parse(res);
     },
     // fetch streaming, not EventSource: EventSource cannot send the header.
     async events(onEvent, signal) {

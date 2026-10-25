@@ -3,6 +3,7 @@ import type { SandboxTrace } from '@signet/visualiser';
 import { ApiError, createApi, takeToken, type Api, type SessionEvent } from './api.ts';
 // The diagram brings the spec reader and the renderer: loaded on first use.
 const DiagramView = lazy(() => import('./DiagramView.tsx').then((m) => ({ default: m.DiagramView })));
+const StateView = lazy(() => import('./state/StateView.tsx').then((m) => ({ default: m.StateView })));
 const CallView = lazy(() => import('./call/CallView.tsx').then((m) => ({ default: m.CallView })));
 
 interface Session {
@@ -82,9 +83,9 @@ function useLoad<T>(api: Api | null, path: string, refresh: number): Load<T> {
   return load;
 }
 
-type View = 'cycle' | 'call' | 'diagram';
-const VIEWS: readonly View[] = ['cycle', 'call', 'diagram'];
-const VIEW_NAMES: Record<View, string> = { cycle: 'Cycle', call: 'Call', diagram: 'Diagram' };
+type View = 'cycle' | 'call' | 'state' | 'diagram';
+const VIEWS: readonly View[] = ['cycle', 'call', 'state', 'diagram'];
+const VIEW_NAMES: Record<View, string> = { cycle: 'Cycle', call: 'Call', state: 'State', diagram: 'Diagram' };
 
 /** The view in the fragment (`#view=diagram`), as `signet visualise --open` asks for it. */
 function viewFromHash(): View {
@@ -208,7 +209,7 @@ export function App() {
           </nav>
           <div className="flex items-baseline gap-3">
             <h2 id="cycle-heading" className="text-sm font-semibold">
-              {view === 'diagram' ? "This build's diagram" : view === 'call' ? 'Call a function' : 'Latest cycle'}
+              {view === 'diagram' ? "This build's diagram" : view === 'call' ? 'Call a function' : view === 'state' ? 'Storage' : 'Latest cycle'}
             </h2>
             {cycle.state === 'ok' && (
               <p className="font-mono text-xs text-muted">
@@ -232,6 +233,17 @@ export function App() {
                   contract={session.value.contract}
                   refresh={cycleRefresh}
                   outcomes={cycle.state === 'ok' ? cycle.value.outcomes : NO_OUTCOMES}
+                />
+              </Suspense>
+            ) : null
+          ) : view === 'state' ? (
+            session.state === 'ok' ? (
+              <Suspense fallback={<div className="mt-4 h-48 animate-pulse rounded bg-raised" aria-label="loading the state" />}>
+                <StateView
+                  api={api}
+                  ledger={session.value.fork.ledger}
+                  consistent={session.value.fork.consistent}
+                  refresh={cycleRefresh}
                 />
               </Suspense>
             ) : null

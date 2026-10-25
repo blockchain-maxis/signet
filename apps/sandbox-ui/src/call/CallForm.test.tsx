@@ -11,7 +11,7 @@ const WALLET = 'GAAZI4TCR3TY5OJHCTJC2A4QSY6CJWJH5IAJTGKIN2ER7LBNVKOCCWN7';
 
 function fakeApi(post: Api['post'] = async () => ({ outcome: 'result', modifiedEntries: [] }) as never) {
   const spy = vi.fn(post);
-  const api: Api = { get: vi.fn(), post: spy as Api['post'], events: vi.fn() };
+  const api: Api = { get: vi.fn(), post: spy as Api['post'], del: vi.fn(), events: vi.fn() };
   return { api, post: spy };
 }
 
