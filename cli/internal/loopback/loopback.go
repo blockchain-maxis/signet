@@ -42,8 +42,25 @@ const rejectedResponse = "Signet: this request was not expected. Ignoring it.\n"
 // false rejects that request *without* ending the wait.
 type Accept func(url.Values) bool
 
-// NewState returns a cryptographically random value to thread through the
-// approval link and back in the callback.
+// Listen binds an ephemeral port on 127.0.0.1, never another interface:
+// `signet link`'s callback and the `signet dev --ui` server (#576) both
+// listen this way.
+func Listen() (net.Listener, error) {
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		return nil, fmt.Errorf("loopback: binding 127.0.0.1: %w", err)
+	}
+	return listener, nil
+}
+
+// Equal compares a presented secret with the expected one in constant time.
+func Equal(got, expected string) bool {
+	return subtle.ConstantTimeCompare([]byte(got), []byte(expected)) == 1
+}
+
+// NewState returns a cryptographically random value (32 bytes, URL-safe
+// base64) to thread through the approval link and back in the callback, or
+// to use as a per-run token.
 func NewState() (string, error) {
 	buf := make([]byte, 32)
 	if _, err := rand.Read(buf); err != nil {
@@ -63,8 +80,7 @@ func NewState() (string, error) {
 // guess a byte at a time, but a timing-safe compare costs nothing here.
 func MatchState(expected string) Accept {
 	return func(values url.Values) bool {
-		got := values.Get("state")
-		return subtle.ConstantTimeCompare([]byte(got), []byte(expected)) == 1
+		return Equal(values.Get("state"), expected)
 	}
 }
 
@@ -94,9 +110,9 @@ type Server struct {
 // request on `path` (e.g. "/callback"). The port is available immediately via
 // Port, before Wait is called — callers print the link before blocking.
 func New(path string) (*Server, error) {
-	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	listener, err := Listen()
 	if err != nil {
-		return nil, fmt.Errorf("loopback: binding 127.0.0.1: %w", err)
+		return nil, err
 	}
 	return &Server{
 		path:     path,

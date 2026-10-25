@@ -6,6 +6,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"net/http"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -14,8 +15,10 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/blockchain-maxis/signet/cli/internal/browser"
 	"github.com/blockchain-maxis/signet/cli/internal/dev"
 	"github.com/blockchain-maxis/signet/cli/internal/devconfig"
+	"github.com/blockchain-maxis/signet/cli/internal/devui"
 	"github.com/blockchain-maxis/signet/cli/internal/exitcode"
 	"github.com/blockchain-maxis/signet/cli/internal/fork"
 	"github.com/blockchain-maxis/signet/cli/internal/keys"
@@ -34,6 +37,7 @@ func newDevCmd() *cobra.Command {
 		path, pkg string
 		ci        bool
 		debounce  time.Duration
+		ui        uiFlags
 	)
 	cmd := &cobra.Command{
 		Use:   "dev [contract]",
@@ -54,7 +58,7 @@ when it does not; exit 3 for the others).`,
   signet dev init CASF…RCN --path ./contracts/registry`,
 		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runDev(cmd, args, path, pkg, ci, debounce)
+			return runDev(cmd, args, path, pkg, ci, debounce, ui)
 		},
 	}
 	addRPCFlags(cmd)
@@ -62,6 +66,8 @@ when it does not; exit 3 for the others).`,
 	cmd.Flags().StringVar(&pkg, "package", "", "the contract crate, when --path is a workspace with several (default: package in signet.dev.toml)")
 	cmd.Flags().BoolVar(&ci, "ci", false, "run once, non-interactively: a failed build exits 12")
 	cmd.Flags().DurationVar(&debounce, "debounce", dev.DefaultDebounce, "how long a burst of file changes must settle before one rebuild")
+	cmd.Flags().BoolVar(&ui.on, "ui", false, "also serve the local UI on 127.0.0.1 and open it")
+	cmd.Flags().BoolVar(&ui.noBrowser, "no-browser", false, "with --ui, print the UI's URL instead of opening a browser")
 	cmd.AddCommand(newDevInitCmd())
 	return cmd
 }
@@ -75,7 +81,10 @@ type devSetup struct {
 	fileDir  string
 }
 
-func runDev(cmd *cobra.Command, args []string, path, pkg string, ci bool, debounce time.Duration) error {
+// uiFlags are signet dev's --ui and --no-browser.
+type uiFlags struct{ on, noBrowser bool }
+
+func runDev(cmd *cobra.Command, args []string, path, pkg string, ci bool, debounce time.Duration, ui uiFlags) error {
 	deps, err := depsFor(cmd)
 	if err != nil {
 		return err
@@ -226,6 +235,13 @@ func runDev(cmd *cobra.Command, args []string, path, pkg string, ci bool, deboun
 		return buildErr
 	}
 	if !ci {
+		if ui.on {
+			stopUI, err := startUI(ctx, cmd, setup.contract, m.Network, ui.noBrowser, printer.Progress)
+			if err != nil {
+				return err
+			}
+			defer stopUI()
+		}
 		return watchAndRebuild(ctx, setup, builder, session, debounce, printer.Progress)
 	}
 	return printer.Result(struct {
@@ -578,4 +594,32 @@ func gitignore(dir, pattern string) error {
 	}
 	raw = append(raw, []byte("# signet dev session logs\n"+pattern+"\n")...)
 	return os.WriteFile(path, raw, 0o644)
+}
+
+// startUI serves the local UI (#576) until ctx ends, and opens it (or, with
+// --no-browser or no display, prints its URL). The token is only ever in
+// that URL's fragment.
+func startUI(ctx context.Context, cmd *cobra.Command, contract, network string, noBrowser bool, progress func(string)) (func(), error) {
+	api := http.NewServeMux()
+	api.HandleFunc("GET /api/health", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(map[string]any{"ok": true, "contract": contract, "network": network})
+	})
+	server, err := devui.New(devui.Options{Static: devui.Placeholder(), API: api})
+	if err != nil {
+		return nil, fmt.Errorf("%w: the UI server: %v", exitcode.ErrConfiguration, err)
+	}
+	uiCtx, cancel := context.WithCancel(ctx)
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		if err := server.Serve(uiCtx); err != nil {
+			progress("the UI server stopped: " + err.Error())
+		}
+	}()
+	progress("local UI on 127.0.0.1 (the link carries this run's token; do not share it)")
+	if err := browser.OpenOrPrint(cmd.OutOrStdout(), server.URL(), noBrowser); err != nil {
+		progress("could not open a browser: " + err.Error())
+	}
+	return func() { cancel(); <-done }, nil
 }

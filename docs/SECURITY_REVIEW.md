@@ -122,6 +122,26 @@ count, depth and time as inputs to bound, not properties to trust.
 - [ ] The localhost UI binds to `127.0.0.1` only — never `0.0.0.0` — and
       defends against DNS rebinding: it checks `Host` and `Origin` on every
       request and requires a per-session token minted at startup. `[F: #579]`
+      The `signet dev --ui` server (`cli/internal/devui`, #576), each check
+      with the test in `cli/internal/devui/server_test.go` that holds it:
+  - [ ] Listens on `127.0.0.1:0` only, no flag for another interface
+        (`TestTheServerListensOnLoopbackOnly`).
+  - [ ] A 32-byte token per run, only in the URL fragment, sent back as
+        `Authorization: Bearer`; no cookies, so no ambient credential
+        (`TestEveryRequestIsChecked`: no token, a wrong token and a cookie are
+        401).
+  - [ ] `Host` exactly `127.0.0.1:<port>` or `localhost:<port>`, against DNS
+        rebinding, and a present `Origin` the same (a rebinding host and a
+        foreign origin are 403).
+  - [ ] No CORS header on any response, and no preflight answered, Private
+        Network Access included (`TestAPreflightIsNeverAnswered`).
+  - [ ] Static files from one root: `../`, encoded or not, is 404.
+  - [ ] Strict CSP (`default-src 'self'`, no inline script), `nosniff`,
+        `Referrer-Policy: no-referrer`, `Cache-Control: no-store` on the API.
+  - [ ] The token is in no log line: the request log carries method, path
+        and status only.
+  - [ ] Nothing the UI sends changes the crate path, RPC, network or host
+        binary: they come from the command line.
 - [ ] Forked storage and snapshot files are written only under the project
       directory the developer ran the command in — no writes outside it, and
       fork names are not paths. `[F: #550]`

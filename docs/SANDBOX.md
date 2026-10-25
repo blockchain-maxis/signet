@@ -137,6 +137,17 @@ has settled for `--debounce` (150ms by default), since one editor save is
 several filesystem events; a change to `signet.dev.toml` alone replays the
 calls on the current build without rebuilding.
 
+### The local UI
+
+`signet dev --ui` also serves a web UI from the developer's machine (#576) and
+opens it; `--no-browser` prints its URL instead. The server listens on
+`127.0.0.1` only, the link carries a per-run token in its fragment (so it
+never reaches a log), and the UI sends it back as a header: no cookies. Every
+request's `Host` and `Origin` must be the server's own, which defeats DNS
+rebinding, and no other site can reach it, preflights included. The checks are
+listed in [`SECURITY_REVIEW.md`](SECURITY_REVIEW.md). Don't share the link
+while `signet dev` runs.
+
 ### The reload cycle
 
 Each build is compared with the deployed contract from the same state (#566).
