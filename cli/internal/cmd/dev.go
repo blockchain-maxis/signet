@@ -176,9 +176,9 @@ func runDev(cmd *cobra.Command, args []string, path, pkg string, ci bool, deboun
 	if err != nil {
 		return err
 	}
-	lanes := sim.HelloAck()
-	_ = sim.Close()
-	if err := checkLanes(network.Name, latest.ProtocolVersion, lanes); err != nil {
+	// The same process, kept warm, runs every cycle (#566).
+	defer func() { _ = sim.Close() }()
+	if err := checkLanes(network.Name, latest.ProtocolVersion, sim.HelloAck()); err != nil {
 		return err
 	}
 
@@ -189,14 +189,25 @@ func runDev(cmd *cobra.Command, args []string, path, pkg string, ci bool, deboun
 	header := fmt.Sprintf("signet dev · %s @ %s ledger %d · lane p%d · crate %s",
 		shorten(setup.contract, 4, 3), m.Network, m.ForkLedger, m.Protocol, setup.crate.Name)
 	printer.Progress(header)
+	session, err := openDevSession(ctx, deps, network, client, sim, m)
+	if err != nil {
+		return err
+	}
+	defer session.Close()
 
 	// The initial build (#564). A failure keeps going interactively, where
 	// the next save retries it; with --ci it is exit 12.
 	builder := &dev.Builder{Stellar: binary, Crate: setup.crate}
 	built, buildErr := builder.Build(ctx)
+	var cycle *dev.Cycle
 	switch {
 	case buildErr == nil:
 		printer.Progress(fmt.Sprintf("built %s in %s", filepath.Base(built.Wasm), built.Duration.Round(100*time.Millisecond)))
+		c, err := session.runCycle(ctx, built.Wasm, devReplays(setup.file), printer.Progress)
+		if err != nil {
+			return err
+		}
+		cycle = &c
 	case dev.IsBuildError(buildErr) && ci:
 		return buildErr
 	case dev.IsBuildError(buildErr):
@@ -205,17 +216,18 @@ func runDev(cmd *cobra.Command, args []string, path, pkg string, ci bool, deboun
 		return buildErr
 	}
 	if !ci {
-		return watchAndRebuild(ctx, setup, builder, debounce, printer.Progress)
+		return watchAndRebuild(ctx, setup, builder, session, debounce, printer.Progress)
 	}
 	return printer.Result(struct {
-		Contract   string `json:"contract"`
-		Network    string `json:"network"`
-		ForkLedger uint32 `json:"forkLedger"`
-		Protocol   int    `json:"protocol"`
-		Crate      string `json:"crate"`
-		Manifest   string `json:"manifest"`
-		Wasm       string `json:"wasm,omitempty"`
-	}{setup.contract, m.Network, m.ForkLedger, m.Protocol, setup.crate.Name, setup.crate.ManifestPath, builder.Last()}, func(w io.Writer) error {
+		Contract   string     `json:"contract"`
+		Network    string     `json:"network"`
+		ForkLedger uint32     `json:"forkLedger"`
+		Protocol   int        `json:"protocol"`
+		Crate      string     `json:"crate"`
+		Manifest   string     `json:"manifest"`
+		Wasm       string     `json:"wasm,omitempty"`
+		Cycle      *dev.Cycle `json:"cycle,omitempty"`
+	}{setup.contract, m.Network, m.ForkLedger, m.Protocol, setup.crate.Name, setup.crate.ManifestPath, builder.Last(), cycle}, func(w io.Writer) error {
 		_, err := fmt.Fprintln(w, header)
 		return err
 	})
@@ -430,7 +442,7 @@ func plural(n int, one, many string) string {
 // source changes rebuilds, a newer one cancelling a build in flight, and a
 // change to signet.dev.toml alone replays without a rebuild. It runs until
 // Ctrl-C.
-func watchAndRebuild(ctx context.Context, setup devSetup, builder *dev.Builder, debounce time.Duration, progress func(string)) error {
+func watchAndRebuild(ctx context.Context, setup devSetup, builder *dev.Builder, session *devSession, debounce time.Duration, progress func(string)) error {
 	files := []string{}
 	if root := setup.crate.WorkspaceRoot; root != "" {
 		files = append(files, filepath.Join(root, "Cargo.toml"), filepath.Join(root, "Cargo.lock"))
@@ -463,6 +475,12 @@ func watchAndRebuild(ctx context.Context, setup devSetup, builder *dev.Builder, 
 		}()
 	}
 	defer func() { cancel() }()
+	// A failed cycle is said and the loop goes on: the next save retries.
+	replay := func(wasm string) {
+		if _, err := session.runCycle(ctx, wasm, devReplays(setup.file), progress); err != nil && ctx.Err() == nil {
+			progress("replay failed: " + err.Error())
+		}
+	}
 	for {
 		select {
 		case <-ctx.Done():
@@ -476,6 +494,15 @@ func watchAndRebuild(ctx context.Context, setup devSetup, builder *dev.Builder, 
 			}
 			if !t.Rebuild {
 				progress("signet.dev.toml changed: replaying on the current build")
+				reloaded, err := devconfig.Load(devFile)
+				if err != nil {
+					progress(err.Error() + "\n(keeping the calls as they were)")
+					continue
+				}
+				setup.file = reloaded
+				if builder.Last() != "" && !building {
+					replay(builder.Last())
+				}
 				continue
 			}
 			if building {
@@ -492,6 +519,9 @@ func watchAndRebuild(ctx context.Context, setup devSetup, builder *dev.Builder, 
 			case errors.Is(o.err, context.Canceled):
 			case o.err == nil:
 				progress(fmt.Sprintf("built %s in %s", filepath.Base(o.built.Wasm), o.built.Duration.Round(100*time.Millisecond)))
+				if !again {
+					replay(o.built.Wasm)
+				}
 			default:
 				progress("build failed:\n" + o.err.Error())
 			}

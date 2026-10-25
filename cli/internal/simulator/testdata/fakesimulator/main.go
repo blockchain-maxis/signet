@@ -284,6 +284,8 @@ func serve(lines <-chan []byte) {
 			}
 			st.contracts[cid] = strings.Repeat("a", 64)
 			emit(result(id, map[string]any{"contract_id": cid, "wasm_hash": st.contracts[cid]}))
+		case "contract_swap":
+			emit(result(id, map[string]any{"contract_id": str(m["contract_id"]), "wasm_hash": str(m["wasm_hash"])}))
 		case "ledger_checkpoint":
 			// Ids differ per process, so a replay must translate them.
 			st.cpCount++

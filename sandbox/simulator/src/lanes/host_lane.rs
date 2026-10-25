@@ -2131,4 +2131,70 @@ mod tests {
         assert!(calls.iter().all(|c| c.error.is_some()), "{calls:?}");
         assert_eq!(calls[0].error.as_deref(), Some("the call did not return"));
     }
+
+    /// #566's measurement: the share of a registry-sized `simulate` that is
+    /// parsing and instantiating the module, which recording mode redoes on
+    /// every call because `invoke_host_function_in_recording_mode` takes no
+    /// `ModuleCache`. Timing, so not part of the suite:
+    /// `cargo test --release --features lane-p28 module_parse_share -- --ignored --nocapture`.
+    #[test]
+    #[ignore]
+    fn module_parse_share() {
+        use std::time::{Duration, Instant};
+        const RUNS: u32 = 200;
+        let dir = env!("CARGO_MANIFEST_DIR");
+        let wasm = std::fs::read(format!("{dir}/../../packages/spec/fixtures/identity-registry.wasm")).unwrap();
+        let config: Value = serde_json::from_str(
+            &std::fs::read_to_string(format!("{dir}/tests/fixtures/network-config-entries.json")).unwrap(),
+        )
+        .unwrap();
+        let mut ledger = Ledger::default();
+        for e in config["payload"]["entries"].as_array().unwrap() {
+            let entry = LedgerEntry {
+                last_modified_ledger_seq: e["lastModifiedLedgerSeq"].as_u64().unwrap() as u32,
+                data: LedgerEntryData::from_xdr_base64(e["xdr"].as_str().unwrap(), Limits::none()).unwrap(),
+                ext: LedgerEntryExt::V0,
+            };
+            let key = BASE64.decode(e["key"].as_str().unwrap()).unwrap();
+            ledger.0.insert(key, (encode(&entry, "LedgerEntry").unwrap().into(), None));
+        }
+        let installed = LANE.install(&wasm, None).unwrap();
+        for (key, entry) in installed.entries {
+            ledger.0.insert(key, (entry.into(), Some(u32::MAX)));
+        }
+        let ledger: Rc<dyn ByteSnapshotSource> = Rc::new(ledger);
+        let host_fn = HostFunction::InvokeContract(InvokeContractArgs {
+            contract_address: ScAddress::from_str(&installed.contract_id).unwrap(),
+            function_name: ScSymbol("count".try_into().unwrap()),
+            args: Default::default(),
+        })
+        .to_xdr(Limits::none())
+        .unwrap();
+        let req = request(host_fn);
+
+        let mut simulate = Duration::ZERO;
+        let mut parse = Duration::ZERO;
+        for _ in 0..RUNS {
+            let start = Instant::now();
+            let out = LANE.simulate(&req, ledger.clone()).unwrap();
+            simulate += start.elapsed();
+            assert!(out.return_value.is_ok());
+
+            // What every recording-mode call pays for this contract: a VM
+            // built from the bytes (engine, linker, parse, instantiate).
+            let host = soroban_env_host::Host::default();
+            host.set_ledger_info(LedgerInfo { protocol_version: LEDGER_PROTOCOL, ..LedgerInfo::default() })
+                .unwrap();
+            let start = Instant::now();
+            soroban_env_host::Vm::new(&host, ContractId(Hash(installed.wasm_hash)), &wasm).unwrap();
+            parse += start.elapsed();
+        }
+        println!(
+            "p{LEDGER_PROTOCOL} registry ({} bytes) count: simulate {:?}/call, VM parse+instantiate {:?}/call, share {:.1}%",
+            wasm.len(),
+            simulate / RUNS,
+            parse / RUNS,
+            100.0 * parse.as_secs_f64() / simulate.as_secs_f64()
+        );
+    }
 }

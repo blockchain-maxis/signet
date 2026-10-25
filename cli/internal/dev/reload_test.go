@@ -1,0 +1,237 @@
+package dev
+
+import (
+	"context"
+	"encoding/base64"
+	"encoding/json"
+	"os"
+	"path/filepath"
+	"runtime"
+	"sync"
+	"testing"
+	"time"
+
+	"github.com/blockchain-maxis/signet/cli/internal/simulator"
+)
+
+// realSimulator is the debug build cargo leaves in sandbox/target, or
+// SIGNET_SIMULATOR_PATH; the test is skipped without one, as the CI
+// sandbox job builds it.
+func realSimulator(t *testing.T) string {
+	t.Helper()
+	path := os.Getenv("SIGNET_SIMULATOR_PATH")
+	if path == "" {
+		name := "signet-simulator"
+		if runtime.GOOS == "windows" {
+			name += ".exe"
+		}
+		path = filepath.Join("..", "..", "..", "sandbox", "target", "debug", name)
+	}
+	if _, err := os.Stat(path); err != nil {
+		t.Skipf("no built signet-simulator at %s (cargo build in sandbox/, or set SIGNET_SIMULATOR_PATH)", path)
+	}
+	abs, _ := filepath.Abs(path)
+	return abs
+}
+
+func fixtureWasm(t *testing.T, name string) []byte {
+	t.Helper()
+	b, err := os.ReadFile(filepath.Join("..", "..", "..", "sandbox", "fixtures", "wasm", name+".wasm"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	return b
+}
+
+// networkConfig is testnet's recorded ConfigSetting entries, which every
+// open ledger needs.
+func networkConfig(t *testing.T) []simulator.PutEntry {
+	t.Helper()
+	raw, err := os.ReadFile(filepath.Join("..", "..", "..", "sandbox", "simulator", "tests", "fixtures", "network-config-entries.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var f struct {
+		Payload struct {
+			Entries []struct {
+				Key          string `json:"key"`
+				XDR          string `json:"xdr"`
+				LastModified uint32 `json:"lastModifiedLedgerSeq"`
+			} `json:"entries"`
+		} `json:"payload"`
+	}
+	if err := json.Unmarshal(raw, &f); err != nil {
+		t.Fatal(err)
+	}
+	out := make([]simulator.PutEntry, len(f.Payload.Entries))
+	for i, e := range f.Payload.Entries {
+		out[i] = simulator.PutEntry{KeyXDR: e.Key, DataXDR: e.XDR, LastModifiedLedgerSeq: &e.LastModified}
+	}
+	return out
+}
+
+// countingHost counts the requests a cycle makes, by type.
+type countingHost struct {
+	*simulator.Client
+	mu    sync.Mutex
+	calls map[string]int
+}
+
+func (h *countingHost) Call(ctx context.Context, typ string, params, result any) (*simulator.ContractError, error) {
+	h.mu.Lock()
+	h.calls[typ]++
+	h.mu.Unlock()
+	return h.Client.Call(ctx, typ, params, result)
+}
+
+func (h *countingHost) take(typ string) int {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	n := h.calls[typ]
+	h.calls = map[string]int{}
+	return n
+}
+
+// session opens a ledger with counter_v1 installed as the "deployed"
+// contract, its count unset, and returns the host and the contract's id.
+func session(t *testing.T, opts ...simulator.Option) (*countingHost, string) {
+	t.Helper()
+	ctx := context.Background()
+	c, err := simulator.Start(ctx, realSimulator(t), opts...)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = c.Close() })
+	host := &countingHost{Client: c, calls: map[string]int{}}
+	protocol, seq := 28, uint32(100)
+	if err := call(ctx, host, simulator.TypeLedgerOpen, simulator.LedgerOpenParams{
+		NetworkPassphrase: "Test SDF Network ; September 2015", LedgerProtocol: &protocol, Sequence: &seq,
+		Entries: networkConfig(t),
+	}, nil); err != nil {
+		t.Fatal(err)
+	}
+	var installed simulator.ContractInstallResult
+	if err := call(ctx, host, simulator.TypeContractInstall, simulator.ContractInstallParams{
+		WasmBase64: base64.StdEncoding.EncodeToString(fixtureWasm(t, "counter_v1")),
+	}, &installed); err != nil {
+		t.Fatal(err)
+	}
+	host.take("")
+	return host, installed.ContractID
+}
+
+func replays() []Replay {
+	return []Replay{
+		{Name: "get", Params: simulator.SimulateParams{Function: "get", Args: map[string]any{}}},
+		{Name: "increment", Params: simulator.SimulateParams{Function: "increment", Args: map[string]any{}}},
+	}
+}
+
+func returned(t *testing.T, r Run) string {
+	t.Helper()
+	if r.Result == nil {
+		t.Fatalf("no result: %+v", r.Error)
+	}
+	return string(r.Result.ReturnValue)
+}
+
+// The acceptance test of #566: cycle 1 runs A and B, cycle 2 after an edit
+// that leaves the build as it was runs only B, and base is the same after
+// both.
+func TestReloadCycleRunsAOnceAndLeavesBaseAlone(t *testing.T) {
+	ctx := context.Background()
+	host, contract := session(t)
+	r, err := NewReloader(ctx, host, contract)
+	if err != nil {
+		t.Fatal(err)
+	}
+	v2 := fixtureWasm(t, "counter_v2_event")
+
+	first, err := r.Cycle(ctx, v2, replays())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n := host.take(simulator.TypeSimulate); n != 4 || first.Simulations != 4 {
+		t.Fatalf("cycle 1: %d simulations in the host (reported %d), want 4", n, first.Simulations)
+	}
+	if first.Deployed == first.Local {
+		t.Fatal("v2 was not swapped in")
+	}
+	inc := first.Outcomes[1]
+	if returned(t, inc.A) != "1" || returned(t, inc.B) != "1" {
+		t.Fatalf("increment from base: A %s, B %s", returned(t, inc.A), returned(t, inc.B))
+	}
+	if len(inc.A.Result.Events) != 0 || len(inc.B.Result.Events) != 1 {
+		t.Fatalf("only v2 emits Incremented: A %d events, B %d", len(inc.A.Result.Events), len(inc.B.Result.Events))
+	}
+	if inc.A.Result.Seed != inc.B.Result.Seed {
+		t.Fatalf("A and B drew different seeds: %s, %s", inc.A.Result.Seed, inc.B.Result.Seed)
+	}
+
+	// An unrelated edit: the same bytes again.
+	second, err := r.Cycle(ctx, v2, replays())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if n := host.take(simulator.TypeSimulate); n != 2 || second.Simulations != 2 {
+		t.Fatalf("cycle 2: %d simulations in the host (reported %d), want B's 2", n, second.Simulations)
+	}
+	if host.take(simulator.TypeContractInstall) != 0 {
+		t.Fatal("the same build was installed twice")
+	}
+	for _, o := range second.Outcomes {
+		if !o.A.Cached || o.B.Cached {
+			t.Fatalf("%s: A cached %v, B cached %v", o.Name, o.A.Cached, o.B.Cached)
+		}
+	}
+	if returned(t, second.Outcomes[1].B) != "1" {
+		t.Fatalf("cycle 2's increment did not start from base: %s", returned(t, second.Outcomes[1].B))
+	}
+
+	// Base is untouched: the deployed executable, and storage as it was.
+	var info simulator.ContractInfoResult
+	if err := call(ctx, host, simulator.TypeContractInfo, simulator.ContractInfoParams{ContractID: contract}, &info); err != nil {
+		t.Fatal(err)
+	}
+	if *info.WasmHash != r.Deployed() || info.StorageEntries != 0 {
+		t.Fatalf("base after two cycles: executable %s (deployed %s), %d storage entries", *info.WasmHash, r.Deployed(), info.StorageEntries)
+	}
+	var get simulator.SimulateResult
+	if ce, err := host.Call(ctx, simulator.TypeSimulate, simulator.SimulateParams{ContractID: contract, Function: "get", Args: map[string]any{}}, &get); err != nil || ce != nil {
+		t.Fatalf("get: %v %v", ce, err)
+	}
+	if string(get.ReturnValue) != "0" {
+		t.Fatalf("count at base = %s, want 0", get.ReturnValue)
+	}
+}
+
+// After the idle stop the respawn replays the session, the cycle's results
+// are what they would have been, and the cycle says it restarted.
+func TestReloadCycleSaysTheSimulatorRestarted(t *testing.T) {
+	ctx := context.Background()
+	host, contract := session(t, simulator.WithIdleTimeout(50*time.Millisecond))
+	r, err := NewReloader(ctx, host, contract)
+	if err != nil {
+		t.Fatal(err)
+	}
+	v2 := fixtureWasm(t, "counter_v2_event")
+	first, err := r.Cycle(ctx, v2, replays())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(first.Restarted) != 0 {
+		t.Fatalf("cycle 1 restarted: %v", first.Restarted)
+	}
+	time.Sleep(300 * time.Millisecond)
+	second, err := r.Cycle(ctx, v2, replays())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(second.Restarted) != 1 || second.Restarted[0] != simulator.RestartIdle {
+		t.Fatalf("restarted = %v, want [idle]", second.Restarted)
+	}
+	b := second.Outcomes[1].B
+	if returned(t, b) != "1" || len(b.Result.Events) != 1 {
+		t.Fatalf("increment on v2 after the respawn: %s, %d events", returned(t, b), len(b.Result.Events))
+	}
+}

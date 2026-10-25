@@ -355,6 +355,9 @@ type SimulateParams struct {
 	// Related, false, keeps the call to its own contract: reaching another
 	// contract's instance fails with fetch_failed / related (#552).
 	Related *bool `json:"related,omitempty"`
+	// CallIndex pins the call's PRNG seed to that index in the session
+	// without advancing the count (#566).
+	CallIndex *uint64 `json:"call_index,omitempty"`
 }
 
 // RelatedContract is another contract a call reached (#552).

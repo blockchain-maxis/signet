@@ -53,6 +53,10 @@ type Client struct {
 	idle    Timer
 	idleGen uint64
 	closed  bool
+	// lost is why the last process ended; restarts are the reasons for
+	// the respawns since TakeRestarts.
+	lost     string
+	restarts []string
 }
 
 // Option configures a Client.
@@ -155,10 +159,16 @@ func (c *Client) Call(ctx context.Context, typ string, params, result any) (*Con
 	defer c.armIdleLocked()
 
 	if c.proc == nil || !c.proc.alive() {
+		reason := c.lost
+		if reason == "" {
+			reason = RestartExited
+		}
 		c.dropProcLocked()
 		if err := c.spawnLocked(ctx); err != nil {
 			return nil, err
 		}
+		c.restarts = append(c.restarts, reason)
+		c.lost = ""
 	}
 
 	sent := body
@@ -281,6 +291,7 @@ func (c *Client) exchangeLocked(ctx context.Context, typ string, body map[string
 
 	fail := func(e *Error) (*ContractError, json.RawMessage, error) {
 		c.dropProcLocked()
+		c.lost = RestartExited
 		e.Stderr = p.stderr.Tail()
 		return nil, nil, e
 	}
@@ -392,11 +403,13 @@ func (c *Client) exchangeLocked(ctx context.Context, typ string, body map[string
 
 		case <-timer.C:
 			c.dropProcLocked()
+			c.lost = RestartTimeout
 			return nil, nil, &TimeoutError{Type: typ, Timeout: c.timeout}
 
 		case <-ctx.Done():
 			// No in-band cancel exists (§2), so the process has to go.
 			c.dropProcLocked()
+			c.lost = RestartInterrupted
 			return nil, nil, ctxErr(ctx)
 		}
 	}
@@ -476,6 +489,27 @@ func (c *Client) idleStop(gen uint64) {
 	c.idle = nil
 	c.proc.shutdown()
 	c.proc = nil
+	c.lost = RestartIdle
+}
+
+// Why a process was replaced, as TakeRestarts reports it.
+const (
+	RestartIdle        = "idle"        // the idle stop (§4)
+	RestartTimeout     = "timeout"     // a request ran past --timeout
+	RestartInterrupted = "interrupted" // a request's context ended
+	RestartExited      = "exited"      // the process died or misbehaved
+)
+
+// TakeRestarts returns why the simulator was respawned since the last
+// TakeRestarts, oldest first, and forgets them. A respawn replays the
+// session, so callers see it only here: signet dev says "simulator
+// restarted (idle)" rather than hide what the replay cost.
+func (c *Client) TakeRestarts() []string {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	out := c.restarts
+	c.restarts = nil
+	return out
 }
 
 // setupStep is one state-changing request, kept so a fresh process can be
@@ -499,6 +533,8 @@ var setupTypes = map[string]bool{
 	TypeContractSwap:     true,
 	TypeLedgerCheckpoint: true,
 	TypeLedgerRollback:   true,
+	// Overrides sit in the override layer, like installs (#559).
+	TypeStorageOverride: true,
 }
 
 func (c *Client) recordLocked(typ string, body map[string]json.RawMessage, result json.RawMessage) {
@@ -526,8 +562,39 @@ func (c *Client) recordLocked(typ string, body map[string]json.RawMessage, resul
 			step.checkpoint = r.Checkpoint
 			c.alias[r.Checkpoint] = r.Checkpoint
 		}
+	case TypeLedgerRollback:
+		c.setup = dropSessionWrites(c.setup)
 	}
 	c.setup = append(c.setup, step)
+}
+
+// dropSessionWrites removes the rollbacks and session-layer swaps since the
+// last checkpoint, which a rollback about to be recorded makes moot: it
+// resets the session layer whatever was written there, and the override
+// layer (installs, ledger_put) is not touched by either. Without it a long
+// session, which signet dev's reload cycle is (two rollbacks per saved call
+// per save), would replay ever more steps after every respawn.
+func dropSessionWrites(setup []setupStep) []setupStep {
+	last := -1
+	for i, step := range setup {
+		if step.typ == TypeLedgerCheckpoint {
+			last = i
+		}
+	}
+	kept := setup[:last+1]
+	for _, step := range setup[last+1:] {
+		if step.typ == TypeLedgerRollback || step.typ == TypeContractSwap && sessionLayer(step.body) {
+			continue
+		}
+		kept = append(kept, step)
+	}
+	return kept
+}
+
+func sessionLayer(body map[string]json.RawMessage) bool {
+	var layer string
+	_ = json.Unmarshal(body["layer"], &layer)
+	return layer == "" || layer == "session"
 }
 
 // rewriteCheckpointLocked maps a caller's checkpoint id to the one the

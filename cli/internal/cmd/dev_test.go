@@ -129,16 +129,22 @@ func TestDevTakesWhatTheFlagsLeaveOutFromSignetDevToml(t *testing.T) {
 	e.stellar = "stellar"
 	crate := devCrate(t)
 	dir := t.TempDir()
-	toml := "version = 1\naddress = \"" + registryContract + "\"\npath = \"" + filepath.ToSlash(crate) + "\"\n"
+	toml := "version = 1\naddress = \"" + registryContract + "\"\npath = \"" + filepath.ToSlash(crate) + "\"\n" +
+		"\n[[call]]\nname = \"count is stable\"\nfunction = \"count\"\nargs = {}\nexpect = \"unchanged\"\n"
 	if err := os.WriteFile(filepath.Join(dir, "signet.dev.toml"), []byte(toml), 0o644); err != nil {
 		t.Fatal(err)
 	}
+	// The build is the registry's own WASM, so A and B agree (#566).
+	registryWasm, _ := filepath.Abs(filepath.Join("..", "..", "..", "packages", "spec", "fixtures", "identity-registry.wasm"))
+	t.Setenv("FAKESTELLAR_BUILD_WASM", registryWasm)
 	t.Chdir(dir)
 	stdout, stderr, err := e.cli("dev", "--rpc-url", e.rpc.srv.URL, "--ci")
 	if err != nil {
 		t.Fatalf("%v\n%s", err, stderr)
 	}
-	if !strings.Contains(stdout, "crate identity-registry") {
+	if !strings.Contains(stdout, "crate identity-registry") ||
+		!strings.Contains(stdout, "replayed 1 saved call on 936996c7 (deployed) and 936996c7 (build): 2 runs") ||
+		!strings.Contains(stdout, "count is stable  A 2  =  B 2") {
 		t.Fatalf("stdout:\n%s", stdout)
 	}
 	t.Chdir(t.TempDir())

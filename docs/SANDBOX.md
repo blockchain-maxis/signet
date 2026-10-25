@@ -124,6 +124,41 @@ has settled for `--debounce` (150ms by default), since one editor save is
 several filesystem events; a change to `signet.dev.toml` alone replays the
 calls on the current build without rebuilding.
 
+### The reload cycle
+
+Each build is compared with the deployed contract from the same state (#566).
+At startup signet dev opens the fork in one simulator process, reads the
+contract's instance and deployed WASM into it, and takes a checkpoint, `base`.
+Every cycle then installs the new build (once per distinct WASM) and runs each
+saved call twice, each time from `base`: as **A** on the deployed executable,
+and as **B** with the new build swapped into the instance. Both sides of a
+call run with the same PRNG seed, the seed of its position in the file, so a
+contract that draws from `env.prng()` sees the same values on both.
+
+```text
+replayed 2 saved calls on 936996c7 (deployed) and 4f1a09bd (build): 4 runs
+  count is stable  A 2  =  B 2
+  claim taken  A error HandleTaken  =  B error HandleTaken
+```
+
+A depends only on the fork and the call, so it is run once and reused: a
+cycle after the first runs B alone, unless a call changed. The process stays
+warm between saves, but the simulator's five-minute idle stop can still end it
+while you are not saving; the next cycle respawns it, replays the fork, the
+installs and `base`, and says `simulator restarted (idle)` rather than hiding
+what that cost.
+
+Parsing modules is not cached between calls. Measured on the registry in a
+release build (`module_parse_share`, an ignored test in
+`sandbox/simulator/src/lanes/host_lane.rs`), building the VM is 65% of a
+`count` simulate on p28 (1.76 of 2.69 ms) and 60% on p29. The way to skip it,
+re-running a call through the enforcing host with its earlier footprint and a
+module cache, would misreport two things the A/B comparison looks at: a
+footprint that shrank (a read the new build dropped would still be listed),
+and the cost, since a cached module is charged less than recording mode
+charges the A side. Caching A instead halves every later cycle's host runs
+without either.
+
 ## Archive forks
 
 A lazy fork knows only the keys something has read and can mix ledgers.

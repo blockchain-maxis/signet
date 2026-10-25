@@ -195,7 +195,10 @@ The same session on the same ledger state produces byte-identical results on
 every run. A call's PRNG seed is `sha256(session_id ‖ call index)` (`session_id`
 from `ledger_open`, the index as a big-endian u64), never random, and is
 reported as `seed`; it drives both `env.prng()` and recording-mode auth nonces.
-Execution reads no clock: the ledger time is `ledger_open`'s `timestamp`.
+A `simulate` with `call_index` uses that index's seed and does not advance the
+count, so one call run twice (signet dev's deployed and new code,
+[#566](https://github.com/blockchain-maxis/signet/issues/566)) draws the same
+seed both times. Execution reads no clock: the ledger time is `ledger_open`'s `timestamp`.
 `modified_entries` and `misses` are ordered by their XDR bytes, and object keys
 are sorted. What is not covered: the state itself (a fork fetches the network's
 latest entries, so two forks of a moving network can differ; a repro bundle,

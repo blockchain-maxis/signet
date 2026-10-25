@@ -139,6 +139,16 @@ pub fn simulate(
     if !related {
         fork.restrict_to(contract_id);
     }
+    // A pinned `call_index` runs with that call's seed and leaves the
+    // session's count alone: signet dev runs each saved call on the deployed
+    // and the new code (#566), and both sides must draw the same PRNG.
+    let pinned_index = match object.get("call_index") {
+        None => None,
+        Some(v) => match v.as_u64() {
+            Some(n) => Some(n),
+            None => return invalid_field(id, "call_index", "a non-negative integer"),
+        },
+    };
     let max_frames = match crate::trace::parse(object.get("trace")) {
         Ok(max) => max,
         Err(want) => return invalid_field(id, "trace", want),
@@ -175,8 +185,13 @@ pub fn simulate(
     };
 
     let sequence = ledger_sequence;
-    let seed = call_seed(&open.session_id, open.calls);
-    open.calls += 1;
+    let seed = match pinned_index {
+        Some(n) => call_seed(&open.session_id, n),
+        None => {
+            open.calls += 1;
+            call_seed(&open.session_id, open.calls - 1)
+        }
+    };
     let request = SimulateBytes {
         network_passphrase: open.network_passphrase.clone(),
         sequence,

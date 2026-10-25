@@ -66,6 +66,11 @@
         }
       ]
     },
+    "call_index": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Run with the PRNG seed of this call index in the session, without advancing the session's count: the same call run twice (signet dev's deployed and new code, #566) draws the same seed"
+    },
     "related": {
       "type": "boolean",
       "description": "false keeps the call to this contract: reading another contract's instance fails with fetch_failed / related, naming it (#552). Default true"

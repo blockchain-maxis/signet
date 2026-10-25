@@ -778,6 +778,25 @@ fn the_seed_is_derived_and_drives_env_prng(lane: u32) {
     assert_eq!(a1["seed"], hex);
 }
 
+fn a_pinned_call_index_reuses_its_seed_and_keeps_the_count(lane: u32) {
+    let (mut sim, _, dice) = seeded(lane, "session-a");
+    let pinned = |sim: &mut Sim, n: u64| {
+        sim.send(json!({ "type": "simulate", "contract_id": dice, "function": "roll", "args": {}, "call_index": n }))
+    };
+    let a = pinned(&mut sim, 0);
+    let b = pinned(&mut sim, 0);
+    assert_eq!(a["type"], "result", "{a}");
+    assert_eq!(a["seed"], b["seed"]);
+    assert_eq!(a["return_value"], b["return_value"]);
+    // The pinned runs left the count at 0: the next unpinned call draws
+    // index 0's seed too.
+    let next = sim.call(&dice, "roll", json!({}));
+    assert_eq!(next["seed"], a["seed"]);
+    assert_ne!(pinned(&mut sim, 1)["seed"], a["seed"]);
+    let bad = sim.send(json!({ "type": "simulate", "contract_id": dice, "function": "roll", "args": {}, "call_index": -1 }));
+    assert_eq!(bad["detail"]["path"], "call_index", "{bad}");
+}
+
 fn a_session_replays_byte_for_byte(lane: u32) {
     let session = |sim: &mut Sim, registry: &str, dice: &str| {
         sim.call(registry, "initialize", json!({ "admin": ADMIN }));
@@ -1381,6 +1400,10 @@ macro_rules! on_lane {
             #[test]
             fn the_seed_is_derived_and_drives_env_prng() {
                 super::the_seed_is_derived_and_drives_env_prng($protocol)
+            }
+            #[test]
+            fn a_pinned_call_index_reuses_its_seed_and_keeps_the_count() {
+                super::a_pinned_call_index_reuses_its_seed_and_keeps_the_count($protocol)
             }
             #[test]
             fn a_session_replays_byte_for_byte() {

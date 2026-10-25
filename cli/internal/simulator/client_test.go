@@ -345,6 +345,53 @@ func TestRespawnReplaysTheSession(t *testing.T) {
 	if !strings.Contains(procs[1][2], `"contract_id":"`+installed.ContractID+`"`) {
 		t.Fatalf("replayed install: %s", procs[1][2])
 	}
+	if got := c.TakeRestarts(); len(got) != 1 || got[0] != RestartTimeout {
+		t.Fatalf("restarts = %v, want [timeout]", got)
+	}
+	if got := c.TakeRestarts(); len(got) != 0 {
+		t.Fatalf("TakeRestarts should forget what it returned: %v", got)
+	}
+}
+
+// signet dev's reload cycle rolls back twice per saved call per save; a
+// respawn must not replay all of it, only what the state depends on.
+func TestRollbacksDropTheSessionWritesTheyUndo(t *testing.T) {
+	log, logOpt := newFakeLog(t)
+	clk := &fakeClock{}
+	c := start(t, logOpt, WithClock(clk))
+	ctx := context.Background()
+	mustCall := func(typ string, params, result any) {
+		t.Helper()
+		if ce, err := c.Call(ctx, typ, params, result); err != nil || ce != nil {
+			t.Fatalf("%s: ce=%v err=%v", typ, ce, err)
+		}
+	}
+	mustCall(TypeLedgerOpen, LedgerOpenParams{NetworkPassphrase: "Test SDF Network ; September 2015"}, nil)
+	var base LedgerCheckpointResult
+	mustCall(TypeLedgerCheckpoint, LedgerCheckpointParams{}, &base)
+	for cycle := 0; cycle < 3; cycle++ {
+		mustCall(TypeContractInstall, ContractInstallParams{WasmBase64: "AGFzbQEAAAA="}, nil)
+		for call := 0; call < 4; call++ {
+			mustCall(TypeLedgerRollback, LedgerRollbackParams(base), nil)
+			mustCall(TypeContractSwap, ContractSwapParams{ContractID: "CFAKE1", WasmHash: strings.Repeat("b", 64)}, nil)
+			mustCall(TypeLedgerRollback, LedgerRollbackParams(base), nil)
+		}
+	}
+	// An override-layer swap is not the session's to undo.
+	mustCall(TypeContractSwap, ContractSwapParams{ContractID: "CFAKE1", WasmHash: strings.Repeat("c", 64), Layer: "override"}, nil)
+	mustCall(TypeLedgerRollback, LedgerRollbackParams(base), nil)
+
+	clk.fire()
+	mustCall(TypeStatus, nil, nil)
+	procs := log.byProcess(t)
+	got := strings.Join(types(procs[len(procs)-1]), ",")
+	want := "hello,ledger_open,ledger_checkpoint,contract_install,contract_install,contract_install,contract_swap,ledger_rollback,status"
+	if got != want {
+		t.Fatalf("replayed:\n got %s\nwant %s", got, want)
+	}
+	if got := c.TakeRestarts(); len(got) != 1 || got[0] != RestartIdle {
+		t.Fatalf("restarts = %v, want [idle]", got)
+	}
 }
 
 // fakeClock fires timers only when told to.
