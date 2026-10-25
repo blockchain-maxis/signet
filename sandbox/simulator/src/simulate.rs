@@ -734,7 +734,12 @@ pub fn contract_info(
         };
         match fork.get(&code_key) {
             Ok(Some((code, _))) => {
-                reply["wasm_size"] = json!(lane.code_wasm(&code).map(|w| w.len()).unwrap_or(0));
+                let wasm = lane.code_wasm(&code).unwrap_or_default();
+                reply["wasm_size"] = json!(wasm.len());
+                // The executable itself, for a repro bundle (#572).
+                if object.get("include_wasm") == Some(&Value::Bool(true)) {
+                    reply["wasm_base64"] = json!(BASE64.encode(&wasm));
+                }
             }
             Ok(None) => {
                 return error_message(

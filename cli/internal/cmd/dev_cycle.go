@@ -5,8 +5,11 @@ import (
 	"fmt"
 	"os"
 	"reflect"
+	"sort"
 	"strings"
+	"time"
 
+	"github.com/blockchain-maxis/signet/cli/internal/bundle"
 	"github.com/blockchain-maxis/signet/cli/internal/dev"
 	"github.com/blockchain-maxis/signet/cli/internal/devconfig"
 	"github.com/blockchain-maxis/signet/cli/internal/exitcode"
@@ -24,6 +27,9 @@ type devSession struct {
 	sim       *simulator.Client
 	manifest  fork.Manifest
 	overrides []devconfig.Override
+	forkID    string
+	// log is the session log export reads (#572); nil until started.
+	log *bundle.Log
 }
 
 func (s *devSession) Close() {
@@ -48,7 +54,7 @@ func openDevSession(ctx context.Context, deps Deps, network rpc.Network, client 
 	if err != nil {
 		return nil, err
 	}
-	s := &devSession{cache: cache, sim: sim, manifest: m}
+	s := &devSession{cache: cache, sim: sim, manifest: m, forkID: info.ID}
 	sim.HandleFetch((&fork.Fetcher{Ctx: ctx, Cache: cache, RPC: client, ForkLedger: m.ForkLedger}).Fetch)
 	if err := s.reset(ctx, overrides); err != nil {
 		s.Close()
@@ -129,7 +135,75 @@ func (s *devSession) runCycle(ctx context.Context, wasmPath string, replays []de
 	for _, line := range describeCycle(cycle) {
 		progress(line)
 	}
+	if s.log != nil {
+		if err := s.log.Cycle(wasm, cycleRecord(cycle, replays, s.overrides), time.Now()); err != nil {
+			progress("warning: the session log could not be written: " + err.Error())
+		}
+	}
 	return cycle, nil
+}
+
+// startLog begins the session log in dir (#572).
+func (s *devSession) startLog(dir, cliVersion string) error {
+	m := s.manifest
+	rec := bundle.Session{
+		CreatedBy: "signet " + cliVersion, Contract: m.Contract,
+		Network:   bundle.Network{Name: m.Network, Passphrase: m.Passphrase, Protocol: m.Protocol},
+		Simulator: bundle.Simulator{Version: s.sim.HelloAck().SimulatorVersion, Lane: m.Protocol},
+		Deployed:  bundle.WasmOf(s.reloader.DeployedWasm()),
+	}
+	rec.Fork.ID, rec.Fork.Ledger, rec.Fork.Timestamp, rec.Fork.Consistent = s.forkID, m.ForkLedger, uint64(m.ForkTime.Unix()), m.Consistent
+	log, err := bundle.NewLog(dir, rec, time.Now())
+	if err != nil {
+		return err
+	}
+	s.log = log
+	return nil
+}
+
+// cycleRecord is a cycle as the session log keeps it: the calls, what each
+// side returned, and every key a footprint read.
+func cycleRecord(c dev.Cycle, replays []dev.Replay, overrides []devconfig.Override) bundle.Cycle {
+	side := func(r dev.Run) bundle.Side {
+		if r.Error != nil {
+			return bundle.Side{Outcome: "error", Error: r.Error.Code}
+		}
+		if r.Result == nil {
+			return bundle.Side{Outcome: "error"}
+		}
+		return bundle.Side{Outcome: "ok", ReturnValueXDR: r.Result.ReturnValueXDR}
+	}
+	keys := map[string]bool{}
+	read := func(r dev.Run) {
+		if r.Result != nil && r.Result.Resources != nil {
+			for _, k := range append(append([]string{}, r.Result.Resources.Footprint.ReadOnly...), r.Result.Resources.Footprint.ReadWrite...) {
+				keys[k] = true
+			}
+		}
+	}
+	out := bundle.Cycle{Overrides: bundle.OverridesOf(overrides), Calls: []bundle.Call{}, Expected: []bundle.Expected{}, Keys: []string{}}
+	for i, r := range replays {
+		args, _ := r.Params.Args.(map[string]any)
+		if args == nil {
+			args = map[string]any{}
+		}
+		expect, _ := r.Expect.MarshalText()
+		if r.Expect.Kind == "" {
+			expect = nil
+		}
+		out.Calls = append(out.Calls, bundle.Call{Name: r.Name, Function: r.Params.Function, Args: args, Chain: r.Chain, Expect: string(expect), Source: "saved"})
+		if i < len(c.Outcomes) {
+			o := c.Outcomes[i]
+			out.Expected = append(out.Expected, bundle.Expected{Name: o.Name, A: side(o.A), B: side(o.B)})
+			read(o.A)
+			read(o.B)
+		}
+	}
+	for k := range keys {
+		out.Keys = append(out.Keys, k)
+	}
+	sort.Strings(out.Keys)
+	return out
 }
 
 // describeCycle is the cycle in lines, until the diff renderers (#568,

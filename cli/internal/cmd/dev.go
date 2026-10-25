@@ -197,6 +197,13 @@ func runDev(cmd *cobra.Command, args []string, path, pkg string, ci bool, deboun
 	if err := session.applyRules(setup.file, setup.contract, printer.Progress); err != nil {
 		return err
 	}
+	logDir := setup.fileDir
+	if logDir == "" {
+		logDir = cwd
+	}
+	if err := session.startLog(logDir, deps.Version); err != nil {
+		printer.Progress("warning: no session log (signet sandbox export needs one): " + err.Error())
+	}
 
 	// The initial build (#564). A failure keeps going interactively, where
 	// the next save retries it; with --ci it is exit 12.
@@ -305,6 +312,10 @@ An existing signet.dev.toml is kept unless --force.`,
 			}
 			if err := os.WriteFile(target, []byte(text), 0o644); err != nil {
 				return fmt.Errorf("%w: %v", exitcode.ErrConfiguration, err)
+			}
+			// signet dev's session logs (#572) stay out of the repository.
+			if err := gitignore(cwd, ".signet/"); err != nil {
+				printer.Progress("warning: could not add .signet/ to .gitignore: " + err.Error())
 			}
 			result := struct {
 				Path  string   `json:"path"`
@@ -548,4 +559,23 @@ func relativeTo(dir string, paths []string) []string {
 		out[i] = p
 	}
 	return out
+}
+
+// gitignore adds pattern to dir's .gitignore unless a line already says it.
+func gitignore(dir, pattern string) error {
+	path := filepath.Join(dir, ".gitignore")
+	raw, err := os.ReadFile(path)
+	if err != nil && !os.IsNotExist(err) {
+		return err
+	}
+	for _, line := range strings.Split(string(raw), "\n") {
+		if strings.TrimSpace(line) == pattern || strings.TrimSpace(line) == strings.TrimSuffix(pattern, "/") {
+			return nil
+		}
+	}
+	if len(raw) > 0 && !strings.HasSuffix(string(raw), "\n") {
+		raw = append(raw, '\n')
+	}
+	raw = append(raw, []byte("# signet dev session logs\n"+pattern+"\n")...)
+	return os.WriteFile(path, raw, 0o644)
 }

@@ -21,6 +21,10 @@
       "type": "string",
       "minLength": 1,
       "description": "The contract (C...)"
+    },
+    "include_wasm": {
+      "type": "boolean",
+      "description": "Also return the executable's bytes, as wasm_base64 (#572)"
     }
   },
   "required": ["version", "id", "type", "contract_id"],
@@ -110,6 +114,11 @@
             "pattern": "^[A-Za-z0-9+/]+={0,2}$",
             "description": "LedgerKey fetched for this request"
           }
+        },
+        "wasm_base64": {
+          "type": "string",
+          "pattern": "^[A-Za-z0-9+/]*={0,2}$",
+          "description": "The executable, when include_wasm was set"
         }
       },
       "required": [

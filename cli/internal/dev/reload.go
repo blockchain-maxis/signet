@@ -107,6 +107,8 @@ type Reloader struct {
 	contract string
 	base     string
 	deployed string
+	// deployedWasm is the deployed executable, for a repro bundle (#572).
+	deployedWasm []byte
 	// installed are the executables already in the session, by hash.
 	installed map[string]bool
 	// cached are A sides by replay fingerprint: A changes only when the
@@ -162,7 +164,7 @@ func RulesOf(d devconfig.Diff, contract string) (*simulator.DiffRules, error) {
 // so every cycle starts from the same state. The ledger must be open.
 func NewReloader(ctx context.Context, host Host, contract string) (*Reloader, error) {
 	var info simulator.ContractInfoResult
-	if err := call(ctx, host, simulator.TypeContractInfo, simulator.ContractInfoParams{ContractID: contract}, &info); err != nil {
+	if err := call(ctx, host, simulator.TypeContractInfo, simulator.ContractInfoParams{ContractID: contract, IncludeWasm: true}, &info); err != nil {
 		return nil, err
 	}
 	if info.WasmHash == nil {
@@ -172,8 +174,12 @@ func NewReloader(ctx context.Context, host Host, contract string) (*Reloader, er
 	if err := call(ctx, host, simulator.TypeLedgerCheckpoint, simulator.LedgerCheckpointParams{Label: "base"}, &cp); err != nil {
 		return nil, err
 	}
+	deployedWasm, err := base64.StdEncoding.DecodeString(info.WasmBase64)
+	if err != nil {
+		return nil, fmt.Errorf("the deployed executable is not base64: %w", err)
+	}
 	return &Reloader{
-		host: host, contract: contract, base: cp.Checkpoint, deployed: *info.WasmHash,
+		host: host, contract: contract, base: cp.Checkpoint, deployed: *info.WasmHash, deployedWasm: deployedWasm,
 		installed: map[string]bool{*info.WasmHash: true}, cached: map[string]Run{},
 		specs: map[string]*simulator.SpecDiffResult{},
 	}, nil
@@ -181,6 +187,9 @@ func NewReloader(ctx context.Context, host Host, contract string) (*Reloader, er
 
 // Deployed is the deployed executable's hash.
 func (r *Reloader) Deployed() string { return r.deployed }
+
+// DeployedWasm is the deployed executable.
+func (r *Reloader) DeployedWasm() []byte { return r.deployedWasm }
 
 // Cycle installs wasm (once per distinct build) and runs every replay as A
 // and as B. Each starts from `base`, unless it chains, when it continues

@@ -405,6 +405,10 @@ cache and the session log
   schema of `signet.dev.toml`
   ([#560](https://github.com/blockchain-maxis/signet/issues/560),
   [`SANDBOX.md`](SANDBOX.md#signetdevtoml)), kept here for editors.
+- `bundle` (`bundle.json`) is not a message either: it is a repro bundle, the
+  file `signet sandbox export` writes from a `signet dev` session
+  ([#572](https://github.com/blockchain-maxis/signet/issues/572),
+  [`SANDBOX.md`](SANDBOX.md#repro-bundles)).
 - `cli-call-result` (`cli-call-result.json`) is not a wire message: it is the object `signet sandbox call --json`
   writes ([#555](https://github.com/blockchain-maxis/signet/issues/555)), kept beside the
   messages it is built from.

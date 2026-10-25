@@ -314,6 +314,8 @@ type ContractSwapResult struct {
 // ContractInfoParams reads a contract without running it (#550).
 type ContractInfoParams struct {
 	ContractID string `json:"contract_id"`
+	// IncludeWasm asks for the executable's bytes too (#572).
+	IncludeWasm bool `json:"include_wasm,omitempty"`
 }
 
 // ContractInfoResult answers contract_info.
@@ -325,6 +327,7 @@ type ContractInfoResult struct {
 	StorageEntries    int          `json:"storage_entries"`
 	InstanceLiveUntil *uint32      `json:"instance_live_until,omitempty"`
 	WasmSize          int          `json:"wasm_size,omitempty"`
+	WasmBase64        string       `json:"wasm_base64,omitempty"`
 	Misses            []string     `json:"misses"`
 }
 

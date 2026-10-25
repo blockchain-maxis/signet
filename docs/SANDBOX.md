@@ -203,6 +203,28 @@ and the cost, since a cached module is charged less than recording mode
 charges the A side. Caching A instead halves every later cycle's host runs
 without either.
 
+## Repro bundles
+
+Every `signet dev` session is logged (#572): a session record, each distinct
+build, and every cycle's calls, overrides, results and footprint keys, as
+NDJSON in `.signet/sessions/<timestamp>.ndjson` next to `signet.dev.toml`.
+`signet dev init` adds `.signet/` to `.gitignore`.
+
+`signet sandbox export -o repro.json` turns the newest session (or
+`--session <file>`) into a repro bundle, one JSON file someone else can re-run
+offline: the network and fork, every entry a footprint read in the session
+(the minimum a re-run needs) and the network config, both WASMs with their
+sha256, the last cycle's calls, overrides and results, and the simulator build
+and lane. Its `bundleHash` is the sha256 of its canonical JSON (keys sorted, no
+whitespace, without `bundleHash`), and exporting one session twice gives the
+same file. A bundle over `--max-size` (25MB by default) is refused with the
+parts that take the room. The format is
+[`sandbox/protocol/schema/v1/bundle.json`](../sandbox/protocol/schema/v1/bundle.json).
+
+Fork data is public chain state, but overrides and saved-call arguments are
+whatever you typed; export says so, and the bundle is worth reading before it
+is shared.
+
 ## Archive forks
 
 A lazy fork knows only the keys something has read and can mix ledgers.

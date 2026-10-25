@@ -40,6 +40,7 @@ jobs:
               - 'cli/internal/cmd/sandbox*'
               - 'cli/internal/cmd/dev*'
               - 'cli/internal/dev/**'
+              - 'cli/internal/bundle/**'
               - 'cli/internal/simulator/**'
               - 'cli/internal/fork/**'
               - 'cli/internal/rpc/**'
@@ -661,7 +662,7 @@ jobs:
           SIGNET_SIMULATOR_PATH: ${{ github.workspace }}/sandbox/target/debug/signet-simulator
         run: |
           go test -count=1 -run 'SandboxCall|SandboxForkArchive|SandboxState|TestDev' ./internal/cmd
-          go test -count=1 -run 'TestReload' ./internal/dev
+          go test -count=1 ./internal/dev ./internal/bundle
 
   simulator-size:
     name: signet-simulator size budget

@@ -644,4 +644,9 @@ func TestDevInitSavesTheReadOnlyFunctions(t *testing.T) {
 	if _, stderr, err := e.cli("dev", "init", registryContract, "--rpc-url", e.rpc.srv.URL, "--force"); err != nil {
 		t.Fatalf("--force: %v\n%s", err, stderr)
 	}
+	// Session logs (#572) are ignored, once however often init runs.
+	ignore, _ := os.ReadFile(".gitignore")
+	if strings.Count(string(ignore), ".signet/") != 1 {
+		t.Fatalf(".gitignore:\n%s", ignore)
+	}
 }

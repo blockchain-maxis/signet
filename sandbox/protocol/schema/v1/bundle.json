@@ -1,0 +1,317 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://signet.dev/schemas/sandbox/v1/bundle.json",
+  "title": "Repro bundle v1",
+  "description": "One file someone else can re-run offline and get byte-identical results from (#572): the fork's state as the session read it, both executables, the calls and what they returned. Written by signet sandbox export. Not a wire message.",
+  "type": "object",
+  "properties": {
+    "version": {
+      "const": 1
+    },
+    "createdBy": {
+      "type": "string",
+      "minLength": 1,
+      "description": "signet <version>"
+    },
+    "network": {
+      "type": "object",
+      "properties": {
+        "passphrase": {
+          "type": "string",
+          "minLength": 1
+        },
+        "protocol": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "required": ["passphrase", "protocol"],
+      "additionalProperties": false
+    },
+    "fork": {
+      "type": "object",
+      "properties": {
+        "contract": {
+          "type": "string",
+          "pattern": "^C[A-Z2-7]{55}$"
+        },
+        "ledger": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "consistent": {
+          "type": "boolean",
+          "description": "Imported from a history-archive snapshot: one ledger's state"
+        },
+        "drifted": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9+/]*={0,2}$"
+          },
+          "description": "Keys that changed on-chain after the fork ledger"
+        }
+      },
+      "required": ["contract", "ledger", "consistent", "drifted"],
+      "additionalProperties": false
+    },
+    "ledgerInfo": {
+      "type": "object",
+      "properties": {
+        "sequence": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "timestamp": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "required": ["sequence", "timestamp"],
+      "additionalProperties": false
+    },
+    "configSettings": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9+/]*={0,2}$",
+            "description": "LedgerKey XDR"
+          },
+          "entry": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9+/]*={0,2}$",
+            "description": "LedgerEntryData XDR, as getLedgerEntries returns it"
+          },
+          "ext": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9+/]*={0,2}$",
+            "description": "The entry's extXdr, when it has one"
+          },
+          "lastModifiedLedgerSeq": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "liveUntil": {
+            "type": ["integer", "null"],
+            "minimum": 0
+          }
+        },
+        "required": ["key", "entry", "lastModifiedLedgerSeq", "liveUntil"],
+        "additionalProperties": false
+      },
+      "description": "The network config the host loads"
+    },
+    "entries": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9+/]*={0,2}$",
+            "description": "LedgerKey XDR"
+          },
+          "entry": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9+/]*={0,2}$",
+            "description": "LedgerEntryData XDR, as getLedgerEntries returns it"
+          },
+          "ext": {
+            "type": "string",
+            "pattern": "^[A-Za-z0-9+/]*={0,2}$",
+            "description": "The entry's extXdr, when it has one"
+          },
+          "lastModifiedLedgerSeq": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "liveUntil": {
+            "type": ["integer", "null"],
+            "minimum": 0
+          }
+        },
+        "required": ["key", "entry", "lastModifiedLedgerSeq", "liveUntil"],
+        "additionalProperties": false
+      },
+      "description": "Every entry a footprint in the session read, sorted by key"
+    },
+    "wasm": {
+      "type": "object",
+      "properties": {
+        "deployed": {
+          "type": "object",
+          "properties": {
+            "sha256": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            "base64": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9+/]*={0,2}$"
+            }
+          },
+          "required": ["sha256", "base64"],
+          "additionalProperties": false
+        },
+        "local": {
+          "type": "object",
+          "properties": {
+            "sha256": {
+              "type": "string",
+              "pattern": "^[0-9a-f]{64}$"
+            },
+            "base64": {
+              "type": "string",
+              "pattern": "^[A-Za-z0-9+/]*={0,2}$"
+            }
+          },
+          "required": ["sha256", "base64"],
+          "additionalProperties": false
+        }
+      },
+      "required": ["deployed", "local"],
+      "additionalProperties": false
+    },
+    "calls": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1
+          },
+          "function": {
+            "type": "string",
+            "minLength": 1
+          },
+          "args": {
+            "type": "object"
+          },
+          "chain": {
+            "type": "boolean"
+          },
+          "expect": {
+            "type": "string"
+          },
+          "source": {
+            "enum": ["saved", "real"]
+          }
+        },
+        "required": ["name", "function", "args", "source"],
+        "additionalProperties": false
+      }
+    },
+    "overrides": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "durability": {
+            "enum": ["instance", "persistent", "temporary"]
+          },
+          "key": {
+            "type": "string",
+            "minLength": 1
+          },
+          "value": {
+            "type": "string"
+          },
+          "unset": {
+            "type": "boolean"
+          }
+        },
+        "required": ["durability", "key"],
+        "additionalProperties": false
+      }
+    },
+    "expected": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1
+          },
+          "a": {
+            "type": "object",
+            "properties": {
+              "outcome": {
+                "enum": ["ok", "error"]
+              },
+              "return_value_xdr": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9+/]*={0,2}$"
+              },
+              "error": {
+                "type": "string"
+              }
+            },
+            "required": ["outcome"],
+            "additionalProperties": false
+          },
+          "b": {
+            "type": "object",
+            "properties": {
+              "outcome": {
+                "enum": ["ok", "error"]
+              },
+              "return_value_xdr": {
+                "type": "string",
+                "pattern": "^[A-Za-z0-9+/]*={0,2}$"
+              },
+              "error": {
+                "type": "string"
+              }
+            },
+            "required": ["outcome"],
+            "additionalProperties": false
+          }
+        },
+        "required": ["name", "a", "b"],
+        "additionalProperties": false
+      },
+      "description": "What each call returned on the deployed code (a) and the build (b), in calls order"
+    },
+    "simulator": {
+      "type": "object",
+      "properties": {
+        "version": {
+          "type": "string",
+          "minLength": 1
+        },
+        "lane": {
+          "type": "integer",
+          "minimum": 0
+        }
+      },
+      "required": ["version", "lane"],
+      "additionalProperties": false
+    },
+    "bundleHash": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$",
+      "description": "sha256 of the bundle's canonical JSON (keys sorted, no whitespace) without bundleHash"
+    }
+  },
+  "required": [
+    "version",
+    "createdBy",
+    "network",
+    "fork",
+    "ledgerInfo",
+    "configSettings",
+    "entries",
+    "wasm",
+    "calls",
+    "overrides",
+    "expected",
+    "simulator",
+    "bundleHash"
+  ],
+  "additionalProperties": false
+}

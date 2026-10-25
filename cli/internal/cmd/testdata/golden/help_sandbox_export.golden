@@ -1,0 +1,43 @@
+$ signet sandbox export --help
+-- stdout --
+Write a signet dev session as a repro bundle: one JSON file someone else
+can re-run offline and get the same results from. It holds the network and
+fork, every ledger entry a call's footprint read, the network config, the
+deployed and the built WASM, the last cycle's calls, overrides and results,
+and a bundleHash over its canonical JSON, so exporting the same session twice
+gives the same file.
+
+The session is the newest log under .signet/sessions next to signet.dev.toml
+(or in the working directory), or --session. A bundle over --max-size is
+refused with what takes the room.
+
+Fork data is public chain state, but overrides and saved-call arguments are
+whatever was typed: read the bundle before sharing it.
+
+Usage:
+  signet sandbox export -o <file> [flags]
+
+Examples:
+  signet sandbox export -o repro.json
+  signet sandbox export --session .signet/sessions/20261025T120000.000Z.ndjson -o repro.json --max-size 50MB
+
+Flags:
+  -h, --help              help for export
+      --max-size string   refuse a bundle larger than this (bytes, or with KB or MB) (default "25MB")
+  -o, --output string     the bundle file to write
+      --session string    the session log to export (default: the newest)
+
+Global Flags:
+      --context string              deployment context to use (overrides SIGNET_CONTEXT and the config file's current context)
+      --drift string                when an entry fetched for the fork changed on-chain after the fork ledger: warn, fail (exit 6), or refork (pin the latest ledger and run once more) (default "warn")
+      --insecure                    allow a plain-http deployment URL on a non-local host (signed challenges travel in cleartext; use only against a deployment you control)
+      --json                        write a single JSON result to stdout instead of human-readable output (diagnostics go to stderr)
+      --network string              Stellar network to talk to (overrides SIGNET_NETWORK, the context, and default "testnet")
+      --network-passphrase string   passphrase of a custom --network (checked against the RPC's getNetwork)
+      --rpc-url string              Stellar RPC to fork from (overrides the context's rpc-url; testnet defaults to https://soroban-testnet.stellar.org)
+      --sign-with-key string        identity to sign with, for non-interactive use (same value as STELLAR_SIGN_WITH_KEY; not remembered)
+      --source string               identity to sign as (remembered in the config file for next time)
+      --url string                  Signet deployment URL (overrides SIGNET_URL, the config file, and the default)
+-- stderr --
+(empty)
+-- exit 0 --

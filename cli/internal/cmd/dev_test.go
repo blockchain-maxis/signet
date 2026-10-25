@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"encoding/json"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -9,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/blockchain-maxis/signet/cli/internal/exitcode"
+	"github.com/blockchain-maxis/signet/cli/internal/jsonschema"
 )
 
 // devTools builds fake stellar, cargo and rustup into one directory and
@@ -152,5 +154,72 @@ func TestDevTakesWhatTheFlagsLeaveOutFromSignetDevToml(t *testing.T) {
 	t.Chdir(t.TempDir())
 	if _, _, err := e.cli("dev", "--rpc-url", e.rpc.srv.URL, "--ci"); ExitCode(err) != exitcode.InvalidInput {
 		t.Fatalf("no contract anywhere: %v", err)
+	}
+}
+
+// #572: a signet dev session exports as a repro bundle that validates
+// against bundle.json, exports the same twice, and is refused over the cap
+// with what takes the room.
+func TestDevExportWritesAReproducibleBundle(t *testing.T) {
+	e := newCallEnv(t)
+	devTools(t)
+	e.stellar = "stellar"
+	crate := devCrate(t)
+	dir := t.TempDir()
+	toml := "version = 1\naddress = \"" + registryContract + "\"\npath = \"" + filepath.ToSlash(crate) + "\"\n" +
+		"\n[[call]]\nname = \"count\"\nfunction = \"count\"\nargs = {}\nexpect = \"unchanged\"\n"
+	if err := os.WriteFile(filepath.Join(dir, "signet.dev.toml"), []byte(toml), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	registryWasm, _ := filepath.Abs(filepath.Join("..", "..", "..", "packages", "spec", "fixtures", "identity-registry.wasm"))
+	t.Setenv("FAKESTELLAR_BUILD_WASM", registryWasm)
+	schemaPath, _ := filepath.Abs(filepath.Join("..", "..", "..", "sandbox", "protocol", "schema", "v1", "bundle.json"))
+	t.Chdir(dir)
+	if _, stderr, err := e.cli("dev", "--rpc-url", e.rpc.srv.URL, "--ci"); err != nil {
+		t.Fatalf("%v\n%s", err, stderr)
+	}
+
+	export := func(out string) map[string]any {
+		t.Helper()
+		if _, stderr, err := e.cli("sandbox", "export", "-o", out); err != nil {
+			t.Fatalf("export: %v\n%s", err, stderr)
+		}
+		raw, err := os.ReadFile(out)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var b map[string]any
+		if err := json.Unmarshal(raw, &b); err != nil {
+			t.Fatal(err)
+		}
+		return b
+	}
+	first := export("one.json")
+	schema, err := jsonschema.Load(schemaPath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if errs := jsonschema.Validate(schema, schema, first); len(errs) > 0 {
+		t.Fatalf("the bundle does not match bundle.json:\n  %s", strings.Join(errs, "\n  "))
+	}
+	if n := len(first["entries"].([]any)); n == 0 || len(first["configSettings"].([]any)) == 0 {
+		t.Fatalf("entries %d, config settings %d", n, len(first["configSettings"].([]any)))
+	}
+	second := export("two.json")
+	if first["bundleHash"] != second["bundleHash"] {
+		t.Fatalf("bundleHash %v then %v", first["bundleHash"], second["bundleHash"])
+	}
+	a, _ := os.ReadFile("one.json")
+	b, _ := os.ReadFile("two.json")
+	if string(a) != string(b) {
+		t.Fatal("two exports of one session differ")
+	}
+
+	_, _, err = e.cli("sandbox", "export", "-o", "big.json", "--max-size", "1KB")
+	if ExitCode(err) != exitcode.InvalidInput || !strings.Contains(err.Error(), "over the 1.0 KB cap") || !strings.Contains(err.Error(), "wasm.deployed") {
+		t.Fatalf("over the cap: %v", err)
+	}
+	if _, err := os.Stat("big.json"); err == nil {
+		t.Fatal("an over-cap bundle was written")
 	}
 }
