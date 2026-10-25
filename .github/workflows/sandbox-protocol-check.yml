@@ -1,0 +1,73 @@
+name: Sandbox protocol check
+
+# The simulator's lanes have a visible expiry (#592): every week, each live
+# network's ledger protocol is compared against the newest lane in
+# sandbox/simulator/lanes.toml. A network ahead of it fails the run, with a
+# link to the upgrade checklist, before anyone forks it and is refused
+# (#591). Mainnet is checked when the repository variable
+# MAINNET_RPC_URL is set, and skipped with a notice when it is not.
+
+on:
+  schedule:
+    - cron: "41 6 * * 1"
+  workflow_dispatch:
+    inputs:
+      max_lane:
+        description: "Pretend the newest lane is this protocol (to see the check fail)"
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+
+jobs:
+  protocol:
+    name: networks against lanes.toml
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Newest lane
+        id: lanes
+        run: |
+          max=$(grep -E '^protocol *= *[0-9]+' sandbox/simulator/lanes.toml | grep -oE '[0-9]+' | sort -n | tail -1)
+          if [ -n "${{ inputs.max_lane }}" ]; then
+            echo "::notice::pretending the newest lane is ${{ inputs.max_lane }} (lanes.toml says $max)"
+            max="${{ inputs.max_lane }}"
+          fi
+          echo "max=$max" >> "$GITHUB_OUTPUT"
+          echo "Newest lane: protocol $max" >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Compare live networks
+        env:
+          MAX_LANE: ${{ steps.lanes.outputs.max }}
+          TESTNET_RPC_URL: https://soroban-testnet.stellar.org
+          MAINNET_RPC_URL: ${{ vars.MAINNET_RPC_URL }}
+        run: |
+          set -u
+          failed=0
+          check() {
+            name=$1 url=$2
+            body=$(curl -fsS --max-time 30 -H 'Content-Type: application/json' \
+              -d '{"jsonrpc":"2.0","id":1,"method":"getNetwork"}' "$url") || {
+              echo "::error::$name's RPC did not answer getNetwork"
+              failed=1
+              return
+            }
+            protocol=$(printf '%s' "$body" | jq -r '.result.protocolVersion')
+            echo "$name: protocol $protocol" >> "$GITHUB_STEP_SUMMARY"
+            if [ "$protocol" -gt "$MAX_LANE" ]; then
+              echo "::error::$name is on protocol $protocol; the newest signet-simulator lane is $MAX_LANE. Add a lane: see sandbox/README.md, \"Adding a protocol lane\"."
+              failed=1
+            else
+              echo "$name is on protocol $protocol, within the lanes (newest $MAX_LANE)"
+            fi
+          }
+          check testnet "$TESTNET_RPC_URL"
+          if [ -n "${MAINNET_RPC_URL:-}" ]; then
+            check mainnet "$MAINNET_RPC_URL"
+          else
+            echo "::notice::MAINNET_RPC_URL is not set: mainnet was not checked"
+          fi
+          exit $failed
