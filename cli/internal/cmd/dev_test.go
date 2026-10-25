@@ -113,9 +113,18 @@ func TestDevPreflightNamesEachMissingPiece(t *testing.T) {
 	if err != nil {
 		t.Fatalf("%v\n%s", err, stderr)
 	}
-	if !strings.Contains(stdout, "signet dev · CASF…RCN @ testnet ledger 4887004 · lane p28 · crate identity-registry") {
-		t.Fatalf("header:\n%s", stdout)
+	if !strings.Contains(stdout, "signet dev · CASF…RCN @ testnet ledger 4887004 · lane p28 · crate identity-registry") ||
+		!strings.Contains(stdout, "built identity_registry.wasm in") {
+		t.Fatalf("header and build:\n%s", stdout)
 	}
+
+	// A compile error: shown trimmed, and only --ci makes it exit 12.
+	t.Setenv("FAKESTELLAR_BUILD", "fail")
+	stdout, _, err = e.cli("dev", registryContract, "--path", crate, "--rpc-url", e.rpc.srv.URL)
+	if err != nil || !strings.Contains(stdout, "error[E0425]") || !strings.Contains(stdout, "and 1 more error") {
+		t.Fatalf("interactive build failure: %v\n%s", err, stdout)
+	}
+	expect("--ci", run("--ci"), exitcode.BuildFailed, "error[E0425]")
 }
 
 func TestDevTakesWhatTheFlagsLeaveOutFromSignetDevToml(t *testing.T) {

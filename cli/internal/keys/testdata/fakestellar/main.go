@@ -8,8 +8,11 @@ package main
 import (
 	"fmt"
 	"os"
+	"os/exec"
+	"path/filepath"
 	"strconv"
 	"strings"
+	"time"
 )
 
 func main() {
@@ -21,6 +24,19 @@ func main() {
 	// gets each invocation's arguments, one line each.
 	if len(args) >= 2 && args[0] == "snapshot" && args[1] == "create" {
 		snapshotCreate(args[2:])
+		return
+	}
+
+	// `contract build --manifest-path <m> --package <p>` (#564), as
+	// FAKESTELLAR_BUILD says: ok (the default) writes the WASM where cargo
+	// would, fail prints rustc errors, stale succeeds without writing, slow
+	// records its pid and a child's in FAKESTELLAR_PID_FILE and sleeps.
+	if len(args) >= 2 && args[0] == "contract" && args[1] == "build" {
+		contractBuild(args[2:])
+		return
+	}
+	if len(args) == 1 && args[0] == "fake-sleep" {
+		time.Sleep(30 * time.Second)
 		return
 	}
 
@@ -118,4 +134,55 @@ func snapshotCreate(args []string) {
 		os.Exit(1)
 	}
 	fmt.Fprintln(os.Stderr, "ℹ️  Saved 12 entries to "+out)
+}
+
+func contractBuild(args []string) {
+	manifest, pkg := "", "contract"
+	for i := 0; i+1 < len(args); i++ {
+		switch args[i] {
+		case "--manifest-path":
+			manifest = args[i+1]
+		case "--package":
+			pkg = args[i+1]
+		}
+	}
+	fmt.Fprintf(os.Stderr, "ℹ️  CARGO_BUILD_RUSTFLAGS=--cfg soroban_sdk_internal_no_rssdkver_meta cargo rustc --manifest-path=%s --crate-type=cdylib --target=wasm32v1-none --release\n", manifest)
+	fmt.Fprintf(os.Stderr, "   Compiling %s v0.1.0\n", pkg)
+	switch os.Getenv("FAKESTELLAR_BUILD") {
+	case "fail":
+		fmt.Fprint(os.Stderr, `error[E0425]: cannot find value `+"`x`"+` in this scope
+  --> src/lib.rs:10:5
+   |
+10 |     x
+   |     ^ not found in this scope
+
+error[E0308]: mismatched types
+  --> src/lib.rs:12:5
+
+error: could not compile `+"`"+pkg+"`"+` (lib) due to 2 previous errors
+`)
+		os.Exit(101)
+	case "stale":
+		return
+	case "slow":
+		child := exec.Command(os.Args[0], "fake-sleep")
+		_ = child.Start()
+		pids := fmt.Sprintf("%d\n%d\n", os.Getpid(), child.Process.Pid)
+		_ = os.WriteFile(os.Getenv("FAKESTELLAR_PID_FILE"), []byte(pids), 0o600)
+		time.Sleep(30 * time.Second)
+		return
+	}
+	out := filepath.Join(filepath.Dir(manifest), "target", "wasm32v1-none", "release", strings.ReplaceAll(pkg, "-", "_")+".wasm")
+	_ = os.MkdirAll(filepath.Dir(out), 0o755)
+	wasm := []byte("\x00asm\x01\x00\x00\x00")
+	if src := os.Getenv("FAKESTELLAR_BUILD_WASM"); src != "" {
+		if raw, err := os.ReadFile(src); err == nil {
+			wasm = raw
+		}
+	}
+	if err := os.WriteFile(out, wasm, 0o644); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+	fmt.Fprintln(os.Stderr, "    Finished `release` profile [optimized] target(s) in 1.2s")
 }

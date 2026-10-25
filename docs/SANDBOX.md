@@ -106,6 +106,16 @@ contract and prints what it runs against:
 signet dev · CASF…RCN @ testnet ledger 4852095 · lane p28 · crate identity-registry
 ```
 
+It builds with `stellar contract build --manifest-path <path>/Cargo.toml
+--package <crate>`, leaving `CARGO_TARGET_DIR` alone so cargo's incremental
+builds are reused, and takes the WASM from cargo's target directory
+(`wasm32v1-none/release/<crate>.wasm`). A newer change cancels a build in
+flight: its whole process group is killed and waited for before the next one
+starts. A failed build shows rustc's first error block and how many more there
+were, and the previous WASM stays in use; a build that leaves an artifact older
+than itself is refused rather than run stale. `--ci` runs once and makes a
+failed build exit `12`.
+
 ## Archive forks
 
 A lazy fork knows only the keys something has read and can mix ledgers.

@@ -10,6 +10,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/spf13/cobra"
 
@@ -29,7 +30,10 @@ func init() {
 // newDevCmd is `signet dev [contract]` (#563): the local development loop,
 // and the parent of dev init.
 func newDevCmd() *cobra.Command {
-	var path, pkg string
+	var (
+		path, pkg string
+		ci        bool
+	)
 	cmd := &cobra.Command{
 		Use:   "dev [contract]",
 		Short: "Develop a contract against a fork of its deployment",
@@ -49,12 +53,13 @@ when it does not; exit 3 for the others).`,
   signet dev init CASF…RCN --path ./contracts/registry`,
 		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runDev(cmd, args, path, pkg)
+			return runDev(cmd, args, path, pkg, ci)
 		},
 	}
 	addRPCFlags(cmd)
 	cmd.Flags().StringVar(&path, "path", "", "the contract's crate directory (default: path in signet.dev.toml)")
 	cmd.Flags().StringVar(&pkg, "package", "", "the contract crate, when --path is a workspace with several (default: package in signet.dev.toml)")
+	cmd.Flags().BoolVar(&ci, "ci", false, "run once, non-interactively: a failed build exits 12")
 	cmd.AddCommand(newDevInitCmd())
 	return cmd
 }
@@ -68,7 +73,7 @@ type devSetup struct {
 	fileDir  string
 }
 
-func runDev(cmd *cobra.Command, args []string, path, pkg string) error {
+func runDev(cmd *cobra.Command, args []string, path, pkg string, ci bool) error {
 	deps, err := depsFor(cmd)
 	if err != nil {
 		return err
@@ -181,6 +186,22 @@ func runDev(cmd *cobra.Command, args []string, path, pkg string) error {
 	}
 	header := fmt.Sprintf("signet dev · %s @ %s ledger %d · lane p%d · crate %s",
 		shorten(setup.contract, 4, 3), m.Network, m.ForkLedger, m.Protocol, setup.crate.Name)
+	printer.Progress(header)
+
+	// The initial build (#564). A failure keeps going interactively, where
+	// the next save retries it; with --ci it is exit 12.
+	builder := &dev.Builder{Stellar: binary, Crate: setup.crate}
+	built, buildErr := builder.Build(ctx)
+	switch {
+	case buildErr == nil:
+		printer.Progress(fmt.Sprintf("built %s in %s", filepath.Base(built.Wasm), built.Duration.Round(100*time.Millisecond)))
+	case dev.IsBuildError(buildErr) && ci:
+		return buildErr
+	case dev.IsBuildError(buildErr):
+		printer.Progress("build failed:\n" + buildErr.Error())
+	default:
+		return buildErr
+	}
 	return printer.Result(struct {
 		Contract   string `json:"contract"`
 		Network    string `json:"network"`
@@ -188,7 +209,8 @@ func runDev(cmd *cobra.Command, args []string, path, pkg string) error {
 		Protocol   int    `json:"protocol"`
 		Crate      string `json:"crate"`
 		Manifest   string `json:"manifest"`
-	}{setup.contract, m.Network, m.ForkLedger, m.Protocol, setup.crate.Name, setup.crate.ManifestPath}, func(w io.Writer) error {
+		Wasm       string `json:"wasm,omitempty"`
+	}{setup.contract, m.Network, m.ForkLedger, m.Protocol, setup.crate.Name, setup.crate.ManifestPath, builder.Last()}, func(w io.Writer) error {
 		_, err := fmt.Fprintln(w, header)
 		return err
 	})
