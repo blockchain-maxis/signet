@@ -132,6 +132,12 @@ jobs:
       - name: Smoke check generated TypeScript client stub
         run: pnpm --filter @signet/spec smoke:client
 
+      # Fails when cli/internal/visualise/bundle/visualiser.js, the visualiser
+      # the Go CLI embeds, is stale against packages/visualiser or over its
+      # 2 MB budget (#544).
+      - name: Check the CLI's visualiser bundle
+        run: node scripts/check-visualiser-bundle.mjs
+
       - name: Build
         run: pnpm build
 
