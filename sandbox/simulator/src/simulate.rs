@@ -94,10 +94,35 @@ pub fn simulate(
     let Some(function) = object.get("function").and_then(Value::as_str) else {
         return invalid_field(id, "function", "a non-empty string");
     };
-    let args = object.get("args").cloned().unwrap_or(json!([]));
+    let args = object
+        .get("args")
+        .filter(|v| !v.is_null())
+        .cloned()
+        .unwrap_or(json!([]));
     if !(args.is_array() || args.is_object()) {
         return invalid_field(id, "args", "an array, or an object keyed by argument name");
     }
+    // A real transaction is replayed with its own arguments, exactly as it
+    // sent them (#636): ScVal XDR, not re-encoded through JSON.
+    let given_args_xdr = match object.get("args_xdr").filter(|v| !v.is_null()) {
+        None => None,
+        Some(Value::Array(items)) => {
+            if object.get("args").is_some_and(|v| !v.is_null()) {
+                return invalid_field(id, "args_xdr", "args or args_xdr, not both");
+            }
+            let mut decoded = Vec::with_capacity(items.len());
+            for (i, item) in items.iter().enumerate() {
+                match item.as_str().and_then(|s| BASE64.decode(s).ok()) {
+                    Some(bytes) => decoded.push(bytes),
+                    None => {
+                        return invalid_field(id, &format!("args_xdr[{i}]"), "an ScVal, base64 XDR")
+                    }
+                }
+            }
+            Some(decoded)
+        }
+        Some(_) => return invalid_field(id, "args_xdr", "an array of ScVal, base64 XDR"),
+    };
     let source_account = match object.get("source_account") {
         None => DEFAULT_SOURCE_ACCOUNT,
         Some(Value::String(s)) => s.as_str(),
@@ -177,9 +202,12 @@ pub fn simulate(
             );
         }
     };
-    let args_xdr = match lane.encode_args(&wasm, function, &args) {
-        Ok(encoded) => encoded,
-        Err(e) => return argument_error(id, &e),
+    let args_xdr = match given_args_xdr {
+        Some(given) => given,
+        None => match lane.encode_args(&wasm, function, &args) {
+            Ok(encoded) => encoded,
+            Err(e) => return argument_error(id, &e),
+        },
     };
     let host_function_xdr = match lane.invoke_contract(contract_id, function, &args_xdr) {
         Ok(xdr) => xdr,

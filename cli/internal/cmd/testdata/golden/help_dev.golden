@@ -34,6 +34,7 @@ Flags:
       --package string              the contract crate, when --path is a workspace with several (default: package in signet.dev.toml)
       --path string                 the contract's crate directory (default: path in signet.dev.toml)
       --rpc-url string              Stellar RPC to fork from (overrides the context's rpc-url; testnet defaults to https://soroban-testnet.stellar.org)
+      --scan-ledgers uint32         also scan the newest N ledgers for the contract's transactions that emitted no event (slow: every transaction in them is decoded)
       --ui                          also serve the local UI on 127.0.0.1 and open it
 
 Global Flags:

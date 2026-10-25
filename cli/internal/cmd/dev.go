@@ -37,6 +37,7 @@ func newDevCmd() *cobra.Command {
 		ci        bool
 		debounce  time.Duration
 		ui        uiFlags
+		scan      uint32
 	)
 	cmd := &cobra.Command{
 		Use:   "dev [contract]",
@@ -57,7 +58,7 @@ when it does not; exit 3 for the others).`,
   signet dev init CASF…RCN --path ./contracts/registry`,
 		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runDev(cmd, args, path, pkg, ci, debounce, ui)
+			return runDev(cmd, args, path, pkg, ci, debounce, ui, scan)
 		},
 	}
 	addRPCFlags(cmd)
@@ -67,6 +68,7 @@ when it does not; exit 3 for the others).`,
 	cmd.Flags().DurationVar(&debounce, "debounce", dev.DefaultDebounce, "how long a burst of file changes must settle before one rebuild")
 	cmd.Flags().BoolVar(&ui.on, "ui", false, "also serve the local UI on 127.0.0.1 and open it")
 	cmd.Flags().BoolVar(&ui.noBrowser, "no-browser", false, "with --ui, print the UI's URL instead of opening a browser")
+	cmd.Flags().Uint32Var(&scan, "scan-ledgers", 0, "also scan the newest N ledgers for the contract's transactions that emitted no event (slow: every transaction in them is decoded)")
 	cmd.AddCommand(newDevInitCmd())
 	return cmd
 }
@@ -83,7 +85,7 @@ type devSetup struct {
 // uiFlags are signet dev's --ui and --no-browser.
 type uiFlags struct{ on, noBrowser bool }
 
-func runDev(cmd *cobra.Command, args []string, path, pkg string, ci bool, debounce time.Duration, ui uiFlags) error {
+func runDev(cmd *cobra.Command, args []string, path, pkg string, ci bool, debounce time.Duration, ui uiFlags, scan uint32) error {
 	deps, err := depsFor(cmd)
 	if err != nil {
 		return err
@@ -205,6 +207,7 @@ func runDev(cmd *cobra.Command, args []string, path, pkg string, ci bool, deboun
 	if err := session.applyRules(setup.file, setup.contract, printer.Progress); err != nil {
 		return err
 	}
+	session.collectReal(ctx, client, network.Name, setup.contract, setup.file, scan, printer.Progress)
 	logDir := setup.fileDir
 	if logDir == "" {
 		logDir = cwd
@@ -221,7 +224,7 @@ func runDev(cmd *cobra.Command, args []string, path, pkg string, ci bool, deboun
 	switch {
 	case buildErr == nil:
 		printer.Progress(fmt.Sprintf("built %s in %s", filepath.Base(built.Wasm), built.Duration.Round(100*time.Millisecond)))
-		c, err := session.runCycle(ctx, built.Wasm, devReplays(setup.file), printer.Progress)
+		c, err := session.runCycle(ctx, built.Wasm, session.replays(setup.file), printer.Progress)
 		if err != nil {
 			return err
 		}
@@ -508,7 +511,7 @@ func watchAndRebuild(ctx context.Context, setup devSetup, builder *dev.Builder, 
 	defer func() { cancel() }()
 	// A failed cycle is said and the loop goes on: the next save retries.
 	replay := func(wasm string) {
-		if _, err := session.runCycle(ctx, wasm, devReplays(setup.file), progress); err != nil && ctx.Err() == nil {
+		if _, err := session.runCycle(ctx, wasm, session.replays(setup.file), progress); err != nil && ctx.Err() == nil {
 			progress("replay failed: " + err.Error())
 		}
 	}

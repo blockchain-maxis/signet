@@ -13,6 +13,7 @@ import (
 	"time"
 
 	"github.com/blockchain-maxis/signet/cli/internal/devconfig"
+	"github.com/blockchain-maxis/signet/cli/internal/realtx"
 	"github.com/blockchain-maxis/signet/cli/internal/simulator"
 )
 
@@ -551,5 +552,57 @@ func TestReloadCycleTracesWhenAsked(t *testing.T) {
 	// A traced call is a different input: the untraced A is not reused for it.
 	if traced.Outcomes[0].A.Cached {
 		t.Fatal("the untraced A side was reused for a traced call")
+	}
+}
+
+// realIncrement is an on-chain increment that returned want and emitted no
+// events, as tx_decode reads it from the meta.
+func realIncrement(contract, want string) *RealTx {
+	var d realtx.Decoded
+	kind := "invoke_contract"
+	d.HostFunction.Kind, d.HostFunction.Replayable = &kind, true
+	d.HostFunction.ContractID, d.HostFunction.Function = contract, "increment"
+	d.Result = &realtx.OnChain{ReturnValue: &realtx.XDRValue{XDR: want}}
+	return &RealTx{Tx: realtx.Tx{Hash: "3f2a9c", Ledger: 4851010, Decoded: d}, Link: realtx.Link("testnet", "3f2a9c")}
+}
+
+// The acceptance test of #636: a real transaction replayed with the
+// deployed code where nothing changed since behaves as it did on-chain, and
+// one whose state moved on since is low-fidelity.
+func TestARealTransactionIsCheckedAgainstTheChain(t *testing.T) {
+	const one, two = "AAAAAwAAAAE=", "AAAAAwAAAAI=" // u32 1, u32 2
+	for _, tc := range []struct {
+		name     string
+		onChain  string
+		high     bool
+		contains string
+	}{
+		{name: "unchanged state", onChain: one, high: true},
+		{name: "state changed since", onChain: two, contains: "low-fidelity (state changed since ledger 4851010): it returns something else now"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			ctx := context.Background()
+			host, contract := session(t)
+			r, err := NewReloader(ctx, host, contract)
+			if err != nil {
+				t.Fatal(err)
+			}
+			real := realIncrement(contract, tc.onChain)
+			cycle, err := r.Cycle(ctx, fixtureWasm(t, "counter_v1"), []Replay{{Name: real.Tx.Label(), Params: real.Tx.Params(), Real: real}})
+			if err != nil {
+				t.Fatal(err)
+			}
+			o := cycle.Outcomes[0]
+			if o.Real == nil || o.Real.Fidelity.High != tc.high || !strings.Contains(o.Real.Fidelity.Reason, tc.contains) {
+				t.Fatalf("real: %+v", o.Real)
+			}
+			if o.Name != "tx 3f2a… (ledger 4851010, increment)" || o.Real.Link != "https://stellar.expert/explorer/testnet/tx/3f2a9c" {
+				t.Fatalf("labelled %q, linked %q", o.Name, o.Real.Link)
+			}
+			// The same build: A and B agree whatever the chain did.
+			if o.Diff == nil || o.Diff.Outcome != nil || o.Diff.ReturnValue != nil || len(o.Diff.Events.Added) != 0 {
+				t.Fatalf("diff with identical code: %+v", o.Diff)
+			}
+		})
 	}
 }

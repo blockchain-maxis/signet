@@ -39,6 +39,15 @@
         }
       ]
     },
+    "args_xdr": {
+      "description": "The arguments as ScVal base64 XDR, in order, instead of args: a real transaction replayed exactly as it sent them (#636). Not both.",
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "pattern": "^[A-Za-z0-9+/]+={0,2}$"
+      }
+    },
     "source_account": {
       "type": "string",
       "minLength": 1,

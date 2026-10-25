@@ -1891,6 +1891,51 @@ fn storage_overrides_change_what_a_call_sees(lane: u32) {
 
 /// The same suite on every lane (#538): each test above runs once per
 /// ledger protocol the binary carries.
+/// #636: a real transaction is replayed with its own argument XDR. The same
+/// call by `args_xdr` and by `args` gives the same result; both at once, or
+/// an argument that is not base64, is refused by path.
+fn a_call_takes_its_arguments_as_xdr(lane: u32) {
+    let (mut sim, registry) = fresh_registry(lane);
+    let init = sim.call(&registry, "initialize", json!({ "admin": ADMIN }));
+    assert_eq!(init["type"], "result", "{init}");
+    let by_json = sim.send(
+        json!({ "type": "simulate", "contract_id": registry, "function": "claim",
+        "args": { "handle": "alice", "wallet": WALLET }, "dry_run": true }),
+    );
+    assert_eq!(by_json["type"], "result", "{by_json}");
+    // The arguments as the contract received them, from the auth entry.
+    let encoded = sim.send(
+        json!({ "type": "spec_encode_args", "source": { "contract_id": registry },
+        "function": "claim", "args": { "handle": "alice", "wallet": WALLET } }),
+    );
+    let args_xdr = encoded["args_xdr"].clone();
+    assert_eq!(args_xdr.as_array().map(Vec::len), Some(2), "{encoded}");
+    let by_xdr = sim.send(
+        json!({ "type": "simulate", "contract_id": registry, "function": "claim",
+        "args_xdr": args_xdr, "dry_run": true }),
+    );
+    assert_eq!(by_xdr["type"], "result", "{by_xdr}");
+    // Everything but the recording-mode auth nonce, which is fresh per call.
+    for field in ["return_value_xdr", "events", "auth_entries"] {
+        assert_eq!(by_xdr[field], by_json[field], "{field}");
+    }
+    assert_eq!(
+        by_xdr["modified_entries"].as_array().map(Vec::len),
+        by_json["modified_entries"].as_array().map(Vec::len)
+    );
+
+    let both = sim.send(
+        json!({ "type": "simulate", "contract_id": registry, "function": "claim",
+        "args": {}, "args_xdr": [] }),
+    );
+    assert_eq!(both["detail"]["path"], "args_xdr", "{both}");
+    let garbage = sim.send(
+        json!({ "type": "simulate", "contract_id": registry, "function": "claim",
+        "args_xdr": ["%%%"] }),
+    );
+    assert_eq!(garbage["detail"]["path"], "args_xdr[0]", "{garbage}");
+}
+
 macro_rules! on_lane {
     ($lane:ident, $protocol:expr) => {
         mod $lane {
@@ -2031,6 +2076,10 @@ macro_rules! on_lane {
             #[test]
             fn storage_overrides_change_what_a_call_sees() {
                 super::storage_overrides_change_what_a_call_sees($protocol)
+            }
+            #[test]
+            fn a_call_takes_its_arguments_as_xdr() {
+                super::a_call_takes_its_arguments_as_xdr($protocol)
             }
             #[test]
             fn a_trace_shows_the_two_level_call_tree() {

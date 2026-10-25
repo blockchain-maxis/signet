@@ -85,6 +85,11 @@ type Call struct {
 	Chain    bool           `json:"chain,omitempty"`
 	Expect   string         `json:"expect,omitempty"`
 	Source   string         `json:"source"` // saved or real
+	// A real transaction's replay (#636) sends its arguments as XDR, from
+	// its source account; Tx is its hash.
+	ArgsXDR       []string `json:"args_xdr,omitempty"`
+	SourceAccount string   `json:"source_account,omitempty"`
+	Tx            string   `json:"tx,omitempty"`
 }
 
 // Override is a storage override a cycle ran under, as signet.dev.toml

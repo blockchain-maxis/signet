@@ -16,6 +16,7 @@
 //	saved = true
 //	recent_transactions = 20     # 0 disables
 //	include_failed = false
+//	fail_on_low_fidelity = false
 //
 //	[[call]]
 //	name = "count is stable"
@@ -85,7 +86,11 @@ type Replay struct {
 	// RecentTransactions replays the contract's last N transactions (0
 	// disables); bounded by RPC retention.
 	RecentTransactions *int `toml:"recent_transactions"`
-	IncludeFailed      bool `toml:"include_failed"`
+	// IncludeFailed also replays transactions that failed on-chain.
+	IncludeFailed bool `toml:"include_failed"`
+	// FailOnLowFidelity lets a real transaction's diff fail --ci when its
+	// replay did not behave as it did on-chain (#636); off by default.
+	FailOnLowFidelity bool `toml:"fail_on_low_fidelity"`
 }
 
 // Call is one saved call and what it should do.

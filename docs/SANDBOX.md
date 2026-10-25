@@ -22,7 +22,8 @@ path = "./contracts/registry"   # the crate directory; package = "identity-regis
 [replay]
 saved = true                 # replay the [[call]]s below
 recent_transactions = 20     # and the contract's last 20 transactions; 0 disables
-include_failed = false
+include_failed = false       # also replay transactions that failed on-chain
+fail_on_low_fidelity = false # let a low-fidelity replay's diff fail --ci
 
 [[call]]
 name = "count is stable"
@@ -248,6 +249,48 @@ footprint that shrank (a read the new build dropped would still be listed),
 and the cost, since a cached module is charged less than recording mode
 charges the A side. Caching A instead halves every later cycle's host runs
 without either.
+
+### Real transactions
+
+With `[replay] recent_transactions` set (signet dev init writes 20; a file
+without it replays none), each session also replays the contract's latest
+real transactions after the saved calls (#635, #636). They are found three
+ways, each counted in the startup line:
+
+- **events**: `getEvents` for the contract over the RPC's retention window,
+  which finds every transaction that emitted an event;
+- **scan** (`--scan-ledgers N`): `getTransactions` over the newest N ledgers,
+  each decoded by the simulator, for the ones that emitted nothing. It is off
+  by default, as it decodes every transaction in those ledgers;
+- **indexer**: the hashes a Signet deployment indexed.
+
+A transaction found more than once is replayed once, and the newest
+`recent_transactions` are kept. Transactions are cached in the fork, so a
+second session reads them without RPC.
+
+```text
+3 real transactions to replay (ledgers 4778014–4899013): found 3 by events; 1 no longer retrievable; 1 skipped
+  3f2a…9c1d: not retrievable: outside the RPC's retention window (ledgers 4778014–4899013)
+  ab07…5e22: called the contract through CROU…TER9, not directly
+```
+
+A hash RPC no longer has is listed, not dropped. Skipped are transactions
+that failed on-chain (unless `include_failed`), that ran another host
+function than `InvokeContract`, or that called the contract through another
+one: only a direct call replays as itself.
+
+A replay is labelled `tx 3f2a… (ledger 4851010, claim)` and links to the
+transaction on stellar.expert. It sends the transaction's arguments exactly as
+it did (as XDR, `args_xdr` in the protocol), from its source account, with
+recording-mode auth, since its signatures' nonces are spent. It runs against
+the fork's state, not the state at its ledger, so each one's A side is
+checked against what the chain did: the same return value and the same
+contract events, XDR against XDR. A replay that matches is high-fidelity; one
+that does not is marked `low-fidelity (state changed since ledger N)` with
+what differs, and its A/B diff says less about the change. A failed
+transaction (`include_failed`) is high-fidelity when A fails too. A
+low-fidelity replay's diff is shown but does not fail `--ci` unless
+`fail_on_low_fidelity = true`.
 
 ## Protocol support
 

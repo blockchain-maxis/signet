@@ -278,7 +278,11 @@ could say. More frames than the cap set `truncated`, never silently.
 contract's spec
 ([#545](https://github.com/blockchain-maxis/signet/issues/545)); this replaces
 the earlier sketch of an `args_xdr` list built in Go. `spec_encode_args` and
-`spec_decode_val` expose the same encoding on their own.
+`spec_decode_val` expose the same encoding on their own. The one exception is a
+real transaction replayed against the fork
+([#636](https://github.com/blockchain-maxis/signet/issues/636)): it sends its
+own `args_xdr` (ScVal base64, in order) instead of `args`, so the call is the
+one the chain ran, not a JSON round trip of it.
 
 The JSON shape is `@signet/spec`'s `functionArgsSchema` (the shape
 `@stellar/stellar-sdk`'s `contract.Spec#jsonSchema` describes), so the terminal,

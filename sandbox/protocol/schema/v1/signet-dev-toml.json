@@ -57,6 +57,9 @@
         },
         "include_failed": {
           "type": "boolean"
+        },
+        "fail_on_low_fidelity": {
+          "type": "boolean"
         }
       },
       "additionalProperties": false

@@ -199,6 +199,16 @@
           },
           "source": {
             "enum": ["saved", "real"]
+          },
+          "args_xdr": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "source_account": {
+            "type": "string"
+          },
+          "tx": {
+            "type": "string"
           }
         },
         "required": ["name", "function", "args", "source"],

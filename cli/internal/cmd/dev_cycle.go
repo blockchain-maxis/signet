@@ -41,6 +41,8 @@ type devSession struct {
 	cycles []storedCycle
 	// events is the UI's event stream; nil without --ui.
 	events *devui.Events
+	// real are the contract's recent real transactions as replays (#636).
+	real []dev.Replay
 }
 
 // storedCycle is a cycle as the UI fetches it.
@@ -261,7 +263,11 @@ func cycleRecord(c dev.Cycle, replays []dev.Replay, overrides []devconfig.Overri
 		if r.Expect.Kind == "" {
 			expect = nil
 		}
-		out.Calls = append(out.Calls, bundle.Call{Name: r.Name, Function: r.Params.Function, Args: args, Chain: r.Chain, Expect: string(expect), Source: "saved"})
+		call := bundle.Call{Name: r.Name, Function: r.Params.Function, Args: args, Chain: r.Chain, Expect: string(expect), Source: "saved"}
+		if r.Real != nil {
+			call.Source, call.ArgsXDR, call.SourceAccount, call.Tx = "real", r.Params.ArgsXDR, r.Params.SourceAccount, r.Real.Tx.Hash
+		}
+		out.Calls = append(out.Calls, call)
 		if i < len(c.Outcomes) {
 			o := c.Outcomes[i]
 			out.Expected = append(out.Expected, bundle.Expected{Name: o.Name, A: bundleSide(o.A), B: bundleSide(o.B)})

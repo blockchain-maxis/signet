@@ -341,12 +341,15 @@ type ExternalRef struct {
 
 // SimulateParams runs a function with JSON arguments (#545).
 type SimulateParams struct {
-	ContractID    string `json:"contract_id"`
-	Function      string `json:"function"`
-	Args          any    `json:"args"` // a map by argument name, or a slice in order
-	SourceAccount string `json:"source_account,omitempty"`
-	Diagnostics   bool   `json:"diagnostics,omitempty"`
-	DryRun        bool   `json:"dry_run,omitempty"`
+	ContractID string `json:"contract_id"`
+	Function   string `json:"function"`
+	Args       any    `json:"args"` // a map by argument name, or a slice in order
+	// ArgsXDR are the arguments as ScVal base64 XDR instead of Args: a real
+	// transaction replayed exactly as it sent them (#636). Leave Args nil.
+	ArgsXDR       []string `json:"args_xdr,omitempty"`
+	SourceAccount string   `json:"source_account,omitempty"`
+	Diagnostics   bool     `json:"diagnostics,omitempty"`
+	DryRun        bool     `json:"dry_run,omitempty"`
 	// Budget overrides the network's limits, each up to 10x (#536).
 	Budget *Budget `json:"budget,omitempty"`
 	// AuthMode is record (the default), strict or enforce; enforce checks

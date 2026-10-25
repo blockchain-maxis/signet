@@ -183,6 +183,9 @@ func replayBundle(ctx context.Context, sim *simulator.Client, b *bundle.Bundle, 
 	replays := make([]dev.Replay, len(b.Calls))
 	for i, c := range b.Calls {
 		replays[i] = dev.Replay{Name: c.Name, Params: simulator.SimulateParams{Function: c.Function, Args: c.Args}, Chain: c.Chain}
+		if c.Source == "real" {
+			replays[i].Params.Args, replays[i].Params.ArgsXDR, replays[i].Params.SourceAccount = nil, c.ArgsXDR, c.SourceAccount
+		}
 		if c.Expect != "" {
 			var e devconfig.Expect
 			if err := e.UnmarshalText([]byte(c.Expect)); err != nil {

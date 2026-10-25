@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	"github.com/blockchain-maxis/signet/cli/internal/devconfig"
+	"github.com/blockchain-maxis/signet/cli/internal/realtx"
 	"github.com/blockchain-maxis/signet/cli/internal/simulator"
 )
 
@@ -36,6 +37,25 @@ type Replay struct {
 	// Expect is what the call should do on the new build (#567); the zero
 	// value checks nothing.
 	Expect devconfig.Expect
+	// Real is set on a real transaction's replay (#636): its A side is then
+	// checked against what the chain did.
+	Real *RealTx
+}
+
+// RealTx is a real transaction behind a replay.
+type RealTx struct {
+	Tx   realtx.Tx
+	Link string
+}
+
+// RealOutcome is a real transaction's replay: where it came from, and
+// whether the deployed code here behaved as it did on-chain.
+type RealOutcome struct {
+	Hash     string          `json:"hash"`
+	Ledger   uint32          `json:"ledger"`
+	Function string          `json:"function"`
+	Link     string          `json:"link,omitempty"`
+	Fidelity realtx.Fidelity `json:"fidelity"`
 }
 
 // Verdict is how a call met its expect.
@@ -63,6 +83,8 @@ type Outcome struct {
 	Diff *simulator.DiffResultsResult `json:"diff"`
 	// Verdict is how B met the call's expect; nil when it has none.
 	Verdict *Verdict `json:"verdict,omitempty"`
+	// Real is set when the call is a real transaction (#636).
+	Real *RealOutcome `json:"real,omitempty"`
 }
 
 // Cycle is what one reload produced, for the diff engine (#568) and the
@@ -319,6 +341,11 @@ func (r *Reloader) chain(ctx context.Context, replays []Replay, first int, local
 			return nil, 0, fmt.Errorf("comparing %s: %w", replay.Name, err)
 		}
 		o.Verdict = verdict(replay.Expect, *o)
+		if replay.Real != nil {
+			t := replay.Real.Tx
+			o.Real = &RealOutcome{Hash: t.Hash, Ledger: t.Ledger, Function: t.Function(), Link: replay.Real.Link,
+				Fidelity: realtx.CheckFidelity(t, o.A.Result, o.A.Error)}
+		}
 	}
 	return outcomes, runs, nil
 }
