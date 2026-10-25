@@ -92,6 +92,7 @@ type ContractError struct {
 	Budget           *Budget       `json:"budget,omitempty"`
 	AuthMode         string        `json:"auth_mode,omitempty"`
 	Archived         []Archived    `json:"archived,omitempty"`
+	Trace            *Trace        `json:"trace,omitempty"`
 }
 
 // DecodedError is a contracterror read from the contract's spec (#546).
@@ -345,6 +346,50 @@ type SimulateParams struct {
 	AuthEntries []string `json:"auth_entries,omitempty"`
 	// Ledger runs this call at another sequence or time (#558).
 	Ledger *LedgerOverride `json:"ledger,omitempty"`
+	// Trace asks for the call tree (#541): true, or a *TraceOptions.
+	Trace any `json:"trace,omitempty"`
+}
+
+// TraceOptions caps a trace's frames (default 10,000).
+type TraceOptions struct {
+	MaxFrames int `json:"max_frames,omitempty"`
+}
+
+// Trace is a call's call tree (#541), schema/v1/trace.json: read from the
+// host's fn_call / fn_return diagnostics, so there are no per-frame
+// instruction counts.
+type Trace struct {
+	Version    int            `json:"version"`
+	Source     string         `json:"source"`
+	Frames     []TraceFrame   `json:"frames"`
+	FrameCount int            `json:"frame_count"`
+	MaxFrames  int            `json:"max_frames"`
+	Truncated  bool           `json:"truncated"`
+	Storage    []TraceStorage `json:"storage"`
+}
+
+// TraceFrame is one contract call; frames are in call order.
+type TraceFrame struct {
+	Index    int      `json:"index"`
+	Parent   *int     `json:"parent"`
+	Depth    int      `json:"depth"`
+	Contract string   `json:"contract"`
+	Function string   `json:"function"`
+	ArgsXDR  []string `json:"args_xdr"`
+	// ArgsExact is false when no spec said how many arguments a folded
+	// vec held.
+	ArgsExact bool    `json:"args_exact"`
+	ResultXDR *string `json:"result_xdr"`
+	Error     *string `json:"error"`
+}
+
+// TraceStorage is the footprint of one contract; Contract is nil for keys
+// of no one contract.
+type TraceStorage struct {
+	Contract  *string  `json:"contract"`
+	ReadOnly  []string `json:"read_only"`
+	ReadWrite []string `json:"read_write"`
+	Changed   []string `json:"changed"`
 }
 
 // LedgerOverride is the ledger one call runs at; an unset field stays the
@@ -388,6 +433,7 @@ type SimulateResult struct {
 	AuthMode string `json:"auth_mode,omitempty"`
 	// Archived are the archived entries the call read (#558).
 	Archived []Archived `json:"archived,omitempty"`
+	Trace    *Trace     `json:"trace,omitempty"`
 }
 
 // Event is one contract event, as XDR, with its spec decoding when there

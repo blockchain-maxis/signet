@@ -11,7 +11,16 @@
 use std::io::Write;
 use std::process::{Command, Stdio};
 
-const CLIENT_TYPES: [&str; 5] = ["hello", "shutdown", "xdr_keys", "tx_decode", "wasm_inspect"];
+const CLIENT_TYPES: [&str; 8] = [
+    "hello",
+    "shutdown",
+    "xdr_keys",
+    "tx_decode",
+    "wasm_inspect",
+    "ledger_open",
+    "contract_install",
+    "simulate",
+];
 
 struct Replay {
     stdout: String,
@@ -92,6 +101,15 @@ fn xdr_helpers_transcript_replays_byte_for_byte() {
     // xdr_keys, tx_decode and wasm_inspect (#532) on the testnet registry, a
     // recorded claim, and a fixture contract.
     let (sent, expected) = load("xdr_helpers.ndjson");
+    let replay = run_simulator(&sent);
+    assert_eq!(replay.stdout, expected);
+    assert!(replay.status.success());
+}
+
+#[test]
+fn trace_transcript_replays_byte_for_byte() {
+    // A traced caller -> callee simulate (#541) on fixture contracts.
+    let (sent, expected) = load("trace.ndjson");
     let replay = run_simulator(&sent);
     assert_eq!(replay.stdout, expected);
     assert!(replay.status.success());

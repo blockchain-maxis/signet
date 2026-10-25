@@ -191,6 +191,10 @@
         "required": ["key_xdr", "key", "live_until_ledger", "outcome"],
         "additionalProperties": false
       }
+    },
+    "trace": {
+      "type": "object",
+      "description": "The call tree, when the request asked for `trace` (#541); its shape is trace.json"
     }
   },
   "required": ["version", "id", "type", "kind", "code", "message", "diagnostic_events"],

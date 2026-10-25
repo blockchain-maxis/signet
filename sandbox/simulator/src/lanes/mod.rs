@@ -197,6 +197,28 @@ pub struct SimulateResultBytes {
     pub budget: EffectiveBudget,
 }
 
+/// One contract call in a simulation, read from the host's `fn_call` and
+/// `fn_return` diagnostic events (#541), in call order (pre-order).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct TraceCall {
+    /// The called contract (C...).
+    pub contract: String,
+    pub function: String,
+    /// Index of the calling frame; `None` for the root call.
+    pub parent: Option<usize>,
+    pub depth: u32,
+    /// The arguments as the event carries them: the host records one
+    /// argument as itself and several folded into a vec, so `items_xdr`
+    /// holds that vec's elements when `data_xdr` is one, and the callee's
+    /// spec decides which reading is right.
+    pub data_xdr: Vec<u8>,
+    pub items_xdr: Option<Vec<Vec<u8>>>,
+    /// The returned `ScVal` XDR; `None` when the call failed.
+    pub result_xdr: Option<Vec<u8>>,
+    /// Why the call failed, as `Error(Type, Code)` when the host said.
+    pub error: Option<String>,
+}
+
 /// The outcome of pointing a contract instance at another executable.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SwapResultBytes {
@@ -425,6 +447,12 @@ pub trait Lane: Sync {
 
     /// A `LedgerKey` in words, for messages (`contract data CAS…: Owner("alice")`).
     fn describe_key(&self, key_xdr: &[u8]) -> String;
+
+    /// The contract (C...) a contract-data `LedgerKey` belongs to.
+    fn key_contract(&self, key_xdr: &[u8]) -> Option<String>;
+
+    /// The call tree in `DiagnosticEvent` XDR (#541).
+    fn trace_calls(&self, diagnostic_events_xdr: &[Vec<u8>]) -> Vec<TraceCall>;
 
     /// The code and instance entries that install `wasm` at `contract_id`,
     /// or at an id derived from the executable's hash.

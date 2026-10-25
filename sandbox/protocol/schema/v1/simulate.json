@@ -48,6 +48,24 @@
       "type": "boolean",
       "description": "Record diagnostic events (default false)"
     },
+    "trace": {
+      "description": "Return the call tree (#541): true, or {max_frames} to cap it (default 10000; truncation is flagged)",
+      "oneOf": [
+        {
+          "type": "boolean"
+        },
+        {
+          "type": "object",
+          "properties": {
+            "max_frames": {
+              "type": "integer",
+              "minimum": 1
+            }
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
     "dry_run": {
       "type": "boolean",
       "description": "Do not apply the call's writes to the session (default false)"
@@ -419,6 +437,10 @@
             "required": ["key_xdr", "key", "live_until_ledger", "outcome"],
             "additionalProperties": false
           }
+        },
+        "trace": {
+          "type": "object",
+          "description": "The call tree, when the request asked for `trace` (#541); its shape is trace.json"
         }
       },
       "required": ["version", "id", "type", "return_value_xdr", "events", "cost", "logs"],

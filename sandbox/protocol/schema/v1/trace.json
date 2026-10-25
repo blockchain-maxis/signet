@@ -1,0 +1,175 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://signet.dev/schemas/sandbox/v1/trace.json",
+  "title": "trace",
+  "description": "A simulate call's call tree (#541), returned as `trace` when the request asks for one. Read from the host's fn_call / fn_return diagnostic events: recording-mode simulation takes no TraceHook, so there are no per-frame instruction counts (the call's total is `cost`). Consumers pin the `version` they read (#542).",
+  "type": "object",
+  "properties": {
+    "version": {
+      "const": 1,
+      "description": "Trace format version"
+    },
+    "source": {
+      "const": "diagnostic_events",
+      "description": "Where the tree was read from"
+    },
+    "frames": {
+      "type": "array",
+      "description": "Every contract call, in call order (pre-order): a frame's parent comes before it",
+      "items": {
+        "type": "object",
+        "properties": {
+          "index": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "parent": {
+            "oneOf": [
+              {
+                "type": "integer",
+                "minimum": 0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The calling frame's index; null for the root call"
+          },
+          "depth": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "contract": {
+            "type": "string",
+            "pattern": "^C[A-Z2-7]{55}$",
+            "description": "The called contract"
+          },
+          "function": {
+            "type": "string",
+            "minLength": 1
+          },
+          "args_xdr": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9+/]+={0,2}$",
+              "description": "ScVal"
+            },
+            "description": "The arguments, in order"
+          },
+          "args_exact": {
+            "type": "boolean",
+            "description": "False when the host folded several arguments into one vec and no spec said how many the callee takes: then the vec's elements are given"
+          },
+          "result_xdr": {
+            "oneOf": [
+              {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^[A-Za-z0-9+/]+={0,2}$",
+                "description": "The returned ScVal"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "null when the call failed"
+          },
+          "error": {
+            "oneOf": [
+              {
+                "type": "string",
+                "minLength": 1
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "Why the call failed: Error(Type, Code) when the host said, else that it did not return"
+          }
+        },
+        "required": [
+          "index",
+          "parent",
+          "depth",
+          "contract",
+          "function",
+          "args_xdr",
+          "args_exact",
+          "result_xdr",
+          "error"
+        ],
+        "additionalProperties": false
+      }
+    },
+    "frame_count": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Frames the call made, kept or not"
+    },
+    "max_frames": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "The cap (default 10000)"
+    },
+    "truncated": {
+      "type": "boolean",
+      "description": "True when frame_count exceeds max_frames and frames holds only the first max_frames"
+    },
+    "storage": {
+      "type": "array",
+      "description": "The footprint by contract, in the order the trace first calls each; keys of no one contract (code, accounts) last under contract null. The footprint is per transaction, not per frame.",
+      "items": {
+        "type": "object",
+        "properties": {
+          "contract": {
+            "oneOf": [
+              {
+                "type": "string",
+                "pattern": "^C[A-Z2-7]{55}$"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "read_only": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9+/]+={0,2}$",
+              "description": "LedgerKey"
+            },
+            "description": "Keys read"
+          },
+          "read_write": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9+/]+={0,2}$",
+              "description": "LedgerKey"
+            },
+            "description": "Keys the call could write"
+          },
+          "changed": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9+/]+={0,2}$",
+              "description": "LedgerKey"
+            },
+            "description": "Keys whose entry the call changed"
+          }
+        },
+        "required": ["contract", "read_only", "read_write", "changed"],
+        "additionalProperties": false
+      }
+    }
+  },
+  "required": ["version", "source", "frames", "frame_count", "max_frames", "truncated", "storage"],
+  "additionalProperties": false
+}

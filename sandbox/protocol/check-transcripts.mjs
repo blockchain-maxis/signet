@@ -9,7 +9,8 @@
  *   - a request or notification (hello, ledger_open, simulate, ledger_fetch, ledger_entries, ...)
  *     is validated against the schema named by its `type`;
  *   - a `result` is validated against the `result` definition of the request with the same `id`;
- *   - `hello_ack`, `contract_error` and `error` are validated against their own schemas.
+ *   - `hello_ack`, `contract_error` and `error` are validated against their own schemas;
+ *   - a `trace` inside a result or contract_error is validated against trace.json.
  *   - A request answered by an `error` with the same id is the malformed input that error is
  *     about (an unknown type, a wrong version, a bad field), so it is not required to validate.
  *
@@ -123,6 +124,9 @@ for (const name of transcripts) {
     lines++;
     const where = `${name}:${m.no}`;
     const { type, id } = m.value;
+    // A call tree (#541) is its own document, validated on its own.
+    if (m.value.trace && typeof m.value.trace === 'object')
+      validate(SCHEMA_ID('trace'), `${where} trace`, m.value.trace);
     if (OWN_SCHEMA.has(type) || type === 'ledger_fetch' || type === 'ledger_entries') {
       validate(SCHEMA_ID(type), where, m.value);
     } else if (type === 'result') {

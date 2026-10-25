@@ -10,6 +10,7 @@ mod memguard;
 mod simulate;
 mod spec_verbs;
 mod stdio;
+mod trace;
 mod xdr_helpers;
 
 use std::cell::RefCell;

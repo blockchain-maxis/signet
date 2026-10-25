@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"reflect"
 	"sort"
 	"strings"
 	"testing"
@@ -200,6 +201,7 @@ func TestEveryRequestSchemaHasAGoStruct(t *testing.T) {
 	} {
 		known[typ] = true
 	}
+	known["trace"] = true // a document inside results: the Trace struct
 	var missing []string
 	for _, e := range entries {
 		typ := strings.TrimSuffix(e.Name(), ".json")
@@ -214,4 +216,35 @@ func TestEveryRequestSchemaHasAGoStruct(t *testing.T) {
 	if len(missing) > 0 {
 		t.Fatalf("schemas with no Type constant or struct in messages.go: %v", missing)
 	}
+}
+
+func TestTraceRoundTripsTheTranscript(t *testing.T) {
+	raw, err := os.ReadFile(filepath.Join("..", "..", "..", "sandbox", "protocol", "transcripts", "trace.ndjson"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, line := range strings.Split(string(raw), "\n") {
+		if !strings.Contains(line, `"trace":{`) {
+			continue
+		}
+		var res SimulateResult
+		if err := json.Unmarshal([]byte(line), &res); err != nil {
+			t.Fatal(err)
+		}
+		var whole struct {
+			Trace map[string]any `json:"trace"`
+		}
+		_ = json.Unmarshal([]byte(line), &whole)
+		back, _ := json.Marshal(res.Trace)
+		var got map[string]any
+		_ = json.Unmarshal(back, &got)
+		if !reflect.DeepEqual(got, whole.Trace) {
+			t.Fatalf("Trace drops or changes fields:\n got %v\nwant %v", got, whole.Trace)
+		}
+		if len(res.Trace.Frames) != 2 || res.Trace.Frames[1].Parent == nil || *res.Trace.Frames[1].Parent != 0 {
+			t.Fatalf("frames = %+v", res.Trace.Frames)
+		}
+		return
+	}
+	t.Fatal("no traced result in trace.ndjson")
 }

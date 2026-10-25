@@ -130,6 +130,10 @@ pub fn simulate(
             (Ok(d), Ok(r)) => (d, r),
             (Err(e), _) | (_, Err(e)) => return e,
         };
+    let max_frames = match crate::trace::parse(object.get("trace")) {
+        Ok(max) => max,
+        Err(want) => return invalid_field(id, "trace", want),
+    };
 
     // The executable, for its spec: read (and fetched) like any other entry.
     let wasm = match wasm_of_contract(fork.as_ref(), lane, contract_id) {
@@ -172,7 +176,8 @@ pub fn simulate(
         host_function_xdr,
         source_account_xdr,
         prng_seed: seed,
-        enable_diagnostics: diagnostics,
+        // A trace is read from the host's diagnostic events (#541).
+        enable_diagnostics: diagnostics || max_frames.is_some(),
         budget,
         auth,
     };
@@ -242,6 +247,12 @@ pub fn simulate(
             })
         })
         .collect();
+    let trace = max_frames.map(|max| crate::trace::build(lane, &**fork, &args_xdr, &run, max));
+    let diagnostic_events = if diagnostics {
+        b64_all(&run.diagnostic_events_xdr)
+    } else {
+        Vec::new()
+    };
     match &run.return_value {
         Err(failure) => {
             let mut reply = json!({
@@ -254,7 +265,7 @@ pub fn simulate(
                     None => failure.error_code.clone(),
                 }),
                 "message": failure.detail,
-                "diagnostic_events": b64_all(&run.diagnostic_events_xdr),
+                "diagnostic_events": diagnostic_events,
                 "cost": { "cpu_insns": run.cpu_instructions, "mem_bytes": run.memory_bytes },
                 "misses": misses,
                 "ledger": ledger_info,
@@ -263,6 +274,9 @@ pub fn simulate(
             });
             if !archived.is_empty() {
                 reply["archived"] = json!(archived);
+            }
+            if let Some(trace) = trace {
+                reply["trace"] = trace;
             }
             if run.budget.overridden {
                 reply["budget"] = budget_json(&run);
@@ -308,12 +322,16 @@ pub fn simulate(
                 apply(&mut open.store.borrow_mut(), &run);
             }
             let mut fields = body;
+            fields["diagnostic_events"] = json!(diagnostic_events);
             fields["misses"] = json!(misses);
             fields["ledger"] = ledger_info;
             fields["seed"] = json!(hex(&seed));
             fields["auth_mode"] = json!(auth_name);
             if !archived.is_empty() {
                 fields["archived"] = json!(archived);
+            }
+            if let Some(trace) = trace {
+                fields["trace"] = trace;
             }
             if run.budget.overridden {
                 fields["budget"] = budget_json(&run);

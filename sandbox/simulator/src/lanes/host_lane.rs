@@ -17,7 +17,7 @@ use soroban_env_host::e2e_invoke::{RecordingInvocationAuthMode, RecordingInvocat
 use soroban_env_host::storage::{EntryWithLiveUntil, SnapshotSource};
 use soroban_env_host::xdr::{
     AccountId, ConfigSettingId, ContractCodeEntry, ContractCodeEntryExt, ContractDataDurability,
-    ContractDataEntry, ContractEvent, ContractEventBody, ContractExecutable, ContractId,
+    ContractDataEntry, ContractEvent, ContractEventBody, DiagnosticEvent, ContractExecutable, ContractId,
     ExtensionPoint, FeeBumpTransactionInnerTx, Hash, HostFunction, InvokeContractArgs, LedgerEntry,
     LedgerEntryData, LedgerEntryExt, LedgerKey, LedgerKeyAccount, LedgerKeyConfigSetting,
     LedgerKeyContractCode, LedgerKeyContractData, Limited, Limits, MuxedAccount, OperationBody,
@@ -35,7 +35,7 @@ use soroban_simulation::NetworkConfig;
 use super::{
     AuthMode, BudgetOverride, ByteSnapshotSource, EffectiveBudget, BUDGET_CEILING_FACTOR, DecodeTarget, DerivedKey, EntryChangeBytes, ErrorCase, ExternalRef,
     Installed, InstanceInfo, InterfaceVersion, InvocationFailure, KeyRequest, Lane, LaneError,
-    SimulateBytes, SimulateResultBytes, SwapResultBytes, TransactionResources, WasmInspection,
+    SimulateBytes, SimulateResultBytes, SwapResultBytes, TraceCall, TransactionResources, WasmInspection,
 };
 
 
@@ -749,6 +749,17 @@ impl Lane for HostLane {
         }
     }
 
+    fn key_contract(&self, key_xdr: &[u8]) -> Option<String> {
+        match decode::<LedgerKey>(key_xdr, "LedgerKey").ok()? {
+            LedgerKey::ContractData(data) => Some(data.contract.to_string()),
+            _ => None,
+        }
+    }
+
+    fn trace_calls(&self, diagnostic_events_xdr: &[Vec<u8>]) -> Vec<TraceCall> {
+        trace_calls(diagnostic_events_xdr)
+    }
+
     fn install(&self, wasm: &[u8], contract_id: Option<&str>) -> Result<Installed, LaneError> {
         if wasm.len() < 8 || &wasm[..4] != b"\0asm" {
             return Err(LaneError::InvalidWasm(
@@ -1087,6 +1098,105 @@ fn read_function_exports(payload: &[u8]) -> Result<Vec<String>, LaneError> {
         }
     }
     Ok(functions)
+}
+
+/// The call tree from `fn_call` / `fn_return` diagnostics. A `fn_call`
+/// event carries the calling contract, so a call that never returned (it
+/// failed, and its caller caught that) is closed when its caller calls
+/// again or returns; the latest `error` event inside it says why.
+fn trace_calls(diagnostic_events_xdr: &[Vec<u8>]) -> Vec<TraceCall> {
+    let mut calls: Vec<TraceCall> = Vec::new();
+    let mut stack: Vec<usize> = Vec::new();
+    let mut errors: Vec<Option<String>> = Vec::new();
+    let close = |calls: &mut Vec<TraceCall>, errors: &[Option<String>], frame: usize| {
+        let call = &mut calls[frame];
+        if call.result_xdr.is_none() && call.error.is_none() {
+            call.error = Some(
+                errors[frame]
+                    .clone()
+                    .unwrap_or_else(|| "the call did not return".into()),
+            );
+        }
+    };
+    for raw in diagnostic_events_xdr {
+        let Ok(event) = decode::<DiagnosticEvent>(raw, "DiagnosticEvent") else {
+            continue;
+        };
+        let ContractEventBody::V0(body) = &event.event.body;
+        let topic = |i: usize| body.topics.get(i);
+        let symbol = |v: Option<&ScVal>| match v {
+            Some(ScVal::Symbol(s)) => Some(s.to_utf8_string_lossy()),
+            _ => None,
+        };
+        let emitter = event.event.contract_id.as_ref().map(contract_strkey);
+        match symbol(topic(0)).as_deref() {
+            Some("fn_call") => {
+                let (Some(ScVal::Bytes(id)), Some(function)) = (topic(1), symbol(topic(2))) else {
+                    continue;
+                };
+                let Ok(id) = <[u8; 32]>::try_from(id.as_slice()) else {
+                    continue;
+                };
+                // Frames the caller is not in have finished, failing.
+                while let Some(&top) = stack.last() {
+                    if Some(&calls[top].contract) == emitter.as_ref() {
+                        break;
+                    }
+                    stack.pop();
+                    close(&mut calls, &errors, top);
+                }
+                let Ok(data_xdr) = encode(&body.data, "ScVal") else {
+                    continue;
+                };
+                let items_xdr = match &body.data {
+                    ScVal::Vec(Some(items)) => items.iter().map(|v| encode(v, "ScVal")).collect::<Result<_, _>>().ok(),
+                    _ => None,
+                };
+                calls.push(TraceCall {
+                    contract: contract_strkey(&ContractId(Hash(id))),
+                    function,
+                    parent: stack.last().copied(),
+                    depth: stack.len() as u32,
+                    data_xdr,
+                    items_xdr,
+                    result_xdr: None,
+                    error: None,
+                });
+                errors.push(None);
+                stack.push(calls.len() - 1);
+            }
+            Some("fn_return") => {
+                let Some(function) = symbol(topic(1)) else {
+                    continue;
+                };
+                let Some(at) = stack.iter().rposition(|&f| {
+                    Some(&calls[f].contract) == emitter.as_ref() && calls[f].function == function
+                }) else {
+                    continue;
+                };
+                for frame in stack.split_off(at + 1).into_iter().rev() {
+                    close(&mut calls, &errors, frame);
+                }
+                let frame = stack.pop().expect("found above");
+                calls[frame].result_xdr = encode(&body.data, "ScVal").ok();
+            }
+            Some("error") => {
+                if let (Some(&top), Some(ScVal::Error(e))) = (stack.last(), topic(1)) {
+                    let (error_type, error_code) = spec::host_error_parts(e);
+                    errors[top] = Some(if error_type == "Contract" {
+                        format!("Error(Contract, #{error_code})")
+                    } else {
+                        format!("Error({error_type}, {error_code})")
+                    });
+                }
+            }
+            _ => {}
+        }
+    }
+    while let Some(frame) = stack.pop() {
+        close(&mut calls, &errors, frame);
+    }
+    calls
 }
 
 fn contract_strkey(id: &ContractId) -> String {
@@ -1751,4 +1861,63 @@ mod tests {
         assert_eq!(upgradeability(&imports(&[("l", "7")])), "none");
     }
 
+    fn diagnostic(emitter: Option<u8>, topics: Vec<ScVal>, data: ScVal) -> Vec<u8> {
+        let event = DiagnosticEvent {
+            in_successful_contract_call: true,
+            event: ContractEvent {
+                ext: ExtensionPoint::V0,
+                contract_id: emitter.map(|n| ContractId(Hash([n; 32]))),
+                type_: soroban_env_host::xdr::ContractEventType::Diagnostic,
+                body: ContractEventBody::V0(soroban_env_host::xdr::ContractEventV0 {
+                    topics: topics.try_into().unwrap(),
+                    data,
+                }),
+            },
+        };
+        encode(&event, "DiagnosticEvent").unwrap()
+    }
+
+    fn sym(s: &str) -> ScVal {
+        ScVal::Symbol(ScSymbol(s.try_into().unwrap()))
+    }
+
+    fn fn_call(caller: Option<u8>, callee: u8, function: &str, data: ScVal) -> Vec<u8> {
+        let id = ScVal::Bytes(vec![callee; 32].try_into().unwrap());
+        diagnostic(caller, vec![sym("fn_call"), id, sym(function)], data)
+    }
+
+    fn fn_return(callee: u8, function: &str, value: ScVal) -> Vec<u8> {
+        diagnostic(Some(callee), vec![sym("fn_return"), sym(function)], value)
+    }
+
+    #[test]
+    fn the_call_tree_closes_a_failed_call_when_its_caller_moves_on() {
+        let failed = ScVal::Error(ScError::Contract(7));
+        let events = vec![
+            fn_call(None, 1, "run", ScVal::U32(1)),
+            fn_call(Some(1), 2, "risky", ScVal::Vec(Some(vec![ScVal::U32(2), ScVal::U32(3)].try_into().unwrap()))),
+            diagnostic(Some(2), vec![sym("error"), failed], ScVal::Void),
+            // `run` caught that and calls again: `risky` is over.
+            fn_call(Some(1), 3, "add", ScVal::Void),
+            fn_return(3, "add", ScVal::U32(5)),
+            diagnostic(Some(1), vec![sym("log")], ScVal::Void),
+            fn_return(1, "run", ScVal::U32(5)),
+        ];
+        let calls = trace_calls(&events);
+        assert_eq!(calls.len(), 3, "{calls:?}");
+        let id = |n: u8| contract_strkey(&ContractId(Hash([n; 32])));
+        assert_eq!((calls[0].contract.clone(), calls[0].parent, calls[0].depth), (id(1), None, 0));
+        assert_eq!(calls[0].result_xdr, Some(encode(&ScVal::U32(5), "ScVal").unwrap()));
+        assert_eq!((calls[1].parent, calls[1].depth), (Some(0), 1));
+        assert_eq!(calls[1].items_xdr.as_ref().map(Vec::len), Some(2));
+        assert_eq!(calls[1].result_xdr, None);
+        assert_eq!(calls[1].error.as_deref(), Some("Error(Contract, #7)"));
+        assert_eq!((calls[2].contract.clone(), calls[2].parent, calls[2].depth), (id(3), Some(0), 1));
+        assert_eq!(calls[2].error, None);
+
+        // A run that fails at the root leaves every open frame failed.
+        let calls = trace_calls(&events[..3]);
+        assert!(calls.iter().all(|c| c.error.is_some()), "{calls:?}");
+        assert_eq!(calls[0].error.as_deref(), Some("the call did not return"));
+    }
 }
