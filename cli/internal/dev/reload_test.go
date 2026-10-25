@@ -162,6 +162,10 @@ func TestReloadCycleRunsAOnceAndLeavesBaseAlone(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
+	// The interface (#570): v2 drops counter_v1's upgrade function.
+	if first.Spec == nil || first.Spec.Compatible || first.Spec.Changes[0].Path != "functions.upgrade" {
+		t.Fatalf("spec diff: %+v", first.Spec)
+	}
 	if n := host.take(simulator.TypeSimulate); n != 4 || first.Simulations != 4 {
 		t.Fatalf("cycle 1: %d simulations in the host (reported %d), want 4", n, first.Simulations)
 	}
@@ -194,6 +198,9 @@ func TestReloadCycleRunsAOnceAndLeavesBaseAlone(t *testing.T) {
 	}
 	if n := host.take(simulator.TypeSimulate); n != 2 || second.Simulations != 2 {
 		t.Fatalf("cycle 2: %d simulations in the host (reported %d), want B's 2", n, second.Simulations)
+	}
+	if second.Spec != first.Spec {
+		t.Fatal("the same build's interface was compared again")
 	}
 	if host.take(simulator.TypeContractInstall) != 0 {
 		t.Fatal("the same build was installed twice")

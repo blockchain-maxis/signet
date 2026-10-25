@@ -219,6 +219,36 @@ pub fn spec_extract(
     }
 }
 
+/// `spec_diff` (#570): the interfaces of `old` and `new` compared, each
+/// change classed breaking, compatible or info (`spec_diff.rs`).
+pub fn spec_diff(
+    ledger: &Option<OpenLedger>,
+    fork: Option<&FetchingSource>,
+    id: &Value,
+    object: &Map<String, Value>,
+) -> Value {
+    let mut docs = Vec::new();
+    let mut sparse = false;
+    for field in ["old", "new"] {
+        let (wasm, lane) = match resolve_source(ledger, fork, id, object, field) {
+            Ok(found) => found,
+            Err(reply) => return reply,
+        };
+        match lane.spec_document(&wasm) {
+            Ok(spec) => docs.push(spec),
+            Err(e) => return refused(id, field, &e),
+        }
+        if field == "new" {
+            sparse = lane.inspect_wasm(&wasm).is_ok_and(|w| {
+                w.imports
+                    .iter()
+                    .any(|(m, n)| (m.as_str(), n.as_str()) == crate::spec_diff::SPARSE_UNPACK)
+            });
+        }
+    }
+    result(id, crate::spec_diff::classify(&docs[0], &docs[1], sparse))
+}
+
 /// `spec_encode_args`: JSON arguments to `ScVal` XDR, one per input.
 pub fn spec_encode_args(
     ledger: &Option<OpenLedger>,

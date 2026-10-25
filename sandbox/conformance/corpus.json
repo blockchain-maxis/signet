@@ -4405,5 +4405,142 @@
         }
       ]
     }
+  ],
+  "specDiffs": [
+    {
+      "old": "sandbox/fixtures/wasm/counter_v1.wasm",
+      "new": "sandbox/fixtures/wasm/counter_v2_return.wasm",
+      "changes": [
+        {
+          "kind": "function-removed",
+          "path": "functions.upgrade",
+          "breaking": true
+        },
+        {
+          "kind": "return-type-changed",
+          "path": "functions.get.outputs",
+          "breaking": true
+        },
+        {
+          "kind": "return-type-changed",
+          "path": "functions.increment.outputs",
+          "breaking": true
+        }
+      ]
+    },
+    {
+      "old": "sandbox/fixtures/wasm/counter_v1.wasm",
+      "new": "sandbox/fixtures/wasm/counter_v2_auth.wasm",
+      "changes": [
+        {
+          "kind": "function-removed",
+          "path": "functions.upgrade",
+          "breaking": true
+        },
+        {
+          "kind": "argument-added",
+          "path": "functions.increment.inputs.caller",
+          "breaking": true
+        }
+      ]
+    },
+    {
+      "old": "sandbox/fixtures/wasm/counter_v1.wasm",
+      "new": "sandbox/fixtures/wasm/counter_v2_event.wasm",
+      "changes": [
+        {
+          "kind": "function-removed",
+          "path": "functions.upgrade",
+          "breaking": true
+        }
+      ]
+    },
+    {
+      "old": "sandbox/fixtures/wasm/counter_v1.wasm",
+      "new": "sandbox/fixtures/wasm/counter_v2_cost.wasm",
+      "changes": [
+        {
+          "kind": "function-removed",
+          "path": "functions.upgrade",
+          "breaking": true
+        }
+      ]
+    },
+    {
+      "old": "sandbox/fixtures/wasm/counter_v1.wasm",
+      "new": "sandbox/fixtures/wasm/counter_v2_write.wasm",
+      "changes": [
+        {
+          "kind": "function-removed",
+          "path": "functions.upgrade",
+          "breaking": true
+        }
+      ]
+    },
+    {
+      "old": "sandbox/fixtures/wasm/counter_v2_write.wasm",
+      "new": "sandbox/fixtures/wasm/counter_v1.wasm",
+      "changes": [
+        {
+          "kind": "function-added",
+          "path": "functions.upgrade",
+          "breaking": false
+        }
+      ]
+    },
+    {
+      "old": "sandbox/fixtures/wasm/profile_v1.wasm",
+      "new": "sandbox/fixtures/wasm/profile_v2_field.wasm",
+      "changes": [
+        {
+          "kind": "field-added",
+          "path": "types.Profile.fields.age",
+          "breaking": true
+        }
+      ]
+    },
+    {
+      "old": "sandbox/fixtures/wasm/profile_v1.wasm",
+      "new": "sandbox/fixtures/wasm/profile_v2_optional.wasm",
+      "changes": [
+        {
+          "kind": "field-added",
+          "path": "types.Profile.fields.bio",
+          "breaking": true
+        }
+      ]
+    },
+    {
+      "old": "sandbox/fixtures/wasm/profile_v2_field.wasm",
+      "new": "sandbox/fixtures/wasm/profile_v1.wasm",
+      "changes": [
+        {
+          "kind": "field-removed",
+          "path": "types.Profile.fields.age",
+          "breaking": true
+        }
+      ]
+    },
+    {
+      "old": "sandbox/fixtures/wasm/callee.wasm",
+      "new": "sandbox/fixtures/wasm/caller.wasm",
+      "changes": [
+        {
+          "kind": "function-removed",
+          "path": "functions.add",
+          "breaking": true
+        },
+        {
+          "kind": "function-added",
+          "path": "functions.call_add",
+          "breaking": false
+        }
+      ]
+    },
+    {
+      "old": "packages/spec/fixtures/identity-registry.wasm",
+      "new": "packages/spec/fixtures/identity-registry.wasm",
+      "changes": []
+    }
   ]
 }

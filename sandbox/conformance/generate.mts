@@ -14,7 +14,10 @@
  * - per function, JSON argument values in `functionArgsSchema`'s shape, valid
  *   and invalid, with what the SDK's `contract.Spec` (the reader's encoder)
  *   makes of each: the `ScVal` XDR, or a refusal. The host's
- *   `spec_encode_args` must produce the same bytes and the same verdict.
+ *   `spec_encode_args` must produce the same bytes and the same verdict;
+ * - for pairs of fixtures (#570), what the reader's `diffSpecs` reports
+ *   changed and whether it breaks clients. The host's `spec_diff` must report
+ *   the same changes, breaking where the reader says breaking.
  *
  * `sandbox/simulator/tests/conformance.rs` replays the corpus through the
  * host. Deliberate differences are listed in `KNOWN_DIFFERENCES.md`.
@@ -26,6 +29,7 @@ import { basename, dirname, join, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
   canonicalStringify,
+  diffSpecs,
   parseContractSpec,
   toSpecJson,
   type ContractSpec,
@@ -250,6 +254,37 @@ function casesFor(spec: ContractSpec): Case[] {
   return cases;
 }
 
+/** Fixture pairs for spec_diff, old then new: each #529 variant against
+ * its baseline, both ways where the reverse is a different change, and the
+ * registry against itself. */
+const DIFF_PAIRS: [string, string][] = [
+  ['counter_v1', 'counter_v2_return'],
+  ['counter_v1', 'counter_v2_auth'],
+  ['counter_v1', 'counter_v2_event'],
+  ['counter_v1', 'counter_v2_cost'],
+  ['counter_v1', 'counter_v2_write'],
+  ['counter_v2_write', 'counter_v1'],
+  ['profile_v1', 'profile_v2_field'],
+  ['profile_v1', 'profile_v2_optional'],
+  ['profile_v2_field', 'profile_v1'],
+  ['callee', 'caller'],
+  ['identity-registry', 'identity-registry'],
+];
+
+function specDiffs(paths: string[]) {
+  const byName = new Map(paths.map((p) => [basename(p, '.wasm'), p]));
+  const specOf = (name: string) => toSpecJson(parseContractSpec(readFileSync(byName.get(name)!)));
+  return DIFF_PAIRS.map(([oldName, newName]) => ({
+    old: relative(root, byName.get(oldName)!),
+    new: relative(root, byName.get(newName)!),
+    changes: diffSpecs(specOf(oldName), specOf(newName)).changes.map((c) => ({
+      kind: c.kind,
+      path: c.path,
+      breaking: c.breaking,
+    })),
+  }));
+}
+
 function corpus(): string {
   const entries = fixtures().map((path) => {
     const wasm = readFileSync(path);
@@ -262,7 +297,8 @@ function corpus(): string {
       cases: casesFor(spec),
     };
   });
-  return `${JSON.stringify({ version: 1, generatedBy: 'sandbox/conformance/generate.mts', fixtures: entries }, null, 2)}\n`;
+  const diffs = specDiffs(fixtures());
+  return `${JSON.stringify({ version: 1, generatedBy: 'sandbox/conformance/generate.mts', fixtures: entries, specDiffs: diffs }, null, 2)}\n`;
 }
 
 const text = corpus();

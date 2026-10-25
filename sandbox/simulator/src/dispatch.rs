@@ -199,6 +199,12 @@ impl Dispatcher {
             "spec_extract" => {
                 Step::reply(spec_extract(&self.ledger, fork.as_deref(), &id, &object))
             }
+            "spec_diff" => Step::reply(crate::spec_verbs::spec_diff(
+                &self.ledger,
+                fork.as_deref(),
+                &id,
+                &object,
+            )),
             "spec_encode_args" => Step::reply(spec_encode_args(
                 &self.ledger,
                 fork.as_deref(),

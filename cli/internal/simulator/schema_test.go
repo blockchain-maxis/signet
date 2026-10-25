@@ -119,8 +119,11 @@ func TestMessagesMatchTheSchemas(t *testing.T) {
 		TypeSpecExtract:      SpecExtractResult{SpecEntriesXDR: []string{b64}, WasmHash: hash, Spec: json.RawMessage(`{"schemaVersion":1,"wasmHash":"` + hash + `","entriesXdr":["` + b64 + `"]}`)},
 		TypeSpecEncodeArgs:   SpecEncodeArgsResult{ArgsXDR: []string{b64}},
 		TypeSpecDecodeVal:    SpecDecodeValResult{Value: json.RawMessage(`{"a":1}`)},
-		TypeSpecDiff:         SpecDiffResult{Compatible: true, Changes: []json.RawMessage{}},
-		TypeLayoutCheck:      LayoutCheckResult{Compatible: true, Issues: []json.RawMessage{}},
+		TypeSpecDiff: SpecDiffResult{Compatible: false, Summary: SpecSummary{Breaking: 1, Info: 1}, SparseDecoding: true, Changes: []SpecChange{
+			{Kind: "field-added", Path: "types.Profile.fields.age", Class: "breaking", Reason: "r", Rule: "cap86-sparse-required", StorageNote: "n", After: json.RawMessage(`{"name":"age"}`)},
+			{Kind: "sdk-version-changed", Path: "build.sdkVersion", Class: "info", Reason: "r", Before: json.RawMessage(`"27.0.0"`), After: json.RawMessage(`"28.0.0"`)},
+		}},
+		TypeLayoutCheck: LayoutCheckResult{Compatible: true, Issues: []json.RawMessage{}},
 		TypeDiffResults: DiffResultsResult{
 			Summary:     DiffSummary{Breaking: 2, Behavioural: 1, Cost: 1, Ignored: 3},
 			Outcome:     &DiffOutcome{A: "ok", B: "contract error Error(Contract, #1)", Class: ClassBreaking},

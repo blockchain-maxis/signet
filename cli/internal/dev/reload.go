@@ -71,6 +71,9 @@ type Cycle struct {
 	Deployed string    `json:"deployed"`
 	Local    string    `json:"local"`
 	Outcomes []Outcome `json:"outcomes"`
+	// Spec is how the build's interface differs from the deployed one's
+	// (#570), worked out once per build.
+	Spec *simulator.SpecDiffResult `json:"spec,omitempty"`
 	// Simulations is how many calls ran in the host this cycle; an A side
 	// reused from the cache is not one.
 	Simulations int `json:"simulations"`
@@ -108,6 +111,8 @@ type Reloader struct {
 	cached map[string]Run
 	// rules are signet.dev.toml's [diff] (#569).
 	rules *simulator.DiffRules
+	// specs are spec_diff results by build hash.
+	specs map[string]*simulator.SpecDiffResult
 }
 
 // SetRules sets what the diffs leave out or tolerate; nil for none.
@@ -167,6 +172,7 @@ func NewReloader(ctx context.Context, host Host, contract string) (*Reloader, er
 	return &Reloader{
 		host: host, contract: contract, base: cp.Checkpoint, deployed: *info.WasmHash,
 		installed: map[string]bool{*info.WasmHash: true}, cached: map[string]Run{},
+		specs: map[string]*simulator.SpecDiffResult{},
 	}, nil
 }
 
@@ -191,6 +197,18 @@ func (r *Reloader) Cycle(ctx context.Context, wasm []byte, replays []Replay) (Cy
 		r.installed[local] = true
 	}
 	out := Cycle{Deployed: r.deployed, Local: local, Outcomes: make([]Outcome, 0, len(replays))}
+	if out.Spec = r.specs[local]; out.Spec == nil {
+		// The session is at base here, where the instance runs the
+		// deployed executable.
+		var spec simulator.SpecDiffResult
+		if err := call(ctx, r.host, simulator.TypeSpecDiff, simulator.SpecDiffParams{
+			Old: simulator.Source{ContractID: r.contract},
+			New: simulator.Source{WasmBase64: base64.StdEncoding.EncodeToString(wasm)},
+		}, &spec); err != nil {
+			return Cycle{}, fmt.Errorf("comparing the interfaces: %w", err)
+		}
+		out.Spec, r.specs[local] = &spec, &spec
+	}
 	for start := 0; start < len(replays); {
 		end := start + 1
 		for end < len(replays) && replays[end].Chain {

@@ -10,6 +10,7 @@ mod ledger;
 mod memguard;
 mod simulate;
 mod snapshot;
+mod spec_diff;
 mod spec_verbs;
 mod stdio;
 mod trace;

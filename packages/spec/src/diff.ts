@@ -119,6 +119,44 @@ function fields(
   }
 }
 
+/**
+ * A struct's fields by name. A struct is stored and passed as a map keyed by
+ * field name (the SDK sorts the fields), so its fields have no position: an
+ * added field sorted before the others is one added field, not a run of
+ * renames, and a renamed field is one removed and one added, which is what a
+ * stored value sees.
+ */
+function structFields(
+  changes: SpecChange[],
+  before: readonly Field[],
+  after: readonly Field[],
+  path: string,
+): void {
+  const oldMap = new Map(before.map((f) => [f.name, f]));
+  const newMap = new Map(after.map((f) => [f.name, f]));
+
+  for (const a of before) {
+    if (!newMap.has(a.name)) {
+      emit(changes, 'field-removed', `${path}.${a.name}`, true,
+        'Removing a field changes the declared data shape.', a, undefined);
+    }
+  }
+
+  for (const b of after) {
+    const a = oldMap.get(b.name);
+    if (!a) {
+      emit(changes, 'field-added', `${path}.${b.name}`, true,
+        'Adding a field changes the declared data shape.', undefined, b);
+      continue;
+    }
+    if (!same(a.type, b.type)) {
+      emit(changes, 'field-retyped', `${path}.${b.name}`, true,
+        'Changing a field type can break existing consumers.', a.type, b.type);
+    }
+    docs(changes, `${path}.${b.name}.doc`, a.doc, b.doc);
+  }
+}
+
 function functions(
   changes: SpecChange[],
   before: readonly Fn[],
@@ -195,7 +233,7 @@ function types(
     docs(changes, `${path}.doc`, old.doc, next.doc);
 
     if (old.kind === 'struct' && next.kind === 'struct') {
-      fields(changes, old.fields, next.fields, `${path}.fields`, false);
+      structFields(changes, old.fields, next.fields, `${path}.fields`);
     } else if (old.kind === 'union' && next.kind === 'union') {
       const oldCases = new Map(old.cases.map((c) => [c.name, c]));
       const newCases = new Map(next.cases.map((c) => [c.name, c]));

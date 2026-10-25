@@ -142,6 +142,14 @@ func describeCycle(c dev.Cycle) []string {
 		head += fmt.Sprintf(" · simulator restarted (%s)", reason)
 	}
 	lines := []string{head}
+	if s := c.Spec; s != nil && len(s.Changes) > 0 {
+		lines = append(lines, fmt.Sprintf("  interface: %d breaking, %d compatible, %d info", s.Summary.Breaking, s.Summary.Compatible, s.Summary.Info))
+		for _, ch := range s.Changes {
+			if ch.Class == simulator.ClassBreaking {
+				lines = append(lines, fmt.Sprintf("    %s %s", ch.Kind, ch.Path))
+			}
+		}
+	}
 	if len(c.Outcomes) == 0 {
 		lines = append(lines, "  no saved calls: add some with signet sandbox call … --save")
 	}

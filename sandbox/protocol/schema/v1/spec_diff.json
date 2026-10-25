@@ -2,7 +2,7 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "https://signet.dev/schemas/sandbox/v1/spec_diff.json",
   "title": "spec_diff (request)",
-  "description": "Compare the interfaces of two executables.",
+  "description": "Compare the interfaces of two executables (#570): each change classed breaking, compatible or info, as @signet/spec's diffSpecs sees it plus CAP-86's rule for added struct fields.",
   "type": "object",
   "properties": {
     "version": {
@@ -99,7 +99,7 @@
         },
         "compatible": {
           "type": "boolean",
-          "description": "False if any change breaks an existing caller"
+          "description": "No change is breaking"
         },
         "changes": {
           "type": "array",
@@ -107,33 +107,85 @@
             "type": "object",
             "properties": {
               "kind": {
-                "enum": ["added", "removed", "changed"]
-              },
-              "item": {
                 "type": "string",
                 "minLength": 1,
-                "description": "function | type | error | event"
+                "description": "diffSpecs' change kinds (function-removed, field-added, \u2026), and sdk-version-changed, rust-version-changed, interface-version-changed"
               },
-              "name": {
+              "path": {
                 "type": "string",
                 "minLength": 1,
-                "description": "Name"
+                "description": "Where in the SpecJson: functions.claim.inputs.wallet, types.Profile.fields.age, errors.Error.HandleTaken"
               },
-              "breaking": {
-                "type": "boolean"
+              "class": {
+                "enum": ["breaking", "compatible", "info"]
               },
-              "detail": {
+              "reason": {
                 "type": "string",
-                "minLength": 1,
-                "description": "What changed"
-              }
+                "minLength": 1
+              },
+              "rule": {
+                "enum": ["strict", "cap86-sparse-option", "cap86-sparse-required"],
+                "description": "For an added struct field: how stored values without it decode"
+              },
+              "storage_note": {
+                "type": "string",
+                "description": "What the rule means for stored values"
+              },
+              "before": {},
+              "after": {}
             },
-            "required": ["kind", "item", "name", "breaking"],
+            "required": ["kind", "path", "class", "reason"],
             "additionalProperties": false
           }
+        },
+        "summary": {
+          "type": "object",
+          "properties": {
+            "breaking": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "compatible": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "info": {
+              "type": "integer",
+              "minimum": 0
+            }
+          },
+          "required": ["breaking", "compatible", "info"],
+          "additionalProperties": false
+        },
+        "sdk_versions": {
+          "type": "object",
+          "properties": {
+            "old": {
+              "type": ["string", "null"]
+            },
+            "new": {
+              "type": ["string", "null"]
+            }
+          },
+          "required": ["old", "new"],
+          "additionalProperties": false,
+          "description": "rssdkver from each executable's contractmetav0"
+        },
+        "sparse_decoding": {
+          "type": "boolean",
+          "description": "The new build imports CAP-86's sparse_map_unpack_to_linear_memory"
         }
       },
-      "required": ["version", "id", "type", "compatible", "changes"],
+      "required": [
+        "version",
+        "id",
+        "type",
+        "compatible",
+        "summary",
+        "sdk_versions",
+        "sparse_decoding",
+        "changes"
+      ],
       "additionalProperties": false
     }
   }

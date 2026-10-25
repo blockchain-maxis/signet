@@ -123,17 +123,29 @@ test('detects struct field changes', () => {
       kind: 'struct',
       name: 'Record',
       fields: [
-        { name: 'key', type: 'u64' },
         { name: 'active', type: 'bool' },
-        { name: 'extra', type: 'symbol' },
+        { name: 'id', type: 'u64' },
       ],
     }],
   });
 
-  const found = kinds(before, after);
-  assert.ok(found.includes('field-renamed'), found.join(', '));
-  assert.ok(found.includes('field-retyped'), found.join(', '));
-  assert.ok(found.includes('field-added'), found.join(', '));
+  // By name: a struct is a map keyed by field name, so position is not a
+  // change and a rename is a removal and an addition.
+  const changes = diffSpecs(before, after).changes.map((c) => `${c.kind} ${c.path}`);
+  assert.deepEqual(changes.sort(), [
+    'field-added types.Record.fields.active',
+    'field-removed types.Record.fields.legacy',
+    'field-retyped types.Record.fields.id',
+  ]);
+
+  // A field sorted in front of the others is one field added.
+  assert.deepEqual(
+    diffSpecs(
+      spec({ types: [{ kind: 'struct', name: 'P', fields: [{ name: 'id', type: 'u32' }, { name: 'name', type: 'string' }] }] }),
+      spec({ types: [{ kind: 'struct', name: 'P', fields: [{ name: 'age', type: 'u32' }, { name: 'id', type: 'u32' }, { name: 'name', type: 'string' }] }] }),
+    ).changes.map((c) => c.kind),
+    ['field-added'],
+  );
 
   assert.ok(kinds(
     spec({ types: [{ kind: 'struct', name: 'S', fields: [{ name: 'x', type: 'u32' }] }] }),

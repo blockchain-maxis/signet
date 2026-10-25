@@ -148,3 +148,156 @@ fn spec_decode_val_names_a_contract_error() {
     assert_eq!(replies[2]["code"], "bad_request");
     assert_eq!(replies[2]["detail"]["path"], "val_xdr");
 }
+
+/// A #529 sandbox fixture, base64.
+fn sandbox_fixture(name: &str) -> String {
+    let path = format!(
+        "{}/../fixtures/wasm/{name}.wasm",
+        env!("CARGO_MANIFEST_DIR")
+    );
+    BASE64.encode(std::fs::read(&path).unwrap_or_else(|e| panic!("{path}: {e}")))
+}
+
+/// `spec_diff` (#570) of two executables, by value.
+fn spec_diff(old: String, new: String) -> Value {
+    let r = exchange(&[json!({
+        "version": 1, "id": "d", "type": "spec_diff",
+        "old": { "wasm_base64": old }, "new": { "wasm_base64": new },
+    })])
+    .remove(0);
+    assert_eq!(r["type"], "result", "{r}");
+    r
+}
+
+fn changes(r: &Value) -> Vec<(String, String, String)> {
+    r["changes"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|c| {
+            let s = |k: &str| c[k].as_str().unwrap_or_default().to_string();
+            (s("kind"), s("path"), s("class"))
+        })
+        .collect()
+}
+
+#[test]
+fn the_registry_against_itself_is_empty() {
+    let r = spec_diff(fixture("identity-registry"), fixture("identity-registry"));
+    assert_eq!(r["changes"], json!([]));
+    assert_eq!(r["compatible"], true);
+}
+
+#[test]
+fn fixture_pairs_are_classified() {
+    let pair =
+        |old: &str, new: &str| changes(&spec_diff(sandbox_fixture(old), sandbox_fixture(new)));
+    let owned = |v: &[(&str, &str, &str)]| -> Vec<(String, String, String)> {
+        v.iter()
+            .map(|(a, b, c)| (a.to_string(), b.to_string(), c.to_string()))
+            .collect()
+    };
+    // Breaking: a return type changed, an argument added, a function removed.
+    assert!(pair("counter_v1", "counter_v2_return").contains(
+        &owned(&[(
+            "return-type-changed",
+            "functions.increment.outputs",
+            "breaking"
+        )])[0]
+    ));
+    assert!(pair("counter_v1", "counter_v2_auth").contains(
+        &owned(&[(
+            "argument-added",
+            "functions.increment.inputs.caller",
+            "breaking"
+        )])[0]
+    ));
+    assert!(pair("counter_v1", "counter_v2_write")
+        .contains(&owned(&[("function-removed", "functions.upgrade", "breaking")])[0]));
+    // Compatible: a function added.
+    assert!(pair("counter_v2_write", "counter_v1")
+        .contains(&owned(&[("function-added", "functions.upgrade", "compatible")])[0]));
+    // A struct field: required is breaking for stored values; an Option
+    // read through CAP-86's sparse unpack (soroban-sdk 28 builds) is not.
+    let required = spec_diff(
+        sandbox_fixture("profile_v1"),
+        sandbox_fixture("profile_v2_field"),
+    );
+    assert_eq!(required["sparse_decoding"], true);
+    let added = &required["changes"][0];
+    assert_eq!(
+        (
+            added["kind"].as_str(),
+            added["class"].as_str(),
+            added["rule"].as_str()
+        ),
+        (
+            Some("field-added"),
+            Some("breaking"),
+            Some("cap86-sparse-required")
+        )
+    );
+    let optional = spec_diff(
+        sandbox_fixture("profile_v1"),
+        sandbox_fixture("profile_v2_optional"),
+    );
+    let added = &optional["changes"][0];
+    assert_eq!(
+        (
+            added["kind"].as_str(),
+            added["class"].as_str(),
+            added["rule"].as_str()
+        ),
+        (
+            Some("field-added"),
+            Some("compatible"),
+            Some("cap86-sparse-option")
+        )
+    );
+    assert_eq!(optional["compatible"], true);
+    assert_eq!(
+        optional["sdk_versions"]["new"]
+            .as_str()
+            .map(|v| v.starts_with("28.")),
+        Some(true)
+    );
+}
+
+#[test]
+fn a_changed_sdk_version_is_info() {
+    // counter_v1 with its contractmetav0 `rssdkver` value edited in place.
+    let path = format!(
+        "{}/../fixtures/wasm/counter_v1.wasm",
+        env!("CARGO_MANIFEST_DIR")
+    );
+    let wasm = std::fs::read(path).unwrap();
+    let at = wasm
+        .windows(8)
+        .position(|w| w == b"rssdkver")
+        .expect("rssdkver meta");
+    let mut edited = wasm.clone();
+    let digit = edited[at + 8..]
+        .iter()
+        .position(u8::is_ascii_digit)
+        .unwrap()
+        + at
+        + 8;
+    edited[digit] = if edited[digit] == b'9' {
+        b'1'
+    } else {
+        edited[digit] + 1
+    };
+    let r = spec_diff(BASE64.encode(&wasm), BASE64.encode(&edited));
+    assert_eq!(
+        changes(&r),
+        [(
+            "sdk-version-changed".to_string(),
+            "build.sdkVersion".to_string(),
+            "info".to_string()
+        )]
+    );
+    assert_eq!(
+        r["summary"],
+        json!({ "breaking": 0, "compatible": 0, "info": 1 })
+    );
+}

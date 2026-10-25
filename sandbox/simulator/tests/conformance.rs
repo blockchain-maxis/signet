@@ -20,6 +20,10 @@ use serde_json::{json, Value};
 /// in KNOWN_DIFFERENCES.md.
 const KNOWN_SPEC_DIFFERENCES: [&str; 1] = ["sdkVersion"];
 
+/// `spec_diff` rules under which the host may call a change compatible that
+/// the reader calls breaking, each justified in KNOWN_DIFFERENCES.md.
+const KNOWN_DIFF_RULES: [&str; 1] = ["cap86-sparse-option"];
+
 fn conformance(path: &str) -> String {
     format!("{}/../conformance/{path}", env!("CARGO_MANIFEST_DIR"))
 }
@@ -145,10 +149,83 @@ fn the_host_reads_and_encodes_every_fixture_as_the_shared_reader_does() {
     );
 }
 
+/// `spec_diff` (#570) reports what the reader's `diffSpecs` reports: the
+/// same changes by kind and path, breaking where it says breaking. The host's
+/// `info` changes (build meta) are its own, and a change under a known rule
+/// may be compatible where the reader says breaking.
+#[test]
+fn spec_diff_agrees_with_the_shared_readers_diff() {
+    let corpus: Value =
+        serde_json::from_str(&std::fs::read_to_string(conformance("corpus.json")).unwrap())
+            .unwrap();
+    let pairs = corpus["specDiffs"].as_array().unwrap();
+    assert!(pairs.len() >= 10, "the corpus covers the fixture pairs");
+    let wasm = |path: &Value| {
+        let path = format!(
+            "{}/../../{}",
+            env!("CARGO_MANIFEST_DIR"),
+            path.as_str().unwrap()
+        );
+        json!({ "wasm_base64": BASE64.encode(std::fs::read(&path).unwrap()) })
+    };
+    let requests: Vec<Value> = pairs
+        .iter()
+        .enumerate()
+        .map(|(i, p)| json!({ "version": 1, "id": format!("diff-{i}"), "type": "spec_diff", "old": wasm(&p["old"]), "new": wasm(&p["new"]) }))
+        .collect();
+    let replies = exchange(&requests);
+    let mut mismatches = Vec::new();
+    for (pair, reply) in pairs.iter().zip(&replies) {
+        let label = format!(
+            "{} -> {}",
+            pair["old"].as_str().unwrap(),
+            pair["new"].as_str().unwrap()
+        );
+        let host: Vec<&Value> = reply["changes"]
+            .as_array()
+            .unwrap_or_else(|| panic!("{label}: {reply}"))
+            .iter()
+            .filter(|c| c["class"] != "info")
+            .collect();
+        let reader = pair["changes"].as_array().unwrap();
+        let key = |c: &Value| {
+            (
+                c["kind"].as_str().unwrap().to_string(),
+                c["path"].as_str().unwrap().to_string(),
+            )
+        };
+        let host_keys: Vec<_> = host.iter().map(|c| key(c)).collect();
+        let reader_keys: Vec<_> = reader.iter().map(key).collect();
+        if host_keys != reader_keys {
+            mismatches.push(format!(
+                "{label}: changes differ\n  reader: {reader_keys:?}\n  host:   {host_keys:?}"
+            ));
+            continue;
+        }
+        for (h, r) in host.iter().zip(reader) {
+            let host_breaking = h["class"] == "breaking";
+            let excused = h["rule"]
+                .as_str()
+                .is_some_and(|rule| KNOWN_DIFF_RULES.contains(&rule));
+            if host_breaking != r["breaking"].as_bool().unwrap() && !excused {
+                mismatches.push(format!(
+                    "{label}: {} {} is {} on the host, breaking={} in the reader",
+                    h["kind"], h["path"], h["class"], r["breaking"]
+                ));
+            }
+        }
+    }
+    assert!(
+        mismatches.is_empty(),
+        "spec_diff disagrees with diffSpecs:\n\n{}",
+        mismatches.join("\n\n")
+    );
+}
+
 #[test]
 fn every_known_difference_is_justified() {
     let known = std::fs::read_to_string(conformance("KNOWN_DIFFERENCES.md")).unwrap();
-    for field in KNOWN_SPEC_DIFFERENCES {
+    for field in KNOWN_SPEC_DIFFERENCES.iter().chain(&KNOWN_DIFF_RULES) {
         assert!(
             known.contains(&format!("`{field}`")),
             "{field} is skipped by the conformance test but not justified in KNOWN_DIFFERENCES.md"

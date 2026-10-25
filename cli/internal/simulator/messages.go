@@ -592,8 +592,38 @@ type SpecDiffParams struct {
 // SpecDiffResult answers spec_diff. Changes are kept as JSON until a
 // command needs their shape (#570).
 type SpecDiffResult struct {
-	Compatible bool              `json:"compatible"`
-	Changes    []json.RawMessage `json:"changes"`
+	// Compatible is set when no change is breaking.
+	Compatible bool        `json:"compatible"`
+	Summary    SpecSummary `json:"summary"`
+	// SDKVersions are rssdkver from each executable's contractmetav0.
+	SDKVersions struct {
+		Old *string `json:"old"`
+		New *string `json:"new"`
+	} `json:"sdk_versions"`
+	// SparseDecoding is set when the new build reads structs through
+	// CAP-86's sparse unpack.
+	SparseDecoding bool         `json:"sparse_decoding"`
+	Changes        []SpecChange `json:"changes"`
+}
+
+// SpecSummary counts spec changes by class.
+type SpecSummary struct {
+	Breaking   int `json:"breaking"`
+	Compatible int `json:"compatible"`
+	Info       int `json:"info"`
+}
+
+// SpecChange is one interface change (#570): Class is breaking, compatible
+// or info; Rule says how stored values fare for an added struct field.
+type SpecChange struct {
+	Kind        string          `json:"kind"`
+	Path        string          `json:"path"`
+	Class       string          `json:"class"`
+	Reason      string          `json:"reason"`
+	Rule        string          `json:"rule,omitempty"`
+	StorageNote string          `json:"storage_note,omitempty"`
+	Before      json.RawMessage `json:"before,omitempty"`
+	After       json.RawMessage `json:"after,omitempty"`
 }
 
 // LayoutCheckParams checks that stored-data layout survives an upgrade.
