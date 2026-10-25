@@ -298,3 +298,7 @@ export type {
   ActivitySeries,
   SparklineOptions,
 } from './activity.ts';
+
+// Interface diff between two builds (#580): badges for the local UI.
+export { diffBadges, diffInterfaces, interfaceSignatures } from './interface-diff.ts';
+export type { InterfaceDiff } from './interface-diff.ts';

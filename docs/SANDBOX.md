@@ -158,6 +158,16 @@ and the overrides, overrides added for the session, and a call saved to
 API is described in
 [`sandbox/protocol/devui-openapi.yaml`](../sandbox/protocol/devui-openapi.yaml).
 
+The UI's **Diagram** view (#580; `signet visualise --open` lands on it) draws
+the build's interface with the web page's renderer, redrawn after every
+cycle. A function or type the build added against the deployed interface
+carries a `+`, a changed one a `~`, and removed ones are listed. With the UI
+on, each saved call's A and B runs return their call trees (#541): the
+build's trees fill in read/write marks, labelled as local sandbox runs and
+never mixed with chain observations, and the selected call's A and B trees
+are shown side by side, a frame that went differently marked. None of it
+leaves the machine: the UI only talks to its own `/api/`.
+
 ### The reload cycle
 
 Each build is compared with the deployed contract from the same state (#566).

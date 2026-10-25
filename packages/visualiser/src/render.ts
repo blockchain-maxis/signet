@@ -40,6 +40,12 @@ export interface RenderOptions {
   query?: string;
   /** Dim every function the read/write overlay does not mark as writing (?writes=1, issue 512). */
   writesOnly?: boolean;
+  /**
+   * How the drawn interface differs from a previous one (issue 580), by node
+   * id: a badge on each added or changed node. Removed nodes are not drawn,
+   * so the caller lists them.
+   */
+  diff?: Readonly<Record<string, 'added' | 'changed'>>;
   /** Optional focused node ID for permalinks (?focus=, issue 505). */
   focus?: string;
   /** Overlays drawn over the layout, which stays as it is (design §4.2). */
@@ -67,6 +73,11 @@ export interface MutabilityOverlayInput {
   readonly retentionDays?: number;
   /** A transaction's page, for the detail card's evidence (issue 500). */
   readonly txHref?: (txHash: string) => string;
+  /**
+   * The marks come only from local sandbox runs (issue 580): each says so,
+   * and the provenance line names no transactions or RPC.
+   */
+  readonly local?: boolean;
 }
 
 /** A mark's write-mark vocabulary entry. */
@@ -99,6 +110,10 @@ function markBadge(kind: WriteMark, x: number, y: number): string {
 
 /** The provenance line under a marked diagram (issue 512). */
 export function describeMarks(m: MutabilityOverlayInput): string {
+  if (m.local) {
+    const runs = m.sandboxRuns ?? 0;
+    return `Read/write marks from ${runs} local sandbox run${runs === 1 ? '' : 's'} on this machine, not from the chain. Not derived from the contract interface.`;
+  }
   const range =
     m.firstLedger !== null && m.lastLedger !== null
       ? m.firstLedger === m.lastLedger
@@ -472,6 +487,7 @@ export function renderDiagramSvg(model: DiagramModel, opts: RenderOptions): stri
     let markAttrs = '';
     if (markKind) {
       markAttrs += ` data-mark="${markKind}" data-mark-label="${escapeXml(markText(markOf))}"`;
+      if (mutability!.local) markAttrs += ' data-mark-source="local sandbox"';
       const example = markOf?.kind === 'writes' ? markOf.example : undefined;
       if (example?.txHash) {
         markAttrs += ` data-mark-tx="${escapeXml(example.txHash)}" data-mark-ledger="${example.ledger}"`;
@@ -482,6 +498,8 @@ export function renderDiagramSvg(model: DiagramModel, opts: RenderOptions): stri
 
     // A collapsed group (issue 502) says which group its link expands.
     if (node.collapsed) markAttrs += ` data-group-toggle="${escapeXml(node.collapsed.group)}"`;
+    const diffKind = opts.diff?.[node.id];
+    if (diffKind) markAttrs += ` data-diff="${diffKind}"`;
 
     if (href) {
       svgParts.push(
@@ -550,11 +568,21 @@ export function renderDiagramSvg(model: DiagramModel, opts: RenderOptions): stri
       );
     }
 
+    // A spec change (issue 580): a square straddling the top-left corner,
+    // + for added and ~ for changed, so it reads without colour.
+    if (diffKind) {
+      const x = node.x - MARK_SIZE / 2;
+      const y = node.y - MARK_SIZE / 2;
+      svgParts.push(
+        `    <g class="diagram-diff diagram-diff--${diffKind}" data-diff-badge="${diffKind}"><title>${diffKind === 'added' ? 'added' : 'changed'} in this build</title><rect x="${x}" y="${y}" width="${MARK_SIZE}" height="${MARK_SIZE}" rx="2" fill="${cssVar('accent')}"/><text x="${x + MARK_SIZE / 2}" y="${y + MARK_SIZE / 2}" text-anchor="middle" dominant-baseline="central" font-size="11" font-weight="700" fill="${cssVar('ground')}">${diffKind === 'added' ? '+' : '~'}</text></g>`,
+      );
+    }
+
     if (markKind) {
       const bx = node.x + node.width - 6 - MARK_SIZE;
       const by = node.y + (node.height - MARK_SIZE) / 2;
       svgParts.push(
-        `    <g class="diagram-mark diagram-mark--${markKind}"><title>${escapeXml(markText(markOf))}, observed, not from the interface</title>${markBadge(markKind, bx, by)}</g>`,
+        `    <g class="diagram-mark diagram-mark--${markKind}"><title>${escapeXml(markText(markOf))}, observed${mutability!.local ? ' in a local sandbox run' : ''}, not from the interface</title>${markBadge(markKind, bx, by)}</g>`,
       );
     }
 

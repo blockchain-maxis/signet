@@ -602,7 +602,12 @@ func gitignore(dir, pattern string) error {
 // ends, and opens it (or, with --no-browser or no display, prints its URL).
 // The token is only ever in that URL's fragment.
 func startUI(ctx context.Context, cmd *cobra.Command, view *uiSession, noBrowser bool, progress func(string)) (func(), error) {
+	view.session.mu.Lock()
 	view.session.events = devui.NewEvents()
+	if view.session.reloader != nil {
+		view.session.reloader.SetTrace(true)
+	}
+	view.session.mu.Unlock()
 	server, err := devui.New(devui.Options{Static: devui.Assets(), API: devui.NewAPI(view, view.session.events)})
 	if err != nil {
 		return nil, fmt.Errorf("%w: the UI server: %v", exitcode.ErrConfiguration, err)

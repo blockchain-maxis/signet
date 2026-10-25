@@ -1,5 +1,8 @@
-import { useEffect, useMemo, useState } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
+import type { SandboxTrace } from '@signet/visualiser';
 import { ApiError, createApi, takeToken, type Api, type SessionEvent } from './api.ts';
+// The diagram brings the spec reader and the renderer: loaded on first use.
+const DiagramView = lazy(() => import('./DiagramView.tsx').then((m) => ({ default: m.DiagramView })));
 
 interface Session {
   contract: string;
@@ -12,7 +15,7 @@ interface Session {
 }
 
 interface Run {
-  result?: { return_value?: unknown; return_value_xdr?: string };
+  result?: { return_value?: unknown; return_value_xdr?: string; trace?: SandboxTrace };
   error?: { code: string; decoded?: { error_name?: string } };
   cached?: boolean;
 }
@@ -78,8 +81,22 @@ function useLoad<T>(api: Api | null, path: string, refresh: number): Load<T> {
   return load;
 }
 
+type View = 'cycle' | 'diagram';
+
+/** The view in the fragment (`#view=diagram`), as `signet visualise --open` asks for it. */
+function viewFromHash(): View {
+  return new URLSearchParams(window.location.hash.replace(/^#/, '')).get('view') === 'diagram'
+    ? 'diagram'
+    : 'cycle';
+}
+
 export function App() {
   const token = useMemo(() => takeToken(), []);
+  const [view, setView] = useState<View>(() => viewFromHash());
+  const show = (next: View) => {
+    setView(next);
+    window.history.replaceState(null, '', next === 'diagram' ? '#view=diagram' : window.location.pathname);
+  };
   const api = useMemo(() => (token ? createApi(token) : null), [token]);
   const [events, setEvents] = useState<SessionEvent[]>([]);
   const [stream, setStream] = useState<'connecting' | 'live' | 'closed'>('connecting');
@@ -169,9 +186,27 @@ export function App() {
 
       <main className="grid gap-px bg-line lg:grid-cols-[1fr_22rem]">
         <section aria-labelledby="cycle-heading" className="min-w-0 bg-page p-4">
+          <nav aria-label="Views" className="mb-3 flex gap-1 text-sm">
+            {(['cycle', 'diagram'] as const).map((v) => (
+              <a
+                key={v}
+                href={v === 'diagram' ? '#view=diagram' : '#'}
+                aria-current={view === v ? 'page' : undefined}
+                onClick={(e) => {
+                  e.preventDefault();
+                  show(v);
+                }}
+                className={`rounded border px-3 py-1 active:translate-y-px ${
+                  view === v ? 'border-accent text-ink' : 'border-line text-muted hover:text-ink'
+                }`}
+              >
+                {v === 'cycle' ? 'Cycle' : 'Diagram'}
+              </a>
+            ))}
+          </nav>
           <div className="flex items-baseline gap-3">
             <h2 id="cycle-heading" className="text-sm font-semibold">
-              Latest cycle
+              {view === 'diagram' ? "This build's diagram" : 'Latest cycle'}
             </h2>
             {cycle.state === 'ok' && (
               <p className="font-mono text-xs text-muted">
@@ -183,7 +218,24 @@ export function App() {
               </p>
             )}
           </div>
-          <CycleTable cycle={cycle} />
+          {view === 'diagram' ? (
+            session.state === 'ok' ? (
+              <Suspense
+                fallback={
+                  <div className="mt-4 h-48 animate-pulse rounded bg-raised" aria-label="loading the diagram" />
+                }
+              >
+                <DiagramView
+                  api={api}
+                  contract={session.value.contract}
+                  refresh={cycleRefresh}
+                  outcomes={cycle.state === 'ok' ? cycle.value.outcomes : NO_OUTCOMES}
+                />
+              </Suspense>
+            ) : null
+          ) : (
+            <CycleTable cycle={cycle} />
+          )}
         </section>
 
         <aside aria-labelledby="events-heading" className="min-w-0 bg-page p-4">
@@ -210,6 +262,8 @@ export function App() {
     </div>
   );
 }
+
+const NO_OUTCOMES: Outcome[] = [];
 
 function CycleTable({ cycle }: { cycle: Load<Cycle> }) {
   if (cycle.state === 'loading') {

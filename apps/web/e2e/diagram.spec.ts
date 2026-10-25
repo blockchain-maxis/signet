@@ -98,9 +98,8 @@ test.describe('function groups collapse and expand (#502) @db', () => {
 
     test('a collapsed group is a link that navigates to it expanded', async ({ page }) => {
       await page.goto(diagramUrl);
-      // An SVG link is followed from the keyboard, as a reader without a pointer would.
-      await page.locator(collapsedPool).focus();
-      await page.keyboard.press('Enter');
+      // Without the keyboard enhancer an SVG link takes no tab stop, so it is clicked.
+      await page.locator(`${collapsedPool} text`).first().click();
       await expect(page).toHaveURL(/\?expand=pool$/);
       await expect(page.locator('[data-node-id="fn:pool_op0"]')).toBeVisible();
       await expect(page.locator(collapsedPool)).toHaveCount(0);

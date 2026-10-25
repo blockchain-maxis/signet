@@ -119,6 +119,8 @@ type Reloader struct {
 	rules *simulator.DiffRules
 	// specs are spec_diff results by build hash.
 	specs map[string]*simulator.SpecDiffResult
+	// trace asks each replay for its call tree (SetTrace).
+	trace bool
 }
 
 // SetRules sets what the diffs leave out or tolerate; nil for none.
@@ -185,6 +187,10 @@ func NewReloader(ctx context.Context, host Host, contract string) (*Reloader, er
 		specs: map[string]*simulator.SpecDiffResult{},
 	}, nil
 }
+
+// SetTrace asks every replay for its call tree (#541), for the local UI's
+// Diagram view (#580). Off by default: a trace is the size of the call.
+func (r *Reloader) SetTrace(on bool) { r.trace = on }
 
 // Deployed is the deployed executable's hash.
 func (r *Reloader) Deployed() string { return r.deployed }
@@ -261,6 +267,9 @@ func (r *Reloader) chain(ctx context.Context, replays []Replay, first int, local
 	for j, replay := range replays {
 		p := replay.Params
 		p.ContractID = r.contract
+		if r.trace {
+			p.Trace = true
+		}
 		index := uint64(first + j)
 		p.CallIndex = &index
 		fp, err := fingerprint(p)

@@ -134,6 +134,8 @@ func (s *devSession) reset(ctx context.Context, overrides []devconfig.Override) 
 	if s.reloader != nil {
 		reloader.SetRules(s.reloader.Rules())
 	}
+	// The UI's Diagram view (#580) draws the replays' call trees.
+	reloader.SetTrace(s.events != nil)
 	s.reloader, s.overrides = reloader, overrides
 	return nil
 }

@@ -515,3 +515,41 @@ func TestARefusedCallIsAFailedSide(t *testing.T) {
 		t.Fatalf("diff %+v, verdict %+v", o.Diff.Outcome, o.Verdict)
 	}
 }
+
+// #580: with SetTrace, every replay carries its call tree on both sides, for
+// the local UI's Diagram view; without it, none does.
+func TestReloadCycleTracesWhenAsked(t *testing.T) {
+	ctx := context.Background()
+	host, contract := session(t)
+	r, err := NewReloader(ctx, host, contract)
+	if err != nil {
+		t.Fatal(err)
+	}
+	v2 := fixtureWasm(t, "counter_v2_event")
+	plain, err := r.Cycle(ctx, v2, replays())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if plain.Outcomes[1].B.Result.Trace != nil {
+		t.Fatal("a trace without SetTrace")
+	}
+	r.SetTrace(true)
+	traced, err := r.Cycle(ctx, v2, replays())
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, o := range traced.Outcomes {
+		for side, run := range map[string]Run{"A": o.A, "B": o.B} {
+			if run.Result == nil || run.Result.Trace == nil || len(run.Result.Trace.Frames) == 0 {
+				t.Fatalf("%s %s: no trace", o.Name, side)
+			}
+			if f := run.Result.Trace.Frames[0]; f.Function != o.Name || f.Depth != 0 {
+				t.Fatalf("%s %s: root frame %+v", o.Name, side, f)
+			}
+		}
+	}
+	// A traced call is a different input: the untraced A is not reused for it.
+	if traced.Outcomes[0].A.Cached {
+		t.Fatal("the untraced A side was reused for a traced call")
+	}
+}
