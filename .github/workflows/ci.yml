@@ -276,7 +276,7 @@ jobs:
   contracts:
     name: soroban contract tests
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@v7
 
@@ -310,6 +310,17 @@ jobs:
       - name: Build wasm
         working-directory: packages/contracts
         run: stellar contract build
+
+      # The simulator's goldens for the registry (#574) pin the source's
+      # behaviour: count, resolve, lookup, a taken claim, a release by a
+      # non-owner, an oversized batch. They run on the WASM built above; a
+      # change to the contract that changes any of them fails here with the
+      # first differing line (UPDATE_GOLDEN=1 rewrites them).
+      - name: Simulator goldens on the built registry
+        working-directory: sandbox
+        env:
+          SIGNET_REGISTRY_WASM: ${{ github.workspace }}/packages/contracts/target/wasm32v1-none/release/identity_registry.wasm
+        run: cargo test --locked -p signet-simulator --test simulate golden
 
       # Guardrail against accidental contract bloat — a heavy dependency, a
       # broken release profile (opt-level/lto/strip), or unbounded logic can

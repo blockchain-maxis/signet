@@ -1,0 +1,9 @@
+{
+  "code": "Error(Contract, #3)",
+  "decoded": {
+    "error_enum": "Error",
+    "error_name": "HandleTaken",
+    "error_value": 3
+  },
+  "outcome": "error"
+}

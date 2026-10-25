@@ -1091,6 +1091,199 @@ fn a_stored_struct_the_new_build_cannot_read_is_found(lane: u32) {
     );
 }
 
+/// The registry built from packages/contracts (#574): `SIGNET_REGISTRY_WASM`,
+/// or a `stellar contract build` when the stellar CLI is on PATH. `None`
+/// skips the golden test, which pins the source's behaviour, not the
+/// deployed testnet build.
+fn registry_source_wasm() -> Option<Vec<u8>> {
+    if let Ok(path) = std::env::var("SIGNET_REGISTRY_WASM") {
+        return Some(
+            std::fs::read(&path).unwrap_or_else(|e| panic!("SIGNET_REGISTRY_WASM={path}: {e}")),
+        );
+    }
+    let contracts = format!("{}/../../packages/contracts", env!("CARGO_MANIFEST_DIR"));
+    let built = Command::new("stellar")
+        .args(["contract", "build", "--package", "identity-registry"])
+        .current_dir(&contracts)
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .status();
+    match built {
+        Ok(status) if status.success() => Some(
+            std::fs::read(format!(
+                "{contracts}/target/wasm32v1-none/release/identity_registry.wasm"
+            ))
+            .unwrap(),
+        ),
+        _ => None,
+    }
+}
+
+/// A call's golden record: what it returned, emitted, wrote and needs
+/// signed. Cost and fees are left out (they belong to the host version),
+/// and the executable's hash inside written entries is zeroed, so the
+/// goldens pin the source's behaviour whatever rustc built it.
+fn golden_record(r: &Value, wasm_hash: &[u8]) -> Value {
+    let normalise = |b64: &Value| -> Value {
+        let Some(text) = b64.as_str() else {
+            return b64.clone();
+        };
+        let mut bytes = BASE64.decode(text).unwrap();
+        while let Some(at) = bytes.windows(32).position(|w| w == wasm_hash) {
+            bytes[at..at + 32].fill(0);
+        }
+        json!(BASE64.encode(bytes))
+    };
+    let storage: Vec<Value> = r["modified_entries"]
+        .as_array()
+        .map_or_else(Vec::new, |es| {
+            es.iter()
+                .map(|e| json!({
+                    "key_xdr": e["key_xdr"], "before_xdr": normalise(&e["before_xdr"]),
+                    "after_xdr": normalise(&e["after_xdr"]), "live_until_ledger": e["live_until_ledger"],
+                }))
+                .collect()
+        });
+    let events: Vec<Value> = r["events"]
+        .as_array()
+        .map_or_else(Vec::new, |es| es.iter().map(|e| json!({ "type": e["type"], "event_xdr": e["event_xdr"], "decoded": e["decoded"] })).collect());
+    if r["type"] == "contract_error" {
+        return json!({ "outcome": "error", "code": r["code"], "decoded": r["decoded"] });
+    }
+    json!({
+        "outcome": "ok", "return_value": r["return_value"], "return_value_xdr": r["return_value_xdr"],
+        "events": events, "storage": storage, "auth": r["auth_entries"],
+    })
+}
+
+/// Compares `got` with tests/golden/registry/<name>.json, or writes it with
+/// UPDATE_GOLDEN=1. A difference shows both documents and the first line
+/// where they part.
+fn golden(name: &str, got: &Value) {
+    let path = format!(
+        "{}/tests/golden/registry/{name}.json",
+        env!("CARGO_MANIFEST_DIR")
+    );
+    let text = format!("{}\n", serde_json::to_string_pretty(got).unwrap());
+    if std::env::var("UPDATE_GOLDEN").as_deref() == Ok("1") {
+        std::fs::create_dir_all(std::path::Path::new(&path).parent().unwrap()).unwrap();
+        std::fs::write(&path, &text).unwrap();
+        return;
+    }
+    let want = std::fs::read_to_string(&path)
+        .unwrap_or_else(|e| panic!("{path}: {e} (UPDATE_GOLDEN=1 writes it)"));
+    if want != text {
+        let (w, g): (Vec<&str>, Vec<&str>) = (want.lines().collect(), text.lines().collect());
+        let at = w
+            .iter()
+            .zip(&g)
+            .position(|(a, b)| a != b)
+            .unwrap_or(w.len().min(g.len()));
+        panic!(
+            "golden {name} differs from {path} at line {}:\n  golden: {}\n  got:    {}\n\n(UPDATE_GOLDEN=1 rewrites it if the change is intended)",
+            at + 1,
+            w.get(at).unwrap_or(&"<end>"),
+            g.get(at).unwrap_or(&"<end>")
+        );
+    }
+}
+
+const ALICE_WALLET: &str = "GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN";
+const BOB_WALLET: &str = "GCRRSYF5JBFPXHN5DCG65A4J3MUYE53QMQ4XMXZ3CNKWFJIJJTGMH6MZ";
+const OTHER_WALLET: &str = "GC6YINA5FD5MLUI4LKC4JYI5AKAW7BRFJRKNEU3TVRZWYNYN3KKZJR3G";
+
+/// #574: the registry built from source, initialized with two handles
+/// claimed (the SDK tests' scenario), and each golden call run from there,
+/// on the lane the source targets (soroban-sdk 29: protocol 29).
+#[test]
+fn golden_registry() {
+    let lane = 29;
+    let Some(wasm) = registry_source_wasm() else {
+        eprintln!("golden_registry skipped: set SIGNET_REGISTRY_WASM, or put the stellar CLI on PATH to build packages/contracts");
+        return;
+    };
+    let mut sim = config_only(lane);
+    let installed = sim.send(json!({ "type": "contract_install", "wasm_base64": BASE64.encode(&wasm), "contract_id": REGISTRY }));
+    assert_eq!(installed["type"], "result", "{installed}");
+    let hash: Vec<u8> = (0..32)
+        .map(|i| {
+            u8::from_str_radix(
+                &installed["wasm_hash"].as_str().unwrap()[i * 2..i * 2 + 2],
+                16,
+            )
+            .unwrap()
+        })
+        .collect();
+    let mut setup = |f: &str, args: Value| {
+        let r = sim.call(REGISTRY, f, args);
+        assert_eq!(r["type"], "result", "{f}: {r}");
+        r
+    };
+    setup("initialize", json!({ "admin": ADMIN }));
+    let claimed = setup(
+        "claim",
+        json!({ "handle": "alice", "wallet": ALICE_WALLET }),
+    );
+    setup("claim", json!({ "handle": "bob", "wallet": BOB_WALLET }));
+
+    // Cross-check with the SDK's own snapshot (claim_emits_event): a claim
+    // emits ("claimed", handle) with the wallet as data.
+    let snapshot: Value = serde_json::from_str(
+        &std::fs::read_to_string(format!(
+            "{}/../../packages/contracts/identity-registry/test_snapshots/test/claim_emits_event.1.json",
+            env!("CARGO_MANIFEST_DIR")
+        ))
+        .unwrap(),
+    )
+    .unwrap();
+    let sdk = &snapshot["events"][0]["event"]["body"]["v0"];
+    let ours = &claimed["events"][0]["decoded"];
+    assert_eq!(sdk["topics"][0]["symbol"], "claimed");
+    assert_eq!(
+        claimed["events"].as_array().unwrap().len(),
+        snapshot["events"].as_array().unwrap().len(),
+        "{claimed}"
+    );
+    assert!(
+        ours.to_string().contains("claimed") && ours.to_string().contains("alice"),
+        "{ours}"
+    );
+    assert!(sdk["topics"][1].get("string").is_some() && sdk["data"].get("address").is_some());
+
+    let cp = sim.send(json!({ "type": "ledger_checkpoint" }))["checkpoint"].clone();
+    let mut run = |name: &str, request: Value| {
+        let mut request = request;
+        request["type"] = json!("simulate");
+        request["contract_id"] = json!(REGISTRY);
+        let r = sim.send(request);
+        sim.send(json!({ "type": "ledger_rollback", "checkpoint": cp }));
+        golden(name, &golden_record(&r, &hash));
+    };
+    run("count", json!({ "function": "count", "args": {} }));
+    run(
+        "resolve",
+        json!({ "function": "resolve", "args": { "handle": "alice" } }),
+    );
+    run(
+        "lookup",
+        json!({ "function": "lookup", "args": { "wallet": BOB_WALLET } }),
+    );
+    run(
+        "claim_taken",
+        json!({ "function": "claim", "args": { "handle": "alice", "wallet": OTHER_WALLET } }),
+    );
+    // Enforced auth with no signatures: bob's owner never signed.
+    run(
+        "release_by_non_owner",
+        json!({ "function": "release", "args": { "handle": "bob" }, "auth_mode": "enforce", "auth_entries": [] }),
+    );
+    let handles: Vec<String> = (0..=100).map(|i| format!("h{i}")).collect();
+    run(
+        "resolve_batch_oversized",
+        json!({ "function": "resolve_batch", "args": { "handles": handles } }),
+    );
+}
+
 /// A ledger with config and the registry and dice fixtures, opened under
 /// `session_id`.
 fn seeded(lane: u32, session_id: &str) -> (Sim, String, String) {

@@ -236,6 +236,22 @@ Fork data is public chain state, but overrides and saved-call arguments are
 whatever you typed; export says so, and the bundle is worth reading before it
 is shared.
 
+## Registry goldens
+
+`sandbox/simulator/tests/golden/registry/` pins what the simulator makes of
+Signet's own contract, built from `packages/contracts` (#574): initialized,
+with two handles claimed as in the SDK tests, then `count`, `resolve`,
+`lookup`, a claim of a taken handle, a `release` without the owner's signature
+(enforced auth, no entries) and a `resolve_batch` over `MAX_BATCH_SIZE`, each
+with its return value or error, events, storage writes and auth. Cost and fees
+are left out, and the executable's hash inside written entries is zeroed, so
+the goldens pin behaviour whatever rustc built the WASM. The claim event is
+also checked against the SDK's own `claim_emits_event` snapshot.
+`cargo test -p signet-simulator golden` runs them on `SIGNET_REGISTRY_WASM`,
+or builds the contract with the stellar CLI (and skips without one);
+`UPDATE_GOLDEN=1` rewrites them. CI runs them in the contracts job, on the
+WASM it builds.
+
 ## Archive forks
 
 A lazy fork knows only the keys something has read and can mix ledgers.
