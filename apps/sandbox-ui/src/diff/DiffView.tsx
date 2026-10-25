@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 
 /** A difference's class (#569). */
 export type DiffClass = 'breaking' | 'behavioural' | 'cost' | 'ignored';
@@ -219,12 +219,12 @@ function Detail({ outcome }: { outcome: DiffOutcome }) {
  * them. Up and Down move between calls.
  */
 export function DiffView({ cycle }: { cycle: DiffCycle }) {
-  const [selected, setSelected] = useState(0);
+  // The selection is by name, so a new cycle keeps the call that was open.
+  const [selectedName, setSelectedName] = useState<string | null>(null);
   const items = useRef<(HTMLLIElement | null)[]>([]);
-  const outcome = cycle.outcomes[selected] ?? cycle.outcomes[0];
-  useEffect(() => {
-    if (selected >= cycle.outcomes.length) setSelected(0);
-  }, [cycle, selected]);
+  const selected = Math.max(0, cycle.outcomes.findIndex((o) => o.name === selectedName));
+  const setSelected = (i: number) => setSelectedName(cycle.outcomes[i]?.name ?? null);
+  const outcome = cycle.outcomes[selected];
 
   const totals = Object.fromEntries(CLASSES.map((c) => [c, cycle.outcomes.reduce((n, o) => n + (o.diff?.summary[c] ?? 0), 0)])) as Record<DiffClass, number>;
 

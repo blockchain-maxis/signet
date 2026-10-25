@@ -58,7 +58,8 @@ export interface Api {
   get<T>(path: string): Promise<T>;
   post<T>(path: string, body: unknown): Promise<T>;
   del(path: string): Promise<void>;
-  events(onEvent: (e: SessionEvent) => void, signal: AbortSignal): Promise<void>;
+  /** Streams events until the stream ends; `onOpen` runs once it is connected. */
+  events(onEvent: (e: SessionEvent) => void, signal: AbortSignal, onOpen?: () => void): Promise<void>;
 }
 
 /** One line of /api/events. */
@@ -111,10 +112,11 @@ export function createApi(token: string): Api {
       if (!res.ok) await parse(res);
     },
     // fetch streaming, not EventSource: EventSource cannot send the header.
-    async events(onEvent, signal) {
+    async events(onEvent, signal, onOpen) {
       const res = await fetch('/api/events', { headers, signal });
       if (!res.ok || !res.body)
         throw new ApiError(res.status, `the event stream answered ${res.status}`);
+      onOpen?.();
       const reader = res.body.pipeThrough(new TextDecoderStream()).getReader();
       let buffer = '';
       for (;;) {

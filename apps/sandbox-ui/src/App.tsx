@@ -1,7 +1,8 @@
-import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
+import { lazy, Suspense, useEffect, useMemo, useReducer, useState } from 'react';
 import type { SandboxTrace } from '@signet/visualiser';
 import { ApiError, createApi, takeToken, type Api, type SessionEvent } from './api.ts';
 import { DiffView, type DiffCycle } from './diff/DiffView.tsx';
+import { follow, initialLive, reduceLive } from './live.ts';
 // The diagram brings the spec reader and the renderer: loaded on first use.
 const DiagramView = lazy(() => import('./DiagramView.tsx').then((m) => ({ default: m.DiagramView })));
 const StateView = lazy(() => import('./state/StateView.tsx').then((m) => ({ default: m.StateView })));
@@ -102,23 +103,18 @@ export function App() {
     window.history.replaceState(null, '', next === 'cycle' ? window.location.pathname : `#view=${next}`);
   };
   const api = useMemo(() => (token ? createApi(token) : null), [token]);
-  const [events, setEvents] = useState<SessionEvent[]>([]);
-  const [stream, setStream] = useState<'connecting' | 'live' | 'closed'>('connecting');
-  const [cycleRefresh, setCycleRefresh] = useState(0);
+  // The session's events (#585): a new cycle is fetched in place, a failed
+  // build keeps the previous results under a banner, a drop reconnects.
+  const [live, dispatch] = useReducer(reduceLive, initialLive);
+  const { events, connection: stream } = live;
+  const cycleRefresh = live.cycleId ?? 0;
   const session = useLoad<Session>(api, 'session', 0);
   const cycle = useLoad<Cycle>(api, 'cycles/latest', cycleRefresh);
 
   useEffect(() => {
     if (!api) return;
     const abort = new AbortController();
-    setStream('live');
-    api
-      .events((e) => {
-        setEvents((prev) => [e, ...prev].slice(0, 40));
-        if (e.type === 'cycle.completed') setCycleRefresh((n) => n + 1);
-      }, abort.signal)
-      .catch(() => undefined)
-      .finally(() => !abort.signal.aborted && setStream('closed'));
+    void follow(api, dispatch, abort.signal);
     return () => abort.abort();
   }, [api]);
 
@@ -182,11 +178,44 @@ export function App() {
           />
           {stream === 'live'
             ? 'live'
-            : stream === 'closed'
-              ? 'disconnected: is signet dev still running?'
-              : 'connecting'}
+            : stream === 'reconnecting'
+              ? 'reconnecting…'
+              : stream === 'ended'
+                ? 'session ended: signet dev is no longer running'
+                : 'connecting'}
         </span>
       </header>
+
+      {live.buildError && (
+        <div role="alert" className="border-b border-bad bg-raised px-4 py-3 text-sm">
+          <div className="flex flex-wrap items-baseline gap-3">
+            <strong className="text-bad">The build failed.</strong>
+            <span className="text-muted">Running the previous build; its results stay below.</span>
+            <button
+              type="button"
+              onClick={() => dispatch({ kind: 'dismiss', what: 'buildError' })}
+              className="ml-auto rounded border border-line px-2 py-0.5 text-xs text-muted hover:text-ink"
+            >
+              Dismiss
+            </button>
+          </div>
+          <pre className="mt-2 max-h-64 overflow-auto whitespace-pre-wrap font-mono text-xs text-ink">{live.buildError}</pre>
+        </div>
+      )}
+      {live.drift !== null && live.drift > 0 && (
+        <div role="status" className="flex flex-wrap items-baseline gap-3 border-b border-line bg-raised px-4 py-2 text-sm">
+          <span>
+            {live.drift} fork entr{live.drift === 1 ? 'y has' : 'ies have'} changed on-chain since the fork: results may differ from the network now.
+          </span>
+          <button
+            type="button"
+            onClick={() => dispatch({ kind: 'dismiss', what: 'drift' })}
+            className="ml-auto rounded border border-line px-2 py-0.5 text-xs text-muted hover:text-ink"
+          >
+            Dismiss
+          </button>
+        </div>
+      )}
 
       <main className="grid gap-px bg-line lg:grid-cols-[1fr_22rem]">
         <section aria-labelledby="cycle-heading" className="min-w-0 bg-page p-4">
