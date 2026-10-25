@@ -1634,6 +1634,109 @@ fn split_args(text: &str) -> Vec<String> {
     parts.into_iter().map(|p| p.trim().to_string()).collect()
 }
 
+/// A storage key pattern, `ignore_storage` in `[diff]` (#569): the #559 key
+/// syntax, with `*` standing for any value.
+#[derive(Clone, Debug)]
+pub enum KeyPattern {
+    Any,
+    /// A bare identifier: a symbol key, or a unit enum case (which the SDK
+    /// lays out as a vec holding its symbol).
+    Name(String),
+    /// `Case(a, b)`: a vec of the case's symbol and its arguments.
+    Case(String, Vec<KeyPattern>),
+    Exact(ScVal),
+}
+
+fn symbol_is(v: &ScVal, name: &str) -> bool {
+    matches!(v, ScVal::Symbol(s) if s.0.to_utf8_string_lossy() == name)
+}
+
+impl KeyPattern {
+    pub fn matches(&self, key: &ScVal) -> bool {
+        match self {
+            KeyPattern::Any => true,
+            KeyPattern::Exact(v) => v == key,
+            KeyPattern::Name(name) => match key {
+                ScVal::Vec(Some(items)) => items.len() == 1 && symbol_is(&items[0], name),
+                other => symbol_is(other, name),
+            },
+            KeyPattern::Case(name, args) => match key {
+                ScVal::Vec(Some(items)) => {
+                    items.len() == args.len() + 1
+                        && symbol_is(&items[0], name)
+                        && args
+                            .iter()
+                            .zip(items.iter().skip(1))
+                            .all(|(p, v)| p.matches(v))
+                }
+                _ => false,
+            },
+        }
+    }
+}
+
+impl Spec {
+    /// A `KeyPattern` from its text: `*`, `Admin`, `Balance(*)`,
+    /// `Allowance("G…", *)`, or any #559 key, matched exactly. An argument of
+    /// a spec union case is encoded as the case declares it.
+    pub fn storage_pattern(&self, text: &str, path: &str) -> Result<KeyPattern, LaneError> {
+        let t = text.trim();
+        if t == "*" {
+            return Ok(KeyPattern::Any);
+        }
+        let ident_len = t
+            .find(|c: char| !(c.is_ascii_alphanumeric() || c == '_'))
+            .unwrap_or(t.len());
+        let (ident, rest) = t.split_at(ident_len);
+        let named = t
+            .chars()
+            .next()
+            .is_some_and(|c| c.is_ascii_alphabetic() || c == '_');
+        if !named || ident == "true" || ident == "false" || rest.starts_with(':') {
+            return Ok(KeyPattern::Exact(self.storage_val(t, path)?));
+        }
+        if rest.is_empty() {
+            return Ok(KeyPattern::Name(ident.to_string()));
+        }
+        if !(rest.starts_with('(') && rest.ends_with(')')) {
+            // Not a case: storage_val says what shapes there are.
+            return Ok(KeyPattern::Exact(self.storage_val(t, path)?));
+        }
+        let types = self.case_types(ident);
+        let mut args = Vec::new();
+        for (i, a) in split_args(&rest[1..rest.len() - 1]).iter().enumerate() {
+            let at = index(path, i);
+            args.push(match types.as_ref().and_then(|ts| ts.get(i)) {
+                _ if a == "*" => KeyPattern::Any,
+                Some(ty) => {
+                    let v = serde_json::from_str::<Value>(a).map_err(|_| {
+                        arg_error(&at, crate::lanes::STORAGE_SHAPES, format!("`{a}`"))
+                    })?;
+                    KeyPattern::Exact(self.encode(ty, &v, &at, 0)?)
+                }
+                None => self.storage_pattern(a, &at)?,
+            });
+        }
+        Ok(KeyPattern::Case(ident.to_string(), args))
+    }
+
+    /// The argument types of the spec union case named `case`, if any.
+    fn case_types(&self, case: &str) -> Option<Vec<ScSpecTypeDef>> {
+        self.entries.iter().find_map(|e| match e {
+            ScSpecEntry::UdtUnionV0(u) => u.cases.iter().find_map(|c| match c {
+                ScSpecUdtUnionCaseV0::TupleV0(t) if t.name.to_utf8_string_lossy() == case => {
+                    Some(t.type_.to_vec())
+                }
+                ScSpecUdtUnionCaseV0::VoidV0(v) if v.name.to_utf8_string_lossy() == case => {
+                    Some(Vec::new())
+                }
+                _ => None,
+            }),
+            _ => None,
+        })
+    }
+}
+
 impl Spec {
     /// A storage key or value written for `--set-storage` (#559):
     ///
@@ -1827,6 +1930,40 @@ mod tests {
             let want = args.get(&name).cloned().unwrap_or(Value::Null);
             assert_eq!(back, want, "{function}.{name}");
         }
+    }
+
+    /// `ignore_storage` patterns (#569): a spec union case's arguments are
+    /// read as the case declares them, `*` is any value, and a bare name is
+    /// a symbol or a unit case.
+    #[test]
+    fn storage_patterns_match_by_the_spec() {
+        let spec = zoo();
+        let sym = |s: &str| ScVal::Symbol(ScSymbol(s.try_into().unwrap()));
+        let vec = |items: Vec<ScVal>| ScVal::Vec(Some(ScVec(items.try_into().unwrap())));
+        let point = |x: ScVal, y: ScVal| vec(vec![sym("Point"), x, y]);
+        let p = spec.storage_pattern("Point(5, *)", "p").unwrap();
+        assert!(p.matches(&point(ScVal::U32(5), ScVal::U32(9))));
+        assert!(!p.matches(&point(ScVal::U32(6), ScVal::U32(9))));
+        assert!(
+            !p.matches(&point(ScVal::U64(5), ScVal::U32(9))),
+            "5 is a u32 here"
+        );
+        let empty = spec.storage_pattern("Empty", "p").unwrap();
+        assert!(empty.matches(&vec(vec![sym("Empty")])) && empty.matches(&sym("Empty")));
+        assert!(!empty.matches(&sym("Full")));
+        assert!(spec
+            .storage_pattern("*", "p")
+            .unwrap()
+            .matches(&ScVal::Void));
+        // Without the spec a bare number has no type.
+        let bare = Spec {
+            entries: Vec::new(),
+        };
+        assert!(bare.storage_pattern("Point(5, *)", "p").is_err());
+        assert!(bare
+            .storage_pattern("Point(u32:5, *)", "p")
+            .unwrap()
+            .matches(&point(ScVal::U32(5), ScVal::Void)));
     }
 
     #[test]

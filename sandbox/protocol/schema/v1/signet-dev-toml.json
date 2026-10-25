@@ -116,30 +116,57 @@
         "ignore_events": {
           "type": "array",
           "items": {
-            "type": "string"
-          }
+            "type": "string",
+            "pattern": "^[^/]+(/[^/]+)*$"
+          },
+          "description": "Event topic prefixes a diff leaves out: topic texts separated by /"
+        },
+        "ignore_storage": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "description": "Storage key patterns a diff leaves out: the --set-storage key syntax, * for any value"
+        },
+        "ignore_auth": {
+          "type": "boolean",
+          "description": "Leave auth changes out (they break signed payloads; signet dev warns)"
         },
         "resource_tolerance": {
           "type": "object",
           "properties": {
             "instructions": {
               "type": "string",
-              "pattern": "^[0-9]+(\\.[0-9]+)?%$"
+              "pattern": "^([0-9]+(\\.[0-9]+)?%|[0-9]+)$"
+            },
+            "mem_bytes": {
+              "type": "string",
+              "pattern": "^([0-9]+(\\.[0-9]+)?%|[0-9]+)$"
             },
             "read_bytes": {
               "type": "string",
-              "pattern": "^[0-9]+(\\.[0-9]+)?%$"
+              "pattern": "^([0-9]+(\\.[0-9]+)?%|[0-9]+)$"
             },
             "write_bytes": {
               "type": "string",
-              "pattern": "^[0-9]+(\\.[0-9]+)?%$"
+              "pattern": "^([0-9]+(\\.[0-9]+)?%|[0-9]+)$"
+            },
+            "read_entries": {
+              "type": "string",
+              "pattern": "^([0-9]+(\\.[0-9]+)?%|[0-9]+)$"
+            },
+            "write_entries": {
+              "type": "string",
+              "pattern": "^([0-9]+(\\.[0-9]+)?%|[0-9]+)$"
             },
             "fee": {
               "type": "string",
-              "pattern": "^[0-9]+(\\.[0-9]+)?%$"
+              "pattern": "^([0-9]+(\\.[0-9]+)?%|[0-9]+)$"
             }
           },
-          "additionalProperties": false
+          "additionalProperties": false,
+          "description": "How far a resource may move before it counts: a percentage (\"10%\") or an amount (\"500\")"
         }
       },
       "additionalProperties": false

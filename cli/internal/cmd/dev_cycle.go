@@ -111,13 +111,45 @@ func describeCycle(c dev.Cycle) []string {
 	}
 	for _, o := range c.Outcomes {
 		a, b := describeRun(o.A), describeRun(o.B)
-		mark := "="
-		if o.Diff != nil && !o.Diff.Empty {
-			mark = "≠"
+		mark, classes := "=", ""
+		if o.Diff != nil && !o.Diff.Summary.Clean() {
+			mark, classes = "≠", "  ("+describeSummary(o.Diff.Summary)+")"
 		}
-		lines = append(lines, fmt.Sprintf("  %s  A %s  %s  B %s", o.Name, a, mark, b))
+		lines = append(lines, fmt.Sprintf("  %s  A %s  %s  B %s%s", o.Name, a, mark, b, classes))
 	}
 	return lines
+}
+
+// describeSummary names the classes found: "1 breaking, 2 cost".
+func describeSummary(s simulator.DiffSummary) string {
+	var parts []string
+	for _, c := range []struct {
+		n    int
+		name string
+	}{{s.Breaking, "breaking"}, {s.Behavioural, "behavioural"}, {s.Cost, "cost"}, {s.Ignored, "ignored"}} {
+		if c.n > 0 {
+			parts = append(parts, fmt.Sprintf("%d %s", c.n, c.name))
+		}
+	}
+	return strings.Join(parts, ", ")
+}
+
+// applyRules hands signet.dev.toml's [diff] to the session, warning when
+// it leaves auth out.
+func (s *devSession) applyRules(f *devconfig.File, contract string, progress func(string)) error {
+	if f == nil {
+		s.reloader.SetRules(nil)
+		return nil
+	}
+	rules, err := dev.RulesOf(f.Diff, contract)
+	if err != nil {
+		return &inputError{err.Error()}
+	}
+	if rules.IgnoreAuth {
+		progress("warning: ignore_auth = true in signet.dev.toml: auth changes break signed payloads, and the diffs will not report them")
+	}
+	s.reloader.SetRules(rules)
+	return nil
 }
 
 func describeRun(r dev.Run) string {

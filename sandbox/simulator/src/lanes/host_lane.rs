@@ -33,7 +33,7 @@ use soroban_simulation::simulation::{
 use soroban_simulation::NetworkConfig;
 
 use super::{
-    AuthMode, BudgetOverride, ByteSnapshotSource, DiffSide, DiffWrite, EffectiveBudget, BUDGET_CEILING_FACTOR, DecodeTarget, DerivedKey, EntryChangeBytes, ErrorCase, ExternalRef,
+    AuthMode, BudgetOverride, ByteSnapshotSource, DiffRules, DiffSide, DiffWrite, EffectiveBudget, BUDGET_CEILING_FACTOR, DecodeTarget, DerivedKey, EntryChangeBytes, ErrorCase, ExternalRef,
     Installed, InstanceInfo, InterfaceVersion, InvocationFailure, KeyRequest, Lane, LaneError,
     SimulateBytes, SimulateResultBytes, StorageOverride, StorageWrite, Durability, SwapResultBytes, TraceCall, TransactionResources, WasmInspection,
 };
@@ -724,8 +724,19 @@ impl Lane for HostLane {
         })
     }
 
-    fn diff_values(&self, a: &DiffSide, b: &DiffSide) -> Result<Value, LaneError> {
-        diff::values(a, b, &|key| self.describe_key(key), &|entry| self.describe_entry(entry))
+    fn diff_values(&self, a: &DiffSide, b: &DiffSide, rules: &DiffRules) -> Result<Value, LaneError> {
+        let spec = match &rules.spec_wasm {
+            Some(wasm) => spec::Spec::from_wasm(wasm)?,
+            None => spec::Spec { entries: Vec::new() },
+        };
+        let patterns = rules
+            .ignore_storage
+            .iter()
+            .enumerate()
+            .map(|(i, p)| spec.storage_pattern(p, &format!("rules.ignore_storage[{i}]")))
+            .collect::<Result<Vec<_>, _>>()?;
+        let rules = diff::Rules { events: &rules.ignore_events, storage: &patterns };
+        diff::values(a, b, &rules, &|key| self.describe_key(key), &|entry| self.describe_entry(entry))
     }
 
     fn describe_key(&self, key_xdr: &[u8]) -> String {

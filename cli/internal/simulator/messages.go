@@ -611,9 +611,28 @@ type LayoutCheckResult struct {
 // DiffResultsParams compares a call on the deployed code (A) with the same
 // call on a new build (B) (#568).
 type DiffResultsParams struct {
-	LedgerProtocol *int     `json:"ledger_protocol,omitempty"`
-	A              DiffSide `json:"a"`
-	B              DiffSide `json:"b"`
+	LedgerProtocol *int       `json:"ledger_protocol,omitempty"`
+	A              DiffSide   `json:"a"`
+	B              DiffSide   `json:"b"`
+	Rules          *DiffRules `json:"rules,omitempty"`
+}
+
+// DiffRules are what a diff leaves out or tolerates (#569), as
+// signet.dev.toml's [diff] says.
+type DiffRules struct {
+	// ContractID is the contract whose spec reads IgnoreStorage's enum
+	// cases.
+	ContractID        string               `json:"contract_id,omitempty"`
+	IgnoreEvents      []string             `json:"ignore_events,omitempty"`
+	IgnoreStorage     []string             `json:"ignore_storage,omitempty"`
+	IgnoreAuth        bool                 `json:"ignore_auth,omitempty"`
+	ResourceTolerance map[string]Tolerance `json:"resource_tolerance,omitempty"`
+}
+
+// Tolerance is how far a metric may move: Percent of A's, or Absolute.
+type Tolerance struct {
+	Percent  *float64 `json:"percent,omitempty"`
+	Absolute *int64   `json:"absolute,omitempty"`
 }
 
 // DiffSide is one side of diff_results: what a simulate reply, or a
@@ -668,6 +687,8 @@ func DiffSideOf(res *SimulateResult, ce *ContractError) DiffSide {
 // DiffResultsResult answers diff_results.
 type DiffResultsResult struct {
 	Empty bool `json:"empty"`
+	// Summary counts the differences by class.
+	Summary DiffSummary `json:"summary"`
 	// Outcome is set when one side returned and the other failed, or they
 	// failed differently; the values are then not compared.
 	Outcome     *DiffOutcome     `json:"outcome"`
@@ -678,18 +699,39 @@ type DiffResultsResult struct {
 	Resources   []ResourceChange `json:"resources"`
 }
 
+// DiffSummary counts differences by class (#569).
+type DiffSummary struct {
+	Breaking    int `json:"breaking"`
+	Behavioural int `json:"behavioural"`
+	Cost        int `json:"cost"`
+	Ignored     int `json:"ignored"`
+}
+
+// Clean is whether nothing but ignored differences were found.
+func (s DiffSummary) Clean() bool { return s.Breaking+s.Behavioural+s.Cost == 0 }
+
+// The classes a difference falls in (#569).
+const (
+	ClassBreaking    = "breaking"
+	ClassBehavioural = "behavioural"
+	ClassCost        = "cost"
+	ClassIgnored     = "ignored"
+)
+
 // DiffOutcome is each side's outcome: ok, or "<kind> error <code>".
 type DiffOutcome struct {
-	A string `json:"a"`
-	B string `json:"b"`
+	A     string `json:"a"`
+	B     string `json:"b"`
+	Class string `json:"class"`
 }
 
 // Difference is where two values first part: a JSON pointer, and each
 // side's tagged value there (null where a side has nothing).
 type Difference struct {
-	Path string          `json:"path"`
-	A    json.RawMessage `json:"a"`
-	B    json.RawMessage `json:"b"`
+	Path  string          `json:"path"`
+	A     json.RawMessage `json:"a"`
+	B     json.RawMessage `json:"b"`
+	Class string          `json:"class"`
 }
 
 // EventChange is an event added or removed at Index (Event), or one whose
@@ -701,6 +743,7 @@ type EventChange struct {
 	Path   *string           `json:"path,omitempty"`
 	A      json.RawMessage   `json:"a,omitempty"`
 	B      json.RawMessage   `json:"b,omitempty"`
+	Class  string            `json:"class"`
 }
 
 // DiffEvents are the event differences.
@@ -719,6 +762,7 @@ type StorageChange struct {
 	Path   *string         `json:"path,omitempty"`
 	A      json.RawMessage `json:"a,omitempty"`
 	B      json.RawMessage `json:"b,omitempty"`
+	Class  string          `json:"class"`
 }
 
 // DiffStorage are the storage-write differences.
@@ -737,6 +781,7 @@ type AuthChange struct {
 	Path       *string         `json:"path,omitempty"`
 	A          json.RawMessage `json:"a,omitempty"`
 	B          json.RawMessage `json:"b,omitempty"`
+	Class      string          `json:"class"`
 }
 
 // DiffAuth are the auth differences; any of them is client-breaking.
@@ -754,6 +799,7 @@ type ResourceChange struct {
 	B       int64    `json:"b"`
 	Delta   int64    `json:"delta"`
 	Percent *float64 `json:"percent"`
+	Class   string   `json:"class"`
 }
 
 // XDRKey asks xdr_keys for one key. Kind is "contract_instance",

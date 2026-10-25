@@ -42,8 +42,9 @@ key = 'Owner("alice")'
 value = '"GC6YINA5FD5MLUI4LKC4JYI5AKAW7BRFJRKNEU3TVRZWYNYN3KKZJR3G"'
 
 [diff]
-ignore_events = []           # event topic prefixes a diff leaves out
-resource_tolerance = { instructions = "10%", fee = "10%" }
+ignore_events = []           # event topic prefixes: "transfer", "transfer/GABC…"
+ignore_storage = []          # key patterns: 'Balance(*)', "count"
+resource_tolerance = { instructions = "10%", fee = "500" }
 ```
 
 - `version` is `1`, the only version there is.
@@ -60,8 +61,17 @@ resource_tolerance = { instructions = "10%", fee = "10%" }
 - An `[[override]]` is a storage override, as `--set-storage` takes:
   `durability` (`instance`, `persistent` or `temporary`), `key`, and `value` or
   `unset = true`.
-- `[diff]` leaves out events by topic prefix and tolerates resource changes up
-  to a percentage, for `instructions`, `read_bytes`, `write_bytes` and `fee`.
+- `[diff]` says which differences between the deployed code and the build
+  matter (#569). `ignore_events` are topic prefixes, topic texts separated by
+  `/`; `ignore_storage` are key patterns in the `--set-storage` key syntax with
+  `*` for any value (`Balance(*)`, `Allowance("G…", *)`, `count` for an
+  instance key); `ignore_auth = true` leaves auth changes out, and `signet dev`
+  warns that it does; `resource_tolerance` lets `instructions`, `mem_bytes`,
+  `read_bytes`, `write_bytes`, `read_entries`, `write_entries` and `fee` move by
+  a percentage of the deployed code's (`"10%"`) or an amount (`"500"`). Every
+  difference is classed `breaking` (outcome, return value, storage, auth),
+  `behavioural` (events), `cost` (a resource beyond its tolerance) or
+  `ignored`; ignored ones are still listed and counted.
 
 `signet dev init <contract> [--path ./contract]` writes a commented
 `signet.dev.toml` in the current directory to start from, with one saved call

@@ -202,6 +202,13 @@ instance by its storage map, since B's executable is the build by
 construction), and auth by signer, where any difference is `client_breaking`.
 When the outcome differs only that and the resources are reported. Resources
 are each metric both sides give that moved, absolute and as a percentage of A.
+With `rules` ([#569](https://github.com/blockchain-maxis/signet/issues/569),
+signet.dev.toml's `[diff]`) every difference carries a `class`: `breaking`
+(outcome, return value, storage, auth), `behavioural` (events), `cost` (a
+resource beyond its tolerance) or `ignored` (an `ignore_events` topic prefix,
+an `ignore_storage` key pattern, auth under `ignore_auth`, a resource within
+tolerance). Patterns read enum cases by the spec of `rules.contract_id`.
+Ignored differences stay in the lists, and `summary` counts each class.
 
 **Determinism ([#537](https://github.com/blockchain-maxis/signet/issues/537)).**
 The same session on the same ledger state produces byte-identical results on

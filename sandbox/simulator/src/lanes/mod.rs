@@ -233,6 +233,18 @@ pub struct DiffWrite {
     pub live_until: Option<u32>,
 }
 
+/// What an A/B diff leaves out (#569).
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct DiffRules {
+    /// Event topic prefixes: an event whose first topics read these is
+    /// ignored.
+    pub ignore_events: Vec<Vec<String>>,
+    /// Storage key patterns in the #559 key syntax, `*` for any value.
+    pub ignore_storage: Vec<String>,
+    /// The executable whose spec reads the patterns' enum cases.
+    pub spec_wasm: Option<Vec<u8>>,
+}
+
 /// What a simulation produced, as XDR bytes.
 #[derive(Clone, Debug)]
 pub struct SimulateResultBytes {
@@ -553,7 +565,12 @@ pub trait Lane: Sync {
 
     /// Two calls' return values, events, storage writes and auth compared
     /// as exact values (#568): `diff_impl.rs`.
-    fn diff_values(&self, a: &DiffSide, b: &DiffSide) -> Result<serde_json::Value, LaneError>;
+    fn diff_values(
+        &self,
+        a: &DiffSide,
+        b: &DiffSide,
+        rules: &DiffRules,
+    ) -> Result<serde_json::Value, LaneError>;
 
     /// The call tree in `DiagnosticEvent` XDR (#541).
     fn trace_calls(&self, diagnostic_events_xdr: &[Vec<u8>]) -> Vec<TraceCall>;

@@ -139,11 +139,34 @@ func TestOtherChecks(t *testing.T) {
 		"version = 1\n[[override]]\ndurability = \"instance\"\nkey = \"K\"\n":                  "needs a value, or unset = true",
 		"version = 1\n[diff]\nresource_tolerance = { cpu = \"10%\" }\n":                        `resource_tolerance names "cpu"`,
 		"version = 1\n[diff]\nresource_tolerance = { fee = \"ten\" }\n":                        "must be a percentage",
+		"version = 1\n[diff]\nresource_tolerance = { fee = \"-5\" }\n":                         "must be a percentage",
+		"version = 1\n[diff]\nignore_storage = [\"Balance(\"]\n":                               "unclosed bracket",
+		"version = 1\n[diff]\nignore_storage = [\"5\"]\n":                                      "must be *, a name",
+		"version = 1\n[diff]\nignore_storage = [\"Owner(\\\"al)\"]\n":                          "unclosed quote",
+		"version = 1\n[diff]\nignore_events = [\"transfer//x\"]\n":                             "none empty",
+		"version = 1\n[diff]\nignore_auth = \"yes\"\n":                                         "ignore_auth",
 		"version = 1\n[replay]\nrecent_transactions = -1\n":                                    "0 or more",
 	} {
 		if _, err := Parse("t", []byte(text)); err == nil || !strings.Contains(err.Error(), want) {
 			t.Errorf("%q: %v, want %q", text, err, want)
 		}
+	}
+}
+
+func TestDiffRulesThatRead(t *testing.T) {
+	text := "version = 1\n[diff]\nignore_events = [\"transfer\", \"transfer/GABC\"]\n" +
+		"ignore_storage = ['Balance(*)', 'Owner(\"a,b)\")', \"count\", \"u32:5\", '\"s\"', \"*\"]\n" +
+		"ignore_auth = true\nresource_tolerance = { instructions = \"10%\", fee = \"500\", mem_bytes = \"2.5%\" }\n"
+	f, err := Parse("t", []byte(text))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(f.Diff.IgnoreStorage) != 6 || !f.Diff.IgnoreAuth || f.Diff.ResourceTolerance["fee"] != "500" {
+		t.Fatalf("%+v", f.Diff)
+	}
+	out, err := f.Encode()
+	if err != nil || !strings.Contains(string(out), "ignore_auth = true") || !strings.Contains(string(out), "ignore_storage") {
+		t.Fatalf("encode: %v\n%s", err, out)
 	}
 }
 

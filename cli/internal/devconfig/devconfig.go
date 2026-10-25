@@ -29,8 +29,10 @@
 //	value = '"GABC…"'
 //
 //	[diff]
-//	ignore_events = []
-//	resource_tolerance = { instructions = "10%", fee = "10%" }
+//	ignore_events = []           # event topic prefixes: "transfer", "transfer/G…"
+//	ignore_storage = []          # key patterns: 'Balance(*)', "count"
+//	ignore_auth = false          # true: auth changes are not reported (a warning says so)
+//	resource_tolerance = { instructions = "10%", fee = "500" }
 package devconfig
 
 import (
@@ -40,6 +42,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -132,21 +135,30 @@ type Override struct {
 	Unset      bool   `toml:"unset"`
 }
 
-// Diff is what a comparison leaves out or tolerates.
+// Diff is what a comparison leaves out or tolerates (#569).
 type Diff struct {
-	// IgnoreEvents are event topic prefixes a diff leaves out.
+	// IgnoreEvents are event topic prefixes a diff leaves out: topic texts
+	// separated by "/", "transfer" or "transfer/GABC…".
 	IgnoreEvents []string `toml:"ignore_events"`
+	// IgnoreStorage are storage key patterns in the --set-storage key
+	// syntax (#559), with * for any value: 'Balance(*)', "count".
+	IgnoreStorage []string `toml:"ignore_storage"`
+	// IgnoreAuth leaves auth changes out. They break signed payloads, so
+	// signet dev warns when it is set.
+	IgnoreAuth bool `toml:"ignore_auth"`
 	// ResourceTolerance is how far a resource may move before it counts as
-	// a change, as a percentage: { instructions = "10%", fee = "10%" }.
+	// a change: a percentage of the deployed code's ("10%") or an absolute
+	// amount ("500").
 	ResourceTolerance map[string]string `toml:"resource_tolerance"`
 }
 
 // ToleranceResources are the resources a tolerance may name.
-var ToleranceResources = []string{"instructions", "read_bytes", "write_bytes", "fee"}
+var ToleranceResources = []string{"instructions", "mem_bytes", "read_bytes", "write_bytes", "read_entries", "write_entries", "fee"}
 
 var (
 	identifier = regexp.MustCompile(`^[A-Za-z_][A-Za-z0-9_]*$`)
 	percent    = regexp.MustCompile(`^\d+(\.\d+)?%$`)
+	absolute   = regexp.MustCompile(`^\d+$`)
 	contractID = regexp.MustCompile(`^C[A-Z2-7]{55}$`)
 )
 
@@ -289,11 +301,65 @@ func (f *File) check(path string, raw []byte) Errors {
 		if !known {
 			add("diff.resource_tolerance", "resource_tolerance names %q; it may name %s", resource, strings.Join(ToleranceResources, ", "))
 		}
-		if !percent.MatchString(tolerance) {
-			add("diff.resource_tolerance", "resource_tolerance %s must be a percentage like \"10%%\", not %q", resource, tolerance)
+		if !percent.MatchString(tolerance) && !absolute.MatchString(tolerance) {
+			add("diff.resource_tolerance", "resource_tolerance %s must be a percentage like \"10%%\" or an amount like \"500\", not %q", resource, tolerance)
+		}
+	}
+	for i, prefix := range f.Diff.IgnoreEvents {
+		if strings.TrimSpace(prefix) == "" || slices.Contains(strings.Split(prefix, "/"), "") {
+			add("diff.ignore_events", "ignore_events[%d] must be topics separated by /, none empty, not %q", i, prefix)
+		}
+	}
+	for i, pattern := range f.Diff.IgnoreStorage {
+		if msg := checkPattern(pattern); msg != "" {
+			add("diff.ignore_storage", "ignore_storage[%d] %q: %s", i, pattern, msg)
 		}
 	}
 	return errs
+}
+
+// checkPattern is the syntax a storage key pattern can be checked for
+// without the contract: what it is made of, balanced brackets and quotes.
+// The simulator reads it against the spec when a diff runs.
+func checkPattern(p string) string {
+	t := strings.TrimSpace(p)
+	if t == "" {
+		return "is empty"
+	}
+	depth, quoted, escaped := 0, false, false
+	for _, c := range t {
+		switch {
+		case quoted && escaped:
+			escaped = false
+		case quoted && c == '\\':
+			escaped = true
+		case c == '"':
+			quoted = !quoted
+		case quoted:
+		case c == '(' || c == '[' || c == '{':
+			depth++
+		case c == ')' || c == ']' || c == '}':
+			depth--
+			if depth < 0 {
+				return "closes a bracket it never opened"
+			}
+		}
+	}
+	switch {
+	case quoted:
+		return "has an unclosed quote"
+	case depth != 0:
+		return "has an unclosed bracket"
+	case t == "*", t[0] == '"', t[0] == '{', t[0] == '[':
+		return ""
+	case !identifierStart(rune(t[0])):
+		return "must be *, a name like Admin or Balance(*), a typed value like u32:5, or a quoted string"
+	}
+	return ""
+}
+
+func identifierStart(c rune) bool {
+	return c == '_' || ('a' <= c && c <= 'z') || ('A' <= c && c <= 'Z')
 }
 
 // Contract is what the deployed contract offers, for CheckCalls.
@@ -390,7 +456,7 @@ func (f *File) Encode() ([]byte, error) {
 	if f.Replay != (Replay{}) {
 		out.Replay = &f.Replay
 	}
-	if len(f.Diff.IgnoreEvents) > 0 || len(f.Diff.ResourceTolerance) > 0 {
+	if len(f.Diff.IgnoreEvents) > 0 || len(f.Diff.IgnoreStorage) > 0 || f.Diff.IgnoreAuth || len(f.Diff.ResourceTolerance) > 0 {
 		out.Diff = &f.Diff
 	}
 	var b strings.Builder

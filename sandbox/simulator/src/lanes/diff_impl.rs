@@ -13,11 +13,72 @@ use std::collections::BTreeMap;
 use serde_json::{json, Value};
 
 use super::soroban_env_host::xdr::{
-    ContractEvent, ContractEventBody, LedgerEntry, LedgerEntryData, ScVal,
-    SorobanAuthorizationEntry, SorobanAuthorizedFunction, SorobanAuthorizedInvocation,
-    SorobanCredentials,
+    ContractEvent, ContractEventBody, LedgerEntry, LedgerEntryData, LedgerKey, ScContractInstance,
+    ScMap, ScVal, SorobanAuthorizationEntry, SorobanAuthorizedFunction,
+    SorobanAuthorizedInvocation, SorobanCredentials,
 };
+use super::spec::KeyPattern;
 use super::{decode, event_json, scval_json, DiffSide, DiffWrite, LaneError};
+
+/// What a diff leaves out (#569), read for this lane: event topic prefixes,
+/// and storage key patterns.
+pub struct Rules<'a> {
+    pub events: &'a [Vec<String>],
+    pub storage: &'a [KeyPattern],
+}
+
+impl Rules<'_> {
+    fn ignores_key(&self, key: &ScVal) -> bool {
+        self.storage.iter().any(|p| p.matches(key))
+    }
+
+    /// Whether an event's first topics read as one of the prefixes: a
+    /// symbol or string by its text, an address by its strkey, a number by
+    /// its digits.
+    fn ignores_event(&self, event: &ContractEvent) -> bool {
+        let topics = body(event).0;
+        self.events.iter().any(|prefix| {
+            prefix.len() <= topics.len()
+                && prefix
+                    .iter()
+                    .zip(topics)
+                    .all(|(want, topic)| topic_text(topic) == *want)
+        })
+    }
+}
+
+fn topic_text(topic: &ScVal) -> String {
+    match topic {
+        ScVal::Symbol(s) => s.0.to_utf8_string_lossy(),
+        ScVal::String(s) => s.0.to_utf8_string_lossy(),
+        ScVal::Address(a) => a.to_string(),
+        ScVal::U32(n) => n.to_string(),
+        ScVal::I32(n) => n.to_string(),
+        other => scval_json(other).map_or_else(|_| String::new(), |v| v.to_string()),
+    }
+}
+
+/// An instance with the ignored keys taken out of its storage map.
+fn without_ignored(instance: &ScContractInstance, rules: &Rules) -> ScVal {
+    let kept = instance.storage.as_ref().map(|map| {
+        let entries: Vec<_> = map
+            .iter()
+            .filter(|e| !rules.ignores_key(&e.key))
+            .cloned()
+            .collect();
+        ScMap(entries.try_into().unwrap_or_default())
+    });
+    ScVal::Map(kept)
+}
+
+/// The key a written entry is stored under, for `ignore_storage`: a
+/// contract-data key, not an instance's.
+fn data_key(key_xdr: &[u8]) -> Option<ScVal> {
+    match decode::<LedgerKey>(key_xdr, "LedgerKey").ok()? {
+        LedgerKey::ContractData(d) if d.key != ScVal::LedgerKeyContractInstance => Some(d.key),
+        _ => None,
+    }
+}
 
 /// Where two values first differ, and what each side holds there (`null`
 /// where a side has nothing: a missing vec item, map key or field).
@@ -176,20 +237,25 @@ fn json_difference(a: &Value, b: &Value, path: &str) -> Option<Difference> {
 pub fn values(
     a: &DiffSide,
     b: &DiffSide,
+    rules: &Rules,
     describe_key: &dyn Fn(&[u8]) -> String,
     describe_entry: &dyn Fn(&[u8]) -> Result<Value, LaneError>,
 ) -> Result<Value, LaneError> {
     let return_value = match (&a.return_value, &b.return_value) {
         (Some(x), Some(y)) => {
             let (x, y): (ScVal, ScVal) = (decode(x, "ScVal")?, decode(y, "ScVal")?);
-            first_difference(&x, &y, "")?.map_or(Value::Null, Difference::json)
+            first_difference(&x, &y, "")?.map_or(Value::Null, |d| {
+                let mut v = d.json();
+                v["class"] = json!("breaking");
+                v
+            })
         }
         _ => Value::Null,
     };
     Ok(json!({
         "return_value": return_value,
-        "events": events(&a.events, &b.events)?,
-        "storage": storage(&a.writes, &b.writes, describe_key, describe_entry)?,
+        "events": events(&a.events, &b.events, rules)?,
+        "storage": storage(&a.writes, &b.writes, rules, describe_key, describe_entry)?,
         "auth": auth(&a.auth, &b.auth)?,
     }))
 }
@@ -206,9 +272,17 @@ fn body(event: &ContractEvent) -> (&[ScVal], &ScVal) {
 /// Events by index: at an index where both sides have an event with the
 /// same emitter, type and topics, a different payload is `changed` (the
 /// first difference in its data); anything else there is `removed` (A's)
-/// and `added` (B's).
-fn events(a: &[Vec<u8>], b: &[Vec<u8>]) -> Result<Value, LaneError> {
+/// and `added` (B's). Each is `behavioural`, or `ignored` when its topics
+/// start with an `ignore_events` prefix.
+fn events(a: &[Vec<u8>], b: &[Vec<u8>], rules: &Rules) -> Result<Value, LaneError> {
     let (ea, eb) = (decode_events(a)?, decode_events(b)?);
+    let class = |e: &ContractEvent| {
+        if rules.ignores_event(e) {
+            "ignored"
+        } else {
+            "behavioural"
+        }
+    };
     let (mut added, mut removed, mut changed) = (Vec::new(), Vec::new(), Vec::new());
     for i in 0..ea.len().max(eb.len()) {
         match (ea.get(i), eb.get(i)) {
@@ -233,14 +307,15 @@ fn events(a: &[Vec<u8>], b: &[Vec<u8>]) -> Result<Value, LaneError> {
                     "path": d.path,
                     "a": d.a,
                     "b": d.b,
+                    "class": class(x),
                 }));
             }
             (x, y) => {
                 if let Some(x) = x {
-                    removed.push(json!({ "index": i, "event": event_json(x)? }));
+                    removed.push(json!({ "index": i, "event": event_json(x)?, "class": class(x) }));
                 }
                 if let Some(y) = y {
-                    added.push(json!({ "index": i, "event": event_json(y)? }));
+                    added.push(json!({ "index": i, "event": event_json(y)?, "class": class(y) }));
                 }
             }
         }
@@ -260,9 +335,12 @@ fn data_value(entry: &LedgerEntry) -> Option<&ScVal> {
 /// one only A writes is `removed`, and one both write to different values
 /// is `changed` (into a contract-data value by path, for an instance into
 /// its storage map). A TTL that differs is reported on its own, in `ttl`.
+/// Each is `breaking`, or `ignored` when its key (or, inside an instance,
+/// every differing key) matches an `ignore_storage` pattern.
 fn storage(
     a: &[DiffWrite],
     b: &[DiffWrite],
+    rules: &Rules,
     describe_key: &dyn Fn(&[u8]) -> String,
     describe_entry: &dyn Fn(&[u8]) -> Result<Value, LaneError>,
 ) -> Result<Value, LaneError> {
@@ -282,15 +360,20 @@ fn storage(
     keys.sort();
     keys.dedup();
     for key in keys {
-        let head = || json!({ "key": describe_key(key), "key_xdr": super::base64(key) });
+        let key_class = if data_key(key).is_some_and(|k| rules.ignores_key(&k)) {
+            "ignored"
+        } else {
+            "breaking"
+        };
+        let head = |class: &str| json!({ "key": describe_key(key), "key_xdr": super::base64(key), "class": class });
         match (wa.get(key), wb.get(key)) {
             (Some(x), None) => {
-                let mut item = head();
+                let mut item = head(key_class);
                 item["entry"] = view(&x.entry_xdr)?;
                 removed.push(item);
             }
             (None, Some(y)) => {
-                let mut item = head();
+                let mut item = head(key_class);
                 item["entry"] = view(&y.entry_xdr)?;
                 added.push(item);
             }
@@ -303,24 +386,44 @@ fn storage(
                         )),
                         _ => None,
                     };
-                    let d = match entries
+                    let values = entries
                         .as_ref()
-                        .and_then(|(ex, ey)| data_value(ex).zip(data_value(ey)))
-                    {
-                        Some((vx, vy)) => first_difference(vx, vy, "/value")?,
+                        .and_then(|(ex, ey)| data_value(ex).zip(data_value(ey)));
+                    let found = match values {
+                        // An instance: the first difference in the keys not
+                        // ignored is breaking; one only in ignored keys is
+                        // still shown, as ignored.
+                        Some((ScVal::ContractInstance(ix), ScVal::ContractInstance(iy))) => {
+                            match first_difference(
+                                &without_ignored(ix, rules),
+                                &without_ignored(iy, rules),
+                                "/value/storage",
+                            )? {
+                                Some(d) => Some((d, "breaking")),
+                                None => first_difference(
+                                    &ScVal::ContractInstance(ix.clone()),
+                                    &ScVal::ContractInstance(iy.clone()),
+                                    "/value",
+                                )?
+                                .map(|d| (d, "ignored")),
+                            }
+                        }
+                        Some((vx, vy)) => {
+                            first_difference(vx, vy, "/value")?.map(|d| (d, key_class))
+                        }
                         // The entry itself differs elsewhere (its
                         // last-modified ledger, or it was deleted on one
                         // side).
                         None => None,
                     };
-                    if let Some(d) = d {
-                        let mut item = head();
+                    if let Some((d, class)) = found {
+                        let mut item = head(class);
                         item["path"] = json!(d.path);
                         item["a"] = d.a;
                         item["b"] = d.b;
                         changed.push(item);
                     } else if entries.is_none() {
-                        let mut item = head();
+                        let mut item = head(key_class);
                         item["path"] = json!("");
                         item["a"] = view(&x.entry_xdr)?;
                         item["b"] = view(&y.entry_xdr)?;
@@ -328,7 +431,7 @@ fn storage(
                     }
                 }
                 if x.live_until != y.live_until {
-                    let mut item = head();
+                    let mut item = head(key_class);
                     item["a"] = json!(x.live_until);
                     item["b"] = json!(y.live_until);
                     ttl.push(item);
@@ -398,11 +501,15 @@ fn auth(a: &[Vec<u8>], b: &[Vec<u8>]) -> Result<Value, LaneError> {
     keys.dedup();
     for key in keys {
         match (ta.get(key), tb.get(key)) {
-            (Some(x), None) => removed.push(json!({ "signer": key.0, "invocation": x })),
-            (None, Some(y)) => added.push(json!({ "signer": key.0, "invocation": y })),
+            (Some(x), None) => {
+                removed.push(json!({ "signer": key.0, "invocation": x, "class": "breaking" }))
+            }
+            (None, Some(y)) => {
+                added.push(json!({ "signer": key.0, "invocation": y, "class": "breaking" }))
+            }
             (Some(x), Some(y)) => {
                 if let Some(d) = json_difference(x, y, "") {
-                    changed.push(json!({ "signer": key.0, "path": d.path, "a": d.a, "b": d.b }));
+                    changed.push(json!({ "signer": key.0, "path": d.path, "a": d.a, "b": d.b, "class": "breaking" }));
                 }
             }
             (None, None) => unreachable!("every key came from one side"),

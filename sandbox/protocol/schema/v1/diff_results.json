@@ -2,7 +2,7 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "https://signet.dev/schemas/sandbox/v1/diff_results.json",
   "title": "diff_results (request)",
-  "description": "Compare a call's result on the deployed code (a) and on a new build (b): outcome, return value, events, storage writes, auth and resources (#568). Values are compared as XDR, so u64 1 and i128 1 differ.",
+  "description": "Compare a call's result on the deployed code (a) and on a new build (b): outcome, return value, events, storage writes, auth and resources (#568), each difference classed under the rules (#569). Values are compared as XDR, so u64 1 and i128 1 differ.",
   "type": "object",
   "properties": {
     "version": {
@@ -273,6 +273,143 @@
       },
       "required": ["outcome"],
       "additionalProperties": false
+    },
+    "rules": {
+      "type": "object",
+      "description": "What the diff leaves out or tolerates (#569), from signet.dev.toml's [diff]",
+      "properties": {
+        "contract_id": {
+          "type": "string",
+          "minLength": 1,
+          "description": "The contract whose spec reads ignore_storage's enum cases; needs an open ledger"
+        },
+        "ignore_events": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "description": "Event topic prefixes: topic texts separated by /"
+        },
+        "ignore_storage": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "description": "Storage key patterns: the storage_override key syntax, * for any value"
+        },
+        "ignore_auth": {
+          "type": "boolean",
+          "description": "Class auth differences ignored"
+        },
+        "resource_tolerance": {
+          "type": "object",
+          "properties": {
+            "instructions": {
+              "type": "object",
+              "properties": {
+                "percent": {
+                  "type": "number",
+                  "minimum": 0
+                },
+                "absolute": {
+                  "type": "integer",
+                  "minimum": 0
+                }
+              },
+              "additionalProperties": false
+            },
+            "mem_bytes": {
+              "type": "object",
+              "properties": {
+                "percent": {
+                  "type": "number",
+                  "minimum": 0
+                },
+                "absolute": {
+                  "type": "integer",
+                  "minimum": 0
+                }
+              },
+              "additionalProperties": false
+            },
+            "read_bytes": {
+              "type": "object",
+              "properties": {
+                "percent": {
+                  "type": "number",
+                  "minimum": 0
+                },
+                "absolute": {
+                  "type": "integer",
+                  "minimum": 0
+                }
+              },
+              "additionalProperties": false
+            },
+            "write_bytes": {
+              "type": "object",
+              "properties": {
+                "percent": {
+                  "type": "number",
+                  "minimum": 0
+                },
+                "absolute": {
+                  "type": "integer",
+                  "minimum": 0
+                }
+              },
+              "additionalProperties": false
+            },
+            "read_entries": {
+              "type": "object",
+              "properties": {
+                "percent": {
+                  "type": "number",
+                  "minimum": 0
+                },
+                "absolute": {
+                  "type": "integer",
+                  "minimum": 0
+                }
+              },
+              "additionalProperties": false
+            },
+            "write_entries": {
+              "type": "object",
+              "properties": {
+                "percent": {
+                  "type": "number",
+                  "minimum": 0
+                },
+                "absolute": {
+                  "type": "integer",
+                  "minimum": 0
+                }
+              },
+              "additionalProperties": false
+            },
+            "resource_fee": {
+              "type": "object",
+              "properties": {
+                "percent": {
+                  "type": "number",
+                  "minimum": 0
+                },
+                "absolute": {
+                  "type": "integer",
+                  "minimum": 0
+                }
+              },
+              "additionalProperties": false
+            }
+          },
+          "additionalProperties": false,
+          "description": "Per metric: a move within percent of A's, or within absolute, is ignored"
+        }
+      },
+      "additionalProperties": false
     }
   },
   "required": ["version", "id", "type", "a", "b"],
@@ -306,9 +443,13 @@
             },
             "b": {
               "type": "string"
+            },
+            "class": {
+              "enum": ["breaking", "behavioural", "cost", "ignored"],
+              "description": "breaking (outcome, return, storage, auth), behavioural (events), cost (a resource beyond tolerance) or ignored (#569)"
             }
           },
-          "required": ["a", "b"],
+          "required": ["a", "b", "class"],
           "additionalProperties": false,
           "description": "Set when one side returned and the other failed, or they failed differently: ok, or '<kind> error <code>'. The values are compared only when both returned"
         },
@@ -329,9 +470,13 @@
                 },
                 "b": {
                   "description": "B's value there; null where B has nothing"
+                },
+                "class": {
+                  "enum": ["breaking", "behavioural", "cost", "ignored"],
+                  "description": "breaking (outcome, return, storage, auth), behavioural (events), cost (a resource beyond tolerance) or ignored (#569)"
                 }
               },
-              "required": ["path", "a", "b"],
+              "required": ["path", "a", "b", "class"],
               "additionalProperties": true
             }
           ],
@@ -348,9 +493,13 @@
                   "index": {
                     "type": "integer",
                     "minimum": 0
+                  },
+                  "class": {
+                    "enum": ["breaking", "behavioural", "cost", "ignored"],
+                    "description": "breaking (outcome, return, storage, auth), behavioural (events), cost (a resource beyond tolerance) or ignored (#569)"
                   }
                 },
-                "required": ["index"],
+                "required": ["index", "class"],
                 "additionalProperties": true
               }
             },
@@ -362,9 +511,13 @@
                   "index": {
                     "type": "integer",
                     "minimum": 0
+                  },
+                  "class": {
+                    "enum": ["breaking", "behavioural", "cost", "ignored"],
+                    "description": "breaking (outcome, return, storage, auth), behavioural (events), cost (a resource beyond tolerance) or ignored (#569)"
                   }
                 },
-                "required": ["index"],
+                "required": ["index", "class"],
                 "additionalProperties": true
               }
             },
@@ -376,9 +529,13 @@
                   "index": {
                     "type": "integer",
                     "minimum": 0
+                  },
+                  "class": {
+                    "enum": ["breaking", "behavioural", "cost", "ignored"],
+                    "description": "breaking (outcome, return, storage, auth), behavioural (events), cost (a resource beyond tolerance) or ignored (#569)"
                   }
                 },
-                "required": ["index"],
+                "required": ["index", "class"],
                 "additionalProperties": true
               }
             }
@@ -403,9 +560,13 @@
                     "type": "string",
                     "minLength": 1,
                     "pattern": "^[A-Za-z0-9+/]+={0,2}$"
+                  },
+                  "class": {
+                    "enum": ["breaking", "behavioural", "cost", "ignored"],
+                    "description": "breaking (outcome, return, storage, auth), behavioural (events), cost (a resource beyond tolerance) or ignored (#569)"
                   }
                 },
-                "required": ["key", "key_xdr"],
+                "required": ["key", "key_xdr", "class"],
                 "additionalProperties": true
               }
             },
@@ -422,9 +583,13 @@
                     "type": "string",
                     "minLength": 1,
                     "pattern": "^[A-Za-z0-9+/]+={0,2}$"
+                  },
+                  "class": {
+                    "enum": ["breaking", "behavioural", "cost", "ignored"],
+                    "description": "breaking (outcome, return, storage, auth), behavioural (events), cost (a resource beyond tolerance) or ignored (#569)"
                   }
                 },
-                "required": ["key", "key_xdr"],
+                "required": ["key", "key_xdr", "class"],
                 "additionalProperties": true
               }
             },
@@ -441,9 +606,13 @@
                     "type": "string",
                     "minLength": 1,
                     "pattern": "^[A-Za-z0-9+/]+={0,2}$"
+                  },
+                  "class": {
+                    "enum": ["breaking", "behavioural", "cost", "ignored"],
+                    "description": "breaking (outcome, return, storage, auth), behavioural (events), cost (a resource beyond tolerance) or ignored (#569)"
                   }
                 },
-                "required": ["key", "key_xdr"],
+                "required": ["key", "key_xdr", "class"],
                 "additionalProperties": true
               }
             },
@@ -460,9 +629,13 @@
                     "type": "string",
                     "minLength": 1,
                     "pattern": "^[A-Za-z0-9+/]+={0,2}$"
+                  },
+                  "class": {
+                    "enum": ["breaking", "behavioural", "cost", "ignored"],
+                    "description": "breaking (outcome, return, storage, auth), behavioural (events), cost (a resource beyond tolerance) or ignored (#569)"
                   }
                 },
-                "required": ["key", "key_xdr"],
+                "required": ["key", "key_xdr", "class"],
                 "additionalProperties": true
               }
             }
@@ -487,9 +660,13 @@
                     "type": "string",
                     "minLength": 1,
                     "description": "An address (G\u2026/C\u2026), or 'source account'"
+                  },
+                  "class": {
+                    "enum": ["breaking", "behavioural", "cost", "ignored"],
+                    "description": "breaking (outcome, return, storage, auth), behavioural (events), cost (a resource beyond tolerance) or ignored (#569)"
                   }
                 },
-                "required": ["signer"],
+                "required": ["signer", "class"],
                 "additionalProperties": true
               }
             },
@@ -502,9 +679,13 @@
                     "type": "string",
                     "minLength": 1,
                     "description": "An address (G\u2026/C\u2026), or 'source account'"
+                  },
+                  "class": {
+                    "enum": ["breaking", "behavioural", "cost", "ignored"],
+                    "description": "breaking (outcome, return, storage, auth), behavioural (events), cost (a resource beyond tolerance) or ignored (#569)"
                   }
                 },
-                "required": ["signer"],
+                "required": ["signer", "class"],
                 "additionalProperties": true
               }
             },
@@ -517,9 +698,13 @@
                     "type": "string",
                     "minLength": 1,
                     "description": "An address (G\u2026/C\u2026), or 'source account'"
+                  },
+                  "class": {
+                    "enum": ["breaking", "behavioural", "cost", "ignored"],
+                    "description": "breaking (outcome, return, storage, auth), behavioural (events), cost (a resource beyond tolerance) or ignored (#569)"
                   }
                 },
-                "required": ["signer"],
+                "required": ["signer", "class"],
                 "additionalProperties": true
               }
             }
@@ -555,12 +740,40 @@
               "percent": {
                 "type": ["number", "null"],
                 "description": "delta as % of a, one decimal; null when a is 0"
+              },
+              "class": {
+                "enum": ["breaking", "behavioural", "cost", "ignored"],
+                "description": "breaking (outcome, return, storage, auth), behavioural (events), cost (a resource beyond tolerance) or ignored (#569)"
               }
             },
-            "required": ["metric", "a", "b", "delta", "percent"],
+            "required": ["metric", "a", "b", "delta", "percent", "class"],
             "additionalProperties": false
           },
           "description": "Each metric both sides give that moved"
+        },
+        "summary": {
+          "type": "object",
+          "properties": {
+            "breaking": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "behavioural": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "cost": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "ignored": {
+              "type": "integer",
+              "minimum": 0
+            }
+          },
+          "required": ["breaking", "behavioural", "cost", "ignored"],
+          "additionalProperties": false,
+          "description": "The differences counted by class; ignored ones are counted too"
         }
       },
       "required": [
@@ -568,6 +781,7 @@
         "id",
         "type",
         "empty",
+        "summary",
         "outcome",
         "return_value",
         "events",

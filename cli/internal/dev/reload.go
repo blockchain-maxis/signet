@@ -7,7 +7,10 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"strconv"
+	"strings"
 
+	"github.com/blockchain-maxis/signet/cli/internal/devconfig"
 	"github.com/blockchain-maxis/signet/cli/internal/simulator"
 )
 
@@ -87,6 +90,44 @@ type Reloader struct {
 	// cached are A sides by replay fingerprint: A changes only when the
 	// fork or the call does, and a new fork is a new Reloader.
 	cached map[string]Run
+	// rules are signet.dev.toml's [diff] (#569).
+	rules *simulator.DiffRules
+}
+
+// SetRules sets what the diffs leave out or tolerate; nil for none.
+func (r *Reloader) SetRules(rules *simulator.DiffRules) { r.rules = rules }
+
+// RulesOf turns signet.dev.toml's [diff] into diff_results rules for
+// contract: a tolerance of "10%" is a percentage of A's, "500" an amount,
+// and fee is the resource fee.
+func RulesOf(d devconfig.Diff, contract string) (*simulator.DiffRules, error) {
+	out := &simulator.DiffRules{
+		ContractID: contract, IgnoreEvents: d.IgnoreEvents, IgnoreStorage: d.IgnoreStorage, IgnoreAuth: d.IgnoreAuth,
+	}
+	for metric, text := range d.ResourceTolerance {
+		var t simulator.Tolerance
+		if p, ok := strings.CutSuffix(text, "%"); ok {
+			v, err := strconv.ParseFloat(p, 64)
+			if err != nil {
+				return nil, fmt.Errorf("resource_tolerance %s: %q is not a percentage", metric, text)
+			}
+			t.Percent = &v
+		} else {
+			v, err := strconv.ParseInt(text, 10, 64)
+			if err != nil {
+				return nil, fmt.Errorf("resource_tolerance %s: %q is not an amount", metric, text)
+			}
+			t.Absolute = &v
+		}
+		if metric == "fee" {
+			metric = "resource_fee"
+		}
+		if out.ResourceTolerance == nil {
+			out.ResourceTolerance = map[string]simulator.Tolerance{}
+		}
+		out.ResourceTolerance[metric] = t
+	}
+	return out, nil
 }
 
 // NewReloader takes the session's `base`: contract's instance and deployed
@@ -199,6 +240,7 @@ func (r *Reloader) diff(ctx context.Context, o Outcome) (*simulator.DiffResultsR
 	var d simulator.DiffResultsResult
 	if err := call(ctx, r.host, simulator.TypeDiffResults, simulator.DiffResultsParams{
 		A: simulator.DiffSideOf(o.A.Result, o.A.Error), B: simulator.DiffSideOf(o.B.Result, o.B.Error),
+		Rules: r.rules,
 	}, &d); err != nil {
 		return nil, err
 	}

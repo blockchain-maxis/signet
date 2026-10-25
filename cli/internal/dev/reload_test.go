@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/blockchain-maxis/signet/cli/internal/devconfig"
 	"github.com/blockchain-maxis/signet/cli/internal/simulator"
 )
 
@@ -241,5 +242,55 @@ func TestReloadCycleSaysTheSimulatorRestarted(t *testing.T) {
 	b := second.Outcomes[1].B
 	if returned(t, b) != "1" || len(b.Result.Events) != 1 {
 		t.Fatalf("increment on v2 after the respawn: %s, %d events", returned(t, b), len(b.Result.Events))
+	}
+}
+
+func TestRulesOfReadsTolerancesAsPercentOrAmount(t *testing.T) {
+	rules, err := RulesOf(devconfig.Diff{
+		IgnoreEvents:      []string{"incremented"},
+		ResourceTolerance: map[string]string{"instructions": "10%", "fee": "500"},
+	}, "CABC")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if p := rules.ResourceTolerance["instructions"].Percent; p == nil || *p != 10 {
+		t.Fatalf("instructions: %+v", rules.ResourceTolerance["instructions"])
+	}
+	if a := rules.ResourceTolerance["resource_fee"].Absolute; a == nil || *a != 500 {
+		t.Fatalf("fee is the resource fee: %+v", rules.ResourceTolerance)
+	}
+	if rules.ContractID != "CABC" || rules.IgnoreEvents[0] != "incremented" {
+		t.Fatalf("%+v", rules)
+	}
+}
+
+// With [diff] rules (#569) an event and cost moves the build is allowed to
+// make leave the call clean, still counted as ignored.
+func TestReloadCycleDiffsUnderTheRules(t *testing.T) {
+	ctx := context.Background()
+	host, contract := session(t)
+	r, err := NewReloader(ctx, host, contract)
+	if err != nil {
+		t.Fatal(err)
+	}
+	rules, err := RulesOf(devconfig.Diff{
+		IgnoreEvents:      []string{"incremented"},
+		ResourceTolerance: map[string]string{"instructions": "50%", "mem_bytes": "50%", "fee": "50%", "write_bytes": "50%", "read_bytes": "50%"},
+	}, contract)
+	if err != nil {
+		t.Fatal(err)
+	}
+	r.SetRules(rules)
+	cycle, err := r.Cycle(ctx, fixtureWasm(t, "counter_v2_event"), replays())
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, o := range cycle.Outcomes {
+		if o.Diff == nil || !o.Diff.Summary.Clean() {
+			t.Fatalf("%s: %+v", o.Name, o.Diff)
+		}
+	}
+	if inc := cycle.Outcomes[1].Diff; inc.Summary.Ignored == 0 || inc.Events.Added[0].Class != simulator.ClassIgnored {
+		t.Fatalf("the ignored event is still listed: %+v", inc)
 	}
 }

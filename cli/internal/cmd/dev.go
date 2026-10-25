@@ -194,6 +194,9 @@ func runDev(cmd *cobra.Command, args []string, path, pkg string, ci bool, deboun
 		return err
 	}
 	defer session.Close()
+	if err := session.applyRules(setup.file, setup.contract, printer.Progress); err != nil {
+		return err
+	}
 
 	// The initial build (#564). A failure keeps going interactively, where
 	// the next save retries it; with --ci it is exit 12.
@@ -500,6 +503,9 @@ func watchAndRebuild(ctx context.Context, setup devSetup, builder *dev.Builder, 
 					continue
 				}
 				setup.file = reloaded
+				if err := session.applyRules(setup.file, setup.contract, progress); err != nil {
+					progress(err.Error())
+				}
 				if builder.Last() != "" && !building {
 					replay(builder.Last())
 				}

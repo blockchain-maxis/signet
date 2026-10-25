@@ -762,6 +762,13 @@ fn side_of(r: &Value) -> Value {
 /// `increment` on counter_v1 (A) and on `v2` swapped into the same
 /// instance (B), each from one checkpoint, and their diff (#568).
 fn ab(lane: u32, v2: &str, a_args: Value, b_args: Value) -> Value {
+    let diff = ab_with(lane, v2, a_args, b_args, json!({}));
+    assert_eq!(diff["type"], "result", "{diff}");
+    diff
+}
+
+/// [`ab`] under diff rules (#569).
+fn ab_with(lane: u32, v2: &str, a_args: Value, b_args: Value, rules: Value) -> Value {
     let mut sim = config_only(lane);
     let (counter, v1) = install(&mut sim, &fixture_wasm("counter_v1"));
     let (_, v2) = install(&mut sim, &fixture_wasm(v2));
@@ -778,9 +785,7 @@ fn ab(lane: u32, v2: &str, a_args: Value, b_args: Value) -> Value {
         assert_eq!(swap["type"], "result", "{swap}");
     }
     let b = run(&mut sim, b_args);
-    let diff = sim.send(json!({ "type": "diff_results", "a": a, "b": b }));
-    assert_eq!(diff["type"], "result", "{diff}");
-    diff
+    sim.send(json!({ "type": "diff_results", "a": a, "b": b, "rules": rules }))
 }
 
 fn an_identical_wasm_diffs_empty(lane: u32) {
@@ -798,7 +803,7 @@ fn a_changed_return_type_is_a_return_difference(lane: u32) {
     // 1 and 1, but u32 and i128: decoded JSON would call them equal.
     assert_eq!(
         diff["return_value"],
-        json!({ "path": "", "a": { "type": "u32", "value": 1 }, "b": { "type": "i128", "value": "1" } })
+        json!({ "path": "", "a": { "type": "u32", "value": 1 }, "b": { "type": "i128", "value": "1" }, "class": "breaking" })
     );
     let changed = &diff["storage"]["changed"];
     assert_eq!(changed.as_array().unwrap().len(), 1, "{diff}");
@@ -872,17 +877,133 @@ fn more_instructions_are_a_resource_difference(lane: u32) {
     let diff = sim.send(json!({ "type": "diff_results", "a": side(1000), "b": side(1250) }));
     assert_eq!(
         diff["resources"],
-        json!([{ "metric": "instructions", "a": 1000, "b": 1250, "delta": 250, "percent": 25.0 }])
+        json!([{ "metric": "instructions", "a": 1000, "b": 1250, "delta": 250, "percent": 25.0, "class": "cost" }])
     );
     let failed = json!({ "outcome": "error", "error": { "kind": "contract", "code": "Error(Contract, #1)" } });
     let diff = sim.send(json!({ "type": "diff_results", "a": side(1000), "b": failed }));
     assert_eq!(
         diff["outcome"],
-        json!({ "a": "ok", "b": "contract error Error(Contract, #1)" })
+        json!({ "a": "ok", "b": "contract error Error(Contract, #1)", "class": "breaking" })
     );
     let bad =
         sim.send(json!({ "type": "diff_results", "a": side(1), "b": { "outcome": "maybe" } }));
     assert_eq!(bad["detail"]["path"], "b.outcome", "{bad}");
+}
+
+fn a_tolerance_ignores_what_it_covers_and_no_more(lane: u32) {
+    let mut sim = config_only(lane);
+    let side = |instructions: u64, fee: u64| json!({ "outcome": "ok", "return_value_xdr": "AAAAAQ==", "resources": { "instructions": instructions, "resource_fee": fee } });
+    let rules = json!({ "resource_tolerance": { "instructions": { "percent": 10 }, "resource_fee": { "absolute": 100 } } });
+    let diff = |sim: &mut Sim, a: Value, b: Value| {
+        sim.send(json!({ "type": "diff_results", "a": a, "b": b, "rules": rules }))
+    };
+    let under = diff(&mut sim, side(1000, 5000), side(1050, 5100));
+    assert_eq!(under["resources"][0]["class"], "ignored", "{under}");
+    assert_eq!(under["resources"][1]["class"], "ignored", "{under}");
+    assert_eq!(
+        under["summary"],
+        json!({ "breaking": 0, "behavioural": 0, "cost": 0, "ignored": 2 })
+    );
+    let over = diff(&mut sim, side(1000, 5000), side(1150, 5101));
+    assert_eq!(over["resources"][0]["class"], "cost", "{over}");
+    assert_eq!(over["resources"][1]["class"], "cost", "{over}");
+    assert_eq!(over["summary"]["cost"], 2);
+    // Without a tolerance any move is cost; a negative one is refused.
+    let none = sim.send(json!({ "type": "diff_results", "a": side(1000, 1), "b": side(1001, 1) }));
+    assert_eq!(none["resources"][0]["class"], "cost", "{none}");
+    let bad = sim.send(
+        json!({ "type": "diff_results", "a": side(1, 1), "b": side(1, 1),
+        "rules": { "resource_tolerance": { "instructions": { "percent": -1 } } } }),
+    );
+    assert_eq!(
+        bad["detail"]["path"], "rules.resource_tolerance.instructions",
+        "{bad}"
+    );
+}
+
+fn ignored_events_and_storage_are_listed_and_counted(lane: u32) {
+    let plain = ab(lane, "counter_v2_event", json!({}), json!({}));
+    let topic = plain["events"]["added"][0]["event"]["topics"][0]["value"]
+        .as_str()
+        .unwrap()
+        .to_string();
+    assert_eq!(
+        plain["events"]["added"][0]["class"], "behavioural",
+        "{plain}"
+    );
+    let diff = ab_with(
+        lane,
+        "counter_v2_event",
+        json!({}),
+        json!({}),
+        json!({ "ignore_events": [topic] }),
+    );
+    assert_eq!(diff["events"]["added"][0]["class"], "ignored", "{diff}");
+    assert_eq!(diff["summary"]["behavioural"], 0, "{diff}");
+    assert_eq!(diff["summary"]["ignored"], 1, "{diff}");
+    // A longer prefix than the event has topics does not match.
+    let longer = ab_with(
+        lane,
+        "counter_v2_event",
+        json!({}),
+        json!({}),
+        json!({ "ignore_events": [format!("{topic}/x/y/z")] }),
+    );
+    assert_eq!(
+        longer["events"]["added"][0]["class"], "behavioural",
+        "{longer}"
+    );
+
+    // A persistent key, and a key inside the instance's storage.
+    let write = ab_with(
+        lane,
+        "counter_v2_write",
+        json!({}),
+        json!({}),
+        json!({ "ignore_storage": ["last"] }),
+    );
+    assert_eq!(write["storage"]["added"][0]["class"], "ignored", "{write}");
+    let ret = ab_with(
+        lane,
+        "counter_v2_return",
+        json!({}),
+        json!({}),
+        json!({ "ignore_storage": ["count"] }),
+    );
+    assert_eq!(ret["storage"]["changed"][0]["class"], "ignored", "{ret}");
+    assert_eq!(
+        ret["storage"]["changed"][0]["path"], "/value/storage/count",
+        "{ret}"
+    );
+    assert_eq!(ret["return_value"]["class"], "breaking", "{ret}");
+    assert_eq!(ret["summary"]["breaking"], 1, "{ret}");
+    let wild = ab_with(
+        lane,
+        "counter_v2_write",
+        json!({}),
+        json!({}),
+        json!({ "ignore_storage": ["*"] }),
+    );
+    assert_eq!(wild["storage"]["added"][0]["class"], "ignored", "{wild}");
+
+    let auth = ab_with(
+        lane,
+        "counter_v2_auth",
+        json!({}),
+        json!({ "caller": WALLET }),
+        json!({ "ignore_auth": true }),
+    );
+    assert_eq!(auth["auth"]["added"][0]["class"], "ignored", "{auth}");
+    assert_eq!(auth["auth"]["client_breaking"], true, "still said: {auth}");
+
+    let bad = ab_with(
+        lane,
+        "counter_v2_write",
+        json!({}),
+        json!({}),
+        json!({ "ignore_storage": ["Balance("] }),
+    );
+    assert_eq!(bad["type"], "error", "{bad}");
 }
 
 /// A ledger with config and the registry and dice fixtures, opened under
@@ -1580,6 +1701,14 @@ macro_rules! on_lane {
             #[test]
             fn more_instructions_are_a_resource_difference() {
                 super::more_instructions_are_a_resource_difference($protocol)
+            }
+            #[test]
+            fn a_tolerance_ignores_what_it_covers_and_no_more() {
+                super::a_tolerance_ignores_what_it_covers_and_no_more($protocol)
+            }
+            #[test]
+            fn ignored_events_and_storage_are_listed_and_counted() {
+                super::ignored_events_and_storage_are_listed_and_counted($protocol)
             }
             #[test]
             fn the_seed_is_derived_and_drives_env_prng() {
