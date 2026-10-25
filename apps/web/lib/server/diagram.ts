@@ -25,8 +25,11 @@ import {
   type ContractGraph,
   type PositionedDiagramModel,
 } from '@signet/visualiser';
+import { Address, rpc, scValToNative, xdr } from '@stellar/stellar-sdk';
 import { loadContractSpec, type ContractSpecResult } from './contract-spec.ts';
 import { logger } from '../logger.ts';
+import { resolveNetwork, stellarExpertContractUrl } from '../network.ts';
+import { ALLOW_HTTP, SOROBAN_RPC_URL } from '../chain.ts';
 
 export interface StoredDiagramLayout {
   readonly layout: PositionedDiagramModel;
@@ -263,4 +266,201 @@ export async function getDiagram(
     logger.warn({ address, network, error }, 'unexpected error in getDiagram');
     return { ok: false };
   }
+}
+
+// ── Callee labels (#517) ───────────────────────────────────────────────
+
+/**
+ * What a callee contract can honestly be called, from chain data or Signet's
+ * own `Contract` rows and nothing else: no curated names, no guesses.
+ */
+export type CalleeLabel =
+  | {
+      readonly kind: 'asset';
+      readonly address: string;
+      /** `"USDC (asset contract, issuer G…ABCD)"`, or the native asset's. */
+      readonly text: string;
+      readonly href: string;
+    }
+  | {
+      readonly kind: 'signet';
+      readonly address: string;
+      readonly handle: string;
+      /** `"deployed by @handle"`. */
+      readonly text: string;
+      /** The contract's Signet page, `/p/{handle}/contract/{address}`. */
+      readonly href: string;
+    }
+  | {
+      readonly kind: 'address';
+      readonly address: string;
+      /** The short address. */
+      readonly text: string;
+      /** Stellar Expert. */
+      readonly href: string;
+    };
+
+/** Just the slice of `rpc.Server` labelling needs, so tests can stub it. */
+export interface LedgerEntriesServer {
+  getLedgerEntries(...keys: xdr.LedgerKey[]): Promise<{
+    entries: readonly { key: xdr.LedgerKey; val: xdr.LedgerEntryData }[];
+  }>;
+}
+
+export interface CalleeLabelDeps {
+  server?: LedgerEntriesServer;
+  /** Signet-deployed contracts among `addresses` on `network`, with the deploying profile's handle. */
+  findSignetContracts?: (
+    addresses: readonly string[],
+    network: string,
+  ) => Promise<readonly { address: string; handle: string }[]>;
+  now?: () => number;
+}
+
+/** What chain data says about one address: a SAC's asset, or that it is no SAC. */
+type ChainIdentity = { readonly asset: string | null; readonly issuer: string | null } | null;
+
+/** A SAC's identity never changes, and neither does a WASM contract's not being one. */
+const CHAIN_LABEL_TTL_MS = 7 * 24 * 60 * 60 * 1000;
+const CHAIN_LABEL_CAPACITY = 5000;
+/** `getLedgerEntries` takes at most 200 keys per request. */
+const LEDGER_ENTRIES_BATCH = 200;
+
+const chainIdentities = new Map<string, { identity: ChainIdentity; expires: number }>();
+
+export function __resetCalleeLabels(): void {
+  chainIdentities.clear();
+}
+
+function shortAddress(address: string): string {
+  return `${address.slice(0, 4)}…${address.slice(-4)}`;
+}
+
+function instanceKey(address: string): xdr.LedgerKey {
+  return xdr.LedgerKey.contractData(
+    new xdr.LedgerKeyContractData({
+      contract: new Address(address).toScAddress(),
+      key: xdr.ScVal.scvLedgerKeyContractInstance(),
+      durability: xdr.ContractDataDurability.persistent(),
+    }),
+  );
+}
+
+/**
+ * A contract instance's chain identity: for a Stellar Asset Contract, the
+ * asset its `METADATA` names (`native`, or `CODE:ISSUER`, as the host writes
+ * it); for any other executable, `null`.
+ */
+function identityOf(data: xdr.LedgerEntryData): ChainIdentity {
+  const instance = data.contractData().val().instance();
+  if (instance.executable().switch().name !== 'contractExecutableStellarAsset') return null;
+  for (const item of instance.storage() ?? []) {
+    const key = scValToNative(item.key());
+    if (key !== 'METADATA') continue;
+    const name = (scValToNative(item.val()) as { name?: unknown }).name;
+    if (name === 'native') return { asset: 'XLM', issuer: null };
+    if (typeof name === 'string' && name.includes(':')) {
+      const [code, issuer] = name.split(':');
+      return { asset: code!, issuer: issuer! };
+    }
+  }
+  return { asset: null, issuer: null };
+}
+
+async function defaultSignetContracts(
+  addresses: readonly string[],
+  network: string,
+): Promise<readonly { address: string; handle: string }[]> {
+  if (!process.env.DATABASE_URL) return [];
+  const { prisma } = await import('@signet/db');
+  const rows = await prisma.contract.findMany({
+    where: { address: { in: [...addresses] }, network },
+    select: { address: true, wallet: { select: { profile: { select: { handle: true } } } } },
+  });
+  return rows.map((r) => ({ address: r.address, handle: r.wallet.profile.handle }));
+}
+
+/**
+ * Labels for callee contracts (#517), one per address, in plain language:
+ * a Stellar Asset Contract by its asset, a contract a Signet profile deployed
+ * by that profile's handle, anything else by its short address. Chain
+ * identity comes from one batched `getLedgerEntries` over the callees'
+ * instances and is cached for a long TTL; Signet ownership is read from the
+ * `Contract` rows on every call, never cached. An instance RPC cannot return
+ * (archived, missing, or RPC down) is labelled by its address and not cached.
+ */
+export async function labelCallees(
+  addresses: readonly string[],
+  network: string,
+  deps: CalleeLabelDeps = {},
+): Promise<Map<string, CalleeLabel>> {
+  const unique = [...new Set(addresses)];
+  const now = (deps.now ?? Date.now)();
+  const explorer = resolveNetwork(network).explorer;
+
+  const identities = new Map<string, ChainIdentity>();
+  const unresolved: string[] = [];
+  for (const address of unique) {
+    const cached = chainIdentities.get(`${network}:${address}`);
+    if (cached && cached.expires > now) identities.set(address, cached.identity);
+    else unresolved.push(address);
+  }
+  if (unresolved.length > 0) {
+    try {
+      const server = deps.server ?? new rpc.Server(SOROBAN_RPC_URL, { allowHttp: ALLOW_HTTP });
+      for (let i = 0; i < unresolved.length; i += LEDGER_ENTRIES_BATCH) {
+        const batch = unresolved.slice(i, i + LEDGER_ENTRIES_BATCH);
+        const response = await server.getLedgerEntries(...batch.map(instanceKey));
+        for (const entry of response.entries) {
+          const address = Address.fromScAddress(entry.key.contractData().contract()).toString();
+          const identity = identityOf(entry.val);
+          identities.set(address, identity);
+          chainIdentities.delete(`${network}:${address}`);
+          chainIdentities.set(`${network}:${address}`, {
+            identity,
+            expires: now + CHAIN_LABEL_TTL_MS,
+          });
+        }
+      }
+      while (chainIdentities.size > CHAIN_LABEL_CAPACITY) {
+        chainIdentities.delete(chainIdentities.keys().next().value!);
+      }
+    } catch (error) {
+      logger.warn({ network, error }, 'callee labels: ledger entries unavailable');
+    }
+  }
+
+  let signet: readonly { address: string; handle: string }[] = [];
+  try {
+    signet = await (deps.findSignetContracts ?? defaultSignetContracts)(unique, network);
+  } catch (error) {
+    logger.warn({ network, error }, 'callee labels: Contract rows unavailable');
+  }
+  const handles = new Map(signet.map((r) => [r.address, r.handle]));
+
+  const labels = new Map<string, CalleeLabel>();
+  for (const address of unique) {
+    const identity = identities.get(address);
+    const expert = stellarExpertContractUrl(address, explorer);
+    if (identity?.asset) {
+      const text = identity.issuer
+        ? `${identity.asset} (asset contract, issuer G…${identity.issuer.slice(-4)})`
+        : `${identity.asset} (native asset contract)`;
+      labels.set(address, { kind: 'asset', address, text, href: expert });
+      continue;
+    }
+    const handle = handles.get(address);
+    if (handle) {
+      labels.set(address, {
+        kind: 'signet',
+        address,
+        handle,
+        text: `deployed by @${handle}`,
+        href: `/p/${encodeURIComponent(handle)}/contract/${address}`,
+      });
+      continue;
+    }
+    labels.set(address, { kind: 'address', address, text: shortAddress(address), href: expert });
+  }
+  return labels;
 }
