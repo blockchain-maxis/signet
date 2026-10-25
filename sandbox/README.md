@@ -97,7 +97,31 @@ budget` job fails above 13,046,530 bytes (the first measurement plus 25%).
 `simulator/src/lanes/p28/mod.rs` and `p29/mod.rs` alias their own pinned host
 and `include!` the shared `lanes/host_lane.rs` (and `lanes/spec_impl.rs`), so
 every lane runs the same code and the same tests; `tests/simulate.rs` runs its
-suite once per lane. Adding protocol N is a new `pN/mod.rs`, two pins in
-`Cargo.toml`, a feature, and an entry in `lanes/mod.rs`'s `BUILTIN`.
+suite once per lane.
+
+`simulator/lanes.toml` is the single source of truth for the lanes (#591): each
+lane's protocol and the `soroban-env-host` and `soroban-simulation` releases it
+links. `build.rs` refuses to build when the pins in `Cargo.toml` disagree with
+it (`tests/lanes_manifest.rs` covers the check), and the weekly protocol check
+(#592) compares live networks against its newest lane.
+
+### Adding a protocol lane
+
+When a network announces protocol N:
+
+1. Add `soroban-env-host-pN` and `soroban-simulation-pN` pins to
+   `sandbox/Cargo.toml` (and `soroban-ledger-snapshot-pN` if the snapshot
+   reader moves with it), and a `lane-pN` feature to `simulator/Cargo.toml`,
+   on by default.
+2. Add the `[[lane]]` to `simulator/lanes.toml` with the same versions.
+3. Add `simulator/src/lanes/pN/mod.rs` and its entry in `lanes/mod.rs`'s
+   `BUILTIN`.
+4. Drop the oldest lane once no supported network runs it: its pins, feature,
+   module, `BUILTIN` entry and `lanes.toml` entry together.
+5. Regenerate the goldens and transcripts the new host changes
+   (`UPDATE_GOLDEN=1 cargo test`, `sandbox/protocol/transcripts`), and the
+   registry goldens (`docs/SANDBOX.md`, "Registry goldens").
+6. Update the protocol numbers in this file and in `docs/SANDBOX.md`,
+   "Protocol support", and check the size budget.
 
 - `sandbox/Cargo.lock` is committed and CI builds with `--locked`.

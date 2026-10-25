@@ -247,7 +247,9 @@ func callSimulator(ctx context.Context, sim *simulator.Client, typ string, param
 }
 
 // checkLanes refuses a network running a ledger protocol the simulator has
-// no lane for (#591), before anything is fetched.
+// no lane for (#591), before anything is fetched: a wrong host would answer
+// with plausible numbers, which is worse than no answer. The message says
+// which way the network has moved and what to install.
 func checkLanes(network string, protocol int, ack simulator.HelloAck) error {
 	var lanes []int
 	for _, l := range ack.Lanes {
@@ -256,12 +258,44 @@ func checkLanes(network string, protocol int, ack simulator.HelloAck) error {
 	if slices.Contains(lanes, protocol) {
 		return nil
 	}
-	have := make([]string, len(lanes))
-	for i, l := range lanes {
-		have[i] = strconv.Itoa(l)
+	return fmt.Errorf("%w: %s", exitcode.ErrHostUnsupported, laneMismatch(network, protocol, lanes))
+}
+
+// laneMismatch says why a network's protocol has no lane: the network is
+// ahead of the simulator, behind it, or in a gap between its lanes.
+func laneMismatch(network string, protocol int, lanes []int) string {
+	sorted := slices.Sorted(slices.Values(lanes))
+	if len(sorted) == 0 {
+		return fmt.Sprintf("this signet-simulator reports no lanes, so it cannot run %s's protocol %d", network, protocol)
 	}
-	return fmt.Errorf("%w: %s runs ledger protocol %d, but this signet-simulator runs %s — install a signet-cli release with a protocol %d lane",
-		exitcode.ErrHostUnsupported, network, protocol, strings.Join(have, ", "), protocol)
+	supports := laneRange(sorted)
+	switch {
+	case protocol > sorted[len(sorted)-1]:
+		return fmt.Sprintf("%s is on protocol %d; this signet-simulator supports %s. Upgrade @signet/cli (or build from main); see docs/SANDBOX.md#protocol-support.", network, protocol, supports)
+	case protocol < sorted[0]:
+		return fmt.Sprintf("%s is on protocol %d; this signet-simulator supports %s, which is newer. Use an older @signet/cli release that has a protocol %d lane; see docs/SANDBOX.md#protocol-support.", network, protocol, supports, protocol)
+	default:
+		return fmt.Sprintf("%s is on protocol %d; this signet-simulator supports %s but has no lane for %d; see docs/SANDBOX.md#protocol-support.", network, protocol, supports, protocol)
+	}
+}
+
+// laneRange is "28–29" for consecutive lanes, "28" for one, "27, 29" otherwise.
+func laneRange(sorted []int) string {
+	consecutive := true
+	for i := 1; i < len(sorted); i++ {
+		consecutive = consecutive && sorted[i] == sorted[i-1]+1
+	}
+	if len(sorted) == 1 {
+		return strconv.Itoa(sorted[0])
+	}
+	if consecutive {
+		return fmt.Sprintf("%d–%d", sorted[0], sorted[len(sorted)-1])
+	}
+	parts := make([]string, len(sorted))
+	for i, l := range sorted {
+		parts[i] = strconv.Itoa(l)
+	}
+	return strings.Join(parts, ", ")
 }
 
 // closeTime reads getLatestLedger's closeTime (Unix seconds), falling back

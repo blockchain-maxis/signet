@@ -20,6 +20,7 @@ Usage:
 
 Available Commands:
   call        Call a contract function on a fork, locally
+  doctor      Check the simulator's protocol lanes against the networks, and the tools signet dev uses
   export      Write a signet dev session as a repro bundle
   fidelity    Compare the local host with the network's simulateTransaction
   fork        Pin a fork of a deployed contract at the network's latest ledger

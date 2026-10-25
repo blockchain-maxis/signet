@@ -315,17 +315,39 @@ func TestSandboxForkOfAMissingContractExits2AndKeepsNothing(t *testing.T) {
 	}
 }
 
-func TestSandboxForkRefusesANetworkAheadOfTheSimulator(t *testing.T) {
-	r := newRegistryRPC(t)
-	latest := r.fixture("getLatestLedger")
-	latest["protocolVersion"] = 29
-	r.override["getLatestLedger"] = latest
-	run := runFork(t, r, r.forkScript(t, registryInfo()), registryContract)
-	if code := ExitCode(run.err); code != exitcode.HostUnsupported {
-		t.Fatalf("exit %d (%v), want 11", code, run.err)
+// #591: a network ahead of the simulator's lanes, one behind them, and one
+// inside them, against a simulator running protocols 28 and 29.
+func TestSandboxForkSaysWhichWayTheNetworkMovedPastTheLanes(t *testing.T) {
+	t.Setenv("FAKESIM_LANES", "28,29")
+	for _, tc := range []struct {
+		protocol int
+		code     int
+		message  string
+	}{
+		{30, exitcode.HostUnsupported, "testnet is on protocol 30; this signet-simulator supports 28–29. Upgrade @signet/cli (or build from main); see docs/SANDBOX.md#protocol-support."},
+		{27, exitcode.HostUnsupported, "testnet is on protocol 27; this signet-simulator supports 28–29, which is newer. Use an older @signet/cli release that has a protocol 27 lane"},
+		{29, 0, ""},
+	} {
+		r := newRegistryRPC(t)
+		latest := r.fixture("getLatestLedger")
+		latest["protocolVersion"] = tc.protocol
+		r.override["getLatestLedger"] = latest
+		run := runFork(t, r, r.forkScript(t, registryInfo()), registryContract)
+		if code := ExitCode(run.err); code != tc.code {
+			t.Fatalf("protocol %d: exit %d (%v), want %d", tc.protocol, code, run.err, tc.code)
+		}
+		if tc.message != "" && !strings.Contains(run.err.Error(), tc.message) {
+			t.Fatalf("protocol %d: message %v", tc.protocol, run.err)
+		}
 	}
-	if !strings.Contains(run.err.Error(), "testnet runs ledger protocol 29") {
-		t.Fatalf("message: %v", run.err)
+}
+
+func TestLaneMismatchNamesAGapAndAnEmptySimulator(t *testing.T) {
+	if got := laneMismatch("futurenet", 28, []int{29, 27}); got != "futurenet is on protocol 28; this signet-simulator supports 27, 29 but has no lane for 28; see docs/SANDBOX.md#protocol-support." {
+		t.Fatal(got)
+	}
+	if got := laneMismatch("testnet", 29, nil); !strings.Contains(got, "reports no lanes") {
+		t.Fatal(got)
 	}
 }
 

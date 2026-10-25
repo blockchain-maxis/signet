@@ -1,0 +1,85 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://signet.dev/schemas/sandbox/v1/cli-sandbox-doctor.json",
+  "title": "signet sandbox doctor --json",
+  "description": "Not a wire message: what `signet sandbox doctor --json` writes (#591). The simulator's lanes, each checked network's live protocol with a verdict, the tools signet dev uses, and the fork cache.",
+  "type": "object",
+  "properties": {
+    "cli": {
+      "type": "object",
+      "properties": { "version": { "type": "string" } },
+      "required": ["version"],
+      "additionalProperties": false
+    },
+    "simulator": {
+      "description": "null when no simulator was found; simulatorError says why",
+      "oneOf": [
+        { "type": "null" },
+        {
+          "type": "object",
+          "properties": {
+            "version": { "type": "string" },
+            "commit": { "type": "string" },
+            "lanes": {
+              "type": ["array", "null"],
+              "items": {
+                "type": "object",
+                "properties": {
+                  "protocol": { "type": "integer", "minimum": 1 },
+                  "envHost": { "type": "string" },
+                  "simulation": { "type": "string" }
+                },
+                "required": ["protocol", "envHost", "simulation"],
+                "additionalProperties": false
+              }
+            }
+          },
+          "required": ["version", "commit", "lanes"],
+          "additionalProperties": false
+        }
+      ]
+    },
+    "simulatorError": { "type": "string" },
+    "networks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "name": { "type": "string" },
+          "rpcUrl": { "type": "string" },
+          "protocol": { "type": ["integer", "null"] },
+          "verdict": { "enum": ["ok", "ahead", "behind", "gap", "unreachable"] },
+          "message": { "type": "string" }
+        },
+        "required": ["name", "rpcUrl", "protocol", "verdict"],
+        "additionalProperties": false
+      }
+    },
+    "tools": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "name": { "enum": ["stellar", "cargo", "docker"] },
+          "status": { "enum": ["ok", "missing", "not running"] },
+          "version": { "type": "string" },
+          "note": { "type": "string" }
+        },
+        "required": ["name", "status"],
+        "additionalProperties": false
+      }
+    },
+    "cache": {
+      "type": "object",
+      "properties": {
+        "path": { "type": "string" },
+        "forks": { "type": "integer", "minimum": 0 },
+        "bytes": { "type": "integer", "minimum": 0 }
+      },
+      "required": ["path", "forks", "bytes"],
+      "additionalProperties": false
+    }
+  },
+  "required": ["cli", "simulator", "networks", "tools", "cache"],
+  "additionalProperties": false
+}

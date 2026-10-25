@@ -1,0 +1,17 @@
+# The simulator's lanes (#591): one per ledger protocol it runs, each with
+# the soroban-env-host and soroban-simulation release that lane links. This
+# file is the single source of truth: build.rs refuses a build whose
+# Cargo.toml pins disagree with it, and the scheduled protocol check (#592)
+# compares live networks against the newest lane here.
+#
+# Upgrading: see sandbox/README.md, "Adding a protocol lane".
+
+[[lane]]
+protocol = 28
+soroban-env-host = "28.0.2"
+soroban-simulation = "28.0.2"
+
+[[lane]]
+protocol = 29
+soroban-env-host = "29.0.2"
+soroban-simulation = "29.0.2"

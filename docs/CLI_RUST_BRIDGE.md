@@ -421,6 +421,9 @@ cache and the session log
 - `cli-call-result` (`cli-call-result.json`) is not a wire message: it is the object `signet sandbox call --json`
   writes ([#555](https://github.com/blockchain-maxis/signet/issues/555)), kept beside the
   messages it is built from.
+- `cli-sandbox-doctor` (`cli-sandbox-doctor.json`) is not a wire message either: it is what
+  `signet sandbox doctor --json` writes ([#591](https://github.com/blockchain-maxis/signet/issues/591)),
+  the lanes from the `hello_ack` beside each network's live protocol.
 - [`sandbox/protocol/transcripts/*.ndjson`](../sandbox/protocol/transcripts):
   golden transcripts, one message per line, in the order they cross the pipe:
   the handshake, a version mismatch, a simple `simulate`, a `ledger_fetch` round

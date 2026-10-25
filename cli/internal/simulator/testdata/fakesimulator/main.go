@@ -15,6 +15,7 @@
 //	FAKESIM_FIRST_LINE   written instead of the hello_ack (raw)
 //	FAKESIM_EXIT_EARLY   exit with this code before the handshake
 //	FAKESIM_IGNORE_TERM  ignore SIGTERM (and log that it arrived)
+//	FAKESIM_LANES        the ledger protocols hello_ack reports, comma separated (default 28)
 //	FAKESIM_LOG          append "<pid> <line>" for every line read
 //	FAKESIM_VERSION      the release `--version` reports
 //	FAKESIM_SCRIPT       a JSON file of {"<type>": {"fetch": [keys], "reply": {...}}}:
@@ -25,6 +26,7 @@ package main
 
 import (
 	"bufio"
+	"cmp"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -255,10 +257,15 @@ func serve(lines <-chan []byte) {
 				out.Flush()
 				continue
 			}
+			lanes := []any{}
+			for _, p := range strings.Split(cmp.Or(os.Getenv("FAKESIM_LANES"), "28"), ",") {
+				n, _ := strconv.Atoi(strings.TrimSpace(p))
+				lanes = append(lanes, map[string]any{"ledger_protocol": n, "env_host": p + ".0.2", "simulation": p + ".0.2"})
+			}
 			emit(map[string]any{
 				"version": 1, "id": id, "type": "hello_ack", "server_protocol_version": 1,
 				"simulator_version": "0.0.0-fake", "commit": "fake",
-				"lanes": []any{map[string]any{"ledger_protocol": 28, "env_host": "28.0.2", "simulation": "28.0.2"}},
+				"lanes": lanes,
 			})
 			continue
 		}

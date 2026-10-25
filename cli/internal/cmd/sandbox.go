@@ -39,7 +39,7 @@ binary, then on PATH.`,
 		},
 	}
 	addRPCFlags(cmd)
-	cmd.AddCommand(newSandboxForkCmd(), newSandboxForksCmd(), newSandboxCallCmd(), newSandboxSessionCmd(), newSandboxStateCmd(), newSandboxExportCmd(), newSandboxReplayCmd(), newSandboxFidelityCmd())
+	cmd.AddCommand(newSandboxForkCmd(), newSandboxForksCmd(), newSandboxCallCmd(), newSandboxSessionCmd(), newSandboxStateCmd(), newSandboxExportCmd(), newSandboxReplayCmd(), newSandboxFidelityCmd(), newSandboxDoctorCmd())
 	return cmd
 }
 

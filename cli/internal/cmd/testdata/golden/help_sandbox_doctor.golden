@@ -1,0 +1,38 @@
+$ signet sandbox doctor --help
+-- stdout --
+Check whether the sandbox can run against your networks, and why not.
+
+Prints the CLI's and the simulator's versions, the simulator's lanes (the
+ledger protocols it runs, and the host each links), the live protocol of the
+selected network (and testnet), with a verdict for each, the stellar, cargo
+and Docker (for --localnet) versions, and the fork cache's size.
+
+A network the simulator has no lane for is never run on the wrong host: the
+verdict says whether the network is ahead of the simulator (upgrade
+@signet/cli), behind it (an older release has its lane), or in a gap. Exits
+11 when a checked network has no lane, 3 when there is no simulator.
+
+Usage:
+  signet sandbox doctor [flags]
+
+Examples:
+  signet sandbox doctor
+  signet sandbox doctor --network mainnet --rpc-url https://mainnet.example/rpc --json
+
+Flags:
+  -h, --help                        help for doctor
+      --network-passphrase string   passphrase of a custom --network
+      --rpc-url string              the RPC to read the selected network's protocol from
+
+Global Flags:
+      --context string         deployment context to use (overrides SIGNET_CONTEXT and the config file's current context)
+      --drift string           when an entry fetched for the fork changed on-chain after the fork ledger: warn, fail (exit 6), or refork (pin the latest ledger and run once more) (default "warn")
+      --insecure               allow a plain-http deployment URL on a non-local host (signed challenges travel in cleartext; use only against a deployment you control)
+      --json                   write a single JSON result to stdout instead of human-readable output (diagnostics go to stderr)
+      --network string         Stellar network to talk to (overrides SIGNET_NETWORK, the context, and default "testnet")
+      --sign-with-key string   identity to sign with, for non-interactive use (same value as STELLAR_SIGN_WITH_KEY; not remembered)
+      --source string          identity to sign as (remembered in the config file for next time)
+      --url string             Signet deployment URL (overrides SIGNET_URL, the config file, and the default)
+-- stderr --
+(empty)
+-- exit 0 --

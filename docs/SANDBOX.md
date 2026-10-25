@@ -249,6 +249,28 @@ and the cost, since a cached module is charged less than recording mode
 charges the A side. Caching A instead halves every later cycle's host runs
 without either.
 
+## Protocol support
+
+A Soroban host only runs at its own ledger protocol, so `signet-simulator`
+carries one host per protocol it supports, a **lane**: today protocols 28 and
+29 (`sandbox/simulator/lanes.toml`). Before anything is forked, signet reads
+the network's protocol and refuses to run on a host that does not match: a
+wrong host would answer with plausible numbers, which is worse than no answer.
+The refusal exits 11 and says which way the network moved:
+
+- the network is ahead (`testnet is on protocol 30; this signet-simulator
+  supports 28–29. Upgrade @signet/cli (or build from main)`);
+- the network is behind (`… supports 28–29, which is newer. Use an older
+  @signet/cli release that has a protocol 27 lane`);
+- a contract built for a newer protocol than the lane is refused with both
+  versions.
+
+`signet sandbox doctor` shows the whole picture: the CLI's and simulator's
+versions, the lanes and the host each links, the selected network's (and
+testnet's) live protocol with a verdict, the `stellar`, `cargo` and Docker
+versions, and the fork cache's size. It exits 11 when a checked network has no
+lane; `--json` writes `sandbox/protocol/schema/v1/cli-sandbox-doctor.json`.
+
 ## Repro bundles
 
 Every `signet dev` session is logged (#572): a session record, each distinct
