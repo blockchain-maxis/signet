@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"os"
+	"reflect"
 	"strings"
 
 	"github.com/blockchain-maxis/signet/cli/internal/dev"
@@ -15,10 +16,14 @@ import (
 )
 
 // devSession is the warm simulator session signet dev's cycles run in
-// (#566): the fork open in the host and the reloader's base taken.
+// (#566): the fork open in the host, the file's storage overrides applied
+// (#567), and the reloader's base taken.
 type devSession struct {
-	reloader *dev.Reloader
-	cache    *fork.Cache
+	reloader  *dev.Reloader
+	cache     *fork.Cache
+	sim       *simulator.Client
+	manifest  fork.Manifest
+	overrides []devconfig.Override
 }
 
 func (s *devSession) Close() {
@@ -28,8 +33,9 @@ func (s *devSession) Close() {
 }
 
 // openDevSession opens the fork of contract in sim, answering its fetches
-// from the fork cache and the RPC, and takes the reloader's base.
-func openDevSession(ctx context.Context, deps Deps, network rpc.Network, client *rpc.Client, sim *simulator.Client, m fork.Manifest) (*devSession, error) {
+// from the fork cache and the RPC, applies overrides, and takes the
+// reloader's base.
+func openDevSession(ctx context.Context, deps Deps, network rpc.Network, client *rpc.Client, sim *simulator.Client, m fork.Manifest, overrides []devconfig.Override) (*devSession, error) {
 	root, err := forkRoot(deps)
 	if err != nil {
 		return nil, err
@@ -42,21 +48,51 @@ func openDevSession(ctx context.Context, deps Deps, network rpc.Network, client 
 	if err != nil {
 		return nil, err
 	}
-	s := &devSession{cache: cache}
+	s := &devSession{cache: cache, sim: sim, manifest: m}
 	sim.HandleFetch((&fork.Fetcher{Ctx: ctx, Cache: cache, RPC: client, ForkLedger: m.ForkLedger}).Fetch)
-	protocol, sequence, timestamp := m.Protocol, m.ForkLedger, uint64(m.ForkTime.Unix())
-	if _, err := callSimulator(ctx, sim, simulator.TypeLedgerOpen, simulator.LedgerOpenParams{
-		NetworkPassphrase: m.Passphrase, LedgerProtocol: &protocol, Sequence: &sequence, Timestamp: &timestamp,
-		SessionID: "signet-dev",
-	}, nil); err != nil {
+	if err := s.reset(ctx, overrides); err != nil {
 		s.Close()
 		return nil, err
 	}
-	if s.reloader, err = dev.NewReloader(ctx, sim, m.Contract); err != nil {
-		s.Close()
-		return nil, fmt.Errorf("%w: %v", exitcode.ErrSimulator, err)
-	}
 	return s, nil
+}
+
+// reset opens the ledger afresh with overrides applied and a new base:
+// overrides are part of what A ran on, so new ones start the session over,
+// A's cache with it.
+func (s *devSession) reset(ctx context.Context, overrides []devconfig.Override) error {
+	m := s.manifest
+	protocol, sequence, timestamp := m.Protocol, m.ForkLedger, uint64(m.ForkTime.Unix())
+	if _, err := callSimulator(ctx, s.sim, simulator.TypeLedgerOpen, simulator.LedgerOpenParams{
+		NetworkPassphrase: m.Passphrase, LedgerProtocol: &protocol, Sequence: &sequence, Timestamp: &timestamp,
+		SessionID: "signet-dev",
+	}, nil); err != nil {
+		return err
+	}
+	for i, o := range overrides {
+		if _, err := callSimulator(ctx, s.sim, simulator.TypeStorageOverride, simulator.StorageOverrideParams{
+			ContractID: m.Contract, Durability: o.Durability, Key: o.Key, Value: o.Value, Unset: o.Unset,
+		}, nil); err != nil {
+			return asInputError(err, fmt.Sprintf("signet.dev.toml override %d", i+1))
+		}
+	}
+	reloader, err := dev.NewReloader(ctx, s.sim, m.Contract)
+	if err != nil {
+		return fmt.Errorf("%w: %v", exitcode.ErrSimulator, err)
+	}
+	if s.reloader != nil {
+		reloader.SetRules(s.reloader.Rules())
+	}
+	s.reloader, s.overrides = reloader, overrides
+	return nil
+}
+
+// fileOverrides are a file's [[override]]s; none without a file.
+func fileOverrides(f *devconfig.File) []devconfig.Override {
+	if f == nil {
+		return nil
+	}
+	return f.Overrides
 }
 
 // devReplays are the saved calls of signet.dev.toml, in file order.
@@ -74,7 +110,7 @@ func devReplays(f *devconfig.File) []dev.Replay {
 		if name == "" {
 			name = c.Function
 		}
-		out[i] = dev.Replay{Name: name, Params: simulator.SimulateParams{Function: c.Function, Args: args}}
+		out[i] = dev.Replay{Name: name, Params: simulator.SimulateParams{Function: c.Function, Args: args}, Chain: c.Chain, Expect: c.Expect}
 	}
 	return out
 }
@@ -115,7 +151,15 @@ func describeCycle(c dev.Cycle) []string {
 		if o.Diff != nil && !o.Diff.Summary.Clean() {
 			mark, classes = "≠", "  ("+describeSummary(o.Diff.Summary)+")"
 		}
-		lines = append(lines, fmt.Sprintf("  %s  A %s  %s  B %s%s", o.Name, a, mark, b, classes))
+		check := ""
+		switch v := o.Verdict; {
+		case v == nil:
+		case v.Pass:
+			check = "  ✓ " + v.Expect
+		default:
+			check = fmt.Sprintf("  ✗ expected %s: %s", v.Expect, v.Reason)
+		}
+		lines = append(lines, fmt.Sprintf("  %s  A %s  %s  B %s%s%s", o.Name, a, mark, b, classes, check))
 	}
 	return lines
 }
@@ -132,6 +176,18 @@ func describeSummary(s simulator.DiffSummary) string {
 		}
 	}
 	return strings.Join(parts, ", ")
+}
+
+// applyFile hands signet.dev.toml to the session: its [diff] rules, and
+// its overrides, starting the session over when they changed.
+func (s *devSession) applyFile(ctx context.Context, f *devconfig.File, contract string, progress func(string)) error {
+	if overrides := fileOverrides(f); !reflect.DeepEqual(overrides, s.overrides) {
+		if err := s.reset(ctx, overrides); err != nil {
+			return err
+		}
+		progress(fmt.Sprintf("storage overrides changed: %d applied, from a new base", len(overrides)))
+	}
+	return s.applyRules(f, contract, progress)
 }
 
 // applyRules hands signet.dev.toml's [diff] to the session, warning when

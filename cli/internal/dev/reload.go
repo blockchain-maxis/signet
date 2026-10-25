@@ -29,6 +29,20 @@ type restarter interface {
 type Replay struct {
 	Name   string
 	Params simulator.SimulateParams
+	// Chain starts the call from the previous call's end state, on both
+	// sides, instead of from base (#567).
+	Chain bool
+	// Expect is what the call should do on the new build (#567); the zero
+	// value checks nothing.
+	Expect devconfig.Expect
+}
+
+// Verdict is how a call met its expect.
+type Verdict struct {
+	Expect string `json:"expect"`
+	Pass   bool   `json:"pass"`
+	// Reason says why a check failed.
+	Reason string `json:"reason,omitempty"`
 }
 
 // Run is one side's outcome: a result, or the contract error it ended in.
@@ -46,6 +60,8 @@ type Outcome struct {
 	A    Run                          `json:"a"`
 	B    Run                          `json:"b"`
 	Diff *simulator.DiffResultsResult `json:"diff"`
+	// Verdict is how B met the call's expect; nil when it has none.
+	Verdict *Verdict `json:"verdict,omitempty"`
 }
 
 // Cycle is what one reload produced, for the diff engine (#568) and the
@@ -96,6 +112,9 @@ type Reloader struct {
 
 // SetRules sets what the diffs leave out or tolerate; nil for none.
 func (r *Reloader) SetRules(rules *simulator.DiffRules) { r.rules = rules }
+
+// Rules are the diff rules in use.
+func (r *Reloader) Rules() *simulator.DiffRules { return r.rules }
 
 // RulesOf turns signet.dev.toml's [diff] into diff_results rules for
 // contract: a tolerance of "10%" is a percentage of A's, "500" an amount,
@@ -155,9 +174,10 @@ func NewReloader(ctx context.Context, host Host, contract string) (*Reloader, er
 func (r *Reloader) Deployed() string { return r.deployed }
 
 // Cycle installs wasm (once per distinct build) and runs every replay as A
-// and as B, each from `base`. Replay i runs with call index i's PRNG seed
-// on both sides, so a contract drawing from env.prng() sees the same values
-// in A and B, and in every cycle.
+// and as B. Each starts from `base`, unless it chains, when it continues
+// from the previous call's end state on its side. Replay i runs with call
+// index i's PRNG seed on both sides, so a contract drawing from env.prng()
+// sees the same values in A and B, and in every cycle.
 func (r *Reloader) Cycle(ctx context.Context, wasm []byte, replays []Replay) (Cycle, error) {
 	sum := sha256.Sum256(wasm)
 	local := hex.EncodeToString(sum[:])
@@ -171,34 +191,18 @@ func (r *Reloader) Cycle(ctx context.Context, wasm []byte, replays []Replay) (Cy
 		r.installed[local] = true
 	}
 	out := Cycle{Deployed: r.deployed, Local: local, Outcomes: make([]Outcome, 0, len(replays))}
-	for i, replay := range replays {
-		params := replay.Params
-		params.ContractID = r.contract
-		index := uint64(i)
-		params.CallIndex = &index
-		key, err := fingerprint(params)
+	for start := 0; start < len(replays); {
+		end := start + 1
+		for end < len(replays) && replays[end].Chain {
+			end++
+		}
+		outcomes, runs, err := r.chain(ctx, replays[start:end], start, local)
 		if err != nil {
 			return Cycle{}, err
 		}
-		o := Outcome{Name: replay.Name}
-		if a, ok := r.cached[key]; ok {
-			o.A = a
-			o.A.Cached = true
-		} else {
-			if o.A, err = r.run(ctx, params, ""); err != nil {
-				return Cycle{}, fmt.Errorf("%s on the deployed code: %w", replay.Name, err)
-			}
-			out.Simulations++
-			r.cached[key] = o.A
-		}
-		if o.B, err = r.run(ctx, params, local); err != nil {
-			return Cycle{}, fmt.Errorf("%s on the new build: %w", replay.Name, err)
-		}
-		out.Simulations++
-		if o.Diff, err = r.diff(ctx, o); err != nil {
-			return Cycle{}, fmt.Errorf("comparing %s: %w", replay.Name, err)
-		}
-		out.Outcomes = append(out.Outcomes, o)
+		out.Outcomes = append(out.Outcomes, outcomes...)
+		out.Simulations += runs
+		start = end
 	}
 	// Leave the session at base, as the next cycle expects it.
 	if err := r.rollback(ctx); err != nil {
@@ -210,19 +214,89 @@ func (r *Reloader) Cycle(ctx context.Context, wasm []byte, replays []Replay) (Cy
 	return out, nil
 }
 
-// run rolls back to base and runs one call, on the executable swapped in
-// when swap is set and on the deployed one otherwise.
-func (r *Reloader) run(ctx context.Context, params simulator.SimulateParams, swap string) (Run, error) {
-	if err := r.rollback(ctx); err != nil {
-		return Run{}, err
+// chain runs one call and the calls chained to it, the first at index
+// first: all of A from base, then all of B from base with the build
+// swapped in. A is cached by the chain up to each call, so a chained
+// call's A is reused only when everything before it is the same.
+func (r *Reloader) chain(ctx context.Context, replays []Replay, first int, local string) ([]Outcome, int, error) {
+	params := make([]simulator.SimulateParams, len(replays))
+	keys := make([]string, len(replays))
+	cached := true
+	for j, replay := range replays {
+		p := replay.Params
+		p.ContractID = r.contract
+		index := uint64(first + j)
+		p.CallIndex = &index
+		fp, err := fingerprint(p)
+		if err != nil {
+			return nil, 0, err
+		}
+		if j > 0 {
+			sum := sha256.Sum256([]byte(keys[j-1] + fp))
+			fp = hex.EncodeToString(sum[:])
+		}
+		params[j], keys[j] = p, fp
+		_, ok := r.cached[fp]
+		cached = cached && ok
 	}
-	if swap != "" && swap != r.deployed {
-		if err := call(ctx, r.host, simulator.TypeContractSwap, simulator.ContractSwapParams{
-			ContractID: r.contract, WasmHash: swap, Mode: "instance",
-		}, nil); err != nil {
-			return Run{}, fmt.Errorf("swapping in the new build: %w", err)
+	outcomes := make([]Outcome, len(replays))
+	runs := 0
+	if cached {
+		for j := range replays {
+			outcomes[j].A = r.cached[keys[j]]
+			outcomes[j].A.Cached = true
+		}
+	} else {
+		if err := r.begin(ctx, ""); err != nil {
+			return nil, 0, err
+		}
+		for j, replay := range replays {
+			a, err := r.simulate(ctx, params[j])
+			if err != nil {
+				return nil, 0, fmt.Errorf("%s on the deployed code: %w", replay.Name, err)
+			}
+			outcomes[j].A, r.cached[keys[j]] = a, a
+			runs++
 		}
 	}
+	if err := r.begin(ctx, local); err != nil {
+		return nil, 0, err
+	}
+	for j, replay := range replays {
+		b, err := r.simulate(ctx, params[j])
+		if err != nil {
+			return nil, 0, fmt.Errorf("%s on the new build: %w", replay.Name, err)
+		}
+		runs++
+		o := &outcomes[j]
+		o.Name, o.B = replay.Name, b
+		if o.Diff, err = r.diff(ctx, *o); err != nil {
+			return nil, 0, fmt.Errorf("comparing %s: %w", replay.Name, err)
+		}
+		o.Verdict = verdict(replay.Expect, *o)
+	}
+	return outcomes, runs, nil
+}
+
+// begin rolls back to base and, for B, swaps the build into the instance.
+func (r *Reloader) begin(ctx context.Context, swap string) error {
+	if err := r.rollback(ctx); err != nil {
+		return err
+	}
+	if swap == "" || swap == r.deployed {
+		return nil
+	}
+	if err := call(ctx, r.host, simulator.TypeContractSwap, simulator.ContractSwapParams{
+		ContractID: r.contract, WasmHash: swap, Mode: "instance",
+	}, nil); err != nil {
+		return fmt.Errorf("swapping in the new build: %w", err)
+	}
+	return nil
+}
+
+// simulate runs one call where the session stands; its writes stay, for a
+// chained call after it.
+func (r *Reloader) simulate(ctx context.Context, params simulator.SimulateParams) (Run, error) {
 	var res simulator.SimulateResult
 	ce, err := r.host.Call(ctx, simulator.TypeSimulate, params, &res)
 	switch {
@@ -232,6 +306,50 @@ func (r *Reloader) run(ctx context.Context, params simulator.SimulateParams, swa
 		return Run{Error: ce}, nil
 	}
 	return Run{Result: &res}, nil
+}
+
+// verdict checks B against expect: unchanged (no difference from A beyond
+// what the [diff] rules ignore), ok (B did not fail), error:<Name> (B failed
+// with that contract error), or any.
+func verdict(expect devconfig.Expect, o Outcome) *Verdict {
+	if expect.Kind == "" {
+		return nil
+	}
+	text, _ := expect.MarshalText()
+	v := &Verdict{Expect: string(text), Pass: true}
+	fail := func(format string, args ...any) *Verdict {
+		v.Pass, v.Reason = false, fmt.Sprintf(format, args...)
+		return v
+	}
+	switch expect.Kind {
+	case "unchanged":
+		if o.Diff == nil {
+			return fail("the sides were not compared")
+		}
+		if s := o.Diff.Summary; !s.Clean() {
+			return fail("A and B differ: %d breaking, %d behavioural, %d cost", s.Breaking, s.Behavioural, s.Cost)
+		}
+	case "ok":
+		if o.B.Error != nil {
+			return fail("it failed with %s", errorName(o.B.Error))
+		}
+	case "error":
+		switch {
+		case o.B.Error == nil:
+			return fail("it returned instead of failing with %s", expect.Error)
+		case errorName(o.B.Error) != expect.Error:
+			return fail("it failed with %s, not %s", errorName(o.B.Error), expect.Error)
+		}
+	}
+	return v
+}
+
+// errorName is a contract error's name from the spec, or its code.
+func errorName(ce *simulator.ContractError) string {
+	if ce.Decoded != nil && ce.Decoded.ErrorName != "" {
+		return ce.Decoded.ErrorName
+	}
+	return ce.Code
 }
 
 // diff compares an outcome's sides in the simulator, where the values are

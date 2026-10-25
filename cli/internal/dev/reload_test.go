@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"sync"
 	"testing"
 	"time"
@@ -103,6 +104,15 @@ func session(t *testing.T, opts ...simulator.Option) (*countingHost, string) {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() { _ = c.Close() })
+	// Nothing beyond what the test puts in: whatever a call reads that is
+	// not in the ledger (an auth nonce) is absent.
+	c.HandleFetch(func(keys []string) ([]simulator.Entry, error) {
+		out := make([]simulator.Entry, len(keys))
+		for i, k := range keys {
+			out[i] = simulator.Absent(k)
+		}
+		return out, nil
+	})
 	host := &countingHost{Client: c, calls: map[string]int{}}
 	protocol, seq := 28, uint32(100)
 	if err := call(ctx, host, simulator.TypeLedgerOpen, simulator.LedgerOpenParams{
@@ -292,5 +302,141 @@ func TestReloadCycleDiffsUnderTheRules(t *testing.T) {
 	}
 	if inc := cycle.Outcomes[1].Diff; inc.Summary.Ignored == 0 || inc.Events.Added[0].Class != simulator.ClassIgnored {
 		t.Fatalf("the ignored event is still listed: %+v", inc)
+	}
+}
+
+func expect(t *testing.T, text string) devconfig.Expect {
+	t.Helper()
+	var e devconfig.Expect
+	if err := e.UnmarshalText([]byte(text)); err != nil {
+		t.Fatal(err)
+	}
+	return e
+}
+
+// #567: unchanged passes when the build is the deployed WASM and fails on
+// counter_v2_return, whose increment returns an i128.
+func TestExpectUnchangedHoldsOnlyForTheSameBehaviour(t *testing.T) {
+	ctx := context.Background()
+	calls := func() []Replay {
+		r := replays()
+		for i := range r {
+			r[i].Expect = expect(t, "unchanged")
+		}
+		return r
+	}
+	for _, tc := range []struct {
+		build string
+		pass  bool
+	}{{"counter_v1", true}, {"counter_v2_return", false}} {
+		host, contract := session(t)
+		r, err := NewReloader(ctx, host, contract)
+		if err != nil {
+			t.Fatal(err)
+		}
+		cycle, err := r.Cycle(ctx, fixtureWasm(t, tc.build), calls())
+		if err != nil {
+			t.Fatal(err)
+		}
+		v := cycle.Outcomes[1].Verdict
+		if v == nil || v.Pass != tc.pass || v.Expect != "unchanged" {
+			t.Fatalf("%s: increment's verdict %+v, want pass %v", tc.build, v, tc.pass)
+		}
+		if !tc.pass && !strings.Contains(v.Reason, "A and B differ: 2 breaking") {
+			t.Fatalf("%s: reason %q", tc.build, v.Reason)
+		}
+	}
+}
+
+const (
+	admin  = "GAAZI4TCR3TY5OJHCTJC2A4QSY6CJWJH5IAJTGKIN2ER7LBNVKOCCWN7"
+	wallet = "GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN"
+)
+
+// #567: error:HandleTaken passes when B returns it; ok and a wrong name
+// fail, and say what B did.
+func TestExpectErrorNamesTheContractError(t *testing.T) {
+	ctx := context.Background()
+	host, _ := session(t)
+	registry, err := os.ReadFile(filepath.Join("..", "..", "..", "packages", "spec", "fixtures", "identity-registry.wasm"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var installed simulator.ContractInstallResult
+	if err := call(ctx, host, simulator.TypeContractInstall, simulator.ContractInstallParams{WasmBase64: base64.StdEncoding.EncodeToString(registry)}, &installed); err != nil {
+		t.Fatal(err)
+	}
+	// Set up before base, at call indices the replays do not use: the same
+	// index is the same seed, and so the same auth nonce.
+	for i, step := range []struct {
+		fn   string
+		args map[string]any
+	}{{"initialize", map[string]any{"admin": admin}}, {"claim", map[string]any{"handle": "alice", "wallet": wallet}}} {
+		index := uint64(100 + i)
+		if ce, err := host.Call(ctx, simulator.TypeSimulate, simulator.SimulateParams{ContractID: installed.ContractID, Function: step.fn, Args: step.args, CallIndex: &index}, nil); err != nil || ce != nil {
+			t.Fatalf("%s: %v %v", step.fn, ce, err)
+		}
+	}
+	r, err := NewReloader(ctx, host, installed.ContractID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	claim := simulator.SimulateParams{Function: "claim", Args: map[string]any{"handle": "alice", "wallet": wallet}}
+	cycle, err := r.Cycle(ctx, registry, []Replay{
+		{Name: "taken", Params: claim, Expect: expect(t, "error:HandleTaken")},
+		{Name: "taken, expected ok", Params: claim, Expect: expect(t, "ok")},
+		{Name: "taken, another error", Params: claim, Expect: expect(t, "error:NotOwner")},
+		{Name: "anything", Params: claim, Expect: expect(t, "any")},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := []struct {
+		pass   bool
+		reason string
+	}{{true, ""}, {false, "it failed with HandleTaken"}, {false, "it failed with HandleTaken, not NotOwner"}, {true, ""}}
+	for i, w := range want {
+		v := cycle.Outcomes[i].Verdict
+		if v == nil || v.Pass != w.pass || v.Reason != w.reason {
+			t.Errorf("%s: %+v, want pass %v %q", cycle.Outcomes[i].Name, v, w.pass, w.reason)
+		}
+	}
+}
+
+// #567: a chained call starts from the previous call's end state, on both
+// sides; an unchained one from base.
+func TestAChainedCallSeesThePreviousWrite(t *testing.T) {
+	ctx := context.Background()
+	host, contract := session(t)
+	r, err := NewReloader(ctx, host, contract)
+	if err != nil {
+		t.Fatal(err)
+	}
+	whatever := expect(t, "any")
+	get := simulator.SimulateParams{Function: "get", Args: map[string]any{}}
+	cycle, err := r.Cycle(ctx, fixtureWasm(t, "counter_v2_event"), []Replay{
+		{Name: "increment", Params: simulator.SimulateParams{Function: "increment", Args: map[string]any{}}, Expect: whatever},
+		{Name: "get after it", Params: get, Chain: true, Expect: whatever},
+		{Name: "get from base", Params: get, Expect: whatever},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for i, want := range []string{"1", "1", "0"} {
+		o := cycle.Outcomes[i]
+		if returned(t, o.A) != want || returned(t, o.B) != want {
+			t.Errorf("%s: A %s, B %s, want %s", o.Name, returned(t, o.A), returned(t, o.B), want)
+		}
+	}
+	// The chain is cached as a whole: a second cycle reuses all of A.
+	again, err := r.Cycle(ctx, fixtureWasm(t, "counter_v2_event"), []Replay{
+		{Name: "increment", Params: simulator.SimulateParams{Function: "increment", Args: map[string]any{}}, Expect: whatever},
+		{Name: "get after it", Params: get, Chain: true, Expect: whatever},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if again.Simulations != 2 || !again.Outcomes[1].A.Cached || returned(t, again.Outcomes[1].B) != "1" {
+		t.Fatalf("second cycle: %d runs, %+v", again.Simulations, again.Outcomes[1])
 	}
 }

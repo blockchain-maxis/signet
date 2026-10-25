@@ -57,7 +57,10 @@ resource_tolerance = { instructions = "10%", fee = "500" }
   should do: `unchanged` (the same result as the last time it ran), `ok`,
   `error:<Name>` (that contract error), or `any`. Against the deployed
   contract, each function must exist, its arguments must encode, and an
-  expected error must be one the contract declares.
+  expected error must be one the contract declares. Calls run in file order,
+  each from the fork; `chain = true` starts a call from the previous call's end
+  state instead, on both sides, so a pair like `claim` then `resolve` sees the
+  claim.
 - An `[[override]]` is a storage override, as `--set-storage` takes:
   `durability` (`instance`, `persistent` or `temporary`), `key`, and `value` or
   `unset = true`.
@@ -147,12 +150,19 @@ contract that draws from `env.prng()` sees the same values on both.
 
 ```text
 replayed 2 saved calls on 936996c7 (deployed) and 4f1a09bd (build): 4 runs
-  count is stable  A 2  =  B 2
-  claim taken  A error HandleTaken  =  B error HandleTaken
+  count is stable  A 2  =  B 2  ✓ unchanged
+  claim taken  A error HandleTaken  =  B error HandleTaken  ✓ error:HandleTaken
 ```
 
 A depends only on the fork and the call, so it is run once and reused: a
-cycle after the first runs B alone, unless a call changed. The process stays
+cycle after the first runs B alone, unless a call changed (a chained call's A
+is reused only with everything before it in the chain).
+
+Each call's `expect` is then checked against B (#567): `unchanged` holds when
+A and B differ in nothing the `[diff]` rules do not ignore, `ok` when B did not
+fail, `error:<Name>` when B failed with that contract error, and `any` always.
+The file's `[[override]]`s are applied once, before `base`; changing them in
+`signet.dev.toml` starts the session over from a new `base`. The process stays
 warm between saves, but the simulator's five-minute idle stop can still end it
 while you are not saving; the next cycle respawns it, replays the fork, the
 installs and `base`, and says `simulator restarted (idle)` rather than hiding

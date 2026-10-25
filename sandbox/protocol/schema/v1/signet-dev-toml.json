@@ -80,6 +80,10 @@
           "expect": {
             "type": "string",
             "pattern": "^(unchanged|ok|any|error:[A-Za-z_][A-Za-z0-9_]*)$"
+          },
+          "chain": {
+            "type": "boolean",
+            "description": "Start from the previous call's end state, on both sides, instead of from the fork (#567); not on the first call"
           }
         },
         "required": ["name", "function", "expect"],

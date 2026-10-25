@@ -189,7 +189,7 @@ func runDev(cmd *cobra.Command, args []string, path, pkg string, ci bool, deboun
 	header := fmt.Sprintf("signet dev · %s @ %s ledger %d · lane p%d · crate %s",
 		shorten(setup.contract, 4, 3), m.Network, m.ForkLedger, m.Protocol, setup.crate.Name)
 	printer.Progress(header)
-	session, err := openDevSession(ctx, deps, network, client, sim, m)
+	session, err := openDevSession(ctx, deps, network, client, sim, m, fileOverrides(setup.file))
 	if err != nil {
 		return err
 	}
@@ -503,7 +503,7 @@ func watchAndRebuild(ctx context.Context, setup devSetup, builder *dev.Builder, 
 					continue
 				}
 				setup.file = reloaded
-				if err := session.applyRules(setup.file, setup.contract, progress); err != nil {
+				if err := session.applyFile(ctx, setup.file, setup.contract, progress); err != nil {
 					progress(err.Error())
 				}
 				if builder.Last() != "" && !building {

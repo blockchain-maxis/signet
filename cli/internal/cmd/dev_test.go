@@ -130,7 +130,9 @@ func TestDevTakesWhatTheFlagsLeaveOutFromSignetDevToml(t *testing.T) {
 	crate := devCrate(t)
 	dir := t.TempDir()
 	toml := "version = 1\naddress = \"" + registryContract + "\"\npath = \"" + filepath.ToSlash(crate) + "\"\n" +
-		"\n[[call]]\nname = \"count is stable\"\nfunction = \"count\"\nargs = {}\nexpect = \"unchanged\"\n"
+		"\n[[call]]\nname = \"count is stable\"\nfunction = \"count\"\nargs = {}\nexpect = \"unchanged\"\n" +
+		// An override the calls do not read: applied in the session (#567).
+		"\n[[override]]\ndurability = \"persistent\"\nkey = '\"note\"'\nvalue = 'true'\n"
 	if err := os.WriteFile(filepath.Join(dir, "signet.dev.toml"), []byte(toml), 0o644); err != nil {
 		t.Fatal(err)
 	}
@@ -144,7 +146,7 @@ func TestDevTakesWhatTheFlagsLeaveOutFromSignetDevToml(t *testing.T) {
 	}
 	if !strings.Contains(stdout, "crate identity-registry") ||
 		!strings.Contains(stdout, "replayed 1 saved call on 936996c7 (deployed) and 936996c7 (build): 2 runs") ||
-		!strings.Contains(stdout, "count is stable  A 2  =  B 2") {
+		!strings.Contains(stdout, "count is stable  A 2  =  B 2  ✓ unchanged") {
 		t.Fatalf("stdout:\n%s", stdout)
 	}
 	t.Chdir(t.TempDir())

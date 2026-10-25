@@ -94,6 +94,9 @@ type Call struct {
 	Function string         `toml:"function"`
 	Args     map[string]any `toml:"args"`
 	Expect   Expect         `toml:"expect"`
+	// Chain starts the call from the previous call's end state instead of
+	// from the fork (#567).
+	Chain bool `toml:"chain,omitempty"`
 }
 
 // Expect is what a saved call should do: unchanged (the same result as
@@ -277,6 +280,9 @@ func (f *File) check(path string, raw []byte) Errors {
 		}
 		if c.Expect.Kind == "" {
 			add(where+".expect", "%s (%q) needs expect: unchanged, ok, error:<Name> or any", where, c.Name)
+		}
+		if c.Chain && i == 0 {
+			add(where+".chain", "%s (%q) has chain = true, but no call comes before it to continue from", where, c.Name)
 		}
 	}
 	for i, o := range f.Overrides {
