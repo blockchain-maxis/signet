@@ -1,0 +1,295 @@
+{
+ "id": 4,
+ "deployed": "6bac3430dd7c9bf1e60d8d529ca08e05d5ef30d0ed1ff3d42e61b12436018fe1",
+ "local": "6bac3430dd7c9bf1e60d8d529ca08e05d5ef30d0ed1ff3d42e61b12436018fe1",
+ "outcomes": [
+  {
+   "name": "increment",
+   "a": {
+    "result": {
+     "return_value_xdr": "AAAAAwAAAAE=",
+     "return_value": 1,
+     "events": [],
+     "cost": {
+      "cpu_insns": 380773,
+      "mem_bytes": 1129927
+     },
+     "logs": [],
+     "auth": [
+      "AAAAAQAAAAAAAAAAAZRyYo7njrknFNItA5CWPCTZJ+oAmZlIbokfrC2qnCFETbFscITvlwAAAAAAAAABAAAAAAAAAAEp+2aVnGx9XEI7mTqKooZnAMj3S4bvVByBOJGTuT5HMQAAAAlpbmNyZW1lbnQAAAAAAAABAAAAEgAAAAAAAAAAAZRyYo7njrknFNItA5CWPCTZJ+oAmZlIbokfrC2qnCEAAAAA"
+     ],
+     "auth_entries": [
+      {
+       "credentials": "address",
+       "address": "GAAZI4TCR3TY5OJHCTJC2A4QSY6CJWJH5IAJTGKIN2ER7LBNVKOCCWN7",
+       "root_function": {
+        "kind": "contract_fn",
+        "contract_id": "CAU7WZUVTRWH2XCCHOMTVCVCQZTQBSHXJODO6VA4QE4JDE5ZHZDTDHQ5",
+        "function": "increment"
+       },
+       "sub_invocations": 0
+      }
+     ],
+     "modified_entries": [
+      {
+       "key_xdr": "AAAABgAAAAAAAAAAAZRyYo7njrknFNItA5CWPCTZJ+oAmZlIbokfrC2qnCEAAAAVRE2xbHCE75cAAAAA",
+       "before_xdr": null,
+       "after_xdr": "AAAAAAAAAAYAAAAAAAAAAAAAAAABlHJijueOuScU0i0DkJY8JNkn6gCZmUhuiR+sLaqcIQAAABVETbFscITvlwAAAAAAAAABAAAAAA==",
+       "live_until_ledger": 819
+      },
+      {
+       "key_xdr": "AAAABgAAAAEp+2aVnGx9XEI7mTqKooZnAMj3S4bvVByBOJGTuT5HMQAAABQAAAAB",
+       "before_xdr": "AAAAAAAAAAYAAAAAAAAAASn7ZpWcbH1cQjuZOoqihmcAyPdLhu9UHIE4kZO5PkcxAAAAFAAAAAEAAAATAAAAAGusNDDdfJvx5g2NUpygjgXV7zDQ7R/z1C5hsSQ2AY/hAAAAAAAAAAA=",
+       "after_xdr": "AAAAAAAAAAYAAAAAAAAAASn7ZpWcbH1cQjuZOoqihmcAyPdLhu9UHIE4kZO5PkcxAAAAFAAAAAEAAAATAAAAAGusNDDdfJvx5g2NUpygjgXV7zDQ7R/z1C5hsSQ2AY/hAAAAAQAAAAEAAAAPAAAABWNvdW50AAAAAAAAAwAAAAEAAAAA",
+       "live_until_ledger": 4294967295
+      }
+     ],
+     "resources": {
+      "instructions": 380773,
+      "disk_read_bytes": 0,
+      "write_bytes": 208,
+      "footprint": {
+       "read_only": [
+        "AAAAAAAAAAABlHJijueOuScU0i0DkJY8JNkn6gCZmUhuiR+sLaqcIQ==",
+        "AAAAB2usNDDdfJvx5g2NUpygjgXV7zDQ7R/z1C5hsSQ2AY/h"
+       ],
+       "read_write": [
+        "AAAABgAAAAAAAAAAAZRyYo7njrknFNItA5CWPCTZJ+oAmZlIbokfrC2qnCEAAAAVRE2xbHCE75cAAAAA",
+        "AAAABgAAAAEp+2aVnGx9XEI7mTqKooZnAMj3S4bvVByBOJGTuT5HMQAAABQAAAAB"
+       ]
+      }
+     },
+     "fee": {
+      "resource_fee": 11212524561
+     },
+     "misses": [
+      "AAAAAAAAAAABlHJijueOuScU0i0DkJY8JNkn6gCZmUhuiR+sLaqcIQ==",
+      "AAAABgAAAAAAAAAAAZRyYo7njrknFNItA5CWPCTZJ+oAmZlIbokfrC2qnCEAAAAVRE2xbHCE75cAAAAA"
+     ],
+     "ledger": {
+      "sequence": 100,
+      "timestamp": 0,
+      "protocol": 28
+     },
+     "seed": "af5570f5a1810b7af78caf4bc70a660f0df51e42baf91d4de5b2328de0e83dfc",
+     "auth_mode": "record"
+    }
+   },
+   "b": {
+    "result": {
+     "return_value_xdr": "AAAAAwAAAAI=",
+     "return_value": 2,
+     "events": [],
+     "cost": {
+      "cpu_insns": 384710,
+      "mem_bytes": 1130525
+     },
+     "logs": [],
+     "auth": [
+      "AAAAAQAAAAAAAAAAO5kROA7+mIugqJAOsc/kTzZvfb6Ua+0HckD39iTfFcVETbFscITvlwAAAAAAAAABAAAAAAAAAAEp+2aVnGx9XEI7mTqKooZnAMj3S4bvVByBOJGTuT5HMQAAAAlpbmNyZW1lbnQAAAAAAAABAAAAEgAAAAAAAAAAO5kROA7+mIugqJAOsc/kTzZvfb6Ua+0HckD39iTfFcUAAAAA"
+     ],
+     "auth_entries": [
+      {
+       "credentials": "address",
+       "address": "GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN",
+       "root_function": {
+        "kind": "contract_fn",
+        "contract_id": "CAU7WZUVTRWH2XCCHOMTVCVCQZTQBSHXJODO6VA4QE4JDE5ZHZDTDHQ5",
+        "function": "increment"
+       },
+       "sub_invocations": 0
+      }
+     ],
+     "modified_entries": [
+      {
+       "key_xdr": "AAAABgAAAAAAAAAAO5kROA7+mIugqJAOsc/kTzZvfb6Ua+0HckD39iTfFcUAAAAVRE2xbHCE75cAAAAA",
+       "before_xdr": null,
+       "after_xdr": "AAAAAAAAAAYAAAAAAAAAAAAAAAA7mRE4Dv6Yi6CokA6xz+RPNm99vpRr7QdyQPf2JN8VxQAAABVETbFscITvlwAAAAAAAAABAAAAAA==",
+       "live_until_ledger": 819
+      },
+      {
+       "key_xdr": "AAAABgAAAAEp+2aVnGx9XEI7mTqKooZnAMj3S4bvVByBOJGTuT5HMQAAABQAAAAB",
+       "before_xdr": "AAAAAAAAAAYAAAAAAAAAASn7ZpWcbH1cQjuZOoqihmcAyPdLhu9UHIE4kZO5PkcxAAAAFAAAAAEAAAATAAAAAGusNDDdfJvx5g2NUpygjgXV7zDQ7R/z1C5hsSQ2AY/hAAAAAQAAAAEAAAAPAAAABWNvdW50AAAAAAAAAwAAAAEAAAAA",
+       "after_xdr": "AAAAAAAAAAYAAAAAAAAAASn7ZpWcbH1cQjuZOoqihmcAyPdLhu9UHIE4kZO5PkcxAAAAFAAAAAEAAAATAAAAAGusNDDdfJvx5g2NUpygjgXV7zDQ7R/z1C5hsSQ2AY/hAAAAAQAAAAEAAAAPAAAABWNvdW50AAAAAAAAAwAAAAIAAAAA",
+       "live_until_ledger": 4294967295
+      }
+     ],
+     "resources": {
+      "instructions": 384710,
+      "disk_read_bytes": 0,
+      "write_bytes": 208,
+      "footprint": {
+       "read_only": [
+        "AAAAAAAAAAA7mRE4Dv6Yi6CokA6xz+RPNm99vpRr7QdyQPf2JN8VxQ==",
+        "AAAAB2usNDDdfJvx5g2NUpygjgXV7zDQ7R/z1C5hsSQ2AY/h"
+       ],
+       "read_write": [
+        "AAAABgAAAAAAAAAAO5kROA7+mIugqJAOsc/kTzZvfb6Ua+0HckD39iTfFcUAAAAVRE2xbHCE75cAAAAA",
+        "AAAABgAAAAEp+2aVnGx9XEI7mTqKooZnAMj3S4bvVByBOJGTuT5HMQAAABQAAAAB"
+       ]
+      }
+     },
+     "fee": {
+      "resource_fee": 11019790
+     },
+     "misses": [
+      "AAAAAAAAAAA7mRE4Dv6Yi6CokA6xz+RPNm99vpRr7QdyQPf2JN8VxQ==",
+      "AAAABgAAAAAAAAAAO5kROA7+mIugqJAOsc/kTzZvfb6Ua+0HckD39iTfFcUAAAAVRE2xbHCE75cAAAAA"
+     ],
+     "ledger": {
+      "sequence": 100,
+      "timestamp": 0,
+      "protocol": 28
+     },
+     "seed": "af5570f5a1810b7af78caf4bc70a660f0df51e42baf91d4de5b2328de0e83dfc",
+     "auth_mode": "record"
+    }
+   },
+   "diff": {
+    "empty": false,
+    "summary": {
+     "breaking": 6,
+     "behavioural": 0,
+     "cost": 3,
+     "ignored": 0
+    },
+    "outcome": null,
+    "return_value": {
+     "path": "",
+     "a": {
+      "type": "u32",
+      "value": 1
+     },
+     "b": {
+      "type": "u32",
+      "value": 2
+     },
+     "class": "breaking"
+    },
+    "events": {
+     "added": [],
+     "removed": [],
+     "changed": []
+    },
+    "storage": {
+     "added": [
+      {
+       "key": "GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN temporary data {\"type\":\"LedgerKeyNonce\",\"xdr\":\"AAAAFURNsWxwhO+X\"}",
+       "key_xdr": "AAAABgAAAAAAAAAAO5kROA7+mIugqJAOsc/kTzZvfb6Ua+0HckD39iTfFcUAAAAVRE2xbHCE75cAAAAA",
+       "entry": {
+        "contract": "GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN",
+        "durability": "temporary",
+        "key": {
+         "type": "LedgerKeyNonce",
+         "xdr": "AAAAFURNsWxwhO+X"
+        },
+        "kind": "contract_data",
+        "value": null
+       },
+       "class": "breaking"
+      }
+     ],
+     "removed": [
+      {
+       "key": "GAAZI4TCR3TY5OJHCTJC2A4QSY6CJWJH5IAJTGKIN2ER7LBNVKOCCWN7 temporary data {\"type\":\"LedgerKeyNonce\",\"xdr\":\"AAAAFURNsWxwhO+X\"}",
+       "key_xdr": "AAAABgAAAAAAAAAAAZRyYo7njrknFNItA5CWPCTZJ+oAmZlIbokfrC2qnCEAAAAVRE2xbHCE75cAAAAA",
+       "entry": {
+        "contract": "GAAZI4TCR3TY5OJHCTJC2A4QSY6CJWJH5IAJTGKIN2ER7LBNVKOCCWN7",
+        "durability": "temporary",
+        "key": {
+         "type": "LedgerKeyNonce",
+         "xdr": "AAAAFURNsWxwhO+X"
+        },
+        "kind": "contract_data",
+        "value": null
+       },
+       "class": "breaking"
+      }
+     ],
+     "changed": [
+      {
+       "key": "CAU7WZUVTRWH2XCCHOMTVCVCQZTQBSHXJODO6VA4QE4JDE5ZHZDTDHQ5 instance",
+       "key_xdr": "AAAABgAAAAEp+2aVnGx9XEI7mTqKooZnAMj3S4bvVByBOJGTuT5HMQAAABQAAAAB",
+       "path": "/value/storage/count",
+       "a": {
+        "type": "u32",
+        "value": 1
+       },
+       "b": {
+        "type": "u32",
+        "value": 2
+       },
+       "class": "breaking"
+      }
+     ],
+     "ttl": []
+    },
+    "auth": {
+     "client_breaking": true,
+     "added": [
+      {
+       "signer": "GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN",
+       "invocation": {
+        "args": [
+         {
+          "type": "address",
+          "value": "GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN"
+         }
+        ],
+        "contract_id": "CAU7WZUVTRWH2XCCHOMTVCVCQZTQBSHXJODO6VA4QE4JDE5ZHZDTDHQ5",
+        "function": "increment",
+        "sub_invocations": []
+       },
+       "class": "breaking"
+      }
+     ],
+     "removed": [
+      {
+       "signer": "GAAZI4TCR3TY5OJHCTJC2A4QSY6CJWJH5IAJTGKIN2ER7LBNVKOCCWN7",
+       "invocation": {
+        "args": [
+         {
+          "type": "address",
+          "value": "GAAZI4TCR3TY5OJHCTJC2A4QSY6CJWJH5IAJTGKIN2ER7LBNVKOCCWN7"
+         }
+        ],
+        "contract_id": "CAU7WZUVTRWH2XCCHOMTVCVCQZTQBSHXJODO6VA4QE4JDE5ZHZDTDHQ5",
+        "function": "increment",
+        "sub_invocations": []
+       },
+       "class": "breaking"
+      }
+     ],
+     "changed": []
+    },
+    "resources": [
+     {
+      "metric": "instructions",
+      "a": 380773,
+      "b": 384710,
+      "delta": 3937,
+      "percent": 1,
+      "class": "cost"
+     },
+     {
+      "metric": "mem_bytes",
+      "a": 1129927,
+      "b": 1130525,
+      "delta": 598,
+      "percent": 0.1,
+      "class": "cost"
+     },
+     {
+      "metric": "resource_fee",
+      "a": 11212524561,
+      "b": 11019790,
+      "delta": -11201504771,
+      "percent": -99.9,
+      "class": "cost"
+     }
+    ]
+   }
+  }
+ ],
+ "simulations": 2
+}

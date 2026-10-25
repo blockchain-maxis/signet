@@ -1,0 +1,275 @@
+{
+ "id": 2,
+ "deployed": "c3295f35c288e9709721d220801fe8c0ff929fcdae18c454ba8abc15cef39e33",
+ "local": "6bac3430dd7c9bf1e60d8d529ca08e05d5ef30d0ed1ff3d42e61b12436018fe1",
+ "outcomes": [
+  {
+   "name": "get",
+   "a": {
+    "result": {
+     "return_value_xdr": "AAAAAwAAAAA=",
+     "return_value": 0,
+     "events": [],
+     "cost": {
+      "cpu_insns": 282900,
+      "mem_bytes": 1128283
+     },
+     "logs": [],
+     "resources": {
+      "instructions": 282900,
+      "disk_read_bytes": 0,
+      "write_bytes": 0,
+      "footprint": {
+       "read_only": [
+        "AAAABgAAAAEjS1fe0dTL0HfzZaAeo7zE7Qo3EnB7BXTlAIoYsFmWYwAAABQAAAAB",
+        "AAAAB8MpXzXCiOlwlyHSIIAf6MD/kp/NrhjEVLqKvBXO854z"
+       ],
+       "read_write": []
+      }
+     },
+     "fee": {
+      "resource_fee": 5156
+     },
+     "ledger": {
+      "sequence": 100,
+      "timestamp": 0,
+      "protocol": 28
+     },
+     "seed": "af5570f5a1810b7af78caf4bc70a660f0df51e42baf91d4de5b2328de0e83dfc",
+     "auth_mode": "record"
+    }
+   },
+   "b": {
+    "result": {
+     "return_value_xdr": "AAAAAwAAAAA=",
+     "return_value": 0,
+     "events": [],
+     "cost": {
+      "cpu_insns": 274014,
+      "mem_bytes": 1127294
+     },
+     "logs": [],
+     "resources": {
+      "instructions": 274014,
+      "disk_read_bytes": 0,
+      "write_bytes": 0,
+      "footprint": {
+       "read_only": [
+        "AAAABgAAAAEjS1fe0dTL0HfzZaAeo7zE7Qo3EnB7BXTlAIoYsFmWYwAAABQAAAAB",
+        "AAAAB2usNDDdfJvx5g2NUpygjgXV7zDQ7R/z1C5hsSQ2AY/h"
+       ],
+       "read_write": []
+      }
+     },
+     "fee": {
+      "resource_fee": 5154
+     },
+     "ledger": {
+      "sequence": 100,
+      "timestamp": 0,
+      "protocol": 28
+     },
+     "seed": "af5570f5a1810b7af78caf4bc70a660f0df51e42baf91d4de5b2328de0e83dfc",
+     "auth_mode": "record"
+    }
+   },
+   "diff": {
+    "empty": false,
+    "summary": {
+     "breaking": 0,
+     "behavioural": 0,
+     "cost": 3,
+     "ignored": 0
+    },
+    "outcome": null,
+    "return_value": null,
+    "events": {
+     "added": [],
+     "removed": [],
+     "changed": []
+    },
+    "storage": {
+     "added": [],
+     "removed": [],
+     "changed": [],
+     "ttl": []
+    },
+    "auth": {
+     "client_breaking": false,
+     "added": [],
+     "removed": [],
+     "changed": []
+    },
+    "resources": [
+     {
+      "metric": "instructions",
+      "a": 282900,
+      "b": 274014,
+      "delta": -8886,
+      "percent": -3.1,
+      "class": "cost"
+     },
+     {
+      "metric": "mem_bytes",
+      "a": 1128283,
+      "b": 1127294,
+      "delta": -989,
+      "percent": -0.1,
+      "class": "cost"
+     },
+     {
+      "metric": "resource_fee",
+      "a": 5156,
+      "b": 5154,
+      "delta": -2,
+      "percent": -0,
+      "class": "cost"
+     }
+    ]
+   }
+  },
+  {
+   "name": "increment",
+   "a": {
+    "result": {
+     "return_value_xdr": "AAAAAwAAAAE=",
+     "return_value": 1,
+     "events": [],
+     "cost": {
+      "cpu_insns": 295262,
+      "mem_bytes": 1129293
+     },
+     "logs": [],
+     "modified_entries": [
+      {
+       "key_xdr": "AAAABgAAAAEjS1fe0dTL0HfzZaAeo7zE7Qo3EnB7BXTlAIoYsFmWYwAAABQAAAAB",
+       "before_xdr": "AAAAAAAAAAYAAAAAAAAAASNLV97R1MvQd/NloB6jvMTtCjcScHsFdOUAihiwWZZjAAAAFAAAAAEAAAATAAAAAMMpXzXCiOlwlyHSIIAf6MD/kp/NrhjEVLqKvBXO854zAAAAAAAAAAA=",
+       "after_xdr": "AAAAAAAAAAYAAAAAAAAAASNLV97R1MvQd/NloB6jvMTtCjcScHsFdOUAihiwWZZjAAAAFAAAAAEAAAATAAAAAMMpXzXCiOlwlyHSIIAf6MD/kp/NrhjEVLqKvBXO854zAAAAAQAAAAEAAAAPAAAABWNvdW50AAAAAAAAAwAAAAEAAAAA",
+       "live_until_ledger": 4294967295
+      }
+     ],
+     "resources": {
+      "instructions": 295262,
+      "disk_read_bytes": 0,
+      "write_bytes": 132,
+      "footprint": {
+       "read_only": [
+        "AAAAB8MpXzXCiOlwlyHSIIAf6MD/kp/NrhjEVLqKvBXO854z"
+       ],
+       "read_write": [
+        "AAAABgAAAAEjS1fe0dTL0HfzZaAeo7zE7Qo3EnB7BXTlAIoYsFmWYwAAABQAAAAB"
+       ]
+      }
+     },
+     "fee": {
+      "resource_fee": 11201511256
+     },
+     "ledger": {
+      "sequence": 100,
+      "timestamp": 0,
+      "protocol": 28
+     },
+     "seed": "cd2662154e6d76b2b2b92e70c0cac3ccf534f9b74eb5b89819ec509083d00a50",
+     "auth_mode": "record"
+    }
+   },
+   "b": {
+    "error": {
+     "kind": "call",
+     "code": "Refused",
+     "message": "caller: expected Address (G… or C…), got nothing (the argument is missing)",
+     "diagnostic_events": null
+    }
+   },
+   "diff": {
+    "empty": false,
+    "summary": {
+     "breaking": 1,
+     "behavioural": 0,
+     "cost": 0,
+     "ignored": 0
+    },
+    "outcome": {
+     "a": "ok",
+     "b": "call error Refused",
+     "class": "breaking"
+    },
+    "return_value": null,
+    "events": {
+     "added": [],
+     "removed": [],
+     "changed": []
+    },
+    "storage": {
+     "added": [],
+     "removed": [],
+     "changed": [],
+     "ttl": []
+    },
+    "auth": {
+     "client_breaking": false,
+     "added": [],
+     "removed": [],
+     "changed": []
+    },
+    "resources": []
+   }
+  }
+ ],
+ "spec": {
+  "compatible": false,
+  "summary": {
+   "breaking": 2,
+   "compatible": 0,
+   "info": 0
+  },
+  "sdk_versions": {
+   "old": "28.0.0#48d506712f964094d14176e2f0b02afcd1054567",
+   "new": "28.0.0#48d506712f964094d14176e2f0b02afcd1054567"
+  },
+  "sparse_decoding": false,
+  "changes": [
+   {
+    "kind": "function-removed",
+    "path": "functions.upgrade",
+    "class": "breaking",
+    "reason": "Removing a function breaks clients that call it.",
+    "before": {
+     "doc": "",
+     "inputs": [
+      {
+       "doc": "",
+       "name": "hash",
+       "type": {
+        "n": 32,
+        "type": "bytes_n"
+       }
+      }
+     ],
+     "isConstructor": false,
+     "name": "upgrade",
+     "outputs": []
+    }
+   },
+   {
+    "kind": "argument-added",
+    "path": "functions.increment.inputs.caller",
+    "class": "breaking",
+    "reason": "Adding an argument changes the function signature.",
+    "after": {
+     "doc": "",
+     "name": "caller",
+     "type": "address"
+    }
+   }
+  ]
+ },
+ "layout": {
+  "compatible": true,
+  "sparse_decoding": false,
+  "checked": 1,
+  "unmatched_values": 0,
+  "findings": []
+ },
+ "simulations": 4
+}

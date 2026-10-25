@@ -1,6 +1,7 @@
 import { lazy, Suspense, useEffect, useMemo, useState } from 'react';
 import type { SandboxTrace } from '@signet/visualiser';
 import { ApiError, createApi, takeToken, type Api, type SessionEvent } from './api.ts';
+import { DiffView, type DiffCycle } from './diff/DiffView.tsx';
 // The diagram brings the spec reader and the renderer: loaded on first use.
 const DiagramView = lazy(() => import('./DiagramView.tsx').then((m) => ({ default: m.DiagramView })));
 const StateView = lazy(() => import('./state/StateView.tsx').then((m) => ({ default: m.StateView })));
@@ -254,7 +255,12 @@ export function App() {
               <CallView api={api} refresh={cycleRefresh} />
             </Suspense>
           ) : (
-            <CycleTable cycle={cycle} />
+            <>
+              <CycleTable cycle={cycle} />
+              {cycle.state === 'ok' && cycle.value.outcomes.length > 0 && (
+                <DiffView cycle={cycle.value as unknown as DiffCycle} />
+              )}
+            </>
           )}
         </section>
 

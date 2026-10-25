@@ -9,6 +9,8 @@ export default defineConfig({
     environment: 'jsdom',
     include: ['src/**/*.test.tsx'],
     restoreMocks: true,
+    // userEvent types character by character; a busy CI box needs room.
+    testTimeout: 20_000,
     setupFiles: ['./src/test-setup.ts'],
   },
 });

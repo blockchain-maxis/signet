@@ -1,0 +1,153 @@
+{
+ "id": 3,
+ "deployed": "c7a59cb1551d396753e96879ee42f186b5ecefc7761849cdd787fb5fd7239d08",
+ "local": "7b2757fc001ecfdd2d5a736778f5817577ea2321ee9c421182167719fa9704af",
+ "outcomes": [
+  {
+   "name": "get_profile",
+   "a": {
+    "result": {
+     "return_value_xdr": "AAAAEQAAAAEAAAACAAAADwAAAAJpZAAAAAAAAwAAAAEAAAAPAAAABG5hbWUAAAAOAAAAA2FkYQA=",
+     "return_value": {
+      "id": 1,
+      "name": "ada"
+     },
+     "events": [],
+     "cost": {
+      "cpu_insns": 310414,
+      "mem_bytes": 1195440
+     },
+     "logs": [],
+     "resources": {
+      "instructions": 310414,
+      "disk_read_bytes": 0,
+      "write_bytes": 0,
+      "footprint": {
+       "read_only": [
+        "AAAABgAAAAHS/bqIzynFO6Fp1qB+hHJ3VzxYcSsKVi97QoPrNvOGLQAAABQAAAAB",
+        "AAAAB8elnLFVHTlnU+loee5C8Ya17O/HdhhJzdeH+1/XI50I"
+       ],
+       "read_write": []
+      }
+     },
+     "fee": {
+      "resource_fee": 5299
+     },
+     "ledger": {
+      "sequence": 100,
+      "timestamp": 0,
+      "protocol": 28
+     },
+     "seed": "af5570f5a1810b7af78caf4bc70a660f0df51e42baf91d4de5b2328de0e83dfc",
+     "auth_mode": "record"
+    }
+   },
+   "b": {
+    "error": {
+     "kind": "host",
+     "code": "Error(WasmVm, InvalidAction)",
+     "message": "Error(WasmVm, InvalidAction)",
+     "diagnostic_events": [],
+     "cost": {
+      "cpu_insns": 286999,
+      "mem_bytes": 1195228
+     },
+     "ledger": {
+      "sequence": 100,
+      "timestamp": 0,
+      "protocol": 28
+     },
+     "seed": "af5570f5a1810b7af78caf4bc70a660f0df51e42baf91d4de5b2328de0e83dfc",
+     "auth_mode": "record"
+    }
+   },
+   "diff": {
+    "empty": false,
+    "summary": {
+     "breaking": 1,
+     "behavioural": 0,
+     "cost": 0,
+     "ignored": 0
+    },
+    "outcome": {
+     "a": "ok",
+     "b": "host error Error(WasmVm, InvalidAction)",
+     "class": "breaking"
+    },
+    "return_value": null,
+    "events": {
+     "added": [],
+     "removed": [],
+     "changed": []
+    },
+    "storage": {
+     "added": [],
+     "removed": [],
+     "changed": [],
+     "ttl": []
+    },
+    "auth": {
+     "client_breaking": false,
+     "added": [],
+     "removed": [],
+     "changed": []
+    },
+    "resources": []
+   }
+  }
+ ],
+ "spec": {
+  "compatible": false,
+  "summary": {
+   "breaking": 1,
+   "compatible": 0,
+   "info": 0
+  },
+  "sdk_versions": {
+   "old": "28.0.0#48d506712f964094d14176e2f0b02afcd1054567",
+   "new": "28.0.0#48d506712f964094d14176e2f0b02afcd1054567"
+  },
+  "sparse_decoding": true,
+  "changes": [
+   {
+    "kind": "field-added",
+    "path": "types.Profile.fields.age",
+    "class": "breaking",
+    "reason": "Adding a field changes the declared data shape.",
+    "rule": "cap86-sparse-required",
+    "storage_note": "The new build reads structs sparsely, but the field is not an Option: a stored value without it does not decode.",
+    "after": {
+     "doc": "",
+     "name": "age",
+     "type": "u32"
+    }
+   }
+  ]
+ },
+ "layout": {
+  "compatible": false,
+  "sparse_decoding": true,
+  "checked": 1,
+  "unmatched_values": 0,
+  "findings": [
+   {
+    "key": "CDJP3OUIZ4U4KO5BNHLKA7UEOJ3VOPCYOEVQUVRPPNBIH2ZW6ODC3T2B instance",
+    "key_xdr": "AAAABgAAAAHS/bqIzynFO6Fp1qB+hHJ3VzxYcSsKVi97QoPrNvOGLQAAABQAAAAB",
+    "decoded_key": "profile",
+    "in_instance": true,
+    "udt": "Profile",
+    "reason": "the new Profile does not decode the stored value: age: field missing from Profile",
+    "evidence": "static"
+   },
+   {
+    "key": "CDJP3OUIZ4U4KO5BNHLKA7UEOJ3VOPCYOEVQUVRPPNBIH2ZW6ODC3T2B instance",
+    "key_xdr": "AAAABgAAAAHS/bqIzynFO6Fp1qB+hHJ3VzxYcSsKVi97QoPrNvOGLQAAABQAAAAB",
+    "decoded_key": "profile",
+    "udt": "Profile",
+    "reason": "`get_profile` failed on the new build with Error(WasmVm, InvalidAction) after the deployed code read this key on the same call",
+    "evidence": "replay"
+   }
+  ]
+ },
+ "simulations": 2
+}
