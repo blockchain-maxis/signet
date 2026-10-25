@@ -3,6 +3,7 @@ import type { SandboxTrace } from '@signet/visualiser';
 import { ApiError, createApi, takeToken, type Api, type SessionEvent } from './api.ts';
 // The diagram brings the spec reader and the renderer: loaded on first use.
 const DiagramView = lazy(() => import('./DiagramView.tsx').then((m) => ({ default: m.DiagramView })));
+const CallView = lazy(() => import('./call/CallView.tsx').then((m) => ({ default: m.CallView })));
 
 interface Session {
   contract: string;
@@ -81,13 +82,14 @@ function useLoad<T>(api: Api | null, path: string, refresh: number): Load<T> {
   return load;
 }
 
-type View = 'cycle' | 'diagram';
+type View = 'cycle' | 'call' | 'diagram';
+const VIEWS: readonly View[] = ['cycle', 'call', 'diagram'];
+const VIEW_NAMES: Record<View, string> = { cycle: 'Cycle', call: 'Call', diagram: 'Diagram' };
 
 /** The view in the fragment (`#view=diagram`), as `signet visualise --open` asks for it. */
 function viewFromHash(): View {
-  return new URLSearchParams(window.location.hash.replace(/^#/, '')).get('view') === 'diagram'
-    ? 'diagram'
-    : 'cycle';
+  const v = new URLSearchParams(window.location.hash.replace(/^#/, '')).get('view');
+  return VIEWS.includes(v as View) ? (v as View) : 'cycle';
 }
 
 export function App() {
@@ -95,7 +97,7 @@ export function App() {
   const [view, setView] = useState<View>(() => viewFromHash());
   const show = (next: View) => {
     setView(next);
-    window.history.replaceState(null, '', next === 'diagram' ? '#view=diagram' : window.location.pathname);
+    window.history.replaceState(null, '', next === 'cycle' ? window.location.pathname : `#view=${next}`);
   };
   const api = useMemo(() => (token ? createApi(token) : null), [token]);
   const [events, setEvents] = useState<SessionEvent[]>([]);
@@ -187,10 +189,10 @@ export function App() {
       <main className="grid gap-px bg-line lg:grid-cols-[1fr_22rem]">
         <section aria-labelledby="cycle-heading" className="min-w-0 bg-page p-4">
           <nav aria-label="Views" className="mb-3 flex gap-1 text-sm">
-            {(['cycle', 'diagram'] as const).map((v) => (
+            {VIEWS.map((v) => (
               <a
                 key={v}
-                href={v === 'diagram' ? '#view=diagram' : '#'}
+                href={v === 'cycle' ? '#' : `#view=${v}`}
                 aria-current={view === v ? 'page' : undefined}
                 onClick={(e) => {
                   e.preventDefault();
@@ -200,13 +202,13 @@ export function App() {
                   view === v ? 'border-accent text-ink' : 'border-line text-muted hover:text-ink'
                 }`}
               >
-                {v === 'cycle' ? 'Cycle' : 'Diagram'}
+                {VIEW_NAMES[v]}
               </a>
             ))}
           </nav>
           <div className="flex items-baseline gap-3">
             <h2 id="cycle-heading" className="text-sm font-semibold">
-              {view === 'diagram' ? "This build's diagram" : 'Latest cycle'}
+              {view === 'diagram' ? "This build's diagram" : view === 'call' ? 'Call a function' : 'Latest cycle'}
             </h2>
             {cycle.state === 'ok' && (
               <p className="font-mono text-xs text-muted">
@@ -233,6 +235,12 @@ export function App() {
                 />
               </Suspense>
             ) : null
+          ) : view === 'call' ? (
+            <Suspense
+              fallback={<div className="mt-4 h-64 animate-pulse rounded bg-raised" aria-label="loading the form" />}
+            >
+              <CallView api={api} refresh={cycleRefresh} />
+            </Suspense>
           ) : (
             <CycleTable cycle={cycle} />
           )}

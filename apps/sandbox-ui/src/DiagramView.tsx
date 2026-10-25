@@ -186,7 +186,7 @@ function TracePanel({
               <tr
                 key={r.index}
                 data-differs={r.differs || undefined}
-                className={`border-b border-line/60 align-top ${r.differs ? 'bg-raised' : ''}`}
+                className={`border-b border-line align-top ${r.differs ? 'bg-raised' : ''}`}
               >
                 {[r.a, r.b].map((f, side) => (
                   <td key={side} className="py-1 pr-3" style={{ paddingLeft: `${r.depth * 1.25}rem` }}>

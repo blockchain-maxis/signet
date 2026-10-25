@@ -1,0 +1,306 @@
+{
+ "schemaVersion": 1,
+ "wasmHash": "7e8f4a11d7228083f7243a6d8a43a4633a7565814369a9337ec95be99724c71a",
+ "sdkVersion": "16.1.0",
+ "entriesXdr": [
+  "AAAABAAAAAAAAAAAAAAABUVycm9yAAAAAAAACQAAAAAAAAASQWxyZWFkeUluaXRpYWxpemVkAAAAAAABAAAAAAAAAA5Ob3RJbml0aWFsaXplZAAAAAAAAgAAAAAAAAALSGFuZGxlVGFrZW4AAAAAAwAAAAAAAAAOSGFuZGxlTm90Rm91bmQAAAAAAAQAAAAAAAAACE5vdE93bmVyAAAABQAAAAAAAAANSW52YWxpZEhhbmRsZQAAAAAAAAYAAAAAAAAAEldhbGxldEFscmVhZHlCb3VuZAAAAAAABwAAAAAAAAAOSGFuZGxlUmVzZXJ2ZWQAAAAAAAgAAAAAAAAADUJhdGNoVG9vTGFyZ2UAAAAAAAAJ",
+  "AAAAAAAAALhCaW5kIGBoYW5kbGVgIHRvIGB3YWxsZXRgLiBSZXF1aXJlcyB0aGUgd2FsbGV0J3MgYXV0aG9yaXphdGlvbiwgd2hpY2gKaXMgdGhlIGNyeXB0b2dyYXBoaWMgcHJvb2Ygb2Ygb3duZXJzaGlwLiBGYWlscyBpZiB0aGUgaGFuZGxlIGlzIGFscmVhZHkKdGFrZW4gb3IgdGhlIHdhbGxldCBhbHJlYWR5IG93bnMgYSBoYW5kbGUuAAAABWNsYWltAAAAAAAAAgAAAAAAAAAGaGFuZGxlAAAAAAAQAAAAAAAAAAZ3YWxsZXQAAAAAABMAAAABAAAD6QAAAAIAAAAD",
+  "AAAAAAAAAeVUaGUgYmluZGluZyBjb3VudGVyOiBhbiBPKDEpIFVQUEVSIEJPVU5EIG9uIGJvdW5kIGhhbmRsZXMsIG5vdCBhIGxpdmUKdG90YWwuIEl0IGlzIGFkanVzdGVkIG9uIGBjbGFpbWAgYW5kIGluIGByZW1vdmVfYmluZGluZ2AsIGJ1dCBhIGJpbmRpbmcKd2hvc2UgcGVyc2lzdGVudCBlbnRyaWVzIGFyY2hpdmUgdW5hY2Nlc3NlZCBydW5zIG5vIGNvbnRyYWN0IGNvZGUsIHNvCm5vdGhpbmcgZXZlciBzdWJ0cmFjdHMgaXQg4oCUIHRoZSBjb3VudGVyIGNhbiBvbmx5IGRyaWZ0IHVwd2FyZCwgYW5kCnRoZXJlIGlzIG5vIG9uLWNoYWluIGxpc3QgdG8gZGVyaXZlIGEgdHJ1ZSB0b3RhbCBmcm9tIChlbnVtZXJhdGUgdmlhCnRoZSBldmVudCBzdHJlYW0pLiBDYWxsZXJzIG11c3QgcHJlc2VudCBpdCBhcyAicmVjb3JkZWQiLCBuZXZlciBhcwoiY3VycmVudGx5IGJvdW5kIjsgb25seSBgcmVzb2x2ZWAgcHJvdmVzIGEgc3BlY2lmaWMgYmluZGluZyBpcyBsaXZlLgAAAAAAAAVjb3VudAAAAAAAAAAAAAABAAAABA==",
+  "AAAAAAAAADFSZXZlcnNlIGxvb2t1cDogdGhlIGhhbmRsZSBhIHdhbGxldCBvd25zLCBpZiBhbnkuAAAAAAAABmxvb2t1cAAAAAAAAQAAAAAAAAAGd2FsbGV0AAAAAAATAAAAAQAAA+gAAAAQ",
+  "AAAAAAAAADdSZWxlYXNlIGEgaGFuZGxlLiBPbmx5IHRoZSBvd25pbmcgd2FsbGV0IG1heSBjYWxsIHRoaXMuAAAAAAdyZWxlYXNlAAAAAAEAAAAAAAAABmhhbmRsZQAAAAAAEAAAAAEAAAPpAAAAAgAAAAM=",
+  "AAAAAAAAADBSZXNvbHZlIGEgaGFuZGxlIHRvIGl0cyBvd25pbmcgd2FsbGV0LCBpZiBib3VuZC4AAAAHcmVzb2x2ZQAAAAABAAAAAAAAAAZoYW5kbGUAAAAAABAAAAABAAAD6AAAABM=",
+  "AAAAAAAAACRXaGV0aGVyIGEgaGFuZGxlIGlzIGN1cnJlbnRseSBib3VuZC4AAAAIaXNfYm91bmQAAAABAAAAAAAAAAZoYW5kbGUAAAAAABAAAAABAAAAAQ==",
+  "AAAAAAAAAVVIYW5kIG1vZGVyYXRpb24gYXV0aG9yaXR5IHRvIGBuZXdfYWRtaW5gLiBSZXF1aXJlcyB0aGUgY3VycmVudCBhZG1pbi4KCldpdGhvdXQgdGhpcyB0aGUgYWRtaW4gaXMgd3JpdGUtb25jZTogYSBjb21wcm9taXNlZCBvciBsb3N0IGtleSB3b3VsZCBiZQpwZXJtYW5lbnQsIGFuZCB0aGUgb25seSByZW1lZHkgd291bGQgYmUgcmVkZXBsb3lpbmcgdGhlIHJlZ2lzdHJ5LCB3aGljaAphYmFuZG9ucyBldmVyeSBleGlzdGluZyBiaW5kaW5nLiBSb3RhdGlvbiBpcyBkZWxpYmVyYXRlbHkgc2VwYXJhdGUgZnJvbQpjb250cmFjdCB1cGdyYWRlYWJpbGl0eSDigJQgdGhlIHdhc20gc3RheXMgaW1tdXRhYmxlLgAAAAAAAAlzZXRfYWRtaW4AAAAAAAABAAAAAAAAAAluZXdfYWRtaW4AAAAAAAATAAAAAQAAA+kAAAACAAAAAw==",
+  "AAAAAAAAAaVPbmUtdGltZSBzZXR1cC4gUmVjb3JkcyB0aGUgYWRtaW4gdXNlZCBmb3IgbW9kZXJhdGlvbiBhY3Rpb25zLgoKYGFkbWluLnJlcXVpcmVfYXV0aCgpYCBpcyB3aGF0IHN0b3BzIHRoZSBkZXBsb3ltZW50IGJlaW5nIGhpamFja2VkLgpEZXBsb3lpbmcgYW5kIGluaXRpYWxpemluZyBhcmUgdHdvIHNlcGFyYXRlIHRyYW5zYWN0aW9ucywgc28gd2l0aG91dCBpdAphbnlvbmUgd2F0Y2hpbmcgdGhlIGxlZGdlciBjb3VsZCBsYW5kIHRoZWlyIG93biBgaW5pdGlhbGl6ZWAgaW4gdGhlIGdhcCwKYmVjb21lIGFkbWluLCBhbmQgaG9sZCBgYWRtaW5fcmV2b2tlYCDigJQgdGhlIHBvd2VyIHRvIGZvcmNlLXVuYmluZCBhbnkKaGFuZGxlIOKAlCBwZXJtYW5lbnRseSwgc2luY2UgdGhlIHJlZ2lzdHJ5IGNhbiBvbmx5IGJlIGluaXRpYWxpemVkIG9uY2UuAAAAAAAACmluaXRpYWxpemUAAAAAAAEAAAAAAAAABWFkbWluAAAAAAAAEwAAAAEAAAPpAAAAAgAAAAM=",
+  "AAAAAAAAADtGb3JjZS1yZW1vdmUgYSBiaW5kaW5nLiBBZG1pbi1vbmx5IG1vZGVyYXRpb24gZXNjYXBlIGhhdGNoLgAAAAAMYWRtaW5fcmV2b2tlAAAAAQAAAAAAAAAGaGFuZGxlAAAAAAAQAAAAAQAAA+kAAAACAAAAAw==",
+  "AAAAAAAAAKtSZXNvbHZlIG11bHRpcGxlIGhhbmRsZXMgdG8gdGhlaXIgb3duaW5nIHdhbGxldHMsIHBvc2l0aW9uYWxseS4KClJldHVybnMgYE5vbmVgIGZvciBhbnkgaGFuZGxlIHRoYXQgaXMgbm90IGN1cnJlbnRseSBib3VuZC4gUmVqZWN0cwpiYXRjaGVzIGxhcmdlciB0aGFuIFtgTUFYX0JBVENIX1NJWkVgXS4AAAAADXJlc29sdmVfYmF0Y2gAAAAAAAABAAAAAAAAAAdoYW5kbGVzAAAAA+oAAAAQAAAAAQAAA+kAAAPqAAAD6AAAABMAAAAD",
+  "AAAAAAAAAKNUcmFuc2ZlciBhIGhhbmRsZSB0byBhIG5ldyB3YWxsZXQuIFJlcXVpcmVzIGF1dGhlbnRpY2F0aW9uIGZyb20gdGhlIGN1cnJlbnQgb3duZXIuCkZhaWxzIGlmIHRoZSBoYW5kbGUgaXMgbm90IGZvdW5kIG9yIGlmIHRoZSB0YXJnZXQgd2FsbGV0IGFscmVhZHkgaG9sZHMgYSBoYW5kbGUuAAAAAA90cmFuc2Zlcl9oYW5kbGUAAAAAAgAAAAAAAAAGaGFuZGxlAAAAAAAQAAAAAAAAAApuZXdfd2FsbGV0AAAAAAATAAAAAQAAA+kAAAACAAAAAw=="
+ ],
+ "functions": [
+  {
+   "name": "claim",
+   "doc": "Bind `handle` to `wallet`. Requires the wallet's authorization, which\nis the cryptographic proof of ownership. Fails if the handle is already\ntaken or the wallet already owns a handle.",
+   "isConstructor": false,
+   "inputs": [
+    {
+     "name": "handle",
+     "doc": "",
+     "type": "string"
+    },
+    {
+     "name": "wallet",
+     "doc": "",
+     "type": "address"
+    }
+   ],
+   "outputs": [
+    {
+     "type": "result",
+     "ok": "void",
+     "error": "error"
+    }
+   ]
+  },
+  {
+   "name": "count",
+   "doc": "The binding counter: an O(1) UPPER BOUND on bound handles, not a live\ntotal. It is adjusted on `claim` and in `remove_binding`, but a binding\nwhose persistent entries archive unaccessed runs no contract code, so\nnothing ever subtracts it — the counter can only drift upward, and\nthere is no on-chain list to derive a true total from (enumerate via\nthe event stream). Callers must present it as \"recorded\", never as\n\"currently bound\"; only `resolve` proves a specific binding is live.",
+   "isConstructor": false,
+   "inputs": [],
+   "outputs": [
+    "u32"
+   ]
+  },
+  {
+   "name": "lookup",
+   "doc": "Reverse lookup: the handle a wallet owns, if any.",
+   "isConstructor": false,
+   "inputs": [
+    {
+     "name": "wallet",
+     "doc": "",
+     "type": "address"
+    }
+   ],
+   "outputs": [
+    {
+     "type": "option",
+     "value": "string"
+    }
+   ]
+  },
+  {
+   "name": "release",
+   "doc": "Release a handle. Only the owning wallet may call this.",
+   "isConstructor": false,
+   "inputs": [
+    {
+     "name": "handle",
+     "doc": "",
+     "type": "string"
+    }
+   ],
+   "outputs": [
+    {
+     "type": "result",
+     "ok": "void",
+     "error": "error"
+    }
+   ]
+  },
+  {
+   "name": "resolve",
+   "doc": "Resolve a handle to its owning wallet, if bound.",
+   "isConstructor": false,
+   "inputs": [
+    {
+     "name": "handle",
+     "doc": "",
+     "type": "string"
+    }
+   ],
+   "outputs": [
+    {
+     "type": "option",
+     "value": "address"
+    }
+   ]
+  },
+  {
+   "name": "is_bound",
+   "doc": "Whether a handle is currently bound.",
+   "isConstructor": false,
+   "inputs": [
+    {
+     "name": "handle",
+     "doc": "",
+     "type": "string"
+    }
+   ],
+   "outputs": [
+    "bool"
+   ]
+  },
+  {
+   "name": "set_admin",
+   "doc": "Hand moderation authority to `new_admin`. Requires the current admin.\n\nWithout this the admin is write-once: a compromised or lost key would be\npermanent, and the only remedy would be redeploying the registry, which\nabandons every existing binding. Rotation is deliberately separate from\ncontract upgradeability — the wasm stays immutable.",
+   "isConstructor": false,
+   "inputs": [
+    {
+     "name": "new_admin",
+     "doc": "",
+     "type": "address"
+    }
+   ],
+   "outputs": [
+    {
+     "type": "result",
+     "ok": "void",
+     "error": "error"
+    }
+   ]
+  },
+  {
+   "name": "initialize",
+   "doc": "One-time setup. Records the admin used for moderation actions.\n\n`admin.require_auth()` is what stops the deployment being hijacked.\nDeploying and initializing are two separate transactions, so without it\nanyone watching the ledger could land their own `initialize` in the gap,\nbecome admin, and hold `admin_revoke` — the power to force-unbind any\nhandle — permanently, since the registry can only be initialized once.",
+   "isConstructor": false,
+   "inputs": [
+    {
+     "name": "admin",
+     "doc": "",
+     "type": "address"
+    }
+   ],
+   "outputs": [
+    {
+     "type": "result",
+     "ok": "void",
+     "error": "error"
+    }
+   ]
+  },
+  {
+   "name": "admin_revoke",
+   "doc": "Force-remove a binding. Admin-only moderation escape hatch.",
+   "isConstructor": false,
+   "inputs": [
+    {
+     "name": "handle",
+     "doc": "",
+     "type": "string"
+    }
+   ],
+   "outputs": [
+    {
+     "type": "result",
+     "ok": "void",
+     "error": "error"
+    }
+   ]
+  },
+  {
+   "name": "resolve_batch",
+   "doc": "Resolve multiple handles to their owning wallets, positionally.\n\nReturns `None` for any handle that is not currently bound. Rejects\nbatches larger than [`MAX_BATCH_SIZE`].",
+   "isConstructor": false,
+   "inputs": [
+    {
+     "name": "handles",
+     "doc": "",
+     "type": {
+      "type": "vec",
+      "element": "string"
+     }
+    }
+   ],
+   "outputs": [
+    {
+     "type": "result",
+     "ok": {
+      "type": "vec",
+      "element": {
+       "type": "option",
+       "value": "address"
+      }
+     },
+     "error": "error"
+    }
+   ]
+  },
+  {
+   "name": "transfer_handle",
+   "doc": "Transfer a handle to a new wallet. Requires authentication from the current owner.\nFails if the handle is not found or if the target wallet already holds a handle.",
+   "isConstructor": false,
+   "inputs": [
+    {
+     "name": "handle",
+     "doc": "",
+     "type": "string"
+    },
+    {
+     "name": "new_wallet",
+     "doc": "",
+     "type": "address"
+    }
+   ],
+   "outputs": [
+    {
+     "type": "result",
+     "ok": "void",
+     "error": "error"
+    }
+   ]
+  }
+ ],
+ "types": [],
+ "errors": [
+  {
+   "enumName": "Error",
+   "name": "AlreadyInitialized",
+   "value": 1,
+   "doc": ""
+  },
+  {
+   "enumName": "Error",
+   "name": "NotInitialized",
+   "value": 2,
+   "doc": ""
+  },
+  {
+   "enumName": "Error",
+   "name": "HandleTaken",
+   "value": 3,
+   "doc": ""
+  },
+  {
+   "enumName": "Error",
+   "name": "HandleNotFound",
+   "value": 4,
+   "doc": ""
+  },
+  {
+   "enumName": "Error",
+   "name": "NotOwner",
+   "value": 5,
+   "doc": ""
+  },
+  {
+   "enumName": "Error",
+   "name": "InvalidHandle",
+   "value": 6,
+   "doc": ""
+  },
+  {
+   "enumName": "Error",
+   "name": "WalletAlreadyBound",
+   "value": 7,
+   "doc": ""
+  },
+  {
+   "enumName": "Error",
+   "name": "HandleReserved",
+   "value": 8,
+   "doc": ""
+  },
+  {
+   "enumName": "Error",
+   "name": "BatchTooLarge",
+   "value": 9,
+   "doc": ""
+  }
+ ],
+ "events": [],
+ "build": {
+  "rustVersion": "1.97.1",
+  "sdkVersion": "29.0.1#e1671a0cb58d4b8c0bb8de115caf080ca01676e8",
+  "entries": {
+   "rsver": "1.97.1",
+   "rssdkver": "29.0.1#e1671a0cb58d4b8c0bb8de115caf080ca01676e8",
+   "rssdk_spec_shaking": "2"
+  }
+ },
+ "env": {
+  "protocolVersion": 29,
+  "preRelease": 0
+ },
+ "warnings": [],
+ "provenance": "embedded"
+}

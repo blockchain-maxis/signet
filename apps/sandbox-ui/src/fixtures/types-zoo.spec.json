@@ -1,0 +1,464 @@
+{
+ "schemaVersion": 1,
+ "wasmHash": "02ef70d0c788ab498217f3f38d234575a01622d9c166af443c7d8dc6a245ab7d",
+ "sdkVersion": "16.1.0",
+ "entriesXdr": [
+  "AAAAAwAAACtVbml0LW9ubHkgdmFyaWFudHM6IGVtaXR0ZWQgYXMgYSBzcGVjIGVudW0uAAAAAAAAAAAFQ29sb3IAAAAAAAACAAAADlRoZSBjb2xvciByZWQuAAAAAAADUmVkAAAAAAEAAAAQVGhlIGNvbG9yIGdyZWVuLgAAAAVHcmVlbgAAAAAAAAI=",
+  "AAAAAgAAAChUdXBsZSB2YXJpYW50czogZW1pdHRlZCBhcyBhIHNwZWMgdW5pb24uAAAAAAAAAAVTaGFwZQAAAAAAAAIAAAABAAAAFUEgcG9pbnQgaW4gdGhlIHBsYW5lLgAAAAAAAAVQb2ludAAAAAAAAAIAAAAEAAAABAAAAAAAAAAPTm90aGluZyBhdCBhbGwuAAAAAAVFbXB0eQAAAA==",
+  "AAAAAQAAACNUb3Agb2YgYSB0aHJlZS1sZXZlbCBuZXN0aW5nIGNoYWluLgAAAAAAAAAABkxldmVsMQAAAAAAAQAAABBUaGUgbGV2ZWwgYmVsb3cuAAAABWlubmVyAAAAAAAH0AAAAAZMZXZlbDIAAA==",
+  "AAAAAQAAABVTZWNvbmQgbmVzdGluZyBsZXZlbC4AAAAAAAAAAAAABkxldmVsMgAAAAAAAQAAABBUaGUgbGV2ZWwgYmVsb3cuAAAABWlubmVyAAAAAAAH0AAAAAZMZXZlbDMAAA==",
+  "AAAAAQAAABRUaGlyZCBuZXN0aW5nIGxldmVsLgAAAAAAAAAGTGV2ZWwzAAAAAAABAAAAFUEgcGxhaW4gaW50ZWdlciBsZWFmLgAAAAAAAAV2YWx1ZQAAAAAAAAQ=",
+  "AAAABAAAACpUaGUgZXJyb3Igc2V0IGZvciB0aGUgZmFsbGlibGUgZGVtbyBiZWxvdy4AAAAAAAAAAAAIWm9vRXJyb3IAAAABAAAAG1RoZSBpbnB1dCB3YXMgb3V0IG9mIHJhbmdlLgAAAAAKT3V0T2ZSYW5nZQAAAAAAAQ==",
+  "AAAAAAAAABpFY2hvZXMgYW4gYWNjb3VudCBhZGRyZXNzLgAAAAAAA3dobwAAAAABAAAAAAAAAAN3aG8AAAAAEwAAAAEAAAAT",
+  "AAAAAAAAABFFY2hvZXMgYSBib29sZWFuLgAAAAAAAARmbGlwAAAAAQAAAAAAAAABdgAAAAAAAAEAAAABAAAAAQ==",
+  "AAAAAAAAAC1FY2hvZXMgZXZlcnkgaW50ZWdlciB3aWR0aCB0aGUgc3BlYyBzdXBwb3J0cy4AAAAAAAAEaW50cwAAAAgAAAAAAAAAAWEAAAAAAAAEAAAAAAAAAAFiAAAAAAAABQAAAAAAAAABYwAAAAAAAAYAAAAAAAAAAWQAAAAAAAAHAAAAAAAAAAFlAAAAAAAACgAAAAAAAAABZgAAAAAAAAsAAAAAAAAAAWcAAAAAAAAMAAAAAAAAAAFoAAAAAAAADQAAAAEAAAAE",
+  "AAAAAAAAABBFY2hvZXMgYSB2ZWN0b3IuAAAABG1hbnkAAAABAAAAAAAAAAF2AAAAAAAD6gAAAAQAAAABAAAD6gAAAAQ=",
+  "AAAAAAAAACVSZXR1cm5zIG5vdGhpbmc6IHRoZSB2b2lkIG91dHB1dCBhcm0uAAAAAAAABG5vb3AAAAAAAAAAAA==",
+  "AAAAAAAAABxFY2hvZXMgYSBoZXRlcm9nZW5lb3VzIHBhaXIuAAAABHBhaXIAAAABAAAAAAAAAAFwAAAAAAAD7QAAAAIAAAAEAAAAEQAAAAEAAAPtAAAAAgAAAAQAAAAR",
+  "AAAAAAAAAB5FY2hvZXMgbGVkZ2VyLXRpbWUgcHJpbWl0aXZlcy4AAAAAAAR3aGVuAAAAAgAAAAAAAAACYXQAAAAAAAgAAAAAAAAABWxhc3RzAAAAAAAACQAAAAEAAAAI",
+  "AAAAAAAAACJFY2hvZXMgdGV4dCBhbmQgYmluYXJ5IHByaW1pdGl2ZXMuAAAAAAAFYmxvYnMAAAAAAAAEAAAAAAAAAAFzAAAAAAAAEAAAAAAAAAADc3ltAAAAABEAAAAAAAAAAWIAAAAAAAAOAAAAAAAAAAVmaXhlZAAAAAAAA+4AAAAgAAAAAQAAAA4=",
+  "AAAAAAAAABlFY2hvZXMgYW4gb3B0aW9uYWwgdmFsdWUuAAAAAAAABW1heWJlAAAAAAAAAQAAAAAAAAABdgAAAAAAA+gAAAAEAAAAAQAAA+gAAAAE",
+  "AAAAAAAAABVFY2hvZXMgdGhlIHVuaXQgZW51bS4AAAAAAAAFcGFpbnQAAAAAAAABAAAAAAAAAAFjAAAAAAAH0AAAAAVDb2xvcgAAAAAAAAEAAAfQAAAABUNvbG9yAAAA",
+  "AAAAAAAAABZFY2hvZXMgdGhlIHR1cGxlIGVudW0uAAAAAAAFc2hhcGUAAAAAAAABAAAAAAAAAAFzAAAAAAAH0AAAAAVTaGFwZQAAAAAAAAEAAAfQAAAABVNoYXBlAAAA",
+  "AAAAAAAAAA1FY2hvZXMgYSBtYXAuAAAAAAAABmxvb2t1cAAAAAAAAQAAAAAAAAABbQAAAAAAA+wAAAARAAAABAAAAAEAAAPsAAAAEQAAAAQ=",
+  "AAAAAAAAAB5FY2hvZXMgdGhlIHRocmVlLWxldmVsIHN0cnVjdC4AAAAAAAZuZXN0ZWQAAAAAAAEAAAAAAAAAAXYAAAAAAAfQAAAABkxldmVsMQAAAAAAAQAAB9AAAAAGTGV2ZWwxAAA=",
+  "AAAAAAAAABhFY2hvZXMgYSBmYWxsaWJsZSB2YWx1ZS4AAAAIZmFsbGlibGUAAAABAAAAAAAAAAF2AAAAAAAD6QAAAAQAAAfQAAAACFpvb0Vycm9yAAAAAQAAA+kAAAAEAAAH0AAAAAhab29FcnJvcg=="
+ ],
+ "functions": [
+  {
+   "name": "who",
+   "doc": "Echoes an account address.",
+   "isConstructor": false,
+   "inputs": [
+    {
+     "name": "who",
+     "doc": "",
+     "type": "address"
+    }
+   ],
+   "outputs": [
+    "address"
+   ]
+  },
+  {
+   "name": "flip",
+   "doc": "Echoes a boolean.",
+   "isConstructor": false,
+   "inputs": [
+    {
+     "name": "v",
+     "doc": "",
+     "type": "bool"
+    }
+   ],
+   "outputs": [
+    "bool"
+   ]
+  },
+  {
+   "name": "ints",
+   "doc": "Echoes every integer width the spec supports.",
+   "isConstructor": false,
+   "inputs": [
+    {
+     "name": "a",
+     "doc": "",
+     "type": "u32"
+    },
+    {
+     "name": "b",
+     "doc": "",
+     "type": "i32"
+    },
+    {
+     "name": "c",
+     "doc": "",
+     "type": "u64"
+    },
+    {
+     "name": "d",
+     "doc": "",
+     "type": "i64"
+    },
+    {
+     "name": "e",
+     "doc": "",
+     "type": "u128"
+    },
+    {
+     "name": "f",
+     "doc": "",
+     "type": "i128"
+    },
+    {
+     "name": "g",
+     "doc": "",
+     "type": "u256"
+    },
+    {
+     "name": "h",
+     "doc": "",
+     "type": "i256"
+    }
+   ],
+   "outputs": [
+    "u32"
+   ]
+  },
+  {
+   "name": "many",
+   "doc": "Echoes a vector.",
+   "isConstructor": false,
+   "inputs": [
+    {
+     "name": "v",
+     "doc": "",
+     "type": {
+      "type": "vec",
+      "element": "u32"
+     }
+    }
+   ],
+   "outputs": [
+    {
+     "type": "vec",
+     "element": "u32"
+    }
+   ]
+  },
+  {
+   "name": "noop",
+   "doc": "Returns nothing: the void output arm.",
+   "isConstructor": false,
+   "inputs": [],
+   "outputs": []
+  },
+  {
+   "name": "pair",
+   "doc": "Echoes a heterogeneous pair.",
+   "isConstructor": false,
+   "inputs": [
+    {
+     "name": "p",
+     "doc": "",
+     "type": {
+      "type": "tuple",
+      "elements": [
+       "u32",
+       "symbol"
+      ]
+     }
+    }
+   ],
+   "outputs": [
+    {
+     "type": "tuple",
+     "elements": [
+      "u32",
+      "symbol"
+     ]
+    }
+   ]
+  },
+  {
+   "name": "when",
+   "doc": "Echoes ledger-time primitives.",
+   "isConstructor": false,
+   "inputs": [
+    {
+     "name": "at",
+     "doc": "",
+     "type": "timepoint"
+    },
+    {
+     "name": "lasts",
+     "doc": "",
+     "type": "duration"
+    }
+   ],
+   "outputs": [
+    "timepoint"
+   ]
+  },
+  {
+   "name": "blobs",
+   "doc": "Echoes text and binary primitives.",
+   "isConstructor": false,
+   "inputs": [
+    {
+     "name": "s",
+     "doc": "",
+     "type": "string"
+    },
+    {
+     "name": "sym",
+     "doc": "",
+     "type": "symbol"
+    },
+    {
+     "name": "b",
+     "doc": "",
+     "type": "bytes"
+    },
+    {
+     "name": "fixed",
+     "doc": "",
+     "type": {
+      "type": "bytes_n",
+      "n": 32
+     }
+    }
+   ],
+   "outputs": [
+    "bytes"
+   ]
+  },
+  {
+   "name": "maybe",
+   "doc": "Echoes an optional value.",
+   "isConstructor": false,
+   "inputs": [
+    {
+     "name": "v",
+     "doc": "",
+     "type": {
+      "type": "option",
+      "value": "u32"
+     }
+    }
+   ],
+   "outputs": [
+    {
+     "type": "option",
+     "value": "u32"
+    }
+   ]
+  },
+  {
+   "name": "paint",
+   "doc": "Echoes the unit enum.",
+   "isConstructor": false,
+   "inputs": [
+    {
+     "name": "c",
+     "doc": "",
+     "type": {
+      "type": "named",
+      "name": "Color"
+     }
+    }
+   ],
+   "outputs": [
+    {
+     "type": "named",
+     "name": "Color"
+    }
+   ]
+  },
+  {
+   "name": "shape",
+   "doc": "Echoes the tuple enum.",
+   "isConstructor": false,
+   "inputs": [
+    {
+     "name": "s",
+     "doc": "",
+     "type": {
+      "type": "named",
+      "name": "Shape"
+     }
+    }
+   ],
+   "outputs": [
+    {
+     "type": "named",
+     "name": "Shape"
+    }
+   ]
+  },
+  {
+   "name": "lookup",
+   "doc": "Echoes a map.",
+   "isConstructor": false,
+   "inputs": [
+    {
+     "name": "m",
+     "doc": "",
+     "type": {
+      "type": "map",
+      "key": "symbol",
+      "value": "u32"
+     }
+    }
+   ],
+   "outputs": [
+    {
+     "type": "map",
+     "key": "symbol",
+     "value": "u32"
+    }
+   ]
+  },
+  {
+   "name": "nested",
+   "doc": "Echoes the three-level struct.",
+   "isConstructor": false,
+   "inputs": [
+    {
+     "name": "v",
+     "doc": "",
+     "type": {
+      "type": "named",
+      "name": "Level1"
+     }
+    }
+   ],
+   "outputs": [
+    {
+     "type": "named",
+     "name": "Level1"
+    }
+   ]
+  },
+  {
+   "name": "fallible",
+   "doc": "Echoes a fallible value.",
+   "isConstructor": false,
+   "inputs": [
+    {
+     "name": "v",
+     "doc": "",
+     "type": {
+      "type": "result",
+      "ok": "u32",
+      "error": {
+       "type": "named",
+       "name": "ZooError"
+      }
+     }
+    }
+   ],
+   "outputs": [
+    {
+     "type": "result",
+     "ok": "u32",
+     "error": {
+      "type": "named",
+      "name": "ZooError"
+     }
+    }
+   ]
+  }
+ ],
+ "types": [
+  {
+   "kind": "enum",
+   "name": "Color",
+   "doc": "Unit-only variants: emitted as a spec enum.",
+   "variants": [
+    {
+     "name": "Red",
+     "doc": "The color red.",
+     "value": 1
+    },
+    {
+     "name": "Green",
+     "doc": "The color green.",
+     "value": 2
+    }
+   ]
+  },
+  {
+   "kind": "union",
+   "name": "Shape",
+   "doc": "Tuple variants: emitted as a spec union.",
+   "cases": [
+    {
+     "name": "Point",
+     "doc": "A point in the plane.",
+     "fields": [
+      {
+       "name": "0",
+       "type": "u32"
+      },
+      {
+       "name": "1",
+       "type": "u32"
+      }
+     ]
+    },
+    {
+     "name": "Empty",
+     "doc": "Nothing at all.",
+     "fields": []
+    }
+   ]
+  },
+  {
+   "kind": "struct",
+   "name": "Level1",
+   "doc": "Top of a three-level nesting chain.",
+   "fields": [
+    {
+     "name": "inner",
+     "doc": "The level below.",
+     "type": {
+      "type": "named",
+      "name": "Level2"
+     }
+    }
+   ]
+  },
+  {
+   "kind": "struct",
+   "name": "Level2",
+   "doc": "Second nesting level.",
+   "fields": [
+    {
+     "name": "inner",
+     "doc": "The level below.",
+     "type": {
+      "type": "named",
+      "name": "Level3"
+     }
+    }
+   ]
+  },
+  {
+   "kind": "struct",
+   "name": "Level3",
+   "doc": "Third nesting level.",
+   "fields": [
+    {
+     "name": "value",
+     "doc": "A plain integer leaf.",
+     "type": "u32"
+    }
+   ]
+  }
+ ],
+ "errors": [
+  {
+   "enumName": "ZooError",
+   "name": "OutOfRange",
+   "value": 1,
+   "doc": "The input was out of range."
+  }
+ ],
+ "events": [],
+ "build": {
+  "rustVersion": "1.97.1",
+  "sdkVersion": "28.0.0#48d506712f964094d14176e2f0b02afcd1054567",
+  "entries": {
+   "rsver": "1.97.1",
+   "rssdkver": "28.0.0#48d506712f964094d14176e2f0b02afcd1054567",
+   "rssdk_spec_shaking": "2"
+  }
+ },
+ "env": {
+  "protocolVersion": 28,
+  "preRelease": 0
+ },
+ "warnings": [],
+ "provenance": "embedded"
+}
