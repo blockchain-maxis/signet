@@ -154,6 +154,10 @@
       },
       "required": ["instructions", "mem_bytes"],
       "additionalProperties": false
+    },
+    "auth_mode": {
+      "enum": ["record", "strict", "enforce"],
+      "description": "How require_auth was answered (#557)"
     }
   },
   "required": ["version", "id", "type", "kind", "code", "message", "diagnostic_events"],

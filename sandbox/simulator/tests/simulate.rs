@@ -239,7 +239,10 @@ fn a_session_claims_resolves_and_refuses_a_taken_handle(lane: u32) {
     // Recording-mode auth: one entry, for the wallet that must sign.
     assert_eq!(claim["auth"].as_array().unwrap().len(), 1, "{claim}");
     assert_eq!(claim["auth_entries"][0]["address"], WALLET, "{claim}");
-    assert_eq!(claim["auth_entries"][0]["root_function"]["function"], "claim");
+    assert_eq!(
+        claim["auth_entries"][0]["root_function"]["function"],
+        "claim"
+    );
     assert_eq!(claim["auth_entries"][0]["credentials"], "address");
     assert!(
         claim["fee"]["resource_fee"].as_i64().unwrap() > 0,
@@ -931,6 +934,54 @@ fn a_saved_session_is_restored_in_a_new_process(lane: u32) {
     );
 }
 
+fn auth_modes_record_strict_and_enforce(lane: u32) {
+    let mut sim = config_only(lane);
+    let (counter, _) = install(&mut sim, &fixture_wasm("counter_v2_auth"));
+    let (relay, _) = install(&mut sim, &fixture_wasm("relay"));
+    let bump = |sim: &mut Sim, extra: Value| {
+        let mut req = json!({
+            "type": "simulate", "contract_id": relay, "function": "bump",
+            "args": { "target": counter, "user": WALLET }, "dry_run": true,
+        });
+        for (k, v) in extra.as_object().unwrap() {
+            req[k] = v.clone();
+        }
+        sim.send(req)
+    };
+
+    // record: approved, and the wallet's nested auth is listed.
+    let recorded = bump(&mut sim, json!({}));
+    assert_eq!(recorded["type"], "result", "{recorded}");
+    assert_eq!(recorded["auth_mode"], "record");
+    let entries = recorded["auth_entries"].as_array().unwrap();
+    assert!(
+        entries
+            .iter()
+            .any(|e| e["address"] == WALLET && e["root_function"]["function"] == "increment"),
+        "{recorded}"
+    );
+
+    // strict: auth below the root invocation is refused, as on the network.
+    let strict = bump(&mut sim, json!({ "auth_mode": "strict" }));
+    assert_eq!(strict["type"], "contract_error", "{strict}");
+    assert_eq!(strict["kind"], "host");
+    assert!(
+        strict["code"].as_str().unwrap().starts_with("Error(Auth"),
+        "{strict}"
+    );
+    assert_eq!(strict["auth_mode"], "strict");
+
+    // enforce: entries are checked; recorded ones carry no signature.
+    let enforced = bump(
+        &mut sim,
+        json!({ "auth_mode": "enforce", "auth_entries": recorded["auth"] }),
+    );
+    assert_eq!(enforced["type"], "contract_error", "{enforced}");
+    assert_eq!(enforced["auth_mode"], "enforce");
+    let missing = bump(&mut sim, json!({ "auth_mode": "enforce" }));
+    assert_eq!(missing["detail"]["path"], "auth_entries", "{missing}");
+}
+
 /// The same suite on every lane (#538): each test above runs once per
 /// ledger protocol the binary carries.
 macro_rules! on_lane {
@@ -1021,6 +1072,10 @@ macro_rules! on_lane {
             #[test]
             fn a_saved_session_is_restored_in_a_new_process() {
                 super::a_saved_session_is_restored_in_a_new_process($protocol)
+            }
+            #[test]
+            fn auth_modes_record_strict_and_enforce() {
+                super::auth_modes_record_strict_and_enforce($protocol)
             }
         }
     };

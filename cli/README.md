@@ -192,6 +192,14 @@ is none) in the local simulator. Nothing is submitted.
   fork. `signet sandbox session reset <name>` forgets them.
 - `--wasm ./x.wasm` swaps a local build in first, as an upgrade would, keeping
   storage.
+- `--auth` decides how `require_auth` is answered. `record` (the default)
+  approves every one and lists who would have had to sign, for which function,
+  with `⚠ auth mocked: signatures were not checked`: a call you hold no keys
+  for still runs. `strict` also refuses auth required below the root call,
+  which the network refuses when no entry covers it; it matters for custom
+  accounts and nested auth. `enforce --auth-entries file.json` checks
+  pre-signed entries (a JSON array of base64 `SorobanAuthorizationEntry`, e.g.
+  from `stellar`); signet signs nothing.
 - A result reads as one of three things: a read (`→ value`: nothing written,
   no auth), a write preview (what it would write and who would have to sign,
   and that nothing was submitted), or the contract refusing, by name. Host

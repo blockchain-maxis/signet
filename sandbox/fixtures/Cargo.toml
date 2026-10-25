@@ -15,6 +15,7 @@ members = [
     "crates/hog",
     "crates/vesting",
     "crates/dice",
+    "crates/relay",
 ]
 
 [workspace.dependencies]

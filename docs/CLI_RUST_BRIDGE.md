@@ -202,6 +202,14 @@ cost model rather than measuring but which only
 [#573](https://github.com/blockchain-maxis/signet/issues/573)'s cross-platform
 check verifies. `status`'s `uptime_ms` is wall-clock and not part of any result.
 
+**Auth ([#557](https://github.com/blockchain-maxis/signet/issues/557)).**
+`simulate`'s `auth_mode` is `record` (the default: every `require_auth` is
+approved and recorded, at any depth, signatures unchecked), `strict` (recording,
+but auth required below the root invocation is refused, as the network does
+without an entry for it), or `enforce` (the pre-signed `auth_entries` are
+checked). Results report the mode and list the recorded auth as `auth_entries`
+(credentials, address, root function).
+
 `simulate` takes **JSON arguments** and the simulator encodes them from the
 contract's spec
 ([#545](https://github.com/blockchain-maxis/signet/issues/545)); this replaces

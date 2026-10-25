@@ -64,6 +64,23 @@ pub struct SimulateBytes {
     pub enable_diagnostics: bool,
     /// Budget overrides (#536); `None` keeps the network's limits.
     pub budget: Option<BudgetOverride>,
+    /// How `require_auth` is answered (#557).
+    pub auth: AuthMode,
+}
+
+/// How a simulation answers `require_auth` (#557).
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub enum AuthMode {
+    /// Approve every `require_auth` and record what it would have needed,
+    /// at any depth. Signatures are not checked.
+    #[default]
+    Record,
+    /// Record, but refuse auth required below the root invocation, as the
+    /// network does when no entry covers it (custom accounts, nested auth).
+    Strict,
+    /// Check these pre-signed `SorobanAuthorizationEntry`s, as the network
+    /// would. Signet signs nothing itself.
+    Enforce(Vec<Vec<u8>>),
 }
 
 /// A caller's budget for one call. Either limit may stay the network's.

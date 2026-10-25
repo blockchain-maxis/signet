@@ -133,6 +133,9 @@
     "forkTime": {
       "type": "string",
       "description": "When the fork ledger closed (RFC 3339)"
+    },
+    "authMode": {
+      "enum": ["record", "strict", "enforce"]
     }
   },
   "required": [
@@ -151,7 +154,8 @@
     "drift",
     "seed",
     "authEntries",
-    "forkTime"
+    "forkTime",
+    "authMode"
   ],
   "additionalProperties": false,
   "allOf": [

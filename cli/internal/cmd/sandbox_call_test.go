@@ -244,3 +244,42 @@ func TestFailuresRenderWithTheirOwnWordsAndKeepTheirExitCodes(t *testing.T) {
 		t.Fatal("other errors pass through untouched")
 	}
 }
+
+func TestSandboxCallAuthModes(t *testing.T) {
+	e := newCallEnv(t)
+	// The registry's claim asks for the wallet's auth at the root call, so
+	// strict mode allows it, and the footer says how auth ran.
+	stdout, stderr, err := e.run(registryContract, "claim", "--arg", "handle=strict-check", "--arg", "wallet="+testWallet, "--auth", "strict")
+	if err != nil {
+		t.Fatalf("%v\n%s", err, stderr)
+	}
+	if !strings.Contains(stdout, "auth mocked (strict)") || !strings.Contains(stdout, "requires auth from GA5Z…ZVN (claim)") {
+		t.Fatalf("stdout:\n%s", stdout)
+	}
+	res := e.json(registryContract, "count", "--auth", "record")
+	if res.AuthMode != "record" {
+		t.Fatalf("authMode = %q", res.AuthMode)
+	}
+
+	for _, args := range [][]string{
+		{registryContract, "count", "--auth", "enforce"},
+		{registryContract, "count", "--auth", "sometimes"},
+		{registryContract, "count", "--auth-entries", "x.json"},
+	} {
+		if _, _, err := e.run(args...); ExitCode(err) != exitcode.InvalidInput {
+			t.Errorf("%v: exit %d (%v), want 2", args, ExitCode(err), err)
+		}
+	}
+
+	// enforce with an unsigned entry: checked, and refused.
+	claim := e.json(registryContract, "claim", "--arg", "handle=enforce-check", "--arg", "wallet="+testWallet)
+	entries, _ := json.Marshal(claim.Auth)
+	file := filepath.Join(t.TempDir(), "auth.json")
+	if err := os.WriteFile(file, entries, 0o600); err != nil {
+		t.Fatal(err)
+	}
+	enforced := e.json(registryContract, "claim", "--arg", "handle=enforce-check", "--arg", "wallet="+testWallet, "--auth", "enforce", "--auth-entries", file)
+	if enforced.Outcome != "contract_error" || enforced.AuthMode != "enforce" {
+		t.Fatalf("enforced = %+v", enforced)
+	}
+}

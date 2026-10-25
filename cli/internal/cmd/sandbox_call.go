@@ -54,6 +54,8 @@ type CallResult struct {
 	Seed           string                    `json:"seed"`
 	// ForkTime is when the fork ledger closed.
 	ForkTime time.Time `json:"forkTime"`
+	// AuthMode is how require_auth was answered: record, strict, enforce.
+	AuthMode string `json:"authMode"`
 }
 
 func newSandboxCallCmd() *cobra.Command {
@@ -63,6 +65,8 @@ func newSandboxCallCmd() *cobra.Command {
 		sourceAccount string
 		wasmPath      string
 		session       string
+		authMode      string
+		authFile      string
 	)
 	cmd := &cobra.Command{
 		Use:   "call <contract> <function>",
@@ -104,6 +108,26 @@ The account a call runs as is --source-account (a G… address), not the root's
 			if err != nil {
 				return err
 			}
+			req := callRequest{authMode: authMode}
+			switch authMode {
+			case "record", "strict":
+				if authFile != "" {
+					return &inputError{"--auth-entries goes with --auth enforce"}
+				}
+			case "enforce":
+				if authFile == "" {
+					return &inputError{"--auth enforce needs --auth-entries <file.json>: pre-signed entries, e.g. from stellar"}
+				}
+				raw, err := os.ReadFile(authFile)
+				if err != nil {
+					return &inputError{fmt.Sprintf("--auth-entries: %v", err)}
+				}
+				if err := json.Unmarshal(raw, &req.authEntries); err != nil {
+					return &inputError{fmt.Sprintf("--auth-entries %s: want a JSON array of base64 SorobanAuthorizationEntry: %v", authFile, err)}
+				}
+			default:
+				return &inputError{"--auth must be record, strict or enforce, not " + strconv.Quote(authMode)}
+			}
 			var wasm []byte
 			if wasmPath != "" {
 				if wasm, err = os.ReadFile(wasmPath); err != nil {
@@ -118,10 +142,8 @@ The account a call runs as is --source-account (a G… address), not the root's
 			defer stop()
 
 			printer := printerFor(cmd)
-			req := callRequest{
-				contract: contract, function: function, args: callArgs,
-				sourceAccount: sourceAccount, wasm: wasm, session: session,
-			}
+			req.contract, req.function, req.args = contract, function, callArgs
+			req.sourceAccount, req.wasm, req.session = sourceAccount, wasm, session
 			res, drift, err := runCall(ctx, deps, network, req, printer.Progress)
 			if err != nil {
 				return err
@@ -156,6 +178,8 @@ The account a call runs as is --source-account (a G… address), not the root's
 	cmd.Flags().StringVar(&sourceAccount, "source-account", "", "the account (G…) the call runs as")
 	cmd.Flags().StringVar(&wasmPath, "wasm", "", "swap this local WASM in first, as an upgrade would, keeping storage")
 	cmd.Flags().StringVar(&session, "session", "", "keep this call's writes under a name, and start from that name's earlier writes")
+	cmd.Flags().StringVar(&authMode, "auth", "record", "how require_auth is answered: record (approve and list it; signatures unchecked), strict (also refuse auth below the root call), enforce (check --auth-entries)")
+	cmd.Flags().StringVar(&authFile, "auth-entries", "", "with --auth enforce: a JSON array of pre-signed base64 SorobanAuthorizationEntry")
 	return cmd
 }
 
@@ -191,6 +215,8 @@ type callRequest struct {
 	sourceAccount      string
 	wasm               []byte
 	session            string
+	authMode           string
+	authEntries        []string
 }
 
 // latestFork returns the newest fork of contract on network, if any.
@@ -288,7 +314,7 @@ func runCall(ctx context.Context, deps Deps, network rpc.Network, req callReques
 	res := CallResult{
 		Contract: req.contract, Function: req.function, Args: req.args, SourceAccount: req.sourceAccount,
 		Network: m.Network, ForkID: info.ID, ForkLedger: m.ForkLedger, Protocol: m.Protocol, Session: req.session,
-		ForkTime: m.ForkTime,
+		ForkTime: m.ForkTime, AuthMode: req.authMode,
 	}
 	if len(req.wasm) > 0 {
 		var installed simulator.ContractInstallResult
@@ -308,6 +334,7 @@ func runCall(ctx context.Context, deps Deps, network rpc.Network, req callReques
 	var out simulator.SimulateResult
 	ce, err := sim.Call(ctx, simulator.TypeSimulate, simulator.SimulateParams{
 		ContractID: req.contract, Function: req.function, Args: req.args, SourceAccount: req.sourceAccount,
+		AuthMode: req.authMode, AuthEntries: req.authEntries,
 	}, &out)
 	if err != nil {
 		res.ForkTime = m.ForkTime
@@ -466,7 +493,7 @@ func callView(res CallResult) render.Call {
 	}
 	for _, a := range res.AuthEntries {
 		if a.Address != "" {
-			c.Signers = append(c.Signers, a.Address)
+			c.Signers = append(c.Signers, render.Signer{Address: a.Address, Function: a.RootFunction.Function})
 		}
 	}
 	readWrite := 0
@@ -494,12 +521,11 @@ func contractCode(code string) int {
 	return n
 }
 
-// callProvenance is the footer's facts. Auth always runs in recording mode
-// for now, so it is always mocked (#557 adds strict and enforce).
+// callProvenance is the footer's facts.
 func callProvenance(res CallResult) render.Provenance {
 	p := render.Provenance{
 		Network: res.Network, ForkLedger: res.ForkLedger, ForkTime: res.ForkTime,
-		Protocol: res.Protocol, Drift: res.Drift.Count(), AuthMocked: true,
+		Protocol: res.Protocol, Drift: res.Drift.Count(), AuthMode: res.AuthMode,
 	}
 	if res.Session != "" {
 		p.Overrides = append(p.Overrides, "session "+res.Session)

@@ -90,6 +90,7 @@ type ContractError struct {
 	Ledger           *LedgerInfo   `json:"ledger,omitempty"`
 	Seed             string        `json:"seed,omitempty"`
 	Budget           *Budget       `json:"budget,omitempty"`
+	AuthMode         string        `json:"auth_mode,omitempty"`
 }
 
 // DecodedError is a contracterror read from the contract's spec (#546).
@@ -324,6 +325,10 @@ type SimulateParams struct {
 	DryRun        bool   `json:"dry_run,omitempty"`
 	// Budget overrides the network's limits, each up to 10x (#536).
 	Budget *Budget `json:"budget,omitempty"`
+	// AuthMode is record (the default), strict or enforce; enforce checks
+	// AuthEntries, pre-signed SorobanAuthorizationEntry XDR (#557).
+	AuthMode    string   `json:"auth_mode,omitempty"`
+	AuthEntries []string `json:"auth_entries,omitempty"`
 }
 
 // Budget is a call's CPU and memory limits.
@@ -353,6 +358,8 @@ type SimulateResult struct {
 	Seed string `json:"seed,omitempty"`
 	// Budget is set when the call ran under an override.
 	Budget *Budget `json:"budget,omitempty"`
+	// AuthMode is how require_auth was answered.
+	AuthMode string `json:"auth_mode,omitempty"`
 }
 
 // Event is one contract event, as XDR, with its spec decoding when there

@@ -66,6 +66,19 @@
         }
       },
       "additionalProperties": false
+    },
+    "auth_mode": {
+      "enum": ["record", "strict", "enforce"],
+      "description": "record (default): approve every require_auth and record it, signatures not checked; strict: record but refuse auth below the root invocation; enforce: check auth_entries (#557)"
+    },
+    "auth_entries": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "pattern": "^[A-Za-z0-9+/]+={0,2}$"
+      },
+      "description": "Pre-signed SorobanAuthorizationEntry XDR, for enforce"
     }
   },
   "required": ["version", "id", "type", "contract_id", "function", "args"],
@@ -348,6 +361,10 @@
             "required": ["credentials", "root_function", "sub_invocations"],
             "additionalProperties": false
           }
+        },
+        "auth_mode": {
+          "enum": ["record", "strict", "enforce"],
+          "description": "How require_auth was answered (#557)"
         }
       },
       "required": ["version", "id", "type", "return_value_xdr", "events", "cost", "logs"],

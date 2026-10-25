@@ -21,8 +21,8 @@ use serde_json::{json, Map, Value};
 
 use crate::dispatch::error_message;
 use crate::lanes::{
-    BudgetOverride, ByteSnapshotSource, DecodeTarget, KeyRequest, Lane, LaneError, SimulateBytes,
-    SimulateResultBytes,
+    AuthMode, BudgetOverride, ByteSnapshotSource, DecodeTarget, KeyRequest, Lane, LaneError,
+    SimulateBytes, SimulateResultBytes,
 };
 use crate::ledger::fetch::FetchingSource;
 use crate::ledger::store::{LayeredStore, Write};
@@ -103,6 +103,15 @@ pub fn simulate(
         Some(Value::String(s)) => s.as_str(),
         Some(_) => return invalid_field(id, "source_account", "an account id (G...)"),
     };
+    let auth = match parse_auth(id, object) {
+        Ok(auth) => auth,
+        Err(reply) => return reply,
+    };
+    let auth_name = match &auth {
+        AuthMode::Record => "record",
+        AuthMode::Strict => "strict",
+        AuthMode::Enforce(_) => "enforce",
+    };
     let budget = match parse_budget(id, object) {
         Ok(budget) => budget,
         Err(reply) => return reply,
@@ -156,6 +165,7 @@ pub fn simulate(
         prng_seed: seed,
         enable_diagnostics: diagnostics,
         budget,
+        auth,
     };
     let src: Rc<dyn ByteSnapshotSource> = fork.clone();
     let outcome = lane.simulate(&request, src);
@@ -220,6 +230,7 @@ pub fn simulate(
                 "misses": misses,
                 "ledger": ledger_info,
                 "seed": hex(&seed),
+                "auth_mode": auth_name,
             });
             if run.budget.overridden {
                 reply["budget"] = budget_json(&run);
@@ -268,6 +279,7 @@ pub fn simulate(
             fields["misses"] = json!(misses);
             fields["ledger"] = ledger_info;
             fields["seed"] = json!(hex(&seed));
+            fields["auth_mode"] = json!(auth_name);
             if run.budget.overridden {
                 fields["budget"] = budget_json(&run);
             }
@@ -374,6 +386,38 @@ fn success_body(
         }
     }
     body
+}
+
+/// `auth_mode` (record, strict, enforce) and, for enforce, `auth_entries`
+/// (#557).
+fn parse_auth(id: &Value, object: &Map<String, Value>) -> Result<AuthMode, Value> {
+    match object.get("auth_mode").and_then(Value::as_str) {
+        None if object.get("auth_mode").is_none() => Ok(AuthMode::Record),
+        Some("record") => Ok(AuthMode::Record),
+        Some("strict") => Ok(AuthMode::Strict),
+        Some("enforce") => {
+            let Some(entries) = object.get("auth_entries").and_then(Value::as_array) else {
+                return Err(invalid_field(
+                    id,
+                    "auth_entries",
+                    "an array of base64 SorobanAuthorizationEntry (required with enforce)",
+                ));
+            };
+            let mut out = Vec::with_capacity(entries.len());
+            for (i, e) in entries.iter().enumerate() {
+                match e.as_str().and_then(|b| BASE64.decode(b).ok()) {
+                    Some(bytes) => out.push(bytes),
+                    None => return Err(invalid_field(id, &format!("auth_entries[{i}]"), "base64")),
+                }
+            }
+            Ok(AuthMode::Enforce(out))
+        }
+        _ => Err(invalid_field(
+            id,
+            "auth_mode",
+            "\"record\", \"strict\" or \"enforce\"",
+        )),
+    }
 }
 
 /// `budget: {instructions?, mem_bytes?}` (#536).

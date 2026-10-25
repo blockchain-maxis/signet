@@ -43,13 +43,20 @@ type Call struct {
 	Value string
 	// Writes counts the entries the call would write.
 	Writes int
-	// Signers are the addresses whose auth the call required.
-	Signers []string
+	// Signers are the addresses whose auth the call required, each with the
+	// function its auth covered.
+	Signers []Signer
 	// Error, for a contract or host error.
 	Error *Refusal
 	// Failure is the message of a simulator failure or a timeout.
 	Failure string
 	Kind    Kind
+}
+
+// Signer is one address whose auth a call needed, and for what.
+type Signer struct {
+	Address  string
+	Function string
 }
 
 // Refusal is a contract_error.
@@ -73,10 +80,13 @@ type Provenance struct {
 	// Overrides are human phrases for everything that departs from the
 	// network: "session demo", "wasm 5c1f…e2 swapped in", "budget 2x".
 	Overrides []string
-	// AuthMocked is true when auth ran in recording mode: signatures were
-	// not checked.
-	AuthMocked bool
+	// AuthMode is record, strict or enforce (#557). Record and strict
+	// check no signatures.
+	AuthMode string
 }
+
+// AuthMocked reports whether signatures went unchecked.
+func (p Provenance) AuthMocked() bool { return p.AuthMode != "enforce" }
 
 // Style decides colour.
 type Style struct{ Color bool }
@@ -109,7 +119,7 @@ func (s Style) dim(t string) string    { return s.paint("2", t) }
 
 // Classify says which of the three meanings a returned call has: a read
 // (nothing written, no auth) or a write preview.
-func Classify(writes, readWrite int, signers []string) Kind {
+func Classify(writes, readWrite int, signers []Signer) Kind {
 	if writes == 0 && readWrite == 0 && len(signers) == 0 {
 		return Read
 	}
@@ -125,11 +135,15 @@ func Render(w io.Writer, c Call, p Provenance, now time.Time, s Style) error {
 	case WritePreview:
 		head := fmt.Sprintf("Would write %d %s", c.Writes, plural(c.Writes, "entry", "entries"))
 		if len(c.Signers) > 0 {
-			short := make([]string, len(c.Signers))
+			who := make([]string, len(c.Signers))
 			for i, a := range c.Signers {
-				short[i] = shorten(a)
+				fn := a.Function
+				if fn == "" {
+					fn = c.Function
+				}
+				who[i] = fmt.Sprintf("%s (%s)", shorten(a.Address), fn)
 			}
-			head += fmt.Sprintf(" · requires auth from %s (%s)", strings.Join(short, ", "), c.Function)
+			head += " · requires auth from " + strings.Join(who, ", ")
 		}
 		lines = append(lines, s.yellow(head))
 		if v := value(c.Value); v != "(nothing)" {
@@ -156,7 +170,7 @@ func Render(w io.Writer, c Call, p Provenance, now time.Time, s Style) error {
 		lines = append(lines, s.red("timed out: "+c.Failure),
 			"The call may be looping. Raise --timeout if it is only slow.")
 	}
-	if p.AuthMocked && (c.Kind == WritePreview || c.Kind == Read) {
+	if p.AuthMocked() && (c.Kind == WritePreview || c.Kind == Read) {
 		lines = append(lines, s.yellow("⚠ auth mocked: signatures were not checked"))
 	}
 	lines = append(lines, s.dim(Footer(p, now)))
@@ -179,7 +193,12 @@ func Footer(p Provenance, now time.Time) string {
 	if len(p.Overrides) > 0 {
 		parts = append(parts, strings.Join(p.Overrides, ", "))
 	}
-	if p.AuthMocked {
+	switch p.AuthMode {
+	case "enforce":
+		parts = append(parts, "auth enforced")
+	case "strict":
+		parts = append(parts, "auth mocked (strict)")
+	default:
 		parts = append(parts, "auth mocked")
 	}
 	return "ran against " + strings.Join(parts, " · ")

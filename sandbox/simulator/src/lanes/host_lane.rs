@@ -33,7 +33,7 @@ use soroban_simulation::simulation::{
 use soroban_simulation::NetworkConfig;
 
 use super::{
-    BudgetOverride, ByteSnapshotSource, EffectiveBudget, BUDGET_CEILING_FACTOR, DecodeTarget, DerivedKey, EntryChangeBytes, ErrorCase, ExternalRef,
+    AuthMode, BudgetOverride, ByteSnapshotSource, EffectiveBudget, BUDGET_CEILING_FACTOR, DecodeTarget, DerivedKey, EntryChangeBytes, ErrorCase, ExternalRef,
     Installed, InstanceInfo, InterfaceVersion, InvocationFailure, KeyRequest, Lane, LaneError,
     SimulateBytes, SimulateResultBytes, SwapResultBytes, TransactionResources, WasmInspection,
 };
@@ -273,6 +273,20 @@ impl Lane for HostLane {
         let mut network_config = NetworkConfig::load_from_snapshot(&*snapshot)
             .map_err(|e| LaneError::NetworkConfig(e.to_string()))?;
         let budget = apply_budget(&mut network_config, request.budget)?;
+        let auth_mode = match &request.auth {
+            AuthMode::Record => RecordingInvocationAuthMode::Recording(
+                RecordingInvocationAuthParams::new(false, false),
+            ),
+            AuthMode::Strict => {
+                RecordingInvocationAuthMode::Recording(RecordingInvocationAuthParams::new(true, false))
+            }
+            AuthMode::Enforce(entries) => RecordingInvocationAuthMode::Enforcing(
+                entries
+                    .iter()
+                    .map(|e| decode(e, "SorobanAuthorizationEntry"))
+                    .collect::<Result<_, _>>()?,
+            ),
+        };
         let mut ledger_info = LedgerInfo {
             protocol_version: LEDGER_PROTOCOL,
             sequence_number: request.sequence,
@@ -289,7 +303,7 @@ impl Lane for HostLane {
             &SimulationAdjustmentConfig::no_adjustments(),
             &ledger_info,
             host_fn,
-            RecordingInvocationAuthMode::Recording(RecordingInvocationAuthParams::new(true, false)),
+            auth_mode,
             &source_account,
             request.prng_seed,
             request.enable_diagnostics,
@@ -1336,6 +1350,7 @@ mod tests {
             prng_seed: [0; 32],
             enable_diagnostics: false,
             budget: None,
+            auth: AuthMode::Record,
         }
     }
 

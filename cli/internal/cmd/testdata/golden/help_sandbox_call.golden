@@ -28,6 +28,8 @@ Examples:
 Flags:
       --arg stringArray         a named argument, name=value (JSON, or a plain string); repeat for each
       --args-file string        a JSON file holding an object of named arguments
+      --auth string             how require_auth is answered: record (approve and list it; signatures unchecked), strict (also refuse auth below the root call), enforce (check --auth-entries) (default "record")
+      --auth-entries string     with --auth enforce: a JSON array of pre-signed base64 SorobanAuthorizationEntry
   -h, --help                    help for call
       --session string          keep this call's writes under a name, and start from that name's earlier writes
       --source-account string   the account (G…) the call runs as
