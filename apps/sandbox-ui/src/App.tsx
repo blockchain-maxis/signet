@@ -186,6 +186,13 @@ export function App() {
         </span>
       </header>
 
+      {/* Announced as they happen (#586); the build failure's banner is an alert. */}
+      <p role="status" aria-live="polite" className="sr-only">
+        {cycle.state === 'ok' && live.cycleId !== null
+          ? `Cycle ${cycle.value.id} completed: ${cycle.value.outcomes.length} calls replayed.`
+          : ''}
+      </p>
+
       {live.buildError && (
         <div role="alert" className="border-b border-bad bg-raised px-4 py-3 text-sm">
           <div className="flex flex-wrap items-baseline gap-3">

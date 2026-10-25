@@ -461,6 +461,15 @@ jobs:
       - name: Run e2e smoke tests
         run: pnpm --filter @signet/web exec playwright test --grep-invert @db
 
+      # The signet dev local UI (#586): axe on every view, in the dark and
+      # light themes, and a keyboard-only run, against the built bundle and
+      # recorded API answers (apps/sandbox-ui/e2e/harness.mjs).
+      - name: Build the local UI
+        run: pnpm --filter @signet/sandbox-ui build
+
+      - name: Local UI accessibility
+        run: pnpm --filter @signet/sandbox-ui exec playwright test
+
   e2e-linked:
     name: e2e linked flow (Postgres)
     runs-on: ubuntu-latest

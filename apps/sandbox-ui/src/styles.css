@@ -5,7 +5,7 @@
 /* apps/web's palette (app/globals.css): the page and raised surfaces, the
    muted and faint text that keep WCAG AA on both, and the one accent. */
 :root {
-  color-scheme: dark;
+  color-scheme: dark light;
   --surface-page: #0a0908;
   --surface-raised: #1f1d19;
   --line: #34312b;
@@ -18,6 +18,22 @@
   --font-body: 'IBM Plex Sans', ui-sans-serif, system-ui, sans-serif;
   --font-mono:
     'IBM Plex Mono', ui-monospace, 'Cascadia Code', 'Source Code Pro', Menlo, Consolas, monospace;
+}
+
+/* The same palette for a light system theme (#586): every text colour keeps
+   WCAG AA (4.5:1) on both surfaces, the accent included. */
+@media (prefers-color-scheme: light) {
+  :root {
+    --surface-page: #fafaf9;
+    --surface-raised: #ecebe8;
+    --line: #c9c6bf;
+    --text: #1c1b19;
+    --text-muted: #55534d;
+    --text-faint: #5f5d56;
+    --text-accent: #b02f1f;
+    --ok: #2c6634;
+    --bad: #b02f1f;
+  }
 }
 
 html,

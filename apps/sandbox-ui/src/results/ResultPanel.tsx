@@ -81,7 +81,7 @@ export function ResultPanel({
   return (
     <article aria-label={`${TITLES[kind]}: ${fn}`} data-kind={kind} className={`rounded border ${frame} p-3 text-xs`}>
       <header className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
-        <h3 className="text-sm font-semibold">{TITLES[kind]}</h3>
+        <h3 tabIndex={-1} className="text-sm font-semibold focus:outline-none focus-visible:ring-2 focus-visible:ring-accent">{TITLES[kind]}</h3>
         <span className="font-mono text-muted">
           {fn} on the {target === 'local' ? 'local build' : 'deployed code'}
         </span>

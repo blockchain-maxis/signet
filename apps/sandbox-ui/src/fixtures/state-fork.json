@@ -1,0 +1,31 @@
+{
+ "layer": "fork",
+ "entries": [
+  {
+   "key": "AAAABgAAAAEkVJ0dfCUbS+muuiL8rmRUioX7jeL9k0Y+hV4EQDfLRAAAABQAAAAB",
+   "live_until_ledger_seq": 5451132,
+   "provenance": { "fetched_at_ledger": 5388497, "drifted": false },
+   "decoded": {
+    "kind": "instance",
+    "contract": "CASFJHI5PQSRWS7JV25CF7FOMRKIVBP3RXRP3E2GH2CV4BCAG7FUJRCN",
+    "executable": "wasm 936996c7",
+    "storage": [
+     { "key": ["Admin"], "value": "GAAZI4TCR3TY5OJHCTJC2A4QSY6CJWJH5IAJTGKIN2ER7LBNVKOCCWN7" },
+     { "key": ["Count"], "value": 3 }
+    ]
+   }
+  },
+  {
+   "key": "AAAABgAAAAEkVJ0dfCUbS+muuiL8rmRUioX7jeL9k0Y+hV4EQDfLRAAAABAAAAABAAAAAgAAAA8AAAAFT3duZXIAAAAAAAAOAAAACmZ4bXZkbDdkbGQAAAAAAAE=",
+   "live_until_ledger_seq": 5509456,
+   "provenance": { "fetched_at_ledger": 5388497, "drifted": true },
+   "decoded": {
+    "kind": "contract_data",
+    "contract": "CASFJHI5PQSRWS7JV25CF7FOMRKIVBP3RXRP3E2GH2CV4BCAG7FUJRCN",
+    "durability": "persistent",
+    "key": ["Owner", "fxmvdl7dld"],
+    "value": "GAKCCJKXJ3YYX6Y3E3Z2NDUKKYMFF7I37J5KSR4VNBFHB4FKQHRIAMOA"
+   }
+  }
+ ]
+}

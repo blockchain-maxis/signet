@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { SpecJson } from '@signet/spec';
 import type { Api } from '../api.ts';
 import { forkAccounts } from './accounts.ts';
@@ -15,6 +15,13 @@ export function CallView({ api, refresh }: { api: Api; refresh: number }) {
   const [specs, setSpecs] = useState<{ deployed: SpecJson | null; local: SpecJson | null } | null>(null);
   const [accounts, setAccounts] = useState<string[]>([]);
   const [runs, setRuns] = useState<CallRun[]>([]);
+  const results = useRef<HTMLElement>(null);
+
+  // After a run, focus moves to its result (#586), so a keyboard or screen
+  // reader user lands on what happened.
+  useEffect(() => {
+    if (runs.length) results.current?.querySelector<HTMLElement>('h3')?.focus();
+  }, [runs]);
 
   useEffect(() => {
     let live = true;
@@ -39,7 +46,7 @@ export function CallView({ api, refresh }: { api: Api; refresh: number }) {
     <>
       <CallForm api={api} specs={specs} accounts={accounts} onRuns={(r) => setRuns(r)} />
       {runs.length > 0 && (
-        <section aria-label="Results" className="mt-4 grid gap-3">
+        <section ref={results} aria-label="Results" className="mt-4 grid gap-3">
           {runs.map((run) =>
             run.result ? (
               <ResultPanel
