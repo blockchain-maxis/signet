@@ -47,6 +47,8 @@ type callEnv struct {
 	rpc  *registryRPC
 	root string
 	sim  string
+	// stellar, when set, is the stellar CLI the commands run.
+	stellar string
 }
 
 func newCallEnv(t *testing.T) *callEnv {
@@ -56,8 +58,17 @@ func newCallEnv(t *testing.T) *callEnv {
 
 func (e *callEnv) run(args ...string) (stdout, stderr string, err error) {
 	e.t.Helper()
+	return e.sandbox(append([]string{"call", "--rpc-url", e.rpc.srv.URL}, args...)...)
+}
+
+// sandbox runs `signet sandbox <args>` in this environment.
+func (e *callEnv) sandbox(args ...string) (stdout, stderr string, err error) {
+	e.t.Helper()
 	deps := defaultDeps()
 	deps.KeysBinary = "/nonexistent/signet-test-stellar"
+	if e.stellar != "" {
+		deps.KeysBinary = e.stellar
+	}
 	deps.ForkRoot = func() (string, error) { return e.root, nil }
 	deps.LocateSimulator = func(context.Context, string, func(string)) (string, error) { return e.sim, nil }
 	deps.Now = func() time.Time { return time.Unix(1790458610, 0) }
@@ -66,7 +77,7 @@ func (e *callEnv) run(args ...string) (stdout, stderr string, err error) {
 	cmd.SetOut(out)
 	cmd.SetErr(errOut)
 	cmd.SetIn(strings.NewReader(""))
-	cmd.SetArgs(append([]string{"sandbox", "call", "--rpc-url", e.rpc.srv.URL}, args...))
+	cmd.SetArgs(append([]string{"sandbox"}, args...))
 	err = cmd.Execute()
 	return out.String(), errOut.String(), err
 }

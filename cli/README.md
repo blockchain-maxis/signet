@@ -163,6 +163,43 @@ happens: `warn` (the default) prints
 `fail` exits `6`, and `refork` pins the latest ledger and runs once more. The
 manifest records `driftedEntries`.
 
+#### Archive forks: `--archive`
+
+```sh
+signet sandbox fork CASF…RCN --archive [--ledger 4886975]
+# Snapshotting CASF…RCN from the testnet history archive with `stellar snapshot create`; this takes minutes.
+# Forked CASF…RCN on testnet at ledger 4886975 (…) · consistent (history archive)
+```
+
+A lazy fork knows only the keys something has read, and can mix ledgers.
+`--archive` instead runs `stellar snapshot create --address <C…>` (the
+`stellar` CLI must be installed) and imports every entry of the contract at a
+history-archive checkpoint: consistent, all from one ledger, and complete.
+`--ledger` picks the checkpoint (the latest archived one by default). The
+signet-simulator reads the snapshot file, so signet still parses no XDR, and
+the manifest records `consistent: true`. Anything outside the contract that a
+later call reads, another contract or an account, still comes lazily from RPC.
+
+It is slow. When this was planned, `stellar snapshot create` on testnet ran for
+3 minutes 27 seconds before a bucket download failed, so it is opt-in: a
+failed snapshot is retried once, then signet exits `6` with `stellar`'s error
+and the hint to fork without `--archive`.
+
+### `signet sandbox state`
+
+```sh
+signet sandbox state CASF…RCN@4887004
+# CASF…RCN at ledger 4887004: known keys (2) — this is not the full storage
+#   instance   ["Admin"] = "GC6Y…"
+#   instance   ["Count"] = 2
+```
+
+Lists a fork's storage for its contract (instance storage, then persistent and
+temporary entries), decoded without a spec. On an archive fork the list is the
+contract's whole storage and says so; on a lazy fork it is only the keys
+something has read, labelled as such. `--json` gives `{forkId, contract,
+forkLedger, complete, entries}`.
+
 ### `signet sandbox call`
 
 ```sh

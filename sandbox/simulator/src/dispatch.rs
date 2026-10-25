@@ -26,7 +26,7 @@ use crate::simulate::{
 };
 use crate::spec_verbs::{spec_decode_val, spec_encode_args, spec_extract};
 use crate::stdio::Channel;
-use crate::xdr_helpers::{tx_decode, wasm_inspect, xdr_keys};
+use crate::xdr_helpers::{entries_describe, tx_decode, wasm_inspect, xdr_keys};
 use crate::PROTOCOL_VERSION;
 
 /// Exit status after a panic in the message loop.
@@ -180,6 +180,8 @@ impl Dispatcher {
             "ledger_rollback" => Step::reply(ledger_rollback(&mut self.ledger, &id, &object)),
             "xdr_keys" => Step::reply(xdr_keys(&self.ledger, &id, &object)),
             "tx_decode" => Step::reply(tx_decode(&self.ledger, &id, &object)),
+            "snapshot_read" => Step::reply(crate::snapshot::snapshot_read(&id, &object)),
+            "entries_describe" => Step::reply(entries_describe(&self.ledger, &id, &object)),
             "wasm_inspect" => Step::reply(wasm_inspect(&self.ledger, &id, &object)),
             "spec_extract" => {
                 Step::reply(spec_extract(&self.ledger, fork.as_deref(), &id, &object))

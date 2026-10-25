@@ -21,7 +21,11 @@ import (
 )
 
 func newSandboxForkCmd() *cobra.Command {
-	return &cobra.Command{
+	var (
+		archive bool
+		ledger  uint32
+	)
+	cmd := &cobra.Command{
 		Use:   "fork <contract>",
 		Short: "Pin a fork of a deployed contract at the network's latest ledger",
 		Long: `Pin a fork of a deployed contract at the network's latest ledger and cache
@@ -31,9 +35,16 @@ cache instead of the network.
 
 Forking is the first step of every sandbox session; run it alone to warm the
 cache, or to see what a session will run against. --json prints the fork's
-manifest.`,
+manifest.
+
+A fork is lazy: entries arrive as something reads them, so it only knows
+those keys and can mix ledgers. --archive instead takes every entry of the
+contract at one history-archive checkpoint with stellar snapshot create
+(--ledger picks the checkpoint): consistent, and complete for signet sandbox
+state, but slow, minutes on testnet.`,
 		Example: `  signet sandbox fork CASFJHI5PQSRWS7JV25CF7FOMRKIVBP3RXRP3E2GH2CV4BCAG7FUJRCN
-  signet sandbox fork CC… --network mainnet --rpc-url https://my-rpc.example`,
+  signet sandbox fork CC… --network mainnet --rpc-url https://my-rpc.example
+  signet sandbox fork CC… --archive --ledger 4886975`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			deps, err := depsFor(cmd)
@@ -55,7 +66,15 @@ manifest.`,
 			if err != nil {
 				return err
 			}
-			m, err := forkWithDrift(ctx, deps, network, args[0], mode, printer.Progress)
+			if cmd.Flags().Changed("ledger") && !archive {
+				return &inputError{"--ledger picks a history-archive checkpoint, so it goes with --archive"}
+			}
+			var m fork.Manifest
+			if archive {
+				m, err = archiveFork(ctx, deps, network, args[0], ledger, printer.Progress)
+			} else {
+				m, err = forkWithDrift(ctx, deps, network, args[0], mode, printer.Progress)
+			}
 			if err != nil {
 				return err
 			}
@@ -69,6 +88,9 @@ manifest.`,
 			})
 		},
 	}
+	cmd.Flags().BoolVar(&archive, "archive", false, "take every entry of the contract from a history-archive snapshot (stellar snapshot create; slow)")
+	cmd.Flags().Uint32Var(&ledger, "ledger", 0, "with --archive: the checkpoint ledger to snapshot (default the latest archived)")
+	return cmd
 }
 
 // sandboxNetwork resolves the network a sandbox command forks from: the
@@ -271,6 +293,9 @@ func describeFork(m fork.Manifest, now time.Time) string {
 		noun = "entry"
 	}
 	parts = append(parts, fmt.Sprintf("instance storage %d %s", m.InstanceStorageEntries, noun))
+	if m.Consistent {
+		parts = append(parts, "consistent (history archive)")
+	}
 	return strings.Join(parts, " · ")
 }
 

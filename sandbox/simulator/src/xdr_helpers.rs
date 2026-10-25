@@ -284,6 +284,47 @@ pub fn wasm_inspect(ledger: &Option<OpenLedger>, id: &Value, object: &Map<String
     )
 }
 
+/// `entries_describe` (#554): ledger entries in plain terms, in order, for
+/// `signet sandbox state`. Entries come in the RPC form a fork cache holds
+/// (`data_xdr`, `last_modified_ledger_seq`, `ext_xdr`); one that does not
+/// decode says so in place.
+pub fn entries_describe(
+    ledger: &Option<OpenLedger>,
+    id: &Value,
+    object: &Map<String, Value>,
+) -> Value {
+    let lane = match lane_for(ledger, id, object) {
+        Ok(lane) => lane,
+        Err(error) => return error,
+    };
+    let Some(entries) = object.get("entries").and_then(Value::as_array) else {
+        return error_message(
+            id,
+            "bad_request",
+            "`entries`: expected an array of {data_xdr, last_modified_ledger_seq, ext_xdr?}".into(),
+            json!({ "kind": "invalid_field", "path": "entries", "reason": "expected an array" }),
+        );
+    };
+    let described: Vec<Value> = entries
+        .iter()
+        .map(|e| {
+            let data = e["data_xdr"].as_str().and_then(|t| BASE64.decode(t).ok());
+            let seq = e["last_modified_ledger_seq"]
+                .as_u64()
+                .and_then(|n| u32::try_from(n).ok());
+            let ext = match e.get("ext_xdr").and_then(Value::as_str) {
+                Some(t) => BASE64.decode(t).ok(),
+                None => None,
+            };
+            data.zip(seq)
+                .and_then(|(data, seq)| lane.assemble_entry(&data, seq, ext.as_deref()).ok())
+                .and_then(|entry| lane.describe_entry(&entry).ok())
+                .unwrap_or_else(|| json!({ "kind": "undecodable" }))
+        })
+        .collect();
+    json!({ "version": PROTOCOL_VERSION, "id": id, "type": "result", "entries": described })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

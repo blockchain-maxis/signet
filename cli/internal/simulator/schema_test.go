@@ -198,6 +198,7 @@ func TestEveryRequestSchemaHasAGoStruct(t *testing.T) {
 		TypeLedgerImport, TypeLedgerApply, TypeContractInstall, TypeContractSwap, TypeContractInfo, TypeSimulate, TypeSpecExtract,
 		TypeSpecEncodeArgs, TypeSpecDecodeVal, TypeSpecDiff, TypeLayoutCheck, TypeDiffResults,
 		TypeXDRKeys, TypeTxDecode, TypeWasmInspect, TypeStatus, TypeShutdown,
+		TypeSnapshotRead, TypeEntriesDescribe,
 	} {
 		known[typ] = true
 	}

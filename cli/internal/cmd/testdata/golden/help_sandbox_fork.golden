@@ -9,15 +9,24 @@ Forking is the first step of every sandbox session; run it alone to warm the
 cache, or to see what a session will run against. --json prints the fork's
 manifest.
 
+A fork is lazy: entries arrive as something reads them, so it only knows
+those keys and can mix ledgers. --archive instead takes every entry of the
+contract at one history-archive checkpoint with stellar snapshot create
+(--ledger picks the checkpoint): consistent, and complete for signet sandbox
+state, but slow, minutes on testnet.
+
 Usage:
   signet sandbox fork <contract> [flags]
 
 Examples:
   signet sandbox fork CASFJHI5PQSRWS7JV25CF7FOMRKIVBP3RXRP3E2GH2CV4BCAG7FUJRCN
   signet sandbox fork CC… --network mainnet --rpc-url https://my-rpc.example
+  signet sandbox fork CC… --archive --ledger 4886975
 
 Flags:
-  -h, --help   help for fork
+      --archive         take every entry of the contract from a history-archive snapshot (stellar snapshot create; slow)
+  -h, --help            help for fork
+      --ledger uint32   with --archive: the checkpoint ledger to snapshot (default the latest archived)
 
 Global Flags:
       --context string              deployment context to use (overrides SIGNET_CONTEXT and the config file's current context)

@@ -15,12 +15,13 @@ path = "src/main.rs"
 # Each lane can be left out for a faster local build (`--no-default-features
 # --features lane-p29`); a release carries both.
 default = ["lane-p28", "lane-p29"]
-lane-p28 = ["dep:soroban-env-host-p28", "dep:soroban-simulation-p28"]
+lane-p28 = ["dep:soroban-env-host-p28", "dep:soroban-simulation-p28", "dep:soroban-ledger-snapshot-p28"]
 lane-p29 = ["dep:soroban-env-host-p29", "dep:soroban-simulation-p29"]
 
 [dependencies]
 soroban-env-host-p28 = { workspace = true, optional = true }
 soroban-simulation-p28 = { workspace = true, optional = true }
+soroban-ledger-snapshot-p28 = { workspace = true, optional = true }
 soroban-env-host-p29 = { workspace = true, optional = true }
 soroban-simulation-p29 = { workspace = true, optional = true }
 serde.workspace = true

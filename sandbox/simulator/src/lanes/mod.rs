@@ -19,6 +19,38 @@ use std::rc::Rc;
 
 #[cfg(feature = "lane-p28")]
 pub mod p28;
+
+/// A `stellar snapshot create` file read (#554): only the p28 lane carries
+/// the reader.
+#[cfg(feature = "lane-p28")]
+pub use p28::snapshot::read_snapshot;
+
+/// A ledger snapshot's ledger and entries, as plain values and XDR bytes.
+#[cfg(feature = "lane-p28")]
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct SnapshotBytes {
+    pub protocol_version: u32,
+    pub sequence_number: u32,
+    pub timestamp: u64,
+    pub network_id: [u8; 32],
+    pub base_reserve: u32,
+    pub min_persistent_entry_ttl: u32,
+    pub min_temp_entry_ttl: u32,
+    pub max_entry_ttl: u32,
+    pub entries: Vec<SnapshotEntryBytes>,
+}
+
+/// One snapshot entry in the pieces RPC gives: key, data, ext, last
+/// modified, live until.
+#[cfg(feature = "lane-p28")]
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct SnapshotEntryBytes {
+    pub key_xdr: Vec<u8>,
+    pub data_xdr: Vec<u8>,
+    pub ext_xdr: Vec<u8>,
+    pub last_modified_ledger_seq: u32,
+    pub live_until: Option<u32>,
+}
 #[cfg(feature = "lane-p29")]
 pub mod p29;
 
@@ -451,6 +483,11 @@ pub trait Lane: Sync {
     /// A `LedgerKey` in words, for messages (`contract data CAS…: Owner("alice")`).
     fn describe_key(&self, key_xdr: &[u8]) -> String;
 
+    /// A `LedgerEntry` in plain terms, for `signet sandbox state` (#554):
+    /// contract data by contract, durability, key and value (decoded
+    /// without a spec), an instance with its storage map, code by hash.
+    fn describe_entry(&self, entry_xdr: &[u8]) -> Result<serde_json::Value, LaneError>;
+
     /// The contract (C...) whose instance a `LedgerKey` is; `None` for any
     /// other key (#552).
     fn instance_owner(&self, key_xdr: &[u8]) -> Option<String>;
@@ -634,7 +671,12 @@ mod tests {
         let mut files = Vec::new();
         rust_files(&src, &mut files);
 
-        let forbidden = ["soroban_env_host", "soroban_simulation", "stellar_xdr"];
+        let forbidden = [
+            "soroban_env_host",
+            "soroban_simulation",
+            "stellar_xdr",
+            "soroban_ledger_snapshot",
+        ];
         let mut offenders = Vec::new();
         for file in files.iter().filter(|f| !f.starts_with(&lanes)) {
             let text = std::fs::read_to_string(file).unwrap();

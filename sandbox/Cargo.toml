@@ -21,6 +21,9 @@ publish = false
 # them.
 soroban-env-host-p28 = { package = "soroban-env-host", version = "=28.0.2", features = ["recording_mode"] }
 soroban-simulation-p28 = { package = "soroban-simulation", version = "=28.0.2" }
+# `stellar snapshot create`'s LedgerSnapshot JSON (#554), the release that
+# pins the p28 host.
+soroban-ledger-snapshot-p28 = { package = "soroban-ledger-snapshot", version = "=28.0.0" }
 soroban-env-host-p29 = { package = "soroban-env-host", version = "=29.0.2", features = ["recording_mode"] }
 soroban-simulation-p29 = { package = "soroban-simulation", version = "=29.0.2" }
 serde = { version = "1", features = ["derive"] }

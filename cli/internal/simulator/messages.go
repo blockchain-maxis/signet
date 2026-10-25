@@ -36,6 +36,8 @@ const (
 	TypeXDRKeys          = "xdr_keys"
 	TypeTxDecode         = "tx_decode"
 	TypeWasmInspect      = "wasm_inspect"
+	TypeSnapshotRead     = "snapshot_read"
+	TypeEntriesDescribe  = "entries_describe"
 	TypeStatus           = "status"
 	TypeShutdown         = "shutdown"
 )
@@ -697,4 +699,68 @@ type StatusResult struct {
 	Contracts      int             `json:"contracts"`
 	NetworkConfig  json.RawMessage `json:"network_config,omitempty"`
 	BaseReserve    *uint32         `json:"base_reserve,omitempty"`
+}
+
+// SnapshotReadParams hands the simulator a `stellar snapshot create` file
+// (#554).
+type SnapshotReadParams struct {
+	SnapshotJSON string `json:"snapshot_json"`
+}
+
+// SnapshotReadResult is the ledger a snapshot was taken at and its entries,
+// in the RPC form a fork cache holds.
+type SnapshotReadResult struct {
+	ProtocolVersion       int             `json:"protocol_version"`
+	SequenceNumber        uint32          `json:"sequence_number"`
+	Timestamp             uint64          `json:"timestamp"`
+	NetworkID             string          `json:"network_id"`
+	BaseReserve           uint32          `json:"base_reserve"`
+	MinPersistentEntryTTL uint32          `json:"min_persistent_entry_ttl"`
+	MinTempEntryTTL       uint32          `json:"min_temp_entry_ttl"`
+	MaxEntryTTL           uint32          `json:"max_entry_ttl"`
+	Entries               []SnapshotEntry `json:"entries"`
+}
+
+// SnapshotEntry is one entry of a snapshot, as RPC would give it.
+type SnapshotEntry struct {
+	KeyXDR                string  `json:"key_xdr"`
+	DataXDR               string  `json:"data_xdr"`
+	LastModifiedLedgerSeq uint32  `json:"last_modified_ledger_seq"`
+	ExtXDR                string  `json:"ext_xdr"`
+	LiveUntilLedger       *uint32 `json:"live_until_ledger"`
+}
+
+// EntriesDescribeParams asks for entries in plain terms (#554).
+type EntriesDescribeParams struct {
+	Entries        []DescribeEntry `json:"entries"`
+	LedgerProtocol *int            `json:"ledger_protocol,omitempty"`
+}
+
+// DescribeEntry is an entry in the RPC form.
+type DescribeEntry struct {
+	DataXDR               string `json:"data_xdr"`
+	LastModifiedLedgerSeq uint32 `json:"last_modified_ledger_seq"`
+	ExtXDR                string `json:"ext_xdr,omitempty"`
+}
+
+// EntriesDescribeResult is each entry in plain terms, in order.
+type EntriesDescribeResult struct {
+	Entries []DescribedEntry `json:"entries"`
+}
+
+// DescribedEntry is one entry in plain terms: an instance with its storage
+// map, contract data with durability, key and value, or code by hash.
+type DescribedEntry struct {
+	Kind       string          `json:"kind"`
+	Contract   string          `json:"contract,omitempty"`
+	Durability string          `json:"durability,omitempty"`
+	Key        json.RawMessage `json:"key,omitempty"`
+	Value      json.RawMessage `json:"value,omitempty"`
+	Executable string          `json:"executable,omitempty"`
+	Storage    []struct {
+		Key   json.RawMessage `json:"key"`
+		Value json.RawMessage `json:"value"`
+	} `json:"storage,omitempty"`
+	Hash  string `json:"hash,omitempty"`
+	Bytes int    `json:"bytes,omitempty"`
 }

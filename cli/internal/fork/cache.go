@@ -105,6 +105,10 @@ type Manifest struct {
 	// DriftedEntries counts entries fetched for the fork that changed
 	// on-chain after ForkLedger (#551).
 	DriftedEntries int `json:"driftedEntries"`
+	// Consistent is set on a fork imported from a history-archive snapshot
+	// (#554): it holds every entry of the contract at ForkLedger, where a
+	// lazy fork holds only the keys something read.
+	Consistent bool `json:"consistent"`
 }
 
 // ID is the manifest's fork id.

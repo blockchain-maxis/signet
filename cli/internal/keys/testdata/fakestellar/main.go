@@ -8,11 +8,21 @@ package main
 import (
 	"fmt"
 	"os"
+	"strconv"
 	"strings"
 )
 
 func main() {
 	args := os.Args[1:]
+
+	// `snapshot create ... --out <path>` (#554): copies FAKESTELLAR_SNAPSHOT
+	// to --out, after failing as many times as the count in the file
+	// FAKESTELLAR_SNAPSHOT_FAILURES names. FAKESTELLAR_ARGS_LOG, when set,
+	// gets each invocation's arguments, one line each.
+	if len(args) >= 2 && args[0] == "snapshot" && args[1] == "create" {
+		snapshotCreate(args[2:])
+		return
+	}
 
 	// `tx sign --sign-with-key <name> --network-passphrase <p>`: signet always
 	// passes the passphrase, so match on the prefix rather than the full arity.
@@ -72,4 +82,40 @@ func main() {
 		fmt.Fprintln(os.Stderr, "fakestellar: unknown identity")
 		os.Exit(1)
 	}
+}
+
+func snapshotCreate(args []string) {
+	if log := os.Getenv("FAKESTELLAR_ARGS_LOG"); log != "" {
+		f, err := os.OpenFile(log, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600)
+		if err == nil {
+			fmt.Fprintln(f, strings.Join(args, " "))
+			_ = f.Close()
+		}
+	}
+	out := ""
+	for i := 0; i+1 < len(args); i++ {
+		if args[i] == "--out" {
+			out = args[i+1]
+		}
+	}
+	fmt.Fprintln(os.Stderr, "ℹ️  Downloading history archive state")
+	if counter := os.Getenv("FAKESTELLAR_SNAPSHOT_FAILURES"); counter != "" {
+		raw, _ := os.ReadFile(counter)
+		left, _ := strconv.Atoi(strings.TrimSpace(string(raw)))
+		if left > 0 {
+			_ = os.WriteFile(counter, []byte(strconv.Itoa(left-1)), 0o600)
+			fmt.Fprintln(os.Stderr, "❌ error: downloading bucket: stream ended unexpectedly")
+			os.Exit(1)
+		}
+	}
+	raw, err := os.ReadFile(os.Getenv("FAKESTELLAR_SNAPSHOT"))
+	if err != nil || out == "" {
+		fmt.Fprintln(os.Stderr, "fakestellar: no snapshot configured")
+		os.Exit(2)
+	}
+	if err := os.WriteFile(out, raw, 0o600); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+	fmt.Fprintln(os.Stderr, "ℹ️  Saved 12 entries to "+out)
 }

@@ -23,6 +23,7 @@ Available Commands:
   fork        Pin a fork of a deployed contract at the network's latest ledger
   forks       List, remove and refresh cached forks
   session     Manage named call sessions
+  state       List a fork's storage entries for its contract
 
 Flags:
       --drift string                when an entry fetched for the fork changed on-chain after the fork ledger: warn, fail (exit 6), or refork (pin the latest ledger and run once more) (default "warn")

@@ -15,4 +15,6 @@ pub const SIMULATION_VERSION: &str = "28.0.2";
 #[path = "../spec_impl.rs"]
 mod spec;
 
+pub mod snapshot;
+
 include!("../host_lane.rs");

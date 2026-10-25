@@ -8,6 +8,7 @@ mod lanes;
 mod ledger;
 mod memguard;
 mod simulate;
+mod snapshot;
 mod spec_verbs;
 mod stdio;
 mod trace;

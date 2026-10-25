@@ -1,0 +1,145 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://signet.dev/schemas/sandbox/v1/snapshot_read.json",
+  "title": "snapshot_read (request)",
+  "description": "Read a `stellar snapshot create` file (#554) into the ledger it was taken at and its entries, in the RPC form, so Go fills a consistent fork without parsing XDR. Stateless; needs the protocol 28 lane.",
+  "type": "object",
+  "properties": {
+    "version": {
+      "const": 1,
+      "description": "Wire protocol version; checked on every message"
+    },
+    "id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Caller-assigned; echoed on the response"
+    },
+    "type": {
+      "const": "snapshot_read"
+    },
+    "snapshot_json": {
+      "type": "string",
+      "minLength": 1,
+      "description": "The text of a `stellar snapshot create` file: soroban-ledger-snapshot's LedgerSnapshot JSON"
+    }
+  },
+  "required": ["version", "id", "type", "snapshot_json"],
+  "additionalProperties": false,
+  "definitions": {
+    "result": {
+      "title": "snapshot_read (result)",
+      "type": "object",
+      "properties": {
+        "version": {
+          "const": 1,
+          "description": "Wire protocol version; checked on every message"
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Echoes the request's id"
+        },
+        "type": {
+          "const": "result"
+        },
+        "protocol_version": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "sequence_number": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "timestamp": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "network_id": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "base_reserve": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "min_persistent_entry_ttl": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "min_temp_entry_ttl": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "max_entry_ttl": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "entries": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "key_xdr": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^[A-Za-z0-9+/]+={0,2}$",
+                "description": "LedgerKey"
+              },
+              "data_xdr": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^[A-Za-z0-9+/]+={0,2}$",
+                "description": "LedgerEntryData"
+              },
+              "last_modified_ledger_seq": {
+                "type": "integer",
+                "minimum": 0
+              },
+              "ext_xdr": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^[A-Za-z0-9+/]+={0,2}$",
+                "description": "LedgerEntryExt"
+              },
+              "live_until_ledger": {
+                "oneOf": [
+                  {
+                    "type": "integer",
+                    "minimum": 0
+                  },
+                  {
+                    "type": "null"
+                  }
+                ]
+              }
+            },
+            "required": [
+              "key_xdr",
+              "data_xdr",
+              "last_modified_ledger_seq",
+              "ext_xdr",
+              "live_until_ledger"
+            ],
+            "additionalProperties": false
+          },
+          "description": "Every entry, in the RPC form a fork cache holds"
+        }
+      },
+      "required": [
+        "version",
+        "id",
+        "type",
+        "protocol_version",
+        "sequence_number",
+        "timestamp",
+        "network_id",
+        "base_reserve",
+        "min_persistent_entry_ttl",
+        "min_temp_entry_ttl",
+        "max_entry_ttl",
+        "entries"
+      ],
+      "additionalProperties": false
+    }
+  }
+}

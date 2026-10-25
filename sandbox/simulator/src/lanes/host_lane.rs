@@ -749,6 +749,42 @@ impl Lane for HostLane {
         }
     }
 
+    fn describe_entry(&self, entry_xdr: &[u8]) -> Result<Value, LaneError> {
+        let entry: LedgerEntry = decode(entry_xdr, "LedgerEntry")?;
+        let plain = |val: &ScVal| spec::generic(val).unwrap_or_else(|_| json!(val.name()));
+        Ok(match &entry.data {
+            LedgerEntryData::ContractData(data) => match &data.val {
+                ScVal::ContractInstance(instance) => json!({
+                    "kind": "instance",
+                    "contract": data.contract.to_string(),
+                    "executable": match &instance.executable {
+                        ContractExecutable::Wasm(hash) => format!("wasm {}", hex(&hash.0)),
+                        ContractExecutable::StellarAsset => "stellar_asset".to_string(),
+                        ContractExecutable::ExternalRef(_) => "external_ref".to_string(),
+                    },
+                    "storage": instance.storage.as_ref().map_or_else(Vec::new, |map| {
+                        map.iter()
+                            .map(|item| json!({ "key": plain(&item.key), "value": plain(&item.val) }))
+                            .collect()
+                    }),
+                }),
+                val => json!({
+                    "kind": "contract_data",
+                    "contract": data.contract.to_string(),
+                    "durability": data.durability.name().to_lowercase(),
+                    "key": plain(&data.key),
+                    "value": plain(val),
+                }),
+            },
+            LedgerEntryData::ContractCode(code) => json!({
+                "kind": "contract_code",
+                "hash": hex(&code.hash.0),
+                "bytes": code.code.len(),
+            }),
+            other => json!({ "kind": other.name() }),
+        })
+    }
+
     fn instance_owner(&self, key_xdr: &[u8]) -> Option<String> {
         match decode::<LedgerKey>(key_xdr, "LedgerKey").ok()? {
             LedgerKey::ContractData(LedgerKeyContractData {

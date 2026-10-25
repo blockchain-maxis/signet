@@ -1,0 +1,91 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://signet.dev/schemas/sandbox/v1/entries_describe.json",
+  "title": "entries_describe (request)",
+  "description": "Ledger entries in plain terms (#554), for `signet sandbox state`: values decoded without a spec.",
+  "type": "object",
+  "properties": {
+    "version": {
+      "const": 1,
+      "description": "Wire protocol version; checked on every message"
+    },
+    "id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Caller-assigned; echoed on the response"
+    },
+    "type": {
+      "const": "entries_describe"
+    },
+    "entries": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "data_xdr": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9+/]+={0,2}$",
+            "description": "LedgerEntryData"
+          },
+          "last_modified_ledger_seq": {
+            "type": "integer",
+            "minimum": 0
+          },
+          "ext_xdr": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9+/]+={0,2}$",
+            "description": "LedgerEntryExt"
+          }
+        },
+        "required": ["data_xdr", "last_modified_ledger_seq"]
+      },
+      "description": "Entries in the RPC form; key_xdr and live_until_ledger may ride along and are ignored"
+    },
+    "ledger_protocol": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "The lane to read with; the open ledger's, else the newest"
+    }
+  },
+  "required": ["version", "id", "type", "entries"],
+  "additionalProperties": false,
+  "definitions": {
+    "result": {
+      "title": "entries_describe (result)",
+      "type": "object",
+      "properties": {
+        "version": {
+          "const": 1,
+          "description": "Wire protocol version; checked on every message"
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Echoes the request's id"
+        },
+        "type": {
+          "const": "result"
+        },
+        "entries": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "kind": {
+                "type": "string",
+                "minLength": 1,
+                "description": "instance, contract_data, contract_code, undecodable, or the entry type's name"
+              }
+            },
+            "required": ["kind"]
+          },
+          "description": "Each entry in plain terms, in order: an instance with its executable and storage map, contract data by contract, durability, key and value, code by hash and size"
+        }
+      },
+      "required": ["version", "id", "type", "entries"],
+      "additionalProperties": false
+    }
+  }
+}

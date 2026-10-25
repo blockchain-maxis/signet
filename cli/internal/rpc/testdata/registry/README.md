@@ -21,3 +21,13 @@ entries asked for.
   with ids derived from fixed labels and entries dated before the fork ledger.
   `generate-calls.mjs` writes it; the test server answers `getLedgerEntries`
   from it as well as from the recordings.
+
+- `snapshot.json` is a `stellar snapshot create` file (soroban-ledger-snapshot's
+  `LedgerSnapshot` JSON) of the same entries: the recorded `getLedgerEntries`
+  answers above, each decoded with `stellar xdr decode --type LedgerEntryData`
+  into the serde JSON `stellar snapshot create` writes, at the registry's
+  ledger, with testnet's network id and the TTL minimums of the recorded
+  `StateArchival` setting. It was composed rather than taken from a history
+  archive (#554 asks for a local Quickstart, which was not available); the
+  simulator's own test checks that reading it gives back the recorded entries
+  byte for byte.
