@@ -155,6 +155,7 @@ const ENV_ALLOW = new Set([
   'STELLAR_SIGN_WITH_KEY', // shell env the stellar CLI already reads; cli/ honours it, not app env
   'SIGNET_DEPLOY_KEY', // CI secret holding the deploy key, exported as STELLAR_SIGN_WITH_KEY
   'WAYLAND_DISPLAY', // standard desktop-session env var, not app config
+  'NO_COLOR', // https://no-color.org convention the CLI honours, not app config
   'CLI_RELEASE_ENABLED', // GitHub repo variable, not app env — see release-cli.yml
   'NPM_TOKEN', // GitHub Actions secret, not app env — see release-cli.yml
   'SIGNET_SIMULATOR_PATH', // docs/CLI_RUST_BRIDGE.md — future Go CLI env, not this web app's
