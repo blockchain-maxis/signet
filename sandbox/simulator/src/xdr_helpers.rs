@@ -51,7 +51,7 @@ fn result(id: &Value, fields: Value) -> Value {
 }
 
 /// The lane a helper decodes with.
-fn lane_for(
+pub(crate) fn lane_for(
     ledger: &Option<OpenLedger>,
     id: &Value,
     object: &Map<String, Value>,

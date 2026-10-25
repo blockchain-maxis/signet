@@ -15,4 +15,8 @@ pub const SIMULATION_VERSION: &str = "29.0.2";
 #[path = "../spec_impl.rs"]
 mod spec;
 
+#[allow(clippy::duplicate_mod)]
+#[path = "../diff_impl.rs"]
+mod diff;
+
 include!("../host_lane.rs");

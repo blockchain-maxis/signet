@@ -211,6 +211,28 @@ pub struct Installed {
     pub entries: Vec<(Vec<u8>, Vec<u8>)>,
 }
 
+/// One side of an A/B comparison (#568): what a call produced, as XDR.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct DiffSide {
+    /// The returned `ScVal` XDR; `None` when the call failed.
+    pub return_value: Option<Vec<u8>>,
+    /// `ContractEvent` XDR, in emission order (diagnostic events left out).
+    pub events: Vec<Vec<u8>>,
+    /// The entries the call wrote.
+    pub writes: Vec<DiffWrite>,
+    /// `SorobanAuthorizationEntry` XDR, as recorded.
+    pub auth: Vec<Vec<u8>>,
+}
+
+/// One entry a call wrote: its `LedgerKey` XDR, the `LedgerEntry` XDR it
+/// left (`None` when it deleted the entry), and its TTL.
+#[derive(Clone, Debug, Default, PartialEq, Eq)]
+pub struct DiffWrite {
+    pub key_xdr: Vec<u8>,
+    pub entry_xdr: Option<Vec<u8>>,
+    pub live_until: Option<u32>,
+}
+
 /// What a simulation produced, as XDR bytes.
 #[derive(Clone, Debug)]
 pub struct SimulateResultBytes {
@@ -528,6 +550,10 @@ pub trait Lane: Sync {
     /// The contract (C...) a contract-data `LedgerKey` belongs to; `None`
     /// for any other key, an account's auth nonce included.
     fn key_contract(&self, key_xdr: &[u8]) -> Option<String>;
+
+    /// Two calls' return values, events, storage writes and auth compared
+    /// as exact values (#568): `diff_impl.rs`.
+    fn diff_values(&self, a: &DiffSide, b: &DiffSide) -> Result<serde_json::Value, LaneError>;
 
     /// The call tree in `DiagnosticEvent` XDR (#541).
     fn trace_calls(&self, diagnostic_events_xdr: &[Vec<u8>]) -> Vec<TraceCall>;

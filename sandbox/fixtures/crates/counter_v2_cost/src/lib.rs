@@ -8,9 +8,11 @@ pub struct CounterV2Cost;
 #[contractimpl]
 impl CounterV2Cost {
     pub fn increment(env: Env) -> u32 {
-        let mut dummy: u64 = 0;
-        for i in 0..10_000 {
-            dummy = dummy.wrapping_add(i);
+        // Seeded from the ledger so the optimizer cannot fold the loop
+        // away (it did, when the loop summed constants): the cost is real.
+        let mut dummy: u64 = env.ledger().sequence() as u64;
+        for i in 0..10_000u64 {
+            dummy = dummy.wrapping_mul(31).wrapping_add(i ^ (dummy >> 7));
         }
         let count: u32 = env
             .storage()

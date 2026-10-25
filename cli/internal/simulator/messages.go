@@ -608,16 +608,152 @@ type LayoutCheckResult struct {
 	Issues     []json.RawMessage `json:"issues"`
 }
 
-// DiffResultsParams compares two simulate result bodies.
+// DiffResultsParams compares a call on the deployed code (A) with the same
+// call on a new build (B) (#568).
 type DiffResultsParams struct {
-	Left  SimulateResult `json:"left"`
-	Right SimulateResult `json:"right"`
+	LedgerProtocol *int     `json:"ledger_protocol,omitempty"`
+	A              DiffSide `json:"a"`
+	B              DiffSide `json:"b"`
+}
+
+// DiffSide is one side of diff_results: what a simulate reply, or a
+// contract_error, carried. DiffSideOf builds one.
+type DiffSide struct {
+	Outcome        string           `json:"outcome"` // ok or error
+	Error          *DiffError       `json:"error,omitempty"`
+	ReturnValueXDR string           `json:"return_value_xdr,omitempty"`
+	Events         []Event          `json:"events,omitempty"`
+	Storage        []DiffWrite      `json:"storage,omitempty"`
+	Auth           []string         `json:"auth,omitempty"`
+	Resources      map[string]int64 `json:"resources,omitempty"`
+}
+
+// DiffError is a failed side's contract_error, by kind and code.
+type DiffError struct {
+	Kind string `json:"kind"`
+	Code string `json:"code"`
+}
+
+// DiffWrite is one entry a call wrote; a nil EntryXDR deleted it.
+type DiffWrite struct {
+	KeyXDR          string  `json:"key_xdr"`
+	EntryXDR        *string `json:"entry_xdr"`
+	LiveUntilLedger *uint32 `json:"live_until_ledger,omitempty"`
+}
+
+// DiffSideOf is the diff_results side for a call that returned res or,
+// when ce is set, failed with it.
+func DiffSideOf(res *SimulateResult, ce *ContractError) DiffSide {
+	if ce != nil {
+		return DiffSide{Outcome: "error", Error: &DiffError{Kind: ce.Kind, Code: ce.Code}}
+	}
+	side := DiffSide{Outcome: "ok", ReturnValueXDR: res.ReturnValueXDR, Events: res.Events, Auth: res.Auth}
+	for _, m := range res.ModifiedEntries {
+		side.Storage = append(side.Storage, DiffWrite{KeyXDR: m.KeyXDR, EntryXDR: m.AfterXDR, LiveUntilLedger: m.LiveUntilLedger})
+	}
+	side.Resources = map[string]int64{"mem_bytes": int64(res.Cost.MemBytes)}
+	if r := res.Resources; r != nil {
+		side.Resources["instructions"] = int64(r.Instructions)
+		side.Resources["read_bytes"] = int64(r.DiskReadBytes)
+		side.Resources["write_bytes"] = int64(r.WriteBytes)
+		side.Resources["read_entries"] = int64(len(r.Footprint.ReadOnly) + len(r.Footprint.ReadWrite))
+		side.Resources["write_entries"] = int64(len(r.Footprint.ReadWrite))
+	}
+	if res.Fee != nil {
+		side.Resources["resource_fee"] = res.Fee.ResourceFee
+	}
+	return side
 }
 
 // DiffResultsResult answers diff_results.
 type DiffResultsResult struct {
-	Equal       bool              `json:"equal"`
-	Differences []json.RawMessage `json:"differences"`
+	Empty bool `json:"empty"`
+	// Outcome is set when one side returned and the other failed, or they
+	// failed differently; the values are then not compared.
+	Outcome     *DiffOutcome     `json:"outcome"`
+	ReturnValue *Difference      `json:"return_value"`
+	Events      DiffEvents       `json:"events"`
+	Storage     DiffStorage      `json:"storage"`
+	Auth        DiffAuth         `json:"auth"`
+	Resources   []ResourceChange `json:"resources"`
+}
+
+// DiffOutcome is each side's outcome: ok, or "<kind> error <code>".
+type DiffOutcome struct {
+	A string `json:"a"`
+	B string `json:"b"`
+}
+
+// Difference is where two values first part: a JSON pointer, and each
+// side's tagged value there (null where a side has nothing).
+type Difference struct {
+	Path string          `json:"path"`
+	A    json.RawMessage `json:"a"`
+	B    json.RawMessage `json:"b"`
+}
+
+// EventChange is an event added or removed at Index (Event), or one whose
+// payload changed (Topics, and where in the data: Path, A, B).
+type EventChange struct {
+	Index  int               `json:"index"`
+	Event  json.RawMessage   `json:"event,omitempty"`
+	Topics []json.RawMessage `json:"topics,omitempty"`
+	Path   *string           `json:"path,omitempty"`
+	A      json.RawMessage   `json:"a,omitempty"`
+	B      json.RawMessage   `json:"b,omitempty"`
+}
+
+// DiffEvents are the event differences.
+type DiffEvents struct {
+	Added   []EventChange `json:"added"`
+	Removed []EventChange `json:"removed"`
+	Changed []EventChange `json:"changed"`
+}
+
+// StorageChange is a write added or removed (Entry), changed (Path, A, B)
+// or with another TTL (A, B as ledger sequences).
+type StorageChange struct {
+	Key    string          `json:"key"`
+	KeyXDR string          `json:"key_xdr"`
+	Entry  json.RawMessage `json:"entry,omitempty"`
+	Path   *string         `json:"path,omitempty"`
+	A      json.RawMessage `json:"a,omitempty"`
+	B      json.RawMessage `json:"b,omitempty"`
+}
+
+// DiffStorage are the storage-write differences.
+type DiffStorage struct {
+	Added   []StorageChange `json:"added"`
+	Removed []StorageChange `json:"removed"`
+	Changed []StorageChange `json:"changed"`
+	TTL     []StorageChange `json:"ttl"`
+}
+
+// AuthChange is a signer added or removed (Invocation), or whose
+// invocation tree changed (Path, A, B).
+type AuthChange struct {
+	Signer     string          `json:"signer"`
+	Invocation json.RawMessage `json:"invocation,omitempty"`
+	Path       *string         `json:"path,omitempty"`
+	A          json.RawMessage `json:"a,omitempty"`
+	B          json.RawMessage `json:"b,omitempty"`
+}
+
+// DiffAuth are the auth differences; any of them is client-breaking.
+type DiffAuth struct {
+	ClientBreaking bool         `json:"client_breaking"`
+	Added          []AuthChange `json:"added"`
+	Removed        []AuthChange `json:"removed"`
+	Changed        []AuthChange `json:"changed"`
+}
+
+// ResourceChange is a metric that moved; Percent is nil when A's is 0.
+type ResourceChange struct {
+	Metric  string   `json:"metric"`
+	A       int64    `json:"a"`
+	B       int64    `json:"b"`
+	Delta   int64    `json:"delta"`
+	Percent *float64 `json:"percent"`
 }
 
 // XDRKey asks xdr_keys for one key. Kind is "contract_instance",

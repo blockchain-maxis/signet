@@ -50,9 +50,10 @@ func message(t *testing.T, typ string, body any) any {
 	return v
 }
 
-func u32(v uint32) *uint32 { return &v }
-func sp(s string) *string  { return &s }
-func ip(v int) *int        { return &v }
+func u32(v uint32) *uint32  { return &v }
+func sp(s string) *string   { return &s }
+func ip(v int) *int         { return &v }
+func fp(v float64) *float64 { return &v }
 
 func TestMessagesMatchTheSchemas(t *testing.T) {
 	b64 := "AAAAAwAAAAE="
@@ -87,7 +88,7 @@ func TestMessagesMatchTheSchemas(t *testing.T) {
 		TypeSpecDecodeVal:    SpecDecodeValParams{Source: src, Function: "f", ValXDR: b64},
 		TypeSpecDiff:         SpecDiffParams{Old: src, New: Source{ContractID: registry}},
 		TypeLayoutCheck:      LayoutCheckParams{Old: src, New: src},
-		TypeDiffResults:      DiffResultsParams{Left: sim, Right: sim},
+		TypeDiffResults:      DiffResultsParams{LedgerProtocol: ip(28), A: DiffSideOf(&full, nil), B: DiffSideOf(nil, &ContractError{Kind: "contract", Code: "Error(Contract, #1)"})},
 		TypeXDRKeys: XDRKeysParams{LedgerProtocol: ip(28), Keys: []XDRKey{
 			{Kind: "contract_instance", ContractID: registry},
 			{Kind: "contract_code", WasmHash: hash},
@@ -117,12 +118,19 @@ func TestMessagesMatchTheSchemas(t *testing.T) {
 		TypeSpecDecodeVal:    SpecDecodeValResult{Value: json.RawMessage(`{"a":1}`)},
 		TypeSpecDiff:         SpecDiffResult{Compatible: true, Changes: []json.RawMessage{}},
 		TypeLayoutCheck:      LayoutCheckResult{Compatible: true, Issues: []json.RawMessage{}},
-		TypeDiffResults:      DiffResultsResult{Equal: true, Differences: []json.RawMessage{}},
-		TypeXDRKeys:          XDRKeysResult{Keys: []BuiltKey{{Kind: "account", Subject: "G…", KeyXDR: b64}}},
-		TypeTxDecode:         nil, // the transaction body is passed through as JSON
-		TypeWasmInspect:      WasmInspectResult{WasmHash: hash, SizeBytes: 8, CustomSections: []string{"contractspecv0"}, InterfaceVersion: &InterfaceVersion{Protocol: 22}, Exports: []string{"f"}, Imports: []WasmImport{{Module: "x", Name: "_"}}, Upgradeable: "none"},
-		TypeStatus:           StatusResult{UptimeMS: 5, LedgerOpen: true, LedgerSequence: u32(1), Entries: 1, Contracts: 1, NetworkConfig: json.RawMessage(`{}`), BaseReserve: u32(5000000)},
-		TypeShutdown:         nil,
+		TypeDiffResults: DiffResultsResult{
+			Outcome:     &DiffOutcome{A: "ok", B: "contract error Error(Contract, #1)"},
+			ReturnValue: &Difference{Path: "/0", A: json.RawMessage(`{"type":"u32","value":1}`), B: json.RawMessage(`null`)},
+			Events:      DiffEvents{Added: []EventChange{{Index: 0, Event: json.RawMessage(`{}`)}}, Removed: []EventChange{}, Changed: []EventChange{{Index: 1, Topics: []json.RawMessage{json.RawMessage(`{}`)}, Path: sp("/data"), A: json.RawMessage(`1`), B: json.RawMessage(`2`)}}},
+			Storage:     DiffStorage{Added: []StorageChange{{Key: "C… persistent data \"last\"", KeyXDR: b64, Entry: json.RawMessage(`{}`)}}, Removed: []StorageChange{}, Changed: []StorageChange{{Key: "k", KeyXDR: b64, Path: sp(""), A: json.RawMessage(`null`), B: json.RawMessage(`{}`)}}, TTL: []StorageChange{}},
+			Auth:        DiffAuth{ClientBreaking: true, Added: []AuthChange{{Signer: "G…", Invocation: json.RawMessage(`{}`)}}, Removed: []AuthChange{}, Changed: []AuthChange{}},
+			Resources:   []ResourceChange{{Metric: "instructions", A: 1000, B: 1250, Delta: 250, Percent: fp(25)}, {Metric: "write_bytes", A: 0, B: 8, Delta: 8}},
+		},
+		TypeXDRKeys:     XDRKeysResult{Keys: []BuiltKey{{Kind: "account", Subject: "G…", KeyXDR: b64}}},
+		TypeTxDecode:    nil, // the transaction body is passed through as JSON
+		TypeWasmInspect: WasmInspectResult{WasmHash: hash, SizeBytes: 8, CustomSections: []string{"contractspecv0"}, InterfaceVersion: &InterfaceVersion{Protocol: 22}, Exports: []string{"f"}, Imports: []WasmImport{{Module: "x", Name: "_"}}, Upgradeable: "none"},
+		TypeStatus:      StatusResult{UptimeMS: 5, LedgerOpen: true, LedgerSequence: u32(1), Entries: 1, Contracts: 1, NetworkConfig: json.RawMessage(`{}`), BaseReserve: u32(5000000)},
+		TypeShutdown:    nil,
 	}
 
 	for typ, body := range requests {

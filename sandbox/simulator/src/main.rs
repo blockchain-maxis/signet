@@ -2,6 +2,7 @@
 //! CLI as a subprocess (docs/CLI_RUST_BRIDGE.md). With no arguments it runs the
 //! NDJSON message loop on stdin/stdout; `--version` prints the build identity.
 
+mod diff;
 mod dispatch;
 mod framing;
 mod lanes;

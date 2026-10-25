@@ -725,6 +725,166 @@ fn a_session_layer_swap_rolls_back(lane: u32) {
     );
 }
 
+/// A `simulate` reply as a `diff_results` side, as Go builds it.
+fn side_of(r: &Value) -> Value {
+    if r["type"] == "contract_error" {
+        return json!({ "outcome": "error", "error": { "kind": r["kind"], "code": r["code"] } });
+    }
+    assert_eq!(r["type"], "result", "{r}");
+    let res = &r["resources"];
+    let (ro, rw) = (
+        res["footprint"]["read_only"].as_array().map_or(0, Vec::len),
+        res["footprint"]["read_write"]
+            .as_array()
+            .map_or(0, Vec::len),
+    );
+    let pick = |items: &Value, f: &dyn Fn(&Value) -> Value| -> Vec<Value> {
+        items
+            .as_array()
+            .map_or_else(Vec::new, |xs| xs.iter().map(f).collect())
+    };
+    json!({
+        "outcome": "ok",
+        "return_value_xdr": r["return_value_xdr"],
+        "events": pick(&r["events"], &|e| json!({ "type": e["type"], "event_xdr": e["event_xdr"] })),
+        "storage": pick(&r["modified_entries"], &|m| json!({
+            "key_xdr": m["key_xdr"], "entry_xdr": m["after_xdr"], "live_until_ledger": m["live_until_ledger"],
+        })),
+        "auth": pick(&r["auth"], &|a| a.clone()),
+        "resources": {
+            "instructions": res["instructions"], "mem_bytes": r["cost"]["mem_bytes"],
+            "read_bytes": res["disk_read_bytes"], "write_bytes": res["write_bytes"],
+            "read_entries": ro + rw, "write_entries": rw, "resource_fee": r["fee"]["resource_fee"],
+        },
+    })
+}
+
+/// `increment` on counter_v1 (A) and on `v2` swapped into the same
+/// instance (B), each from one checkpoint, and their diff (#568).
+fn ab(lane: u32, v2: &str, a_args: Value, b_args: Value) -> Value {
+    let mut sim = config_only(lane);
+    let (counter, v1) = install(&mut sim, &fixture_wasm("counter_v1"));
+    let (_, v2) = install(&mut sim, &fixture_wasm(v2));
+    let cp = sim.send(json!({ "type": "ledger_checkpoint" }))["checkpoint"].clone();
+    let run = |sim: &mut Sim, args: Value| {
+        let r = sim.send(json!({ "type": "simulate", "contract_id": counter, "function": "increment", "args": args, "call_index": 0 }));
+        sim.send(json!({ "type": "ledger_rollback", "checkpoint": cp }));
+        side_of(&r)
+    };
+    let a = run(&mut sim, a_args);
+    if v2 != v1 {
+        let swap =
+            sim.send(json!({ "type": "contract_swap", "contract_id": counter, "wasm_hash": v2 }));
+        assert_eq!(swap["type"], "result", "{swap}");
+    }
+    let b = run(&mut sim, b_args);
+    let diff = sim.send(json!({ "type": "diff_results", "a": a, "b": b }));
+    assert_eq!(diff["type"], "result", "{diff}");
+    diff
+}
+
+fn an_identical_wasm_diffs_empty(lane: u32) {
+    let diff = ab(lane, "counter_v1", json!({}), json!({}));
+    assert_eq!(diff["empty"], true, "{diff}");
+    assert!(
+        diff["outcome"].is_null() && diff["return_value"].is_null(),
+        "{diff}"
+    );
+}
+
+fn a_changed_return_type_is_a_return_difference(lane: u32) {
+    let diff = ab(lane, "counter_v2_return", json!({}), json!({}));
+    assert_eq!(diff["empty"], false);
+    // 1 and 1, but u32 and i128: decoded JSON would call them equal.
+    assert_eq!(
+        diff["return_value"],
+        json!({ "path": "", "a": { "type": "u32", "value": 1 }, "b": { "type": "i128", "value": "1" } })
+    );
+    let changed = &diff["storage"]["changed"];
+    assert_eq!(changed.as_array().unwrap().len(), 1, "{diff}");
+    assert_eq!(changed[0]["path"], "/value/storage/count", "{diff}");
+    assert!(
+        changed[0]["key"].as_str().unwrap().ends_with("instance"),
+        "{diff}"
+    );
+}
+
+fn an_added_event_is_added(lane: u32) {
+    let diff = ab(lane, "counter_v2_event", json!({}), json!({}));
+    let events = &diff["events"];
+    assert_eq!(events["added"].as_array().unwrap().len(), 1, "{diff}");
+    assert_eq!(events["added"][0]["index"], 0);
+    assert_eq!(events["added"][0]["event"]["type"], "contract");
+    assert!(
+        events["removed"].as_array().unwrap().is_empty()
+            && events["changed"].as_array().unwrap().is_empty()
+    );
+    assert!(diff["return_value"].is_null(), "{diff}");
+    assert!(
+        diff["storage"]["changed"].as_array().unwrap().is_empty(),
+        "the swap alone is not a storage change: {diff}"
+    );
+}
+
+fn an_extra_storage_write_is_added(lane: u32) {
+    let diff = ab(lane, "counter_v2_write", json!({}), json!({}));
+    let storage = &diff["storage"];
+    assert_eq!(storage["added"].as_array().unwrap().len(), 1, "{diff}");
+    let key = storage["added"][0]["key"].as_str().unwrap();
+    assert!(
+        key.contains("persistent data") && key.contains("last"),
+        "{key}"
+    );
+    assert_eq!(storage["added"][0]["entry"]["value"], 1);
+    assert!(
+        storage["removed"].as_array().unwrap().is_empty()
+            && storage["changed"].as_array().unwrap().is_empty()
+    );
+}
+
+fn a_new_require_auth_is_client_breaking(lane: u32) {
+    let diff = ab(
+        lane,
+        "counter_v2_auth",
+        json!({}),
+        json!({ "caller": WALLET }),
+    );
+    let auth = &diff["auth"];
+    assert_eq!(auth["client_breaking"], true, "{diff}");
+    assert_eq!(auth["added"].as_array().unwrap().len(), 1, "{diff}");
+    assert_eq!(auth["added"][0]["signer"], WALLET);
+    assert_eq!(auth["added"][0]["invocation"]["function"], "increment");
+}
+
+fn more_instructions_are_a_resource_difference(lane: u32) {
+    let diff = ab(lane, "counter_v2_cost", json!({}), json!({}));
+    let resources = diff["resources"].as_array().unwrap();
+    let instructions = resources
+        .iter()
+        .find(|r| r["metric"] == "instructions")
+        .unwrap_or_else(|| panic!("{diff}"));
+    assert!(instructions["delta"].as_i64().unwrap() > 0, "{diff}");
+    assert!(diff["return_value"].is_null(), "{diff}");
+
+    // +25% exactly, and an outcome change, on hand-built sides.
+    let mut sim = config_only(lane);
+    let side = |instructions: u64| json!({ "outcome": "ok", "return_value_xdr": "AAAAAQ==", "resources": { "instructions": instructions } });
+    let diff = sim.send(json!({ "type": "diff_results", "a": side(1000), "b": side(1250) }));
+    assert_eq!(
+        diff["resources"],
+        json!([{ "metric": "instructions", "a": 1000, "b": 1250, "delta": 250, "percent": 25.0 }])
+    );
+    let failed = json!({ "outcome": "error", "error": { "kind": "contract", "code": "Error(Contract, #1)" } });
+    let diff = sim.send(json!({ "type": "diff_results", "a": side(1000), "b": failed }));
+    assert_eq!(
+        diff["outcome"],
+        json!({ "a": "ok", "b": "contract error Error(Contract, #1)" })
+    );
+    let bad =
+        sim.send(json!({ "type": "diff_results", "a": side(1), "b": { "outcome": "maybe" } }));
+    assert_eq!(bad["detail"]["path"], "b.outcome", "{bad}");
+}
+
 /// A ledger with config and the registry and dice fixtures, opened under
 /// `session_id`.
 fn seeded(lane: u32, session_id: &str) -> (Sim, String, String) {
@@ -1396,6 +1556,30 @@ macro_rules! on_lane {
             #[test]
             fn a_session_layer_swap_rolls_back() {
                 super::a_session_layer_swap_rolls_back($protocol)
+            }
+            #[test]
+            fn an_identical_wasm_diffs_empty() {
+                super::an_identical_wasm_diffs_empty($protocol)
+            }
+            #[test]
+            fn a_changed_return_type_is_a_return_difference() {
+                super::a_changed_return_type_is_a_return_difference($protocol)
+            }
+            #[test]
+            fn an_added_event_is_added() {
+                super::an_added_event_is_added($protocol)
+            }
+            #[test]
+            fn an_extra_storage_write_is_added() {
+                super::an_extra_storage_write_is_added($protocol)
+            }
+            #[test]
+            fn a_new_require_auth_is_client_breaking() {
+                super::a_new_require_auth_is_client_breaking($protocol)
+            }
+            #[test]
+            fn more_instructions_are_a_resource_difference() {
+                super::more_instructions_are_a_resource_difference($protocol)
             }
             #[test]
             fn the_seed_is_derived_and_drives_env_prng() {

@@ -2,7 +2,7 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "https://signet.dev/schemas/sandbox/v1/diff_results.json",
   "title": "diff_results (request)",
-  "description": "Compare two simulate results field by field.",
+  "description": "Compare a call's result on the deployed code (a) and on a new build (b): outcome, return value, events, storage writes, auth and resources (#568). Values are compared as XDR, so u64 1 and i128 1 differ.",
   "type": "object",
   "properties": {
     "version": {
@@ -17,14 +17,41 @@
     "type": {
       "const": "diff_results"
     },
-    "left": {
+    "ledger_protocol": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "The lane that decodes the XDR; default the open ledger's, else the newest"
+    },
+    "a": {
       "type": "object",
+      "description": "One side: what a simulate (or contract_error) reply carried, as Go passes it on",
       "properties": {
+        "outcome": {
+          "enum": ["ok", "error"],
+          "description": "ok: the call returned; error: it ended in a contract_error"
+        },
+        "error": {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "minLength": 1,
+              "description": "contract or host"
+            },
+            "code": {
+              "type": "string",
+              "minLength": 1,
+              "description": "The contract_error's code"
+            }
+          },
+          "required": ["kind", "code"],
+          "additionalProperties": false
+        },
         "return_value_xdr": {
           "type": "string",
           "minLength": 1,
           "pattern": "^[A-Za-z0-9+/]+={0,2}$",
-          "description": "The returned ScVal, base64 XDR"
+          "description": "The returned ScVal; required when outcome is ok"
         },
         "events": {
           "type": "array",
@@ -34,54 +61,123 @@
               "type": {
                 "type": "string",
                 "minLength": 1,
-                "description": "contract | system | diagnostic"
+                "description": "contract | system | diagnostic (diagnostic events are left out)"
               },
               "event_xdr": {
                 "type": "string",
                 "minLength": 1,
                 "pattern": "^[A-Za-z0-9+/]+={0,2}$",
-                "description": "ContractEvent, base64 XDR"
+                "description": "ContractEvent"
               }
             },
             "required": ["type", "event_xdr"],
+            "additionalProperties": true
+          }
+        },
+        "storage": {
+          "type": "array",
+          "description": "The entries the call wrote (simulate's modified_entries)",
+          "items": {
+            "type": "object",
+            "properties": {
+              "key_xdr": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^[A-Za-z0-9+/]+={0,2}$",
+                "description": "LedgerKey"
+              },
+              "entry_xdr": {
+                "type": ["string", "null"],
+                "description": "The LedgerEntry the call left; null when it deleted the entry"
+              },
+              "live_until_ledger": {
+                "type": ["integer", "null"],
+                "minimum": 0
+              }
+            },
+            "required": ["key_xdr"],
             "additionalProperties": false
           }
         },
-        "cost": {
+        "auth": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9+/]+={0,2}$",
+            "description": "SorobanAuthorizationEntry"
+          },
+          "description": "The recorded auth entries"
+        },
+        "resources": {
           "type": "object",
           "properties": {
-            "cpu_insns": {
+            "instructions": {
               "type": "integer",
-              "description": "CPU instructions",
               "minimum": 0
             },
             "mem_bytes": {
               "type": "integer",
-              "description": "Memory bytes",
+              "minimum": 0
+            },
+            "read_bytes": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "write_bytes": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "read_entries": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "write_entries": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "resource_fee": {
+              "type": "integer",
               "minimum": 0
             }
           },
-          "required": ["cpu_insns", "mem_bytes"],
-          "additionalProperties": false
-        },
-        "logs": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          }
+          "additionalProperties": false,
+          "description": "Metrics compared when both sides give them"
         }
       },
-      "required": ["return_value_xdr", "events", "cost", "logs"],
+      "required": ["outcome"],
       "additionalProperties": false
     },
-    "right": {
+    "b": {
       "type": "object",
+      "description": "One side: what a simulate (or contract_error) reply carried, as Go passes it on",
       "properties": {
+        "outcome": {
+          "enum": ["ok", "error"],
+          "description": "ok: the call returned; error: it ended in a contract_error"
+        },
+        "error": {
+          "type": "object",
+          "properties": {
+            "kind": {
+              "type": "string",
+              "minLength": 1,
+              "description": "contract or host"
+            },
+            "code": {
+              "type": "string",
+              "minLength": 1,
+              "description": "The contract_error's code"
+            }
+          },
+          "required": ["kind", "code"],
+          "additionalProperties": false
+        },
         "return_value_xdr": {
           "type": "string",
           "minLength": 1,
           "pattern": "^[A-Za-z0-9+/]+={0,2}$",
-          "description": "The returned ScVal, base64 XDR"
+          "description": "The returned ScVal; required when outcome is ok"
         },
         "events": {
           "type": "array",
@@ -91,48 +187,95 @@
               "type": {
                 "type": "string",
                 "minLength": 1,
-                "description": "contract | system | diagnostic"
+                "description": "contract | system | diagnostic (diagnostic events are left out)"
               },
               "event_xdr": {
                 "type": "string",
                 "minLength": 1,
                 "pattern": "^[A-Za-z0-9+/]+={0,2}$",
-                "description": "ContractEvent, base64 XDR"
+                "description": "ContractEvent"
               }
             },
             "required": ["type", "event_xdr"],
+            "additionalProperties": true
+          }
+        },
+        "storage": {
+          "type": "array",
+          "description": "The entries the call wrote (simulate's modified_entries)",
+          "items": {
+            "type": "object",
+            "properties": {
+              "key_xdr": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^[A-Za-z0-9+/]+={0,2}$",
+                "description": "LedgerKey"
+              },
+              "entry_xdr": {
+                "type": ["string", "null"],
+                "description": "The LedgerEntry the call left; null when it deleted the entry"
+              },
+              "live_until_ledger": {
+                "type": ["integer", "null"],
+                "minimum": 0
+              }
+            },
+            "required": ["key_xdr"],
             "additionalProperties": false
           }
         },
-        "cost": {
+        "auth": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9+/]+={0,2}$",
+            "description": "SorobanAuthorizationEntry"
+          },
+          "description": "The recorded auth entries"
+        },
+        "resources": {
           "type": "object",
           "properties": {
-            "cpu_insns": {
+            "instructions": {
               "type": "integer",
-              "description": "CPU instructions",
               "minimum": 0
             },
             "mem_bytes": {
               "type": "integer",
-              "description": "Memory bytes",
+              "minimum": 0
+            },
+            "read_bytes": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "write_bytes": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "read_entries": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "write_entries": {
+              "type": "integer",
+              "minimum": 0
+            },
+            "resource_fee": {
+              "type": "integer",
               "minimum": 0
             }
           },
-          "required": ["cpu_insns", "mem_bytes"],
-          "additionalProperties": false
-        },
-        "logs": {
-          "type": "array",
-          "items": {
-            "type": "string"
-          }
+          "additionalProperties": false,
+          "description": "Metrics compared when both sides give them"
         }
       },
-      "required": ["return_value_xdr", "events", "cost", "logs"],
+      "required": ["outcome"],
       "additionalProperties": false
     }
   },
-  "required": ["version", "id", "type", "left", "right"],
+  "required": ["version", "id", "type", "a", "b"],
   "additionalProperties": false,
   "definitions": {
     "result": {
@@ -151,28 +294,287 @@
         "type": {
           "const": "result"
         },
-        "equal": {
-          "type": "boolean"
+        "empty": {
+          "type": "boolean",
+          "description": "No difference in any dimension"
         },
-        "differences": {
+        "outcome": {
+          "type": ["object", "null"],
+          "properties": {
+            "a": {
+              "type": "string"
+            },
+            "b": {
+              "type": "string"
+            }
+          },
+          "required": ["a", "b"],
+          "additionalProperties": false,
+          "description": "Set when one side returned and the other failed, or they failed differently: ok, or '<kind> error <code>'. The values are compared only when both returned"
+        },
+        "return_value": {
+          "oneOf": [
+            {
+              "type": "null"
+            },
+            {
+              "type": "object",
+              "properties": {
+                "path": {
+                  "type": "string",
+                  "description": "JSON pointer to the first place the values differ; empty for the whole value"
+                },
+                "a": {
+                  "description": "A's value there, tagged ({type, value}); null where A has nothing"
+                },
+                "b": {
+                  "description": "B's value there; null where B has nothing"
+                }
+              },
+              "required": ["path", "a", "b"],
+              "additionalProperties": true
+            }
+          ],
+          "description": "The first difference in the returned values"
+        },
+        "events": {
+          "type": "object",
+          "properties": {
+            "added": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "index": {
+                    "type": "integer",
+                    "minimum": 0
+                  }
+                },
+                "required": ["index"],
+                "additionalProperties": true
+              }
+            },
+            "removed": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "index": {
+                    "type": "integer",
+                    "minimum": 0
+                  }
+                },
+                "required": ["index"],
+                "additionalProperties": true
+              }
+            },
+            "changed": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "index": {
+                    "type": "integer",
+                    "minimum": 0
+                  }
+                },
+                "required": ["index"],
+                "additionalProperties": true
+              }
+            }
+          },
+          "required": ["added", "removed", "changed"],
+          "additionalProperties": false,
+          "description": "By index: same emitter and topics with another payload is changed (with path, a, b); otherwise A's event is removed and B's added"
+        },
+        "storage": {
+          "type": "object",
+          "properties": {
+            "added": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "key": {
+                    "type": "string",
+                    "description": "The LedgerKey in words"
+                  },
+                  "key_xdr": {
+                    "type": "string",
+                    "minLength": 1,
+                    "pattern": "^[A-Za-z0-9+/]+={0,2}$"
+                  }
+                },
+                "required": ["key", "key_xdr"],
+                "additionalProperties": true
+              }
+            },
+            "removed": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "key": {
+                    "type": "string",
+                    "description": "The LedgerKey in words"
+                  },
+                  "key_xdr": {
+                    "type": "string",
+                    "minLength": 1,
+                    "pattern": "^[A-Za-z0-9+/]+={0,2}$"
+                  }
+                },
+                "required": ["key", "key_xdr"],
+                "additionalProperties": true
+              }
+            },
+            "changed": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "key": {
+                    "type": "string",
+                    "description": "The LedgerKey in words"
+                  },
+                  "key_xdr": {
+                    "type": "string",
+                    "minLength": 1,
+                    "pattern": "^[A-Za-z0-9+/]+={0,2}$"
+                  }
+                },
+                "required": ["key", "key_xdr"],
+                "additionalProperties": true
+              }
+            },
+            "ttl": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "key": {
+                    "type": "string",
+                    "description": "The LedgerKey in words"
+                  },
+                  "key_xdr": {
+                    "type": "string",
+                    "minLength": 1,
+                    "pattern": "^[A-Za-z0-9+/]+={0,2}$"
+                  }
+                },
+                "required": ["key", "key_xdr"],
+                "additionalProperties": true
+              }
+            }
+          },
+          "required": ["added", "removed", "changed", "ttl"],
+          "additionalProperties": false,
+          "description": "By ledger key: written only by B (added), only by A (removed), to another value (changed, path into the contract-data value; an instance by its storage map, its executable left out), or with another TTL (ttl)"
+        },
+        "auth": {
+          "type": "object",
+          "properties": {
+            "client_breaking": {
+              "type": "boolean",
+              "description": "Any auth difference: a payload signed for A no longer matches B"
+            },
+            "added": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "signer": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "An address (G\u2026/C\u2026), or 'source account'"
+                  }
+                },
+                "required": ["signer"],
+                "additionalProperties": true
+              }
+            },
+            "removed": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "signer": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "An address (G\u2026/C\u2026), or 'source account'"
+                  }
+                },
+                "required": ["signer"],
+                "additionalProperties": true
+              }
+            },
+            "changed": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "signer": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "An address (G\u2026/C\u2026), or 'source account'"
+                  }
+                },
+                "required": ["signer"],
+                "additionalProperties": true
+              }
+            }
+          },
+          "required": ["client_breaking", "added", "removed", "changed"],
+          "additionalProperties": false
+        },
+        "resources": {
           "type": "array",
           "items": {
             "type": "object",
             "properties": {
-              "path": {
-                "type": "string",
-                "minLength": 1,
-                "description": "JSON pointer into the result"
+              "metric": {
+                "enum": [
+                  "instructions",
+                  "mem_bytes",
+                  "read_bytes",
+                  "write_bytes",
+                  "read_entries",
+                  "write_entries",
+                  "resource_fee"
+                ]
               },
-              "left": true,
-              "right": true
+              "a": {
+                "type": "integer"
+              },
+              "b": {
+                "type": "integer"
+              },
+              "delta": {
+                "type": "integer"
+              },
+              "percent": {
+                "type": ["number", "null"],
+                "description": "delta as % of a, one decimal; null when a is 0"
+              }
             },
-            "required": ["path"],
+            "required": ["metric", "a", "b", "delta", "percent"],
             "additionalProperties": false
-          }
+          },
+          "description": "Each metric both sides give that moved"
         }
       },
-      "required": ["version", "id", "type", "equal", "differences"],
+      "required": [
+        "version",
+        "id",
+        "type",
+        "empty",
+        "outcome",
+        "return_value",
+        "events",
+        "storage",
+        "auth",
+        "resources"
+      ],
       "additionalProperties": false
     }
   }

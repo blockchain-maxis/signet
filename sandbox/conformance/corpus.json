@@ -3073,7 +3073,7 @@
     {
       "fixture": "sandbox/fixtures/wasm/counter_v2_cost.wasm",
       "name": "counter_v2_cost",
-      "wasmHash": "e499caeaba1a63d0b71734071cdbe46e7badabfe17faa62d5ee32238aa6a83ee",
+      "wasmHash": "aff08c31673217fab91eec9c35b22451fa95b2213dabad84360fae62b1d1e917",
       "specJson": {
         "build": {
           "entries": {
@@ -3119,7 +3119,7 @@
         "sdkVersion": "16.1.0",
         "types": [],
         "warnings": [],
-        "wasmHash": "e499caeaba1a63d0b71734071cdbe46e7badabfe17faa62d5ee32238aa6a83ee"
+        "wasmHash": "aff08c31673217fab91eec9c35b22451fa95b2213dabad84360fae62b1d1e917"
       },
       "cases": [
         {
@@ -3301,6 +3301,96 @@
         "types": [],
         "warnings": [],
         "wasmHash": "e7d811f3138aa63465f6393fa12ed9fb3bb49be35cb650f08bdd2e081209a5ca"
+      },
+      "cases": [
+        {
+          "name": "get valid 0",
+          "function": "get",
+          "args": {},
+          "expected": {
+            "ok": true,
+            "argsXdr": []
+          }
+        },
+        {
+          "name": "get valid 1",
+          "function": "get",
+          "args": {},
+          "expected": {
+            "ok": true,
+            "argsXdr": []
+          }
+        },
+        {
+          "name": "increment valid 0",
+          "function": "increment",
+          "args": {},
+          "expected": {
+            "ok": true,
+            "argsXdr": []
+          }
+        },
+        {
+          "name": "increment valid 1",
+          "function": "increment",
+          "args": {},
+          "expected": {
+            "ok": true,
+            "argsXdr": []
+          }
+        }
+      ]
+    },
+    {
+      "fixture": "sandbox/fixtures/wasm/counter_v2_write.wasm",
+      "name": "counter_v2_write",
+      "wasmHash": "2778abdd74415b48b4d6c4e0e0cd07f34b7e0f72de9812d90535e5408acc0ee5",
+      "specJson": {
+        "build": {
+          "entries": {
+            "rssdk_spec_shaking": "2",
+            "rssdkver": "28.0.0#48d506712f964094d14176e2f0b02afcd1054567",
+            "rsver": "1.97.1"
+          },
+          "rustVersion": "1.97.1",
+          "sdkVersion": "28.0.0#48d506712f964094d14176e2f0b02afcd1054567"
+        },
+        "entriesXdr": [
+          "AAAAAAAAAAAAAAADZ2V0AAAAAAAAAAABAAAABA==",
+          "AAAAAAAAAAAAAAAJaW5jcmVtZW50AAAAAAAAAAAAAAEAAAAE"
+        ],
+        "env": {
+          "preRelease": 0,
+          "protocolVersion": 28
+        },
+        "errors": [],
+        "events": [],
+        "functions": [
+          {
+            "doc": "",
+            "inputs": [],
+            "isConstructor": false,
+            "name": "get",
+            "outputs": [
+              "u32"
+            ]
+          },
+          {
+            "doc": "",
+            "inputs": [],
+            "isConstructor": false,
+            "name": "increment",
+            "outputs": [
+              "u32"
+            ]
+          }
+        ],
+        "provenance": "embedded",
+        "schemaVersion": 1,
+        "sdkVersion": "16.1.0",
+        "types": [],
+        "warnings": [],
+        "wasmHash": "2778abdd74415b48b4d6c4e0e0cd07f34b7e0f72de9812d90535e5408acc0ee5"
       },
       "cases": [
         {

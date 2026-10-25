@@ -36,11 +36,13 @@ type Run struct {
 	Cached bool `json:"cached,omitempty"`
 }
 
-// Outcome is one replay on the deployed code (A) and the new code (B).
+// Outcome is one replay on the deployed code (A) and the new code (B), and
+// what differs between them (#568).
 type Outcome struct {
-	Name string `json:"name"`
-	A    Run    `json:"a"`
-	B    Run    `json:"b"`
+	Name string                       `json:"name"`
+	A    Run                          `json:"a"`
+	B    Run                          `json:"b"`
+	Diff *simulator.DiffResultsResult `json:"diff"`
 }
 
 // Cycle is what one reload produced, for the diff engine (#568) and the
@@ -152,6 +154,9 @@ func (r *Reloader) Cycle(ctx context.Context, wasm []byte, replays []Replay) (Cy
 			return Cycle{}, fmt.Errorf("%s on the new build: %w", replay.Name, err)
 		}
 		out.Simulations++
+		if o.Diff, err = r.diff(ctx, o); err != nil {
+			return Cycle{}, fmt.Errorf("comparing %s: %w", replay.Name, err)
+		}
 		out.Outcomes = append(out.Outcomes, o)
 	}
 	// Leave the session at base, as the next cycle expects it.
@@ -186,6 +191,18 @@ func (r *Reloader) run(ctx context.Context, params simulator.SimulateParams, swa
 		return Run{Error: ce}, nil
 	}
 	return Run{Result: &res}, nil
+}
+
+// diff compares an outcome's sides in the simulator, where the values are
+// exact (#568).
+func (r *Reloader) diff(ctx context.Context, o Outcome) (*simulator.DiffResultsResult, error) {
+	var d simulator.DiffResultsResult
+	if err := call(ctx, r.host, simulator.TypeDiffResults, simulator.DiffResultsParams{
+		A: simulator.DiffSideOf(o.A.Result, o.A.Error), B: simulator.DiffSideOf(o.B.Result, o.B.Error),
+	}, &d); err != nil {
+		return nil, err
+	}
+	return &d, nil
 }
 
 func (r *Reloader) rollback(ctx context.Context) error {

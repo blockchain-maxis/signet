@@ -180,6 +180,7 @@ impl Dispatcher {
             "ledger_rollback" => Step::reply(ledger_rollback(&mut self.ledger, &id, &object)),
             "xdr_keys" => Step::reply(xdr_keys(&self.ledger, &id, &object)),
             "tx_decode" => Step::reply(tx_decode(&self.ledger, &id, &object)),
+            "diff_results" => Step::reply(crate::diff::diff_results(&self.ledger, &id, &object)),
             "snapshot_read" => Step::reply(crate::snapshot::snapshot_read(&id, &object)),
             "storage_override" => Step::reply(crate::simulate::storage_override(
                 &mut self.ledger,

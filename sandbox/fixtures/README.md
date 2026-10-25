@@ -13,6 +13,7 @@ The WASMs are committed under [`wasm/`](./wasm) so host tests run without requir
 | `counter_v2_event`    | Counter variant emitting an `Incremented` event used by event emission tests (`test_diff_event_added`).                                                                              |
 | `counter_v2_auth`     | Counter variant requiring caller authorization via `require_auth` used by auth enforcement tests (`test_diff_auth_enforced`).                                                        |
 | `counter_v2_cost`     | Counter variant performing extra loop computations used by execution cost diff tests (`test_diff_cost_increased`).                                                                   |
+| `counter_v2_write`    | Counter variant that also writes a persistent `last` entry, used by the storage dimension of the A/B diff tests (`an_extra_storage_write_is_added`).                                 |
 | `profile_v1`          | Baseline stored `Profile { id, name }` struct used by state layout compatibility tests (`test_layout_baseline`).                                                                     |
 | `profile_v2_field`    | Stored `Profile` struct gaining a non-Option `age` field used by breaking layout change tests (`test_layout_field_added_incompatible`).                                              |
 | `profile_v2_optional` | Stored `Profile` struct gaining an `Option<String>` `bio` field used by CAP-86 backward-compatible storage tests (`test_layout_field_added_compatible_optional`).                    |

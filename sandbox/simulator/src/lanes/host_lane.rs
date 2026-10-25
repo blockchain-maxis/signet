@@ -33,7 +33,7 @@ use soroban_simulation::simulation::{
 use soroban_simulation::NetworkConfig;
 
 use super::{
-    AuthMode, BudgetOverride, ByteSnapshotSource, EffectiveBudget, BUDGET_CEILING_FACTOR, DecodeTarget, DerivedKey, EntryChangeBytes, ErrorCase, ExternalRef,
+    AuthMode, BudgetOverride, ByteSnapshotSource, DiffSide, DiffWrite, EffectiveBudget, BUDGET_CEILING_FACTOR, DecodeTarget, DerivedKey, EntryChangeBytes, ErrorCase, ExternalRef,
     Installed, InstanceInfo, InterfaceVersion, InvocationFailure, KeyRequest, Lane, LaneError,
     SimulateBytes, SimulateResultBytes, StorageOverride, StorageWrite, Durability, SwapResultBytes, TraceCall, TransactionResources, WasmInspection,
 };
@@ -722,6 +722,10 @@ impl Lane for HostLane {
             read_write: keys(&data.resources.footprint.read_write)?,
             resource_fee: data.resource_fee,
         })
+    }
+
+    fn diff_values(&self, a: &DiffSide, b: &DiffSide) -> Result<Value, LaneError> {
+        diff::values(a, b, &|key| self.describe_key(key), &|entry| self.describe_entry(entry))
     }
 
     fn describe_key(&self, key_xdr: &[u8]) -> String {

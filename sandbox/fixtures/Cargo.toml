@@ -6,6 +6,7 @@ members = [
     "crates/counter_v2_event",
     "crates/counter_v2_auth",
     "crates/counter_v2_cost",
+    "crates/counter_v2_write",
     "crates/profile_v1",
     "crates/profile_v2_field",
     "crates/profile_v2_optional",

@@ -167,6 +167,14 @@ func TestReloadCycleRunsAOnceAndLeavesBaseAlone(t *testing.T) {
 	if inc.A.Result.Seed != inc.B.Result.Seed {
 		t.Fatalf("A and B drew different seeds: %s, %s", inc.A.Result.Seed, inc.B.Result.Seed)
 	}
+	// The diff (#568): get returns the same, and only costs differ (v2 is a
+	// bigger module to load); increment gained an event.
+	if d := first.Outcomes[0].Diff; d == nil || d.Outcome != nil || d.ReturnValue != nil || len(d.Events.Added)+len(d.Storage.Changed) != 0 || len(d.Resources) == 0 {
+		t.Fatalf("get's diff: %+v", d)
+	}
+	if d := inc.Diff; d == nil || d.Empty || len(d.Events.Added) != 1 || d.ReturnValue != nil || len(d.Storage.Changed) != 0 {
+		t.Fatalf("increment's diff: %+v", d)
+	}
 
 	// An unrelated edit: the same bytes again.
 	second, err := r.Cycle(ctx, v2, replays())

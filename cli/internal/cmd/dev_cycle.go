@@ -112,7 +112,7 @@ func describeCycle(c dev.Cycle) []string {
 	for _, o := range c.Outcomes {
 		a, b := describeRun(o.A), describeRun(o.B)
 		mark := "="
-		if a != b {
+		if o.Diff != nil && !o.Diff.Empty {
 			mark = "≠"
 		}
 		lines = append(lines, fmt.Sprintf("  %s  A %s  %s  B %s", o.Name, a, mark, b))
