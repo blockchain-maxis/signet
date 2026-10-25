@@ -751,7 +751,12 @@ impl Lane for HostLane {
 
     fn key_contract(&self, key_xdr: &[u8]) -> Option<String> {
         match decode::<LedgerKey>(key_xdr, "LedgerKey").ok()? {
-            LedgerKey::ContractData(data) => Some(data.contract.to_string()),
+            // An account's auth nonce is contract data too, owned by no
+            // contract.
+            LedgerKey::ContractData(LedgerKeyContractData {
+                contract: contract @ ScAddress::Contract(_),
+                ..
+            }) => Some(contract.to_string()),
             _ => None,
         }
     }

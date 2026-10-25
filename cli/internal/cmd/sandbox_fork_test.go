@@ -28,11 +28,22 @@ const (
 	testnetPhrase    = "Test SDF Network ; September 2015"
 )
 
+// The fake's directory is a plain MkdirTemp, removed in TestMain, because
+// t.TempDir() would vanish with the first test that asked for it.
 var (
 	fakeSimOnce sync.Once
+	fakeSimDir  string
 	fakeSimPath string
 	fakeSimErr  error
 )
+
+func TestMain(m *testing.M) {
+	code := m.Run()
+	if fakeSimDir != "" {
+		_ = os.RemoveAll(fakeSimDir)
+	}
+	os.Exit(code)
+}
 
 // buildFakeSimulator compiles internal/simulator's fake once per run; its
 // FAKESIM_SCRIPT mode plays the simulator's side of a fork.
@@ -44,6 +55,7 @@ func buildFakeSimulator(t *testing.T) string {
 			fakeSimErr = err
 			return
 		}
+		fakeSimDir = dir
 		out := filepath.Join(dir, "signet-simulator")
 		if runtime.GOOS == "windows" {
 			out += ".exe"

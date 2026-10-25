@@ -211,3 +211,18 @@ export {
   invokedFunction,
 } from './observe/calls.ts';
 export type { AggregatedCallEdge, CallEdge, CallEdgeRow, CallEvidence } from './observe/calls.ts';
+
+// Local sandbox traces (#542): observations and the real call tree from a
+// `signet-simulator` trace, pinned to the trace versions this package reads.
+export {
+  fromSandboxTrace,
+  SUPPORTED_TRACE_VERSIONS,
+  UnsupportedTraceVersionError,
+} from './observe/sandbox.ts';
+export type {
+  CallNode,
+  SandboxEvidence,
+  SandboxTrace,
+  SandboxTraceFrame,
+  SandboxTraceStorage,
+} from './observe/sandbox.ts';

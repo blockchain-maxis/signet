@@ -1,0 +1,55 @@
+{
+  "frame_count": 1,
+  "frames": [
+    {
+      "args_exact": true,
+      "args_xdr": [
+        "AAAADgAAAA10cmFjZS1maXh0dXJlAAAA",
+        "AAAAEgAAAAAAAAAAO5kROA7+mIugqJAOsc/kTzZvfb6Ua+0HckD39iTfFcU="
+      ],
+      "contract": "CASFJHI5PQSRWS7JV25CF7FOMRKIVBP3RXRP3E2GH2CV4BCAG7FUJRCN",
+      "depth": 0,
+      "error": null,
+      "function": "claim",
+      "index": 0,
+      "parent": null,
+      "result_xdr": "AAAAAQ==",
+      "wasm_hash": "936996c74b7d383c56ec174857b15927cdd29478c6909da332b4dec8b67335fe"
+    }
+  ],
+  "ledger": 4887004,
+  "max_frames": 10000,
+  "seeded": false,
+  "source": "diagnostic_events",
+  "storage": [
+    {
+      "changed": [
+        "AAAABgAAAAEkVJ0dfCUbS+muuiL8rmRUioX7jeL9k0Y+hV4EQDfLRAAAABAAAAABAAAAAgAAAA8AAAAGSGFuZGxlAAAAAAASAAAAAAAAAAA7mRE4Dv6Yi6CokA6xz+RPNm99vpRr7QdyQPf2JN8VxQAAAAE=",
+        "AAAABgAAAAEkVJ0dfCUbS+muuiL8rmRUioX7jeL9k0Y+hV4EQDfLRAAAABAAAAABAAAAAgAAAA8AAAAFT3duZXIAAAAAAAAOAAAADXRyYWNlLWZpeHR1cmUAAAAAAAAB",
+        "AAAABgAAAAEkVJ0dfCUbS+muuiL8rmRUioX7jeL9k0Y+hV4EQDfLRAAAABQAAAAB"
+      ],
+      "contract": "CASFJHI5PQSRWS7JV25CF7FOMRKIVBP3RXRP3E2GH2CV4BCAG7FUJRCN",
+      "read_only": [],
+      "read_write": [
+        "AAAABgAAAAEkVJ0dfCUbS+muuiL8rmRUioX7jeL9k0Y+hV4EQDfLRAAAABAAAAABAAAAAgAAAA8AAAAGSGFuZGxlAAAAAAASAAAAAAAAAAA7mRE4Dv6Yi6CokA6xz+RPNm99vpRr7QdyQPf2JN8VxQAAAAE=",
+        "AAAABgAAAAEkVJ0dfCUbS+muuiL8rmRUioX7jeL9k0Y+hV4EQDfLRAAAABAAAAABAAAAAgAAAA8AAAAFT3duZXIAAAAAAAAOAAAADXRyYWNlLWZpeHR1cmUAAAAAAAAB",
+        "AAAABgAAAAEkVJ0dfCUbS+muuiL8rmRUioX7jeL9k0Y+hV4EQDfLRAAAABQAAAAB"
+      ]
+    },
+    {
+      "changed": [
+        "AAAABgAAAAAAAAAAO5kROA7+mIugqJAOsc/kTzZvfb6Ua+0HckD39iTfFcUAAAAVXFUn1/hxdTQAAAAA"
+      ],
+      "contract": null,
+      "read_only": [
+        "AAAAAAAAAAA7mRE4Dv6Yi6CokA6xz+RPNm99vpRr7QdyQPf2JN8VxQ==",
+        "AAAAB5NplsdLfTg8VuwXSFexWSfN0pR4xpCdozK03si2czX+"
+      ],
+      "read_write": [
+        "AAAABgAAAAAAAAAAO5kROA7+mIugqJAOsc/kTzZvfb6Ua+0HckD39iTfFcUAAAAVXFUn1/hxdTQAAAAA"
+      ]
+    }
+  ],
+  "truncated": false,
+  "version": 1
+}

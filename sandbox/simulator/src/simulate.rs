@@ -247,7 +247,17 @@ pub fn simulate(
             })
         })
         .collect();
-    let trace = max_frames.map(|max| crate::trace::build(lane, &**fork, &args_xdr, &run, max));
+    let trace = max_frames.map(|max| {
+        let cx = crate::trace::Context {
+            lane,
+            src: &**fork,
+            store: &open.store,
+            root_args_xdr: &args_xdr,
+            ledger: sequence,
+            ledger_overridden,
+        };
+        crate::trace::build(&cx, &run, max)
+    });
     let diagnostic_events = if diagnostics {
         b64_all(&run.diagnostic_events_xdr)
     } else {

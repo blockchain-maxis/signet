@@ -1,0 +1,37 @@
+{
+  "frame_count": 1,
+  "frames": [
+    {
+      "args_exact": true,
+      "args_xdr": [],
+      "contract": "CASFJHI5PQSRWS7JV25CF7FOMRKIVBP3RXRP3E2GH2CV4BCAG7FUJRCN",
+      "depth": 0,
+      "error": null,
+      "function": "count",
+      "index": 0,
+      "parent": null,
+      "result_xdr": "AAAAAwAAAAI=",
+      "wasm_hash": "936996c74b7d383c56ec174857b15927cdd29478c6909da332b4dec8b67335fe"
+    }
+  ],
+  "ledger": 4887004,
+  "max_frames": 10000,
+  "seeded": false,
+  "source": "diagnostic_events",
+  "storage": [
+    {
+      "changed": [],
+      "contract": "CASFJHI5PQSRWS7JV25CF7FOMRKIVBP3RXRP3E2GH2CV4BCAG7FUJRCN",
+      "read_only": ["AAAABgAAAAEkVJ0dfCUbS+muuiL8rmRUioX7jeL9k0Y+hV4EQDfLRAAAABQAAAAB"],
+      "read_write": []
+    },
+    {
+      "changed": [],
+      "contract": null,
+      "read_only": ["AAAAB5NplsdLfTg8VuwXSFexWSfN0pR4xpCdozK03si2czX+"],
+      "read_write": []
+    }
+  ],
+  "truncated": false,
+  "version": 1
+}

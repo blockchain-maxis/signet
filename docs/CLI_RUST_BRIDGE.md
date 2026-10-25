@@ -214,8 +214,10 @@ checked). Results report the mode and list the recorded auth as `auth_entries`
 `simulate` with `trace: true` (or `{max_frames: N}`, default 10,000) returns
 `trace`, the call tree the host ran, in the shape of
 [`trace.json`](../sandbox/protocol/schema/v1/trace.json): each frame's contract,
-function, parent and depth, its arguments and result (or error) as XDR, and the
-footprint by contract (read-only, read-write, changed). The tree is read from
+function, parent and depth, the executable it ran, its arguments and result
+(or error) as XDR; the footprint by contract (read-only, read-write, changed);
+the ledger; and `seeded`, set when the run saw state the network does not have
+(an installed or session-written entry, or a moved ledger). The tree is read from
 the host's `fn_call` / `fn_return` diagnostic events, so asking for it turns
 diagnostics on for that call (they are returned only if `diagnostics` was asked
 for too). Recording-mode simulation builds its host internally and accepts no

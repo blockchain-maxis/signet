@@ -448,7 +448,8 @@ pub trait Lane: Sync {
     /// A `LedgerKey` in words, for messages (`contract data CAS…: Owner("alice")`).
     fn describe_key(&self, key_xdr: &[u8]) -> String;
 
-    /// The contract (C...) a contract-data `LedgerKey` belongs to.
+    /// The contract (C...) a contract-data `LedgerKey` belongs to; `None`
+    /// for any other key, an account's auth nonce included.
     fn key_contract(&self, key_xdr: &[u8]) -> Option<String>;
 
     /// The call tree in `DiagnosticEvent` XDR (#541).

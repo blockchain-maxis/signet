@@ -359,8 +359,11 @@ type TraceOptions struct {
 // host's fn_call / fn_return diagnostics, so there are no per-frame
 // instruction counts.
 type Trace struct {
-	Version    int            `json:"version"`
-	Source     string         `json:"source"`
+	Version int    `json:"version"`
+	Source  string `json:"source"`
+	Ledger  uint32 `json:"ledger"`
+	// Seeded is set when the run saw state the network does not have.
+	Seeded     bool           `json:"seeded"`
 	Frames     []TraceFrame   `json:"frames"`
 	FrameCount int            `json:"frame_count"`
 	MaxFrames  int            `json:"max_frames"`
@@ -375,6 +378,7 @@ type TraceFrame struct {
 	Depth    int      `json:"depth"`
 	Contract string   `json:"contract"`
 	Function string   `json:"function"`
+	WasmHash *string  `json:"wasm_hash"`
 	ArgsXDR  []string `json:"args_xdr"`
 	// ArgsExact is false when no spec said how many arguments a folded
 	// vec held.

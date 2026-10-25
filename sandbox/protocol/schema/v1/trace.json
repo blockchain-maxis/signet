@@ -13,6 +13,15 @@
       "const": "diagnostic_events",
       "description": "Where the tree was read from"
     },
+    "ledger": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "The ledger sequence the call ran at"
+    },
+    "seeded": {
+      "type": "boolean",
+      "description": "True when the run saw anything but the network's own state: an entry the fork did not fetch (installed, written by a session, put, swapped) or a moved ledger. A seeded run shows what the code does, not what happened on chain."
+    },
     "frames": {
       "type": "array",
       "description": "Every contract call, in call order (pre-order): a frame's parent comes before it",
@@ -47,6 +56,18 @@
           "function": {
             "type": "string",
             "minLength": 1
+          },
+          "wasm_hash": {
+            "oneOf": [
+              {
+                "type": "string",
+                "pattern": "^[0-9a-f]{64}$"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "The executable the contract ran; null for a Stellar asset contract"
           },
           "args_xdr": {
             "type": "array",
@@ -95,6 +116,7 @@
           "depth",
           "contract",
           "function",
+          "wasm_hash",
           "args_xdr",
           "args_exact",
           "result_xdr",
@@ -170,6 +192,16 @@
       }
     }
   },
-  "required": ["version", "source", "frames", "frame_count", "max_frames", "truncated", "storage"],
+  "required": [
+    "version",
+    "source",
+    "ledger",
+    "seeded",
+    "frames",
+    "frame_count",
+    "max_frames",
+    "truncated",
+    "storage"
+  ],
   "additionalProperties": false
 }

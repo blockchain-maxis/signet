@@ -1074,12 +1074,26 @@ fn moving_past_a_ttl_archives_the_entry_and_the_call_restores_it(lane: u32) {
     // A forked contract carries the network's TTLs; an installed one never
     // lapses.
     let mut sim = forked(lane);
+    let traced = sim.send(json!({
+        "type": "simulate", "contract_id": REGISTRY, "function": "count", "args": {}, "trace": true,
+    }));
+    assert_eq!(traced["trace"]["seeded"], false, "all fetched: {traced}");
+    let wasm_hash = traced["trace"]["frames"][0]["wasm_hash"].as_str().unwrap();
+    assert_eq!(wasm_hash.len(), 64);
     let live = sim.call(REGISTRY, "count", json!({}));
     assert_eq!(live["type"], "result", "{live}");
     assert!(live.get("archived").is_none(), "{live}");
 
     // Far past every TTL the network gave it.
     let far = 3_000_000_000u32;
+    let moved = sim.send(json!({
+        "type": "simulate", "contract_id": REGISTRY, "function": "count", "args": {}, "trace": true,
+        "ledger": { "timestamp": 1 },
+    }));
+    assert_eq!(
+        moved["trace"]["seeded"], true,
+        "a moved ledger is not the network's"
+    );
     let lapsed = at(
         &mut sim,
         REGISTRY,
@@ -1143,6 +1157,11 @@ fn a_trace_shows_the_two_level_call_tree(lane: u32) {
     );
     let trace = &traced["trace"];
     assert_eq!(trace["version"], 1);
+    assert_eq!(trace["ledger"], 100);
+    assert_eq!(
+        trace["seeded"], true,
+        "installed contracts are not the network's"
+    );
     assert_eq!(trace["truncated"], false);
     let frames = trace["frames"].as_array().unwrap();
     assert_eq!(frames.len(), 2, "{trace}");

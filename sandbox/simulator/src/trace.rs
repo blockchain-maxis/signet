@@ -9,13 +9,16 @@
 //! `cost`. The footprint is per transaction, so storage is reported per
 //! contract rather than per frame.
 
+use std::cell::RefCell;
 use std::collections::HashMap;
 
 use base64::engine::general_purpose::STANDARD as BASE64;
 use base64::Engine;
 use serde_json::{json, Map, Value};
+use sha2::{Digest, Sha256};
 
-use crate::lanes::{ByteSnapshotSource, Lane, SimulateResultBytes, TraceCall};
+use crate::lanes::{ByteSnapshotSource, KeyRequest, Lane, SimulateResultBytes, TraceCall};
+use crate::ledger::store::{LayeredStore, Lookup, Source};
 use crate::spec_verbs::wasm_of_contract;
 
 /// The trace format's version; the visualiser pins the versions it reads.
@@ -43,30 +46,52 @@ pub fn parse(raw: Option<&Value>) -> Result<Option<usize>, &'static str> {
     }
 }
 
-/// The trace of one run. `root_args_xdr` are the arguments the call was
-/// given, exact where the event's folding is ambiguous.
-pub fn build(
-    lane: &dyn Lane,
-    src: &dyn ByteSnapshotSource,
-    root_args_xdr: &[Vec<u8>],
-    run: &SimulateResultBytes,
-    max_frames: usize,
-) -> Value {
+/// What a trace is built from, besides the run itself.
+pub struct Context<'a> {
+    pub lane: &'a dyn Lane,
+    /// The fork's source, for the called contracts' code.
+    pub src: &'a dyn ByteSnapshotSource,
+    /// The store, for where each footprint entry came from. Borrowed only
+    /// once the code reads (which may fetch) are done.
+    pub store: &'a RefCell<LayeredStore>,
+    /// The arguments the call was given: exact where an event's folding is
+    /// ambiguous.
+    pub root_args_xdr: &'a [Vec<u8>],
+    /// The ledger the call ran at, and whether that was an override.
+    pub ledger: u32,
+    pub ledger_overridden: bool,
+}
+
+/// The trace of one run.
+pub fn build(cx: &Context, run: &SimulateResultBytes, max_frames: usize) -> Value {
+    let lane = cx.lane;
     let calls = lane.trace_calls(&run.diagnostic_events_xdr);
     let truncated = calls.len() > max_frames;
-    let mut arity: HashMap<(String, String), Option<usize>> = HashMap::new();
+    // Each called contract's code, once: its hash and its spec.
+    let mut code: HashMap<String, Option<(String, Value)>> = HashMap::new();
+    let mut code_of = |contract: &str| {
+        code.entry(contract.to_string())
+            .or_insert_with(|| {
+                let wasm = wasm_of_contract(cx.src, lane, contract).ok()?;
+                let spec = lane.spec_document(&wasm).unwrap_or(Value::Null);
+                Some((hex(&Sha256::digest(&wasm)), spec))
+            })
+            .clone()
+    };
     let frames: Vec<Value> = calls
         .iter()
         .take(max_frames)
         .enumerate()
         .map(|(index, call)| {
+            let code = code_of(&call.contract);
             let (args, exact) = if index == 0 {
-                (root_args_xdr.to_vec(), true)
+                (cx.root_args_xdr.to_vec(), true)
             } else {
-                let inputs = *arity
-                    .entry((call.contract.clone(), call.function.clone()))
-                    .or_insert_with(|| inputs(lane, src, call));
-                args_of(call, inputs)
+                args_of(
+                    call,
+                    code.as_ref()
+                        .and_then(|(_, spec)| inputs(spec, &call.function)),
+                )
             };
             json!({
                 "index": index,
@@ -74,6 +99,7 @@ pub fn build(
                 "depth": call.depth,
                 "contract": call.contract,
                 "function": call.function,
+                "wasm_hash": code.map(|(hash, _)| hash),
                 "args_xdr": args.iter().map(|a| BASE64.encode(a)).collect::<Vec<_>>(),
                 "args_exact": exact,
                 "result_xdr": call.result_xdr.as_ref().map(|r| BASE64.encode(r)),
@@ -84,6 +110,8 @@ pub fn build(
     json!({
         "version": TRACE_SCHEMA_VERSION,
         "source": "diagnostic_events",
+        "ledger": cx.ledger,
+        "seeded": seeded(cx, &calls, run),
         "frames": frames,
         "frame_count": calls.len(),
         "max_frames": max_frames,
@@ -92,17 +120,49 @@ pub fn build(
     })
 }
 
-/// How many inputs the callee's spec declares for the function, if it has
-/// a spec (a Stellar asset contract has none).
-fn inputs(lane: &dyn Lane, src: &dyn ByteSnapshotSource, call: &TraceCall) -> Option<usize> {
-    let wasm = wasm_of_contract(src, lane, &call.contract).ok()?;
-    let spec = lane.spec_document(&wasm).ok()?;
+/// Whether the run saw anything but the network's own state: an entry the
+/// fork did not fetch (installed, written by the session, put or swapped),
+/// or a moved ledger. Such a run is evidence of what the code does, not of
+/// what happened on chain.
+fn seeded(cx: &Context, calls: &[TraceCall], run: &SimulateResultBytes) -> bool {
+    if cx.ledger_overridden {
+        return true;
+    }
+    let mut keys: Vec<Vec<u8>> = run
+        .transaction_data_xdr
+        .as_ref()
+        .and_then(|data| cx.lane.transaction_resources(data).ok())
+        .map(|r| [r.read_only, r.read_write].concat())
+        .unwrap_or_default();
+    for call in calls {
+        if let Ok(mut derived) = cx.lane.ledger_keys(&KeyRequest::ContractInstance {
+            contract_id: call.contract.clone(),
+        }) {
+            keys.extend(derived.drain(..).map(|k| k.key_xdr));
+        }
+    }
+    let store = cx.store.borrow();
+    keys.iter().any(|key| {
+        let provenance = match store.lookup(key) {
+            Lookup::Live { provenance, .. } | Lookup::Archived { provenance, .. } => provenance,
+            Lookup::Absent => return false,
+        };
+        provenance.source != Source::Fork
+    })
+}
+
+/// How many inputs a spec declares for `function`.
+fn inputs(spec: &Value, function: &str) -> Option<usize> {
     spec["functions"]
         .as_array()?
         .iter()
-        .find(|f| f["name"] == call.function.as_str())?["inputs"]
+        .find(|f| f["name"] == function)?["inputs"]
         .as_array()
         .map(Vec::len)
+}
+
+fn hex(bytes: &[u8]) -> String {
+    bytes.iter().map(|b| format!("{b:02x}")).collect()
 }
 
 /// A nested call's arguments. The host records one argument as itself and
