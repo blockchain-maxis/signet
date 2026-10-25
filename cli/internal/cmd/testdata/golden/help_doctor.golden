@@ -1,11 +1,18 @@
 $ signet doctor --help
 -- stdout --
-Reports whether the pieces signet needs are present and usable: the
-config file, the stellar CLI, and the cache directory bug reports use.
+Checks what a first run depends on, and says what to do about anything
+that is not right:
 
-It never makes a network request and never prints a secret, and it exits
-successfully whether or not every check passes. A failed check is a finding,
-not an error.
+  - the stellar CLI is installed and new enough;
+  - at least one stellar identity exists;
+  - the config file parses and its current context exists;
+  - the deployment answers, and can link a wallet (its pairing check);
+  - the deployment serves the network signet is set to;
+  - the local clock is close to the deployment's (SEP-10 challenges are
+    valid for five minutes, so a skewed clock fails sign-in with no hint).
+
+Each check is ok, warn or fail, with a one-line fix. Exits 3 when any check
+fails. It never prints a secret, and writes paths under your home as ~/….
 
 Usage:
   signet doctor [flags]

@@ -1,6 +1,7 @@
-$ signet doctor --json
+$ signet doctor --url <deployment> --network testnet --json
 -- stdout --
-{"checks":[{"name":"config file","ok":true,"detail":"not present, defaults in use"},{"name":"stellar CLI","ok":false,"detail":"configuration error: stellar CLI not found on PATH: \"stellar\" — install it from https://developers.stellar.org/docs/tools/cli/install-cli (<stellar-version> or newer is required)"},{"name":"cache directory","ok":true,"detail":"ready"}]}
+{"checks":[{"name":"config file","status":"ok","detail":"not present, defaults in use"},{"name":"stellar CLI","status":"fail","detail":"configuration error: stellar CLI not found on PATH: \"stellar\" — install it from https://developers.stellar.org/docs/tools/cli/install-cli (<stellar-version> or newer is required)","fix":"install or upgrade it: https://developers.stellar.org/docs/tools/cli/install-cli"},{"name":"identities","status":"warn","detail":"not checked: needs the stellar CLI"},{"name":"cache directory","status":"ok","detail":"ready"},{"name":"deployment","status":"ok","detail":"<deployment>, pairing up"},{"name":"network","status":"ok","detail":"testnet"},{"name":"clock","status":"ok","detail":"within 30s of the deployment's"}]}
 -- stderr --
 (empty)
--- exit 0 --
+-- exit 3 --
+configuration error: stellar CLI failed

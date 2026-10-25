@@ -235,11 +235,18 @@ func TestGolden_Doctor(t *testing.T) {
 				t.Setenv("XDG_CACHE_HOME", cache)
 				t.Setenv("LocalAppData", cache)
 				tc.setup(t)
-				args := []string{"doctor"}
+				t.Setenv("FAKESTELLAR_IDENTITIES", "alice")
+				// A healthy testnet deployment, its address written as
+				// <deployment> so the golden does not depend on the port.
+				url := healthy.serve(t, time.Now())
+				args := []string{"doctor", "--url", url, "--network", "testnet"}
 				if mode == "json" {
 					args = append(args, "--json")
 				}
-				assertGolden(t, name, runGolden(t, args...))
+				out := runGolden(t, args...)
+				out = strings.ReplaceAll(out, url, "<deployment>")
+				out = strings.ReplaceAll(out, strings.TrimPrefix(url, "http://"), "<deployment>")
+				assertGolden(t, name, out)
 			})
 		}
 	}

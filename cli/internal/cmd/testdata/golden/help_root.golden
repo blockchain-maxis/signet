@@ -29,7 +29,7 @@ Contracts:
 Other:
   bug-report  Print a redacted bug report and a pre-filled issue link
   completion  Generate the autocompletion script for the specified shell
-  doctor      Check the local environment signet depends on
+  doctor      Check the local environment and the deployment signet uses
   help        Help about any command
   version     Print the signet version
 

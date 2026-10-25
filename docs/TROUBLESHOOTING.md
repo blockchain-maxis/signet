@@ -4,6 +4,13 @@ Symptom → cause → fix for the traps that show up when cloning Signet for the
 first time. Every entry below has been reproduced on a clean checkout and the
 fix verified.
 
+For the CLI, run `signet doctor` first: it checks the stellar CLI and its
+identities, the config file and context, whether the deployment answers and can
+link a wallet, whether it serves the network signet is set to, and whether your
+clock is close enough to the deployment's for sign-in (challenges are valid for
+five minutes). Each check that is off says how to fix it; `signet sandbox
+doctor` does the same for the local sandbox's protocol lanes.
+
 If your failure is not listed, open an issue with the full command and stderr.
 
 ---

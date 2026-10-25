@@ -56,6 +56,9 @@ type Deps struct {
 	RPCOptions []rpc.Option
 	// Now is the clock fork ages are measured against.
 	Now func() time.Time
+	// ConfigError is why the config file did not load, for a command that
+	// runs anyway to report it (annotationToleratesBadConfig): doctor.
+	ConfigError error
 }
 
 // defaultDeps is what production runs with.

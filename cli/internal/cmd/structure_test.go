@@ -195,20 +195,25 @@ var cannotFail = map[string]bool{
 	"version":    true,
 	"help":       true,
 	"completion": true,
-	// doctor reports findings rather than failing on them, and bug-report only
-	// reads local state, so neither fails on normal use.
-	"doctor":     true,
+	// bug-report only reads local state, so it does not fail on normal use.
 	"bug-report": true,
 	// sandbox itself only prints help; its subcommands that execute are
 	// covered under `failing` as they land.
 	"sandbox": true,
 }
 
+// reportsThenFails are checkers whose report is their result: they print
+// it, on stdout and under --json too, and then exit non-zero when it found a
+// failure, so a script gets both the findings and the verdict (#619).
+var reportsThenFails = map[string]bool{
+	"doctor": true,
+}
+
 func TestEveryCommandIsCoveredByTheJSONErrorRule(t *testing.T) {
 	for _, c := range topLevelCommands(t) {
 		_, isFailing := failing[c.Name()]
-		if !isFailing && !cannotFail[c.Name()] {
-			t.Errorf("command %q is in neither `failing` nor `cannotFail`; add it so the --json error rule covers it", c.Name())
+		if !isFailing && !cannotFail[c.Name()] && !reportsThenFails[c.Name()] {
+			t.Errorf("command %q is in none of `failing`, `cannotFail` and `reportsThenFails`; add it so the --json error rule covers it", c.Name())
 		}
 	}
 }

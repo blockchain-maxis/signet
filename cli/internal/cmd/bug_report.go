@@ -120,15 +120,11 @@ func buildBugReportMarkdown(r bugReportResult) string {
 
 	lines = append(lines, "", "### doctor", "")
 	for _, c := range r.Doctor {
-		status := "ok"
-		if !c.OK {
-			status = "fail"
-		}
 		if c.Detail != "" {
-			lines = append(lines, fmt.Sprintf("- %s: %s (%s)", c.Name, status, c.Detail))
+			lines = append(lines, fmt.Sprintf("- %s: %s (%s)", c.Name, c.Status, c.Detail))
 			continue
 		}
-		lines = append(lines, fmt.Sprintf("- %s: %s", c.Name, status))
+		lines = append(lines, fmt.Sprintf("- %s: %s", c.Name, c.Status))
 	}
 	return strings.Join(lines, "\n") + "\n"
 }

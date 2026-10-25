@@ -1,6 +1,6 @@
-$ signet doctor --json
+$ signet doctor --url <deployment> --network testnet --json
 -- stdout --
-{"checks":[{"name":"config file","ok":true,"detail":"not present, defaults in use"},{"name":"stellar CLI","ok":true,"detail":"stellar <stellar-version>"},{"name":"cache directory","ok":true,"detail":"ready"}]}
+{"checks":[{"name":"config file","status":"ok","detail":"not present, defaults in use"},{"name":"stellar CLI","status":"ok","detail":"stellar <stellar-version>"},{"name":"identities","status":"ok","detail":"1 found"},{"name":"cache directory","status":"ok","detail":"ready"},{"name":"deployment","status":"ok","detail":"<deployment>, pairing up"},{"name":"network","status":"ok","detail":"testnet"},{"name":"clock","status":"ok","detail":"within 30s of the deployment's"}]}
 -- stderr --
 (empty)
 -- exit 0 --

@@ -13,6 +13,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/blockchain-maxis/signet/cli/internal/config"
+	"github.com/blockchain-maxis/signet/cli/internal/exitcode"
 )
 
 // isolateDirs points both the config and the cache directory at fresh temp
@@ -137,13 +138,16 @@ func TestBugReportShowsOnlyTheCustomURLHost(t *testing.T) {
 	}
 }
 
-func TestDoctorReportsAMissingStellarBinaryWithoutFailing(t *testing.T) {
+// A missing stellar binary is a failed check: the report is still the one
+// JSON object on stdout, and the exit is 3 (#619).
+func TestDoctorReportsAMissingStellarBinaryAndExits3(t *testing.T) {
 	isolateDirs(t)
 
-	root, stdout, stderr := buildRoot(t)
-	root.SetArgs([]string{"doctor", "--json"})
-	if err := root.Execute(); err != nil {
-		t.Fatalf("doctor: %v", err)
+	root, stdout, _ := buildRoot(t)
+	root.SetArgs([]string{"doctor", "--json", "--url", "http://127.0.0.1:1"})
+	err := root.Execute()
+	if code := ExitCode(err); code != exitcode.Configuration {
+		t.Fatalf("doctor: exit %d (%v), want 3", code, err)
 	}
 
 	var got doctorResult
@@ -156,13 +160,7 @@ func TestDoctorReportsAMissingStellarBinaryWithoutFailing(t *testing.T) {
 			stellar = &got.Checks[i]
 		}
 	}
-	if stellar == nil {
-		t.Fatal("doctor reported no stellar CLI check")
-	}
-	if stellar.OK {
-		t.Fatalf("the stellar check passed with a nonexistent binary: %+v", *stellar)
-	}
-	if stderr.Len() != 0 {
-		t.Fatalf("stderr = %q, want empty", stderr.String())
+	if stellar == nil || stellar.Status != statusFail || stellar.Fix == "" {
+		t.Fatalf("the stellar check with a nonexistent binary: %+v", stellar)
 	}
 }

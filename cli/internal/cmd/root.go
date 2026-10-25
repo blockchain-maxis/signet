@@ -61,8 +61,14 @@ instance) over its HTTP API.`,
 	// --source alice ...` on any command update the remembered identity.
 	root.PersistentPreRunE = func(cmd *cobra.Command, _ []string) error {
 		file, err := config.Load()
+		var configErr error
 		if err != nil {
-			return fmt.Errorf("%w: reading config file: %w", exitcode.ErrConfiguration, err)
+			// A command that diagnoses the environment runs on defaults and
+			// reports the file instead of refusing to start (#619).
+			if cmd.Annotations[annotationToleratesBadConfig] != "true" {
+				return fmt.Errorf("%w: reading config file: %w", exitcode.ErrConfiguration, err)
+			}
+			file, configErr = config.File{}, err
 		}
 
 		flagURL, _ := cmd.Flags().GetString("url")
@@ -103,6 +109,7 @@ instance) over its HTTP API.`,
 		}
 		deps := base
 		deps.Config = resolved
+		deps.ConfigError = configErr
 		deps.Insecure, _ = cmd.Flags().GetBool("insecure")
 		cmd.SetContext(withDeps(config.WithResolved(cmd.Context(), resolved), deps))
 

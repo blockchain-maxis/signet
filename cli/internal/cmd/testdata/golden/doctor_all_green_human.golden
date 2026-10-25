@@ -1,8 +1,12 @@
-$ signet doctor
+$ signet doctor --url <deployment> --network testnet
 -- stdout --
-config file: ok (not present, defaults in use)
-stellar CLI: ok (stellar <stellar-version>)
-cache directory: ok (ready)
+ok    config file: not present, defaults in use
+ok    stellar CLI: stellar <stellar-version>
+ok    identities: 1 found
+ok    cache directory: ready
+ok    deployment: <deployment>, pairing up
+ok    network: testnet
+ok    clock: within 30s of the deployment's
 -- stderr --
 (empty)
 -- exit 0 --

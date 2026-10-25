@@ -1,8 +1,14 @@
-$ signet doctor
+$ signet doctor --url <deployment> --network testnet
 -- stdout --
-config file: ok (not present, defaults in use)
-stellar CLI: fail (configuration error: stellar CLI not found on PATH: "stellar" — install it from https://developers.stellar.org/docs/tools/cli/install-cli (<stellar-version> or newer is required))
-cache directory: ok (ready)
+ok    config file: not present, defaults in use
+fail  stellar CLI: configuration error: stellar CLI not found on PATH: "stellar" — install it from https://developers.stellar.org/docs/tools/cli/install-cli (<stellar-version> or newer is required)
+      fix: install or upgrade it: https://developers.stellar.org/docs/tools/cli/install-cli
+warn  identities: not checked: needs the stellar CLI
+ok    cache directory: ready
+ok    deployment: <deployment>, pairing up
+ok    network: testnet
+ok    clock: within 30s of the deployment's
 -- stderr --
 (empty)
--- exit 0 --
+-- exit 3 --
+configuration error: stellar CLI failed
