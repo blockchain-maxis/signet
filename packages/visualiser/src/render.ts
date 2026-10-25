@@ -152,7 +152,7 @@ function edgeStrokeWidth(edge: DiagramEdge, kind: EdgeKind): number {
 /**
  * Renders a DiagramModel to an SVG string.
  *
- * The root is `<svg role="img" aria-labelledby>`, with `<title>` and `<desc>`
+ * The root is `<svg role="figure" aria-labelledby>`, with `<title>` and `<desc>`
  * summarising counts. Every function node and type node is wrapped in `<a href>`
  * pointing to its docs anchor, carries `data-node-id`, and has an SVG
  * `<title>` with the full signature.
@@ -242,7 +242,9 @@ export function renderDiagramSvg(model: DiagramModel, opts: RenderOptions): stri
   const svgParts: string[] = [];
   svgParts.push('<svg');
   svgParts.push('  xmlns="http://www.w3.org/2000/svg"');
-  svgParts.push('  role="img"');
+  // A figure, not an img: an img's children are presentational, and the
+  // nodes here are links (axe's nested-interactive).
+  svgParts.push('  role="figure"');
   svgParts.push(`  aria-labelledby="${prefix}title ${prefix}desc"${describedByAttr}`);
   svgParts.push('  class="contract-diagram"');
   svgParts.push(`  width="${width}" height="${height}" viewBox="0 0 ${width} ${height}"`);
