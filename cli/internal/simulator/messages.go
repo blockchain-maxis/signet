@@ -626,16 +626,51 @@ type SpecChange struct {
 	After       json.RawMessage `json:"after,omitempty"`
 }
 
-// LayoutCheckParams checks that stored-data layout survives an upgrade.
+// LayoutCheckParams asks whether the new executable reads what the old one
+// stored (#571): Entries, or every entry of ContractID the session knows,
+// and Replays that failed on the new build.
 type LayoutCheckParams struct {
-	Old Source `json:"old"`
-	New Source `json:"new"`
+	Old        Source         `json:"old"`
+	New        Source         `json:"new"`
+	Entries    []LayoutEntry  `json:"entries,omitempty"`
+	ContractID string         `json:"contract_id,omitempty"`
+	Replays    []LayoutReplay `json:"replays,omitempty"`
+}
+
+// LayoutEntry is one stored entry, as XDR.
+type LayoutEntry struct {
+	KeyXDR   string `json:"key_xdr"`
+	EntryXDR string `json:"entry_xdr"`
+}
+
+// LayoutReplay is a call that failed on the new build (Error is its code)
+// after the deployed code read Keys on it.
+type LayoutReplay struct {
+	Name  string   `json:"name"`
+	Error string   `json:"error"`
+	Keys  []string `json:"keys"`
 }
 
 // LayoutCheckResult answers layout_check.
 type LayoutCheckResult struct {
-	Compatible bool              `json:"compatible"`
-	Issues     []json.RawMessage `json:"issues"`
+	Compatible     bool `json:"compatible"`
+	SparseDecoding bool `json:"sparse_decoding"`
+	Checked        int  `json:"checked"`
+	// UnmatchedValues match no type and cannot be checked statically.
+	UnmatchedValues int             `json:"unmatched_values"`
+	Findings        []LayoutFinding `json:"findings"`
+}
+
+// LayoutFinding is a stored value the new build cannot read; Evidence is
+// static (the specs say so) or replay (a call failed reading it).
+type LayoutFinding struct {
+	Key        string          `json:"key"`
+	KeyXDR     string          `json:"key_xdr"`
+	DecodedKey json.RawMessage `json:"decoded_key"`
+	InInstance bool            `json:"in_instance,omitempty"`
+	UDT        string          `json:"udt"`
+	Reason     string          `json:"reason"`
+	Evidence   string          `json:"evidence"`
 }
 
 // DiffResultsParams compares a call on the deployed code (A) with the same

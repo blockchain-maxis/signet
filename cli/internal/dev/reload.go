@@ -74,6 +74,9 @@ type Cycle struct {
 	// Spec is how the build's interface differs from the deployed one's
 	// (#570), worked out once per build.
 	Spec *simulator.SpecDiffResult `json:"spec,omitempty"`
+	// Layout is whether the build reads what the deployed code stored
+	// (#571), from the stored entries and this cycle's failed replays.
+	Layout *simulator.LayoutCheckResult `json:"layout,omitempty"`
 	// Simulations is how many calls ran in the host this cycle; an A side
 	// reused from the cache is not one.
 	Simulations int `json:"simulations"`
@@ -226,6 +229,11 @@ func (r *Reloader) Cycle(ctx context.Context, wasm []byte, replays []Replay) (Cy
 	if err := r.rollback(ctx); err != nil {
 		return Cycle{}, err
 	}
+	layout, err := r.layout(ctx, wasm, out.Outcomes)
+	if err != nil {
+		return Cycle{}, err
+	}
+	out.Layout = layout
 	if h, ok := r.host.(restarter); ok {
 		out.Restarted = h.TakeRestarts()
 	}
@@ -294,6 +302,32 @@ func (r *Reloader) chain(ctx context.Context, replays []Replay, first int, local
 		o.Verdict = verdict(replay.Expect, *o)
 	}
 	return outcomes, runs, nil
+}
+
+// layout checks, at base, that the build reads what the contract stored:
+// every entry of it the session knows, and as evidence the calls that ran
+// on the deployed code and failed on the build, with the keys A read.
+func (r *Reloader) layout(ctx context.Context, wasm []byte, outcomes []Outcome) (*simulator.LayoutCheckResult, error) {
+	var replays []simulator.LayoutReplay
+	for _, o := range outcomes {
+		if o.A.Result == nil || o.B.Error == nil || o.A.Result.Resources == nil {
+			continue
+		}
+		fp := o.A.Result.Resources.Footprint
+		replays = append(replays, simulator.LayoutReplay{
+			Name: o.Name, Error: o.B.Error.Code,
+			Keys: append(append([]string{}, fp.ReadOnly...), fp.ReadWrite...),
+		})
+	}
+	var out simulator.LayoutCheckResult
+	if err := call(ctx, r.host, simulator.TypeLayoutCheck, simulator.LayoutCheckParams{
+		Old:        simulator.Source{ContractID: r.contract},
+		New:        simulator.Source{WasmBase64: base64.StdEncoding.EncodeToString(wasm)},
+		ContractID: r.contract, Replays: replays,
+	}, &out); err != nil {
+		return nil, fmt.Errorf("checking the storage layout: %w", err)
+	}
+	return &out, nil
 }
 
 // begin rolls back to base and, for B, swaps the build into the instance.

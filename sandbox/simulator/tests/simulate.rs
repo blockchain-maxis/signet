@@ -1006,6 +1006,91 @@ fn ignored_events_and_storage_are_listed_and_counted(lane: u32) {
     assert_eq!(bad["type"], "error", "{bad}");
 }
 
+/// #571: profile_v1 stored a `Profile {id, name}`; a v2 that adds a
+/// required field cannot read it (statically, and when a replay reads it),
+/// and a v2 that adds an `Option` field read sparsely can.
+fn a_stored_struct_the_new_build_cannot_read_is_found(lane: u32) {
+    let mut sim = config_only(lane);
+    let (profile, _) = install(&mut sim, &fixture_wasm("profile_v1"));
+    let stored = sim.call(
+        &profile,
+        "set_profile",
+        json!({ "profile": { "id": 1, "name": "ada" } }),
+    );
+    assert_eq!(stored["type"], "result", "{stored}");
+    let cp = sim.send(json!({ "type": "ledger_checkpoint" }))["checkpoint"].clone();
+    let check = |sim: &mut Sim, v2: &str, replays: Value| {
+        let r = sim.send(json!({
+            "type": "layout_check", "old": { "contract_id": profile },
+            "new": { "wasm_base64": BASE64.encode(fixture_wasm(v2)) },
+            "contract_id": profile, "replays": replays,
+        }));
+        assert_eq!(r["type"], "result", "{r}");
+        r
+    };
+
+    let field = check(&mut sim, "profile_v2_field", json!([]));
+    assert_eq!(field["compatible"], false, "{field}");
+    let finding = &field["findings"][0];
+    assert_eq!(finding["evidence"], "static");
+    assert_eq!(finding["udt"], "Profile");
+    assert_eq!(finding["decoded_key"], "profile");
+    assert_eq!(finding["in_instance"], true);
+    assert!(
+        finding["reason"].as_str().unwrap().contains("age"),
+        "{finding}"
+    );
+
+    // The replay: A reads the profile, B fails converting it.
+    let a = sim.call(&profile, "get_profile", json!({}));
+    assert_eq!(a["type"], "result", "{a}");
+    let res = &a["resources"]["footprint"];
+    let keys: Vec<Value> = res["read_only"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .chain(res["read_write"].as_array().unwrap())
+        .cloned()
+        .collect();
+    let (_, v2) = install(&mut sim, &fixture_wasm("profile_v2_field"));
+    sim.send(json!({ "type": "contract_swap", "contract_id": profile, "wasm_hash": v2 }));
+    let b = sim.call(&profile, "get_profile", json!({}));
+    sim.send(json!({ "type": "ledger_rollback", "checkpoint": cp }));
+    // Read sparsely, the missing required field is Void and the SDK
+    // panics: a trap, not a host conversion error.
+    assert_eq!(
+        (b["type"].as_str(), b["code"].as_str()),
+        (Some("contract_error"), Some("Error(WasmVm, InvalidAction)")),
+        "{b}"
+    );
+    let code = b["code"].as_str().unwrap().to_string();
+    let replayed = check(
+        &mut sim,
+        "profile_v2_field",
+        json!([{ "name": "get_profile", "error": code, "keys": keys }]),
+    );
+    let evidence: Vec<&str> = replayed["findings"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|f| f["evidence"].as_str().unwrap())
+        .collect();
+    assert_eq!(evidence, ["static", "replay"], "{replayed}");
+    assert!(replayed["findings"][1]["reason"]
+        .as_str()
+        .unwrap()
+        .contains("get_profile"));
+
+    let optional = check(&mut sim, "profile_v2_optional", json!([]));
+    assert_eq!(optional["compatible"], true, "{optional}");
+    assert_eq!(optional["sparse_decoding"], true);
+    // Unchanged code reads its own data.
+    assert_eq!(
+        check(&mut sim, "profile_v1", json!([]))["findings"],
+        json!([])
+    );
+}
+
 /// A ledger with config and the registry and dice fixtures, opened under
 /// `session_id`.
 fn seeded(lane: u32, session_id: &str) -> (Sim, String, String) {
@@ -1709,6 +1794,10 @@ macro_rules! on_lane {
             #[test]
             fn ignored_events_and_storage_are_listed_and_counted() {
                 super::ignored_events_and_storage_are_listed_and_counted($protocol)
+            }
+            #[test]
+            fn a_stored_struct_the_new_build_cannot_read_is_found() {
+                super::a_stored_struct_the_new_build_cannot_read_is_found($protocol)
             }
             #[test]
             fn the_seed_is_derived_and_drives_env_prng() {

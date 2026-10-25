@@ -6,6 +6,7 @@ mod diff;
 mod dispatch;
 mod framing;
 mod lanes;
+mod layout;
 mod ledger;
 mod memguard;
 mod simulate;

@@ -19,4 +19,8 @@ mod spec;
 #[path = "../diff_impl.rs"]
 mod diff;
 
+#[allow(clippy::duplicate_mod)]
+#[path = "../layout_impl.rs"]
+mod layout;
+
 include!("../host_lane.rs");

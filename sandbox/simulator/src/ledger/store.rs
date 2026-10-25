@@ -291,6 +291,22 @@ impl LayeredStore {
         self.overrides.get(bytes).or_else(|| self.base.get(bytes))
     }
 
+    /// Every key any layer holds, sorted: what the session knows of the
+    /// ledger, for checks that walk it (#571). Look each up for its state.
+    pub fn known_keys(&self) -> Vec<Vec<u8>> {
+        let mut keys: Vec<Vec<u8>> = self
+            .base
+            .keys()
+            .chain(self.overrides.keys())
+            .chain(self.frozen.iter().flat_map(HashMap::keys))
+            .chain(self.current.keys())
+            .cloned()
+            .collect();
+        keys.sort();
+        keys.dedup();
+        keys
+    }
+
     /// Resolve one key with overlay precedence and archival applied.
     pub fn lookup(&self, key: &[u8]) -> Lookup {
         match self.slot_for(key) {

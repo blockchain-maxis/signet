@@ -199,6 +199,12 @@ impl Dispatcher {
             "spec_extract" => {
                 Step::reply(spec_extract(&self.ledger, fork.as_deref(), &id, &object))
             }
+            "layout_check" => Step::reply(crate::layout::layout_check(
+                &self.ledger,
+                fork.as_deref(),
+                &id,
+                &object,
+            )),
             "spec_diff" => Step::reply(crate::spec_verbs::spec_diff(
                 &self.ledger,
                 fork.as_deref(),

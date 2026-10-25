@@ -447,3 +447,45 @@ func TestAChainedCallSeesThePreviousWrite(t *testing.T) {
 		t.Fatalf("second cycle: %d runs, %+v", again.Simulations, again.Outcomes[1])
 	}
 }
+
+// #571 through a cycle: a stored Profile, then a build that adds a required
+// field (found statically, and by get_profile's replay) or an Option one
+// (read sparsely: nothing found).
+func TestTheCycleFindsStoredValuesTheBuildCannotRead(t *testing.T) {
+	ctx := context.Background()
+	for _, tc := range []struct {
+		build    string
+		evidence []string
+	}{{"profile_v2_field", []string{"static", "replay"}}, {"profile_v2_optional", nil}} {
+		host, _ := session(t)
+		var installed simulator.ContractInstallResult
+		if err := call(ctx, host, simulator.TypeContractInstall, simulator.ContractInstallParams{WasmBase64: base64.StdEncoding.EncodeToString(fixtureWasm(t, "profile_v1"))}, &installed); err != nil {
+			t.Fatal(err)
+		}
+		index := uint64(100)
+		if ce, err := host.Call(ctx, simulator.TypeSimulate, simulator.SimulateParams{ContractID: installed.ContractID, Function: "set_profile",
+			Args: map[string]any{"profile": map[string]any{"id": 1, "name": "ada"}}, CallIndex: &index}, nil); err != nil || ce != nil {
+			t.Fatalf("set_profile: %v %v", ce, err)
+		}
+		r, err := NewReloader(ctx, host, installed.ContractID)
+		if err != nil {
+			t.Fatal(err)
+		}
+		cycle, err := r.Cycle(ctx, fixtureWasm(t, tc.build), []Replay{
+			{Name: "get_profile", Params: simulator.SimulateParams{Function: "get_profile", Args: map[string]any{}}},
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		var evidence []string
+		for _, f := range cycle.Layout.Findings {
+			evidence = append(evidence, f.Evidence)
+			if f.UDT != "Profile" {
+				t.Errorf("%s: %+v", tc.build, f)
+			}
+		}
+		if strings.Join(evidence, ",") != strings.Join(tc.evidence, ",") {
+			t.Fatalf("%s: evidence %v, want %v: %+v", tc.build, evidence, tc.evidence, cycle.Layout)
+		}
+	}
+}

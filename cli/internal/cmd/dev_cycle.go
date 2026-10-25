@@ -150,6 +150,12 @@ func describeCycle(c dev.Cycle) []string {
 			}
 		}
 	}
+	if l := c.Layout; l != nil && len(l.Findings) > 0 {
+		lines = append(lines, fmt.Sprintf("  storage layout: %d stored %s the build cannot read", len(l.Findings), plural(len(l.Findings), "value", "values")))
+		for _, f := range l.Findings {
+			lines = append(lines, fmt.Sprintf("    %s %s (%s, %s): %s", f.Key, f.DecodedKey, f.UDT, f.Evidence, f.Reason))
+		}
+	}
 	if len(c.Outcomes) == 0 {
 		lines = append(lines, "  no saved calls: add some with signet sandbox call … --save")
 	}

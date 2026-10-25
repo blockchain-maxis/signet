@@ -88,7 +88,8 @@ func TestMessagesMatchTheSchemas(t *testing.T) {
 		TypeSpecEncodeArgs:   SpecEncodeArgsParams{Source: src, Function: "f", Args: map[string]any{"handle": "a"}},
 		TypeSpecDecodeVal:    SpecDecodeValParams{Source: src, Function: "f", ValXDR: b64},
 		TypeSpecDiff:         SpecDiffParams{Old: src, New: Source{ContractID: registry}},
-		TypeLayoutCheck:      LayoutCheckParams{Old: src, New: src},
+		TypeLayoutCheck: LayoutCheckParams{Old: Source{ContractID: registry}, New: src, ContractID: registry,
+			Entries: []LayoutEntry{{KeyXDR: b64, EntryXDR: b64}}, Replays: []LayoutReplay{{Name: "get", Error: "Error(WasmVm, InvalidAction)", Keys: []string{b64}}}},
 		TypeDiffResults: DiffResultsParams{LedgerProtocol: ip(28), A: DiffSideOf(&full, nil), B: DiffSideOf(nil, &ContractError{Kind: "contract", Code: "Error(Contract, #1)"}),
 			Rules: &DiffRules{ContractID: registry, IgnoreEvents: []string{"transfer/G…"}, IgnoreStorage: []string{"Balance(*)"}, IgnoreAuth: true,
 				ResourceTolerance: map[string]Tolerance{"instructions": {Percent: fp(10)}, "resource_fee": {Absolute: i64p(500)}}}},
@@ -123,7 +124,9 @@ func TestMessagesMatchTheSchemas(t *testing.T) {
 			{Kind: "field-added", Path: "types.Profile.fields.age", Class: "breaking", Reason: "r", Rule: "cap86-sparse-required", StorageNote: "n", After: json.RawMessage(`{"name":"age"}`)},
 			{Kind: "sdk-version-changed", Path: "build.sdkVersion", Class: "info", Reason: "r", Before: json.RawMessage(`"27.0.0"`), After: json.RawMessage(`"28.0.0"`)},
 		}},
-		TypeLayoutCheck: LayoutCheckResult{Compatible: true, Issues: []json.RawMessage{}},
+		TypeLayoutCheck: LayoutCheckResult{SparseDecoding: true, Checked: 2, UnmatchedValues: 1, Findings: []LayoutFinding{
+			{Key: "C… instance", KeyXDR: b64, DecodedKey: json.RawMessage(`"profile"`), InInstance: true, UDT: "Profile", Reason: "r", Evidence: "static"},
+		}},
 		TypeDiffResults: DiffResultsResult{
 			Summary:     DiffSummary{Breaking: 2, Behavioural: 1, Cost: 1, Ignored: 3},
 			Outcome:     &DiffOutcome{A: "ok", B: "contract error Error(Contract, #1)", Class: ClassBreaking},

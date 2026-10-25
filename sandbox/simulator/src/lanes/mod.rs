@@ -245,6 +245,17 @@ pub struct DiffRules {
     pub spec_wasm: Option<Vec<u8>>,
 }
 
+/// A replay that failed on the new build where the deployed code ran it:
+/// evidence for the storage-layout check (#571).
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub struct LayoutReplay {
+    pub name: String,
+    /// The new build's error code, `Error(Object, UnexpectedType)`.
+    pub error: String,
+    /// `LedgerKey` XDR the deployed code read on the same call.
+    pub keys: Vec<Vec<u8>>,
+}
+
 /// What a simulation produced, as XDR bytes.
 #[derive(Clone, Debug)]
 pub struct SimulateResultBytes {
@@ -570,6 +581,16 @@ pub trait Lane: Sync {
         a: &DiffSide,
         b: &DiffSide,
         rules: &DiffRules,
+    ) -> Result<serde_json::Value, LaneError>;
+
+    /// Whether the new build can read what the old one stored (#571):
+    /// `layout_impl.rs`. `entries` are `(LedgerKey, LedgerEntry)` XDR.
+    fn layout_check(
+        &self,
+        old_wasm: &[u8],
+        new_wasm: &[u8],
+        entries: &[(Vec<u8>, Vec<u8>)],
+        replays: &[LayoutReplay],
     ) -> Result<serde_json::Value, LaneError>;
 
     /// The call tree in `DiagnosticEvent` XDR (#541).

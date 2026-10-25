@@ -168,6 +168,30 @@ while you are not saving; the next cycle respawns it, replays the fork, the
 installs and `base`, and says `simulator restarted (idle)` rather than hiding
 what that cost.
 
+Each cycle also checks the build against what the contract stored (#571):
+every entry of it the session knows, an instance's storage values included.
+A stored map with symbol keys is matched to the old spec's struct with exactly
+those field names, and a vec led by a symbol to the union with that case and
+arity; the new spec's type of that name must then read it. A build whose
+structs read through CAP-86's sparse unpack (soroban-sdk 28 builds do) takes a
+missing `Option` field as `None` and ignores fields it no longer declares; a
+strict build needs the stored fields to be exactly its own. That is the
+`static` evidence. A call that ran on the deployed code and failed on the
+build, with a host conversion error or the trap a sparse build hits when a
+required field reads as nothing, is `replay` evidence against the keys the
+deployed code read on it whose type changed.
+
+```text
+  storage layout: 1 stored value the build cannot read
+    CDJP…3T2B instance "profile" (Profile, static): the new Profile does not decode the stored value: age: field missing from Profile
+```
+
+The gaps are real: a value that is not a map or a union (a `u32`, an
+`Address`) matches no type and is counted as `unmatched_values`, not checked;
+a lazy fork holds only the keys something read, so an archive fork (`signet
+sandbox fork --archive`) is the way to check every stored entry; and a key no
+replay reads yields no `replay` evidence.
+
 Parsing modules is not cached between calls. Measured on the registry in a
 release build (`module_parse_share`, an ignored test in
 `sandbox/simulator/src/lanes/host_lane.rs`), building the VM is 65% of a

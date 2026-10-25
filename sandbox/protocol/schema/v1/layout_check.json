@@ -2,7 +2,7 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "https://signet.dev/schemas/sandbox/v1/layout_check.json",
   "title": "layout_check (request)",
-  "description": "Check that a new executable keeps the stored-data layout of the old one.",
+  "description": "Whether the new executable can read what the old one stored (#571): stored values matched to the old spec's types by shape, checked against the new spec (static), plus replays that failed on the new build after reading them (replay).",
   "type": "object",
   "properties": {
     "version": {
@@ -76,6 +76,60 @@
           "additionalProperties": false
         }
       ]
+    },
+    "entries": {
+      "type": "array",
+      "description": "The stored entries to check; or contract_id, for every entry of that contract the session knows",
+      "items": {
+        "type": "object",
+        "properties": {
+          "key_xdr": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9+/]+={0,2}$"
+          },
+          "entry_xdr": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9+/]+={0,2}$"
+          }
+        },
+        "required": ["key_xdr", "entry_xdr"],
+        "additionalProperties": false
+      }
+    },
+    "contract_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Check every entry of this contract the open ledger knows (all of them on an archive fork, what something read on a lazy one)"
+    },
+    "replays": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1
+          },
+          "error": {
+            "type": "string",
+            "minLength": 1,
+            "description": "The new build's contract_error code"
+          },
+          "keys": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "minLength": 1,
+              "pattern": "^[A-Za-z0-9+/]+={0,2}$"
+            },
+            "description": "LedgerKey XDR the deployed code read on the same call (its footprint)"
+          }
+        },
+        "required": ["name", "error", "keys"],
+        "additionalProperties": false
+      }
     }
   },
   "required": ["version", "id", "type", "old", "new"],
@@ -98,30 +152,70 @@
           "const": "result"
         },
         "compatible": {
-          "type": "boolean"
+          "type": "boolean",
+          "description": "No finding"
         },
-        "issues": {
+        "sparse_decoding": {
+          "type": "boolean",
+          "description": "The new build reads structs through CAP-86's sparse unpack"
+        },
+        "checked": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Entries looked at"
+        },
+        "unmatched_values": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Stored values that match no type (a u32, an Address) and so cannot be checked statically"
+        },
+        "findings": {
           "type": "array",
           "items": {
             "type": "object",
             "properties": {
-              "type": {
+              "key": {
                 "type": "string",
-                "minLength": 1,
-                "description": "Type whose layout changed"
+                "minLength": 1
               },
-              "message": {
+              "key_xdr": {
+                "type": "string",
+                "minLength": 1
+              },
+              "decoded_key": {
+                "description": "The storage key; inside an instance, the instance storage key"
+              },
+              "in_instance": {
+                "type": "boolean"
+              },
+              "udt": {
                 "type": "string",
                 "minLength": 1,
-                "description": "Why it is incompatible"
+                "description": "The old spec's type the value has the shape of"
+              },
+              "reason": {
+                "type": "string",
+                "minLength": 1
+              },
+              "evidence": {
+                "enum": ["static", "replay"]
               }
             },
-            "required": ["type", "message"],
+            "required": ["key", "key_xdr", "decoded_key", "udt", "reason", "evidence"],
             "additionalProperties": false
           }
         }
       },
-      "required": ["version", "id", "type", "compatible", "issues"],
+      "required": [
+        "version",
+        "id",
+        "type",
+        "compatible",
+        "sparse_decoding",
+        "checked",
+        "unmatched_values",
+        "findings"
+      ],
       "additionalProperties": false
     }
   }

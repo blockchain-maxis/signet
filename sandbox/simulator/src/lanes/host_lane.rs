@@ -33,7 +33,7 @@ use soroban_simulation::simulation::{
 use soroban_simulation::NetworkConfig;
 
 use super::{
-    AuthMode, BudgetOverride, ByteSnapshotSource, DiffRules, DiffSide, DiffWrite, EffectiveBudget, BUDGET_CEILING_FACTOR, DecodeTarget, DerivedKey, EntryChangeBytes, ErrorCase, ExternalRef,
+    AuthMode, BudgetOverride, ByteSnapshotSource, DiffRules, DiffSide, DiffWrite, LayoutReplay, EffectiveBudget, BUDGET_CEILING_FACTOR, DecodeTarget, DerivedKey, EntryChangeBytes, ErrorCase, ExternalRef,
     Installed, InstanceInfo, InterfaceVersion, InvocationFailure, KeyRequest, Lane, LaneError,
     SimulateBytes, SimulateResultBytes, StorageOverride, StorageWrite, Durability, SwapResultBytes, TraceCall, TransactionResources, WasmInspection,
 };
@@ -737,6 +737,66 @@ impl Lane for HostLane {
             .collect::<Result<Vec<_>, _>>()?;
         let rules = diff::Rules { events: &rules.ignore_events, storage: &patterns };
         diff::values(a, b, &rules, &|key| self.describe_key(key), &|entry| self.describe_entry(entry))
+    }
+
+    fn layout_check(
+        &self,
+        old_wasm: &[u8],
+        new_wasm: &[u8],
+        entries: &[(Vec<u8>, Vec<u8>)],
+        replays: &[LayoutReplay],
+    ) -> Result<Value, LaneError> {
+        let (old, new) = (spec::Spec::from_wasm(old_wasm)?, spec::Spec::from_wasm(new_wasm)?);
+        let sparse = self
+            .inspect_wasm(new_wasm)?
+            .imports
+            .iter()
+            .any(|(m, n)| m == "m" && n == "c");
+        let mut findings = Vec::new();
+        for f in layout::static_findings(&old, &new, sparse, entries)? {
+            findings.push(json!({
+                "key": self.describe_key(&f.key_xdr),
+                "key_xdr": base64(&f.key_xdr),
+                "decoded_key": f.decoded_key,
+                "in_instance": f.inner_key.is_some(),
+                "udt": f.udt,
+                "reason": f.reason,
+                "evidence": "static",
+            }));
+        }
+        // A replay that failed reading a value, on keys the deployed code
+        // read that hold a type the new spec defines differently: a host
+        // conversion error (Value, Object), or the trap a contract built
+        // with sparse decoding hits when a required field reads as Void and
+        // the SDK panics (WasmVm, InvalidAction).
+        let typed = layout::typed_keys(&old, entries)?;
+        let changed = |udt: &str| layout::definition(&old, udt) != layout::definition(&new, udt);
+        for r in replays {
+            let reading = r.error.starts_with("Error(Value,")
+                || r.error.starts_with("Error(Object,")
+                || r.error == "Error(WasmVm, InvalidAction)";
+            if !reading {
+                continue;
+            }
+            for (key, decoded, udt) in typed.iter().filter(|(k, _, u)| r.keys.contains(k) && changed(u)) {
+                findings.push(json!({
+                    "key": self.describe_key(key),
+                    "key_xdr": base64(key),
+                    "decoded_key": decoded,
+                    "udt": udt,
+                    "reason": format!("`{}` failed on the new build with {} after the deployed code read this key on the same call", r.name, r.error),
+                    "evidence": "replay",
+                }));
+            }
+        }
+        let unmatched = layout::unmatched_values(&old, entries)?;
+        Ok(json!({
+            "compatible": findings.is_empty(),
+            "sparse_decoding": sparse,
+            "findings": findings,
+            "checked": entries.len(),
+            "unmatched_values": unmatched,
+        }))
     }
 
     fn describe_key(&self, key_xdr: &[u8]) -> String {
