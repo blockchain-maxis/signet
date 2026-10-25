@@ -59,6 +59,8 @@ func TestDevPreflightNamesEachMissingPiece(t *testing.T) {
 	tools := devTools(t)
 	e.stellar = "stellar"
 	crate := devCrate(t)
+	// signet dev logs its session under the working directory (#572).
+	t.Chdir(t.TempDir())
 	run := func(extra ...string) error {
 		_, _, err := e.cli(append([]string{"dev", registryContract, "--path", crate, "--rpc-url", e.rpc.srv.URL}, extra...)...)
 		return err
