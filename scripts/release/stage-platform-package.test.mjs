@@ -65,3 +65,28 @@ test('rejects a destination name that is not a bare file name', () => {
   assert.notEqual(result.status, 0);
   assert.match(result.stderr, /expected <source>=<file name>/);
 });
+
+// #613: the published tarball carries both binaries, executable. The real
+// platform package.json (its `files`) decides what npm packs.
+test('npm pack of a staged platform package lists both binaries with mode 755', (t) => {
+  if (process.platform === 'win32') {
+    t.skip('file modes are POSIX');
+    return;
+  }
+  const { packageDir, signet, simulator } = setup();
+  const real = fileURLToPath(new URL('../../cli/npm/cli-linux-x64/package.json', import.meta.url));
+  writeFileSync(path.join(packageDir, 'package.json'), readFileSync(real));
+  execFileSync(process.execPath, [script, packageDir, '1.2.3', `${signet}=signet`, `${simulator}=signet-simulator`], {
+    stdio: 'pipe',
+  });
+  const npm = spawnSync('npm', ['pack', '--dry-run', '--json', '--offline'], { cwd: packageDir, encoding: 'utf8' });
+  if (npm.error) {
+    t.skip(`npm is not available: ${npm.error.message}`);
+    return;
+  }
+  assert.equal(npm.status, 0, npm.stderr);
+  const [packed] = JSON.parse(npm.stdout);
+  const files = Object.fromEntries(packed.files.map((f) => [f.path, f.mode]));
+  assert.equal(files['bin/signet'], 0o755);
+  assert.equal(files['bin/signet-simulator'], 0o755);
+});

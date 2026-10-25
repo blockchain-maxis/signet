@@ -50,6 +50,12 @@ function resolveBinary() {
 
 const binaryPath = resolveBinary();
 
+// The platform package's bin/ also holds signet-simulator, and signet finds
+// it as its own sibling (cli/internal/simulator, #527, #613). The shim does
+// not set SIGNET_SIMULATOR_PATH: that variable is reserved for development
+// builds and non-standard installs (docs/CLI_RUST_BRIDGE.md §5), and setting
+// it here would hide a broken package behind a working override.
+
 try {
   execFileSync(binaryPath, process.argv.slice(2), { stdio: 'inherit' });
 } catch (err) {

@@ -176,3 +176,26 @@ func TestFindUsesTheEnvironmentAndWarns(t *testing.T) {
 		t.Fatalf("warnings = %v, want one", warned)
 	}
 }
+
+// #613: an npm install puts signet and signet-simulator side by side in the
+// platform package's bin/, and npx runs signet from there through the shim,
+// which sets nothing: the sibling is found with SIGNET_SIMULATOR_PATH unset,
+// even when a different simulator is on PATH.
+func TestLocateFindsTheSimulatorInAnInstalledPlatformPackage(t *testing.T) {
+	bin := filepath.Join(t.TempDir(), "node_modules", "@signet", "cli-linux-x64", "bin")
+	signet := placeExecutable(t, bin, "signet")
+	sibling := placeExecutable(t, bin, BinaryName())
+	elsewhere := placeExecutable(t, t.TempDir(), BinaryName())
+	l := locator{
+		getenv:     func(string) string { return "" },
+		executable: func() (string, error) { return signet, nil },
+		lookPath:   func(string) (string, error) { return elsewhere, nil },
+	}
+	got, err := l.locate()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got != sibling {
+		t.Fatalf("located %s, want the package's own %s", got, sibling)
+	}
+}
