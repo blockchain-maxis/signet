@@ -24,6 +24,7 @@ Deployments:
 Contracts:
   dev         Develop a contract against a fork of its deployment
   sandbox     Run a deployed contract's functions locally against forked state
+  visualise   Draw a contract's diagram as an SVG file
 
 Other:
   bug-report  Print a redacted bug report and a pre-filled issue link

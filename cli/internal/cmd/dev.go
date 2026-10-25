@@ -615,9 +615,10 @@ func startUI(ctx context.Context, cmd *cobra.Command, view *uiSession, noBrowser
 			progress("the UI server stopped: " + err.Error())
 		}
 	}()
+	unregister := registerUI(view.session.manifest.Contract, server.URL())
 	progress("local UI on 127.0.0.1 (the link carries this run's token; do not share it)")
 	if err := browser.OpenOrPrint(cmd.OutOrStdout(), server.URL(), noBrowser); err != nil {
 		progress("could not open a browser: " + err.Error())
 	}
-	return func() { cancel(); <-done }, nil
+	return func() { cancel(); <-done; unregister() }, nil
 }

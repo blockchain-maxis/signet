@@ -142,6 +142,11 @@ count, depth and time as inputs to bound, not properties to trust.
         and status only.
   - [ ] Nothing the UI sends changes the crate path, RPC, network or host
         binary: they come from the command line.
+  - [ ] So `signet visualise --open` (#578) can find it, a running session
+        writes its URL (token included) to a `0600` file under the user's
+        cache directory (`signet/ui/<contract>.json`, directory `0700`) and
+        removes it when it stops: readable by the same user only, who can
+        already read the process.
 - [ ] Forked storage and snapshot files are written only under the project
       directory the developer ran the command in — no writes outside it, and
       fork names are not paths. `[F: #550]`

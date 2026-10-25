@@ -39,6 +39,8 @@ jobs:
               - 'sandbox/**'
               - 'cli/internal/cmd/sandbox*'
               - 'cli/internal/cmd/dev*'
+              - 'cli/internal/cmd/visualise*'
+              - 'cli/internal/visualise/**'
               - 'cli/internal/dev/**'
               - 'cli/internal/bundle/**'
               - 'cli/internal/simulator/**'
@@ -672,7 +674,7 @@ jobs:
         env:
           SIGNET_SIMULATOR_PATH: ${{ github.workspace }}/sandbox/target/debug/signet-simulator
         run: |
-          go test -count=1 -run 'SandboxCall|SandboxForkArchive|SandboxState|SandboxFidelity|TestDev' ./internal/cmd
+          go test -count=1 -run 'SandboxCall|SandboxForkArchive|SandboxState|SandboxFidelity|TestDev|TestVisualise' ./internal/cmd
           go test -count=1 ./internal/dev ./internal/bundle
 
   # Repro bundles replay offline and identically everywhere (#573): each

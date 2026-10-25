@@ -43,7 +43,10 @@ export async function bundleBody(): Promise<string> {
     },
     bundle: true,
     format: 'iife',
-    target: 'es2019',
+    // ES2016: async functions are lowered to generators. goja (the CLI's
+    // engine, #578) rejects an `await` inside an async arrow in a default
+    // parameter, which the bundled stellar-sdk has; generators it runs.
+    target: 'es2016',
     platform: 'neutral',
     mainFields: ['module', 'main'],
     inject: [join(here, 'cli-bundle', 'shims.ts')],

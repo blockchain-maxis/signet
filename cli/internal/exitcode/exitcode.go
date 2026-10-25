@@ -37,6 +37,9 @@ const (
 	HostUnsupported  = 11
 	BuildFailed      = 12
 	SimulatorFailure = 13
+	// NoSpec: the contract's executable carries no interface spec
+	// (`contractspecv0`), so there is nothing to draw or call by name (#578).
+	NoSpec = 14
 
 	// Interrupted is the shell convention for a process ended by Ctrl-C
 	// (128 + SIGINT).
@@ -104,6 +107,11 @@ var (
 	// indistinguishable from a script.
 	ErrSimulator = errors.New("simulator failure")
 
+	// ErrNoSpec: the executable has no contractspecv0 section. Not a
+	// failure of signet or the network: the contract was built without its
+	// interface, and only a rebuild (or the source) can supply it.
+	ErrNoSpec = errors.New("no contract spec")
+
 	// ErrInterrupted: the developer cancelled the command (Ctrl-C) while it
 	// was waiting. Nothing failed; whatever was in flight was abandoned.
 	ErrInterrupted = errors.New("interrupted")
@@ -127,6 +135,7 @@ var sentinelCodes = []struct {
 	{ErrHostUnsupported, HostUnsupported},
 	{ErrBuildFailed, BuildFailed},
 	{ErrSimulator, SimulatorFailure},
+	{ErrNoSpec, NoSpec},
 	{ErrInterrupted, Interrupted},
 }
 

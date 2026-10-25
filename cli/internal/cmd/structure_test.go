@@ -181,13 +181,14 @@ var runtimeFailure = []string{"--source", "alice", "--url", "http://127.0.0.1:1"
 // cannotFail instead. A new command must appear in one of them, so its author
 // has to decide - and the JSON-on-error rule below then covers it.
 var failing = map[string][]string{
-	"link":     append([]string{"link", "--json"}, runtimeFailure...),
-	"unlink":   append([]string{"unlink", "--json", "--yes"}, runtimeFailure...),
-	"whoami":   append([]string{"whoami", "--json"}, runtimeFailure...),
-	"identity": append([]string{"identity", "--json"}, runtimeFailure...),
-	"context":  {"context", "use", "nonexistent-context-xyz", "--json"},
-	"config":   {"config", "get", "nonexistent-key-xyz", "--json"},
-	"dev":      {"dev", "init", "GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN", "--json"},
+	"link":      append([]string{"link", "--json"}, runtimeFailure...),
+	"unlink":    append([]string{"unlink", "--json", "--yes"}, runtimeFailure...),
+	"whoami":    append([]string{"whoami", "--json"}, runtimeFailure...),
+	"identity":  append([]string{"identity", "--json"}, runtimeFailure...),
+	"context":   {"context", "use", "nonexistent-context-xyz", "--json"},
+	"config":    {"config", "get", "nonexistent-key-xyz", "--json"},
+	"dev":       {"dev", "init", "GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN", "--json"},
+	"visualise": {"visualise", "GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN", "--json"},
 }
 
 var cannotFail = map[string]bool{

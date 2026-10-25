@@ -309,6 +309,28 @@ latest ledger; the old fork stays until removed. Saved calls live in
 `signet.dev.toml`, not the cache, so they carry over. A fork another process
 has open shows as `in use` and is not removed.
 
+### `signet visualise`
+
+```sh
+signet visualise <address> [--wasm file.wasm] [--network testnet|mainnet] [--out file.svg] [--theme dark|light|auto] [--open]
+```
+
+Draws a contract's diagram as an SVG file (#578), with the visualiser the web
+app uses: `internal/visualise` embeds its bundle (#544) and runs it in
+[goja](https://github.com/dop251/goja), a pure-Go engine, with a 10-second
+limit, so it needs no browser, no Node and no Signet server. The WASM comes
+from `--wasm`, or from the network through `stellar contract fetch` (the
+`stellar` CLI is then required: missing, it exits `3`); `signet-simulator`
+reads its spec. `--network` defaults to `testnet`, never mainnet. `--out`
+defaults to the shortened address, `CASF-RCN.svg`. A contract too simple or
+too large for a diagram still gets an SVG, the function list, and the reason
+is printed. A WASM with no spec exits `14`.
+
+`--open` opens the diagram in a running `signet dev --ui` session for the same
+contract instead (each session records its URL in a `0600` file in the user's
+cache directory while it runs), or says how to start one. `--json` prints the
+path, the decision and its counts.
+
 ### Global `--json`
 
 `--json` is a persistent flag on the root, so it works on every command and
@@ -420,6 +442,7 @@ releases.
 | `11`  | Host unsupported — the simulator can't serve this network (protocol version, host functions, or network id it doesn't model)                                                                               |
 | `12`  | Build failed — the contract under test failed to build, so there was nothing to run                                                                                                                        |
 | `13`  | Simulator failure — the simulator itself failed, as opposed to a contract call failing inside a working simulator (the distinction `docs/CLI_RUST_BRIDGE.md` §3 keeps)                                     |
+| `14`  | No spec — the contract's WASM carries no interface spec (`contractspecv0`): it was built without one, so there is nothing to draw                                                                          |
 | `130` | Interrupted — the developer pressed Ctrl-C while the command was waiting (for example `link` abandoning a pairing)                                                                                         |
 
 Every code has a real caller now: `link` and `unlink` raise `3`–`9` between

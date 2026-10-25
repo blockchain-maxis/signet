@@ -319,6 +319,7 @@ Stable, so scripts can branch on the code rather than on message text.
 | `11` | Host unsupported — the simulator can't serve this network |
 | `12` | Build failed — the contract under test failed to build |
 | `13` | Simulator failure — the simulator itself failed, not the contract call it was running |
+| `14` | No spec — the contract's WASM has no interface spec (`contractspecv0`), so `visualise` has nothing to draw |
 | `130` | Interrupted — Ctrl-C while the command was waiting; `link` abandons the pairing |
 
 ## Troubleshooting
