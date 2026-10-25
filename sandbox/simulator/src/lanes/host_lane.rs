@@ -302,7 +302,11 @@ impl Lane for HostLane {
         let result = simulate_invoke_host_function_op(
             snapshot,
             &network_config,
-            &SimulationAdjustmentConfig::no_adjustments(),
+            &if request.rpc_adjustment {
+                SimulationAdjustmentConfig::default_adjustment()
+            } else {
+                SimulationAdjustmentConfig::no_adjustments()
+            },
             &ledger_info,
             host_fn,
             auth_mode,
@@ -698,6 +702,40 @@ impl Lane for HostLane {
             detail: e.to_string(),
         })?;
         encode(&account, "AccountId")
+    }
+
+    fn invocation_envelope(
+        &self,
+        host_function_xdr: &[u8],
+        source_account_xdr: &[u8],
+    ) -> Result<Vec<u8>, LaneError> {
+        use soroban_env_host::xdr::{
+            InvokeHostFunctionOp, Memo, Operation, Preconditions, SequenceNumber, Transaction,
+            TransactionExt, TransactionV1Envelope, Uint256,
+        };
+        let host_function: HostFunction = decode(host_function_xdr, "HostFunction")?;
+        let AccountId(soroban_env_host::xdr::PublicKey::PublicKeyTypeEd25519(Uint256(key))) =
+            decode(source_account_xdr, "AccountId")?;
+        let op = Operation {
+            source_account: None,
+            body: OperationBody::InvokeHostFunction(InvokeHostFunctionOp {
+                host_function,
+                auth: Default::default(),
+            }),
+        };
+        let envelope = TransactionEnvelope::Tx(TransactionV1Envelope {
+            tx: Transaction {
+                source_account: MuxedAccount::Ed25519(Uint256(key)),
+                fee: 100,
+                seq_num: SequenceNumber(1),
+                cond: Preconditions::None,
+                memo: Memo::None,
+                operations: vec![op].try_into().map_err(|_| invalid("Operation"))?,
+                ext: TransactionExt::V0,
+            },
+            signatures: Default::default(),
+        });
+        encode(&envelope, "TransactionEnvelope")
     }
 
     fn decode_auth(&self, auth_xdr: &[u8]) -> Result<Value, LaneError> {
@@ -1689,6 +1727,7 @@ mod tests {
             enable_diagnostics: false,
             budget: None,
             auth: AuthMode::Record,
+            rpc_adjustment: false,
         }
     }
 

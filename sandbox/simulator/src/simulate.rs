@@ -149,6 +149,14 @@ pub fn simulate(
             None => return invalid_field(id, "call_index", "a non-negative integer"),
         },
     };
+    // `adjustment: "rpc"` pads resources and fee as RPC's
+    // simulateTransaction does by default, for comparing with it (#575).
+    let rpc_adjustment = match object.get("adjustment").and_then(Value::as_str) {
+        None if object.get("adjustment").is_none() => false,
+        Some("none") => false,
+        Some("rpc") => true,
+        _ => return invalid_field(id, "adjustment", "\"none\" or \"rpc\""),
+    };
     let max_frames = match crate::trace::parse(object.get("trace")) {
         Ok(max) => max,
         Err(want) => return invalid_field(id, "trace", want),
@@ -204,6 +212,7 @@ pub fn simulate(
         enable_diagnostics: diagnostics || max_frames.is_some(),
         budget,
         auth,
+        rpc_adjustment,
     };
     // An override moves the ledger for this call only: archival and new
     // entries' TTLs follow it, then the session's own sequence is back.

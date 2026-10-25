@@ -1,0 +1,75 @@
+name: Sandbox fidelity
+
+# The local host against the network's own simulator (#575): the identity
+# registry forked from testnet, and the same calls through the local host and
+# through RPC simulateTransaction, compared on return value, auth, footprint
+# and resource fee (within 10%). Nightly, not per change, because it depends
+# on testnet. A difference fails the run and is in its summary; nothing is
+# opened automatically.
+
+on:
+  schedule:
+    - cron: "17 3 * * *"
+  workflow_dispatch:
+    inputs:
+      ledger_protocol:
+        description: "Run the local side on this lane instead of the fork's (to see a wrong lane fail)"
+        required: false
+        default: ""
+      resolve_handle:
+        description: "The handle resolve looks up"
+        required: false
+        default: "aquawolf"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sandbox-fidelity
+  cancel-in-progress: false
+
+jobs:
+  fidelity:
+    name: local host vs simulateTransaction (testnet)
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo
+        uses: actions/cache@v6
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            sandbox/target
+          key: cargo-fidelity-${{ hashFiles('sandbox/Cargo.lock') }}
+
+      - name: Build the simulator
+        working-directory: sandbox
+        run: cargo build --locked -p signet-simulator
+
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: cli/go.mod
+
+      - name: Compare on testnet
+        working-directory: cli
+        env:
+          SIGNET_SIMULATOR_PATH: ${{ github.workspace }}/sandbox/target/debug/signet-simulator
+          # Forking fetches from testnet mid-request.
+          SIGNET_SIMULATOR_TIMEOUT: 180s
+          LEDGER_PROTOCOL: ${{ inputs.ledger_protocol }}
+          RESOLVE_HANDLE: ${{ inputs.resolve_handle || 'aquawolf' }}
+        run: |
+          handle="fidelity-$(date +%s)-$RANDOM"
+          lane=()
+          if [ -n "$LEDGER_PROTOCOL" ]; then lane=(--ledger-protocol "$LEDGER_PROTOCOL"); fi
+          go run ./cmd/signet sandbox fidelity CASFJHI5PQSRWS7JV25CF7FOMRKIVBP3RXRP3E2GH2CV4BCAG7FUJRCN \
+            --network testnet "${lane[@]}" \
+            --call count \
+            --call "resolve={\"handle\":\"$RESOLVE_HANDLE\"}" \
+            --call "claim={\"handle\":\"$handle\",\"wallet\":\"GCRRSYF5JBFPXHN5DCG65A4J3MUYE53QMQ4XMXZ3CNKWFJIJJTGMH6MZ\"}" \
+            --summary "$GITHUB_STEP_SUMMARY"

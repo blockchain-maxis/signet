@@ -199,6 +199,15 @@ impl Dispatcher {
             "spec_extract" => {
                 Step::reply(spec_extract(&self.ledger, fork.as_deref(), &id, &object))
             }
+            "tx_envelope" => Step::reply(crate::fidelity::tx_envelope(
+                &self.ledger,
+                fork.as_deref(),
+                &id,
+                &object,
+            )),
+            "tx_resources" => {
+                Step::reply(crate::fidelity::tx_resources(&self.ledger, &id, &object))
+            }
             "layout_check" => Step::reply(crate::layout::layout_check(
                 &self.ledger,
                 fork.as_deref(),

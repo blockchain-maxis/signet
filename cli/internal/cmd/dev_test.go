@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"os"
 	"os/exec"
@@ -311,5 +312,39 @@ func TestDevReplayRunsABundleOfflineAndComparesIt(t *testing.T) {
 	lane.Simulator.Lane = 99
 	if _, _, err := e.cli("sandbox", "replay", write(lane, true)); ExitCode(err) != exitcode.HostUnsupported || !strings.Contains(err.Error(), "lane p99") {
 		t.Fatalf("lane: %v", err)
+	}
+}
+
+// #575: the fidelity check against an RPC whose simulateTransaction fails
+// the call the local host runs: the difference is printed, summarised and
+// exits 10.
+func TestSandboxFidelityReportsADifference(t *testing.T) {
+	e := newCallEnv(t)
+	e.rpc.mu.Lock()
+	e.rpc.override["simulateTransaction"] = map[string]any{"error": "HostError: Error(WasmVm, InvalidAction)", "latestLedger": 4887004}
+	e.rpc.mu.Unlock()
+	summary := filepath.Join(t.TempDir(), "summary.md")
+	stdout, _, err := e.cli("sandbox", "fidelity", registryContract, "--rpc-url", e.rpc.srv.URL, "--call", "count", "--summary", summary)
+	if ExitCode(err) != exitcode.DiffFound || !strings.Contains(stdout, "✗ outcome: local ok, RPC error (HostError") {
+		t.Fatalf("exit %d, %v\n%s", ExitCode(err), err, stdout)
+	}
+	md, _ := os.ReadFile(summary)
+	if !strings.Contains(string(md), "| `count` |") || !strings.Contains(string(md), "✗ outcome") {
+		t.Fatalf("summary:\n%s", md)
+	}
+}
+
+func TestANonceKeyIsRecognised(t *testing.T) {
+	// LedgerKey CONTRACT_DATA, an account address, ScVal LEDGER_KEY_NONCE.
+	nonce := append([]byte{0, 0, 0, 6, 0, 0, 0, 0, 0, 0, 0, 0}, make([]byte, 32)...)
+	nonce = append(nonce, 0, 0, 0, 21, 0, 0, 0, 0, 0, 0, 0, 7, 0, 0, 0, 0)
+	data := append([]byte{0, 0, 0, 6, 0, 0, 0, 1}, make([]byte, 32)...)
+	data = append(data, 0, 0, 0, 15, 0, 0, 0, 1, 'x', 0, 0, 0, 0, 0, 0, 1)
+	b64 := func(b []byte) string { return base64.StdEncoding.EncodeToString(b) }
+	if !isNonceKey(b64(nonce)) || isNonceKey(b64(data)) || isNonceKey("not base64") {
+		t.Fatal("nonce key detection")
+	}
+	if got := withoutNonces([]string{b64(nonce), b64(data)}); len(got) != 1 || got[0] != b64(data) {
+		t.Fatalf("withoutNonces = %v", got)
 	}
 }

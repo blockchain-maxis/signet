@@ -1,0 +1,96 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://signet.dev/schemas/sandbox/v1/tx_resources.json",
+  "title": "tx_resources (request)",
+  "description": "What a SorobanTransactionData says: footprint, resources and resource fee (#575).",
+  "type": "object",
+  "properties": {
+    "version": {
+      "const": 1,
+      "description": "Wire protocol version; checked on every message"
+    },
+    "id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Caller-assigned; echoed on the response"
+    },
+    "type": {
+      "const": "tx_resources"
+    },
+    "transaction_data_xdr": {
+      "type": "string",
+      "minLength": 1,
+      "pattern": "^[A-Za-z0-9+/]+={0,2}$",
+      "description": "SorobanTransactionData, base64 XDR"
+    },
+    "ledger_protocol": {
+      "type": "integer",
+      "minimum": 0
+    }
+  },
+  "required": ["version", "id", "type", "transaction_data_xdr"],
+  "additionalProperties": false,
+  "definitions": {
+    "result": {
+      "title": "tx_resources (success response)",
+      "type": "object",
+      "properties": {
+        "version": {
+          "const": 1,
+          "description": "Wire protocol version; checked on every message"
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Echoes the id of the tx_resources request"
+        },
+        "type": {
+          "const": "result"
+        },
+        "instructions": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "disk_read_bytes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "write_bytes": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "read_only": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9+/]+={0,2}$"
+          }
+        },
+        "read_write": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9+/]+={0,2}$"
+          }
+        },
+        "resource_fee": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "version",
+        "id",
+        "type",
+        "instructions",
+        "disk_read_bytes",
+        "write_bytes",
+        "read_only",
+        "read_write",
+        "resource_fee"
+      ],
+      "additionalProperties": false
+    }
+  }
+}

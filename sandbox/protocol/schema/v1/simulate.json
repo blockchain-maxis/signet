@@ -127,6 +127,10 @@
         "pattern": "^[A-Za-z0-9+/]+={0,2}$"
       },
       "description": "Pre-signed SorobanAuthorizationEntry XDR, for enforce"
+    },
+    "adjustment": {
+      "enum": ["none", "rpc"],
+      "description": "rpc pads resources and the fee as RPC's simulateTransaction does by default (instructions \u00d71.04 + 50000, tx size \u00d71.1 + 500, refundable fee \u00d71.15), for comparing with it (#575); none (the default) reports what the call used"
     }
   },
   "required": ["version", "id", "type", "contract_id", "function", "args"],
@@ -370,7 +374,7 @@
         "seed": {
           "type": "string",
           "pattern": "^[0-9a-f]{64}$",
-          "description": "The call's PRNG seed: sha256(session_id ‖ call index as a big-endian u64) (#537)"
+          "description": "The call's PRNG seed: sha256(session_id \u2016 call index as a big-endian u64) (#537)"
         },
         "budget": {
           "type": "object",

@@ -236,6 +236,25 @@ Fork data is public chain state, but overrides and saved-call arguments are
 whatever you typed; export says so, and the bundle is worth reading before it
 is shared.
 
+## Fidelity against the network
+
+`signet sandbox fidelity <contract> --call count --call 'resolve={"handle":"aquawolf"}'`
+runs each call through the local host, on a fork, and through the RPC's own
+`simulateTransaction`, and compares (#575): the return value, the auth
+entries (who signs for which invocation; nonces are each simulator's own),
+the read-only and read-write footprint key sets (an auth nonce key aside),
+and the resource fee within `--fee-tolerance` (10%). The local side is padded
+as RPC pads (`adjustment: "rpc"`), so on the registry the fees for `count` and
+`resolve` match to the stroop and a `claim` is within about 5%. Any difference
+exits `10`; `--summary` appends a Markdown table.
+
+The `Sandbox fidelity` workflow runs it nightly against the registry on
+testnet (`count`, `resolve`, and `claim` of a fresh handle as a preview) and
+can be dispatched by hand. Its `ledger_protocol` input runs the local side on
+another lane; on these calls the p28 and p29 hosts agree exactly, so a lane
+the network is not on does not show as a difference here, and a lane the
+simulator lacks fails the run instead.
+
 ## Registry goldens
 
 `sandbox/simulator/tests/golden/registry/` pins what the simulator makes of

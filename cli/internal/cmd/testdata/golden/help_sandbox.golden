@@ -21,6 +21,7 @@ Usage:
 Available Commands:
   call        Call a contract function on a fork, locally
   export      Write a signet dev session as a repro bundle
+  fidelity    Compare the local host with the network's simulateTransaction
   fork        Pin a fork of a deployed contract at the network's latest ledger
   forks       List, remove and refresh cached forks
   replay      Re-run a repro bundle offline and compare with what it recorded

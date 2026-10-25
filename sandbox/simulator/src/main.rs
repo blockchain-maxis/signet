@@ -4,6 +4,7 @@
 
 mod diff;
 mod dispatch;
+mod fidelity;
 mod framing;
 mod lanes;
 mod layout;

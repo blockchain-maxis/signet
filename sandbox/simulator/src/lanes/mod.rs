@@ -98,6 +98,9 @@ pub struct SimulateBytes {
     pub budget: Option<BudgetOverride>,
     /// How `require_auth` is answered (#557).
     pub auth: AuthMode,
+    /// Pad resources and fee as RPC's `simulateTransaction` does by default
+    /// (#575); off, they are what the call used.
+    pub rpc_adjustment: bool,
 }
 
 /// How a simulation answers `require_auth` (#557).
@@ -554,6 +557,15 @@ pub trait Lane: Sync {
     /// address that must sign, the root function it authorizes and how many
     /// sub-invocations it covers (#556, #557).
     fn decode_auth(&self, auth_xdr: &[u8]) -> Result<serde_json::Value, LaneError>;
+
+    /// An unsigned transaction envelope carrying one `InvokeHostFunction`
+    /// from `source_account_xdr` (`AccountId`), for RPC's
+    /// `simulateTransaction` to run the same call (#575).
+    fn invocation_envelope(
+        &self,
+        host_function_xdr: &[u8],
+        source_account_xdr: &[u8],
+    ) -> Result<Vec<u8>, LaneError>;
 
     /// What a `SorobanTransactionData` says about resources and fee.
     fn transaction_resources(&self, data_xdr: &[u8]) -> Result<TransactionResources, LaneError>;

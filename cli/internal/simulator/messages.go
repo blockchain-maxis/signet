@@ -39,6 +39,8 @@ const (
 	TypeSnapshotRead     = "snapshot_read"
 	TypeEntriesDescribe  = "entries_describe"
 	TypeStorageOverride  = "storage_override"
+	TypeTxEnvelope       = "tx_envelope"
+	TypeTxResources      = "tx_resources"
 	TypeStatus           = "status"
 	TypeShutdown         = "shutdown"
 )
@@ -361,6 +363,9 @@ type SimulateParams struct {
 	// CallIndex pins the call's PRNG seed to that index in the session
 	// without advancing the count (#566).
 	CallIndex *uint64 `json:"call_index,omitempty"`
+	// Adjustment "rpc" pads resources and fee as RPC's simulateTransaction
+	// does by default (#575).
+	Adjustment string `json:"adjustment,omitempty"`
 }
 
 // RelatedContract is another contract a call reached (#552).
@@ -1036,4 +1041,34 @@ type StorageOverrideResult struct {
 	Key             string  `json:"key"`
 	Removed         bool    `json:"removed"`
 	LiveUntilLedger *uint32 `json:"live_until_ledger"`
+}
+
+// TxEnvelopeParams builds the unsigned envelope for one contract call, for
+// RPC's simulateTransaction (#575). SourceAccount defaults to the all-zero
+// key simulate uses.
+type TxEnvelopeParams struct {
+	ContractID    string `json:"contract_id"`
+	Function      string `json:"function"`
+	Args          any    `json:"args"`
+	SourceAccount string `json:"source_account,omitempty"`
+}
+
+// TxEnvelopeResult answers tx_envelope.
+type TxEnvelopeResult struct {
+	TransactionXDR string `json:"transaction_xdr"`
+}
+
+// TxResourcesParams reads a SorobanTransactionData.
+type TxResourcesParams struct {
+	TransactionDataXDR string `json:"transaction_data_xdr"`
+}
+
+// TxResourcesResult answers tx_resources.
+type TxResourcesResult struct {
+	Instructions  uint32   `json:"instructions"`
+	DiskReadBytes uint32   `json:"disk_read_bytes"`
+	WriteBytes    uint32   `json:"write_bytes"`
+	ReadOnly      []string `json:"read_only"`
+	ReadWrite     []string `json:"read_write"`
+	ResourceFee   int64    `json:"resource_fee"`
 }

@@ -93,6 +93,8 @@ func TestMessagesMatchTheSchemas(t *testing.T) {
 		TypeDiffResults: DiffResultsParams{LedgerProtocol: ip(28), A: DiffSideOf(&full, nil), B: DiffSideOf(nil, &ContractError{Kind: "contract", Code: "Error(Contract, #1)"}),
 			Rules: &DiffRules{ContractID: registry, IgnoreEvents: []string{"transfer/G…"}, IgnoreStorage: []string{"Balance(*)"}, IgnoreAuth: true,
 				ResourceTolerance: map[string]Tolerance{"instructions": {Percent: fp(10)}, "resource_fee": {Absolute: i64p(500)}}}},
+		TypeTxEnvelope:  TxEnvelopeParams{ContractID: registry, Function: "count", Args: map[string]any{}},
+		TypeTxResources: TxResourcesParams{TransactionDataXDR: b64},
 		TypeXDRKeys: XDRKeysParams{LedgerProtocol: ip(28), Keys: []XDRKey{
 			{Kind: "contract_instance", ContractID: registry},
 			{Kind: "contract_code", WasmHash: hash},
@@ -136,6 +138,8 @@ func TestMessagesMatchTheSchemas(t *testing.T) {
 			Auth:        DiffAuth{ClientBreaking: true, Added: []AuthChange{{Signer: "G…", Invocation: json.RawMessage(`{}`), Class: ClassIgnored}}, Removed: []AuthChange{}, Changed: []AuthChange{}},
 			Resources:   []ResourceChange{{Metric: "instructions", A: 1000, B: 1250, Delta: 250, Percent: fp(25), Class: ClassCost}, {Metric: "write_bytes", A: 0, B: 8, Delta: 8, Class: ClassIgnored}},
 		},
+		TypeTxEnvelope:  TxEnvelopeResult{TransactionXDR: b64},
+		TypeTxResources: TxResourcesResult{Instructions: 5, ReadOnly: []string{b64}, ReadWrite: []string{}, ResourceFee: 100},
 		TypeXDRKeys:     XDRKeysResult{Keys: []BuiltKey{{Kind: "account", Subject: "G…", KeyXDR: b64}}},
 		TypeTxDecode:    nil, // the transaction body is passed through as JSON
 		TypeWasmInspect: WasmInspectResult{WasmHash: hash, SizeBytes: 8, CustomSections: []string{"contractspecv0"}, InterfaceVersion: &InterfaceVersion{Protocol: 22}, Exports: []string{"f"}, Imports: []WasmImport{{Module: "x", Name: "_"}}, Upgradeable: "none"},
@@ -216,7 +220,7 @@ func TestEveryRequestSchemaHasAGoStruct(t *testing.T) {
 		TypeLedgerImport, TypeLedgerApply, TypeContractInstall, TypeContractSwap, TypeContractInfo, TypeSimulate, TypeSpecExtract,
 		TypeSpecEncodeArgs, TypeSpecDecodeVal, TypeSpecDiff, TypeLayoutCheck, TypeDiffResults,
 		TypeXDRKeys, TypeTxDecode, TypeWasmInspect, TypeStatus, TypeShutdown,
-		TypeSnapshotRead, TypeEntriesDescribe, TypeStorageOverride,
+		TypeSnapshotRead, TypeEntriesDescribe, TypeStorageOverride, TypeTxEnvelope, TypeTxResources,
 	} {
 		known[typ] = true
 	}

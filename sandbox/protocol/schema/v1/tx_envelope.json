@@ -1,0 +1,67 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://signet.dev/schemas/sandbox/v1/tx_envelope.json",
+  "title": "tx_envelope (request)",
+  "description": "The unsigned TransactionEnvelope for one contract call, its arguments encoded by the contract's spec, for RPC's simulateTransaction to run the same call (#575). Needs an open ledger holding the contract.",
+  "type": "object",
+  "properties": {
+    "version": {
+      "const": 1,
+      "description": "Wire protocol version; checked on every message"
+    },
+    "id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Caller-assigned; echoed on the response"
+    },
+    "type": {
+      "const": "tx_envelope"
+    },
+    "contract_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "function": {
+      "type": "string",
+      "minLength": 1
+    },
+    "args": {
+      "description": "As simulate takes them: an object by name, or an array in order"
+    },
+    "source_account": {
+      "type": "string",
+      "minLength": 1,
+      "description": "G\u2026 strkey; default the all-zero key simulate uses"
+    }
+  },
+  "required": ["version", "id", "type", "contract_id", "function"],
+  "additionalProperties": false,
+  "definitions": {
+    "result": {
+      "title": "tx_envelope (success response)",
+      "type": "object",
+      "properties": {
+        "version": {
+          "const": 1,
+          "description": "Wire protocol version; checked on every message"
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Echoes the id of the tx_envelope request"
+        },
+        "type": {
+          "const": "result"
+        },
+        "transaction_xdr": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9+/]+={0,2}$",
+          "description": "TransactionEnvelope, base64 XDR"
+        }
+      },
+      "required": ["version", "id", "type", "transaction_xdr"],
+      "additionalProperties": false
+    }
+  }
+}

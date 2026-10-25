@@ -448,6 +448,11 @@ type callRequest struct {
 	budget             *simulator.Budget
 	noRelated          bool
 	overrides          []storageOverride
+	// protocol, when set, opens the ledger on that lane instead of the
+	// fork's (signet sandbox fidelity --ledger-protocol, #575).
+	protocol int
+	// adjustment is simulate's: "rpc" pads as simulateTransaction does.
+	adjustment string
 }
 
 // latestFork returns the newest fork of contract on network, if any.
@@ -515,6 +520,9 @@ func runCall(ctx context.Context, deps Deps, network rpc.Network, req callReques
 
 	m := cache.Manifest()
 	protocol, sequence, timestamp := m.Protocol, m.ForkLedger, uint64(m.ForkTime.Unix())
+	if req.protocol != 0 {
+		protocol = req.protocol
+	}
 
 	// A named session starts from its earlier writes.
 	var saved savedSession
@@ -585,7 +593,7 @@ func runCall(ctx context.Context, deps Deps, network rpc.Network, req callReques
 	params := simulator.SimulateParams{
 		ContractID: req.contract, Function: req.function, Args: req.args, SourceAccount: req.sourceAccount,
 		AuthMode: req.authMode, AuthEntries: req.authEntries,
-		Ledger: req.move.at(m.ForkLedger, m.ForkTime), Budget: req.budget,
+		Ledger: req.move.at(m.ForkLedger, m.ForkTime), Budget: req.budget, Adjustment: req.adjustment,
 	}
 	if req.noRelated {
 		related := false

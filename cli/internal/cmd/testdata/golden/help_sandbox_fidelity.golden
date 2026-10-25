@@ -1,0 +1,40 @@
+$ signet sandbox fidelity --help
+-- stdout --
+Run each --call through the local host (on a fork, as signet sandbox call
+does) and through the RPC's own simulateTransaction, and compare: the return
+value, the auth entries (who signs for which invocation, nonces aside), the
+footprint's read-only and read-write key sets, and the resource fee within
+--fee-tolerance percent. Any difference is listed and exits 10.
+
+--summary appends a Markdown table (for $GITHUB_STEP_SUMMARY).
+--ledger-protocol runs the local side on another lane, to see a wrong lane
+show up as differences.
+
+Usage:
+  signet sandbox fidelity <contract> --call <function>[=<json args>]... [flags]
+
+Examples:
+  signet sandbox fidelity CASF…RCN --network testnet --call count \
+    --call 'resolve={"handle":"aquawolf"}'
+
+Flags:
+      --call stringArray            a call to compare: <function> or <function>=<json args>; repeatable
+      --drift string                when an entry fetched for the fork changed on-chain after the fork ledger: warn, fail (exit 6), or refork (pin the latest ledger and run once more) (default "warn")
+      --fee-tolerance float         how far apart the resource fees may be, in percent (default 10)
+  -h, --help                        help for fidelity
+      --ledger-protocol int         run the local side on this lane instead of the fork's
+      --network-passphrase string   passphrase of a custom --network (checked against the RPC's getNetwork)
+      --rpc-url string              Stellar RPC to fork from (overrides the context's rpc-url; testnet defaults to https://soroban-testnet.stellar.org)
+      --summary string              append a Markdown summary to this file
+
+Global Flags:
+      --context string         deployment context to use (overrides SIGNET_CONTEXT and the config file's current context)
+      --insecure               allow a plain-http deployment URL on a non-local host (signed challenges travel in cleartext; use only against a deployment you control)
+      --json                   write a single JSON result to stdout instead of human-readable output (diagnostics go to stderr)
+      --network string         Stellar network to talk to (overrides SIGNET_NETWORK, the context, and default "testnet")
+      --sign-with-key string   identity to sign with, for non-interactive use (same value as STELLAR_SIGN_WITH_KEY; not remembered)
+      --source string          identity to sign as (remembered in the config file for next time)
+      --url string             Signet deployment URL (overrides SIGNET_URL, the config file, and the default)
+-- stderr --
+(empty)
+-- exit 0 --
