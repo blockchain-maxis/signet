@@ -36,6 +36,17 @@ export interface FunctionNode {
   readonly id: string;
   readonly kind: 'function';
   readonly name: string;
+  /**
+   * Set on a collapsed function group (#502), id `collapsed:<group>`: one
+   * node standing for its member functions, named `pool_* (12)`.
+   */
+  readonly collapsed?: CollapsedGroup;
+}
+
+/** The group a collapsed node stands for, and its member function names. */
+export interface CollapsedGroup {
+  readonly group: string;
+  readonly members: readonly string[];
 }
 
 /** A user-defined struct, union or enum. Id: `type:<name>`. */

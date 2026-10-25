@@ -200,8 +200,16 @@ export function buildDiagramOutline(model: PositionedDiagramModel | DiagramModel
       ? model.groups
       : null;
 
+  // A collapsed group (#502) is listed as its group, with its members by name.
+  const collapsedOf = (n: (typeof model.nodes)[number]) =>
+    'collapsed' in n
+      ? (n as { collapsed?: { group: string; members: string[] } }).collapsed
+      : undefined;
+  const collapsedNodes = model.nodes.filter((n) => collapsedOf(n) !== undefined);
   const functionNodes = model.nodes.filter(
-    (n) => n.id.startsWith('fn:') || ('kind' in n && n.kind === 'function'),
+    (n) =>
+      (n.id.startsWith('fn:') || ('kind' in n && n.kind === 'function')) &&
+      collapsedOf(n) === undefined,
   );
 
   if (modelGroups) {
@@ -336,6 +344,47 @@ export function buildDiagramOutline(model: PositionedDiagramModel | DiagramModel
       defaultGroup.children!.push(fnOutline);
     }
     outline.push(defaultGroup);
+  }
+
+  for (const node of collapsedNodes) {
+    const { members } = collapsedOf(node)!;
+    // The types the group's functions use, as a function's are listed.
+    const types: OutlineNode[] = [];
+    for (const edge of outgoingEdges.get(node.id) ?? []) {
+      visitedEdgeIds.add(edge.id);
+      const targetName = nameOfNode(nodesById.get(edge.to), edge.to);
+      const typeOutline: OutlineNode = {
+        id: edge.to,
+        name: targetName,
+        label: targetName,
+        kind: 'type',
+        nodeId: edge.to,
+        edgeId: edge.id,
+        role: formatRole(edge.kinds, edge.label),
+        children: [],
+      };
+      expandNestedTypes(edge.to, typeOutline);
+      types.push(typeOutline);
+    }
+    const label = `${'name' in node && typeof node.name === 'string' ? node.name : node.label}, collapsed`;
+    outline.push({
+      id: node.id,
+      name: label,
+      label,
+      kind: 'group',
+      nodeId: node.id,
+      children: [
+        ...members.map((name) => ({
+          id: `fn:${name}`,
+          name,
+          label: name,
+          kind: 'function' as const,
+          nodeId: node.id,
+          children: [],
+        })),
+        ...types,
+      ],
+    });
   }
 
   // 2. Process remaining unvisited edges (e.g. types not in function signatures)

@@ -267,3 +267,16 @@ export type {
   StorageRenderOptions,
   StorageViewInput,
 } from './storage/render.ts';
+
+// Collapse and expand function groups (#502): server-drawn state from `?expand=`.
+export {
+  canonicalExpand,
+  collapsedGroupId,
+  collapsedLabel,
+  collapseGroups,
+  functionGroupsOf,
+  COLLAPSE_THRESHOLD,
+  COLLAPSED_PREFIX,
+} from './collapse.ts';
+export type { CollapseOptions } from './collapse.ts';
+export type { CollapsedGroup } from './graph.ts';

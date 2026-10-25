@@ -1,5 +1,6 @@
 import { seedContractFixture } from './fixtures/contracts';
 import { seedDocsRegistryFixture } from './fixtures/docs-registry';
+import { seedGroupedFixture } from './fixtures/grouped';
 import { seedDocsFailureFixture, startMockRpc } from './fixtures/docs-failures';
 
 /**
@@ -15,5 +16,6 @@ export default async function globalSetup(): Promise<() => Promise<void>> {
   await seedContractFixture();
   await seedDocsFailureFixture();
   await seedDocsRegistryFixture();
+  await seedGroupedFixture();
   return startMockRpc();
 }

@@ -27,7 +27,15 @@ import { VIZ_CSS_VARIABLES, type VizTokenName } from './tokens.ts';
  * "+K other contracts", and the anchor for calls whose function is unknown.
  */
 export type NodeKind =
-  'function' | 'struct' | 'union' | 'enum' | 'stub' | 'callee' | 'callees-more' | 'call-anchor';
+  | 'function'
+  | 'collapsed-group'
+  | 'struct'
+  | 'union'
+  | 'enum'
+  | 'stub'
+  | 'callee'
+  | 'callees-more'
+  | 'call-anchor';
 
 /**
  * The outline a node is drawn with. `stub` is always a dashed outline, so a
@@ -38,7 +46,7 @@ export type NodeShape = 'rect' | 'rounded-rect' | 'notched-rect' | 'dashed-outli
 
 /** The text token printed before a node's name, e.g. `fn transfer`. */
 export type NodePrefix =
-  'fn' | 'struct' | 'union' | 'enum' | 'stub' | 'contract' | 'more' | 'anchor';
+  'fn' | 'group' | 'struct' | 'union' | 'enum' | 'stub' | 'contract' | 'more' | 'anchor';
 
 /** One node kind's fixed visual treatment. */
 export interface NodeVocabulary {
@@ -124,6 +132,14 @@ export const NODE_VOCABULARY: Record<NodeKind, NodeVocabulary> = {
     prefix: 'fn',
     token: 'accent',
     label: 'function',
+  },
+  // A collapsed function group (#502): a dashed outline, since it links to
+  // the URL that expands it, as a stub links out to the docs.
+  'collapsed-group': {
+    shape: 'dashed-outline-rect',
+    prefix: 'group',
+    token: 'accent',
+    label: 'collapsed function group (expands)',
   },
   struct: {
     shape: 'rect',
@@ -285,6 +301,7 @@ export const WRITE_MARK_VOCABULARY: Record<WriteMark, WriteMarkVocabulary> = {
 /** Canonical render order, so the legend is deterministic whatever is passed. */
 export const NODE_KIND_ORDER: readonly NodeKind[] = [
   'function',
+  'collapsed-group',
   'struct',
   'union',
   'enum',

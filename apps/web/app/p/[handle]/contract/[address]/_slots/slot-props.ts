@@ -23,4 +23,6 @@ export interface ContractSlotProps {
   writesOnly?: boolean;
   /** Show the storage view (?storage=, #515); undefined is its default. */
   storage?: boolean;
+  /** Function groups drawn expanded (?expand=pool,admin, #502), raw. */
+  expand?: string;
 }

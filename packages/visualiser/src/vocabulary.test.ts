@@ -48,17 +48,17 @@ test('the four drawn type kinds do not all collapse to one shape', () => {
   assert.ok(shapes.size >= 3);
 });
 
-test('only link-outs are dashed outlines: a stub, and the collapsed callees', () => {
+test('only link-outs are dashed outlines: a stub, the collapsed callees and groups', () => {
   for (const kind of NODE_KIND_ORDER) {
     const dashed = NODE_VOCABULARY[kind].shape === 'dashed-outline-rect';
-    assert.equal(dashed, kind === 'stub' || kind === 'callees-more');
+    assert.equal(dashed, kind === 'stub' || kind === 'callees-more' || kind === 'collapsed-group');
   }
 });
 
 test('node prefixes are the fixed set', () => {
   assert.deepEqual(
     new Set(NODE_KIND_ORDER.map((kind) => NODE_VOCABULARY[kind].prefix)),
-    new Set(['fn', 'struct', 'union', 'enum', 'stub', 'contract', 'more', 'anchor']),
+    new Set(['fn', 'group', 'struct', 'union', 'enum', 'stub', 'contract', 'more', 'anchor']),
   );
 });
 

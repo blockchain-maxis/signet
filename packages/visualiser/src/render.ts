@@ -106,7 +106,9 @@ export function describeMarks(m: MutabilityOverlayInput): string {
         : ` between ledger ${m.firstLedger} and ${m.lastLedger}`
       : '';
   const txs = `${m.transactions} transaction${m.transactions === 1 ? '' : 's'}${range} (RPC keeps about ${m.retentionDays ?? 7} days)`;
-  const runs = m.sandboxRuns ? `, plus ${m.sandboxRuns} local sandbox run${m.sandboxRuns === 1 ? '' : 's'}` : '';
+  const runs = m.sandboxRuns
+    ? `, plus ${m.sandboxRuns} local sandbox run${m.sandboxRuns === 1 ? '' : 's'}`
+    : '';
   return `Read/write marks observed from ${txs}${runs}. Not derived from the contract interface.`;
 }
 
@@ -146,6 +148,7 @@ interface DrawnNode extends DiagramNode {
   kind?: PositionedNode['kind'];
   typeKind?: string;
   name?: string;
+  collapsed?: PositionedNode['collapsed'];
 }
 
 const isPositioned = (n: DiagramNode): n is DrawnNode => {
@@ -184,7 +187,7 @@ function placeUnpositioned(model: DiagramModel): DrawnNode[] {
 function nodeKindOf(node: DrawnNode): NodeKind {
   switch (node.kind) {
     case 'function':
-      return 'function';
+      return node.collapsed ? 'collapsed-group' : 'function';
     case 'missing':
       return 'stub';
     case 'callee':
@@ -258,7 +261,14 @@ export function renderDiagramSvg(model: DiagramModel, opts: RenderOptions): stri
   const callEdges = edges.filter((e) => (e as Partial<PositionedEdge>).call);
   const calleeCount = nodes.filter((n) => n.kind === 'callee').length;
 
-  let desc = `${functionNodes.length} functions in ${groupCount} groups, ${typeNodes.length} types, ${model.edges.length - callEdges.length} references`;
+  // A collapsed group (issue 502) counts its members, and as a group.
+  const collapsedGroups = nodes.flatMap((n) => (n.collapsed ? [n.collapsed] : []));
+  const functionCount =
+    functionNodes.length + collapsedGroups.reduce((sum, g) => sum + g.members.length, 0);
+  const groupText = collapsedGroups.length
+    ? `${groupCount + collapsedGroups.length} groups (${collapsedGroups.length} collapsed)`
+    : `${groupCount} groups`;
+  let desc = `${functionCount} functions in ${groupText}, ${typeNodes.length} types, ${model.edges.length - callEdges.length} references`;
   if (calls) {
     desc += `; calls ${calleeCount} other contract${calleeCount === 1 ? '' : 's'}`;
     if (calls.hidden > 0) desc += ` and ${calls.hidden} more`;
@@ -311,9 +321,7 @@ export function renderDiagramSvg(model: DiagramModel, opts: RenderOptions): stri
   const markWidth = mutability
     ? Math.max(...markLines.map((l) => textWidth(l, 12))) + 2 * MARGIN
     : 0;
-  const width = Math.ceil(
-    Math.max(positioned.width ?? 0, extentX, footerTextWidth, markWidth),
-  );
+  const width = Math.ceil(Math.max(positioned.width ?? 0, extentX, footerTextWidth, markWidth));
 
   const legend = calls
     ? renderLegend(legendKinds, {
@@ -453,7 +461,8 @@ export function renderDiagramSvg(model: DiagramModel, opts: RenderOptions): stri
     const markOf =
       mutability && kind === 'function' ? mutability.marks[node.name ?? node.label] : undefined;
     const markKind = mutability && kind === 'function' ? writeMarkOf(markOf) : null;
-    const hidden = (cleanQuery && !isMatch) || (opts.writesOnly && mutability && markKind !== 'write');
+    const hidden =
+      (cleanQuery && !isMatch) || (opts.writesOnly && mutability && markKind !== 'write');
     const filterClass = hidden ? ' viz-dimmed' : cleanQuery ? ' viz-match' : '';
     const stateClass = focusClass + filterClass;
     const containerClass = stateClass ? ` class="${stateClass.trim()}"` : '';
@@ -463,9 +472,13 @@ export function renderDiagramSvg(model: DiagramModel, opts: RenderOptions): stri
       const example = markOf?.kind === 'writes' ? markOf.example : undefined;
       if (example?.txHash) {
         markAttrs += ` data-mark-tx="${escapeXml(example.txHash)}" data-mark-ledger="${example.ledger}"`;
-        if (mutability!.txHref) markAttrs += ` data-mark-href="${escapeXml(mutability!.txHref(example.txHash))}"`;
+        if (mutability!.txHref)
+          markAttrs += ` data-mark-href="${escapeXml(mutability!.txHref(example.txHash))}"`;
       }
     }
+
+    // A collapsed group (issue 502) says which group its link expands.
+    if (node.collapsed) markAttrs += ` data-group-toggle="${escapeXml(node.collapsed.group)}"`;
 
     if (href) {
       svgParts.push(
@@ -503,7 +516,10 @@ export function renderDiagramSvg(model: DiagramModel, opts: RenderOptions): stri
     );
     svgParts.push(`    ${shape}`);
 
-    svgParts.push(`    <title>${escapeXml(node.name ?? node.label)}</title>`);
+    const title = node.collapsed
+      ? `${node.name ?? node.label}: ${node.collapsed.members.join(', ')}. Expand to draw them.`
+      : (node.name ?? node.label);
+    svgParts.push(`    <title>${escapeXml(title)}</title>`);
 
     svgParts.push(`    <text`);
     svgParts.push(`      class="diagram-node-label"`);
@@ -553,7 +569,8 @@ export function renderDiagramSvg(model: DiagramModel, opts: RenderOptions): stri
     let x = 8;
     for (const kind of ['write', 'read', 'unknown'] as const) {
       svgParts.push(`    ${markBadge(kind, x, 4)}`);
-      const text = kind === 'write' ? 'writes' : kind === 'read' ? 'no writes seen' : 'not observed';
+      const text =
+        kind === 'write' ? 'writes' : kind === 'read' ? 'no writes seen' : 'not observed';
       svgParts.push(
         `    <text x="${x + MARK_SIZE + 6}" y="${4 + MARK_SIZE / 2}" dominant-baseline="central" font-size="12" fill="${cssVar('muted')}">${text}</text>`,
       );

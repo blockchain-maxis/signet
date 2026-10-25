@@ -8,9 +8,7 @@
  * Landed:
  * - `enhanceDetails` — hover/focus detail card (#500).
  * - `enhanceKeyboard` — keyboard navigation and roving tabindex (#501).
- *
- * Still to come (#502–#505): group collapse/expand, search/filter,
- * bounded viewport with zoom and pan, and node permalinks.
+ * - `enhanceExpand` — group collapse/expand swapped in place (#502).
  */
 
 export type { DetailsData, EnhanceDetailsOptions, NodeDetails } from './details.ts';
@@ -82,3 +80,6 @@ export function enhanceInteractive(): never {
   throw new Error('@signet/visualiser interactive enhancer is not implemented yet (see #501–#505)');
 }
 
+
+export type { EnhanceExpandOptions, ExpandController } from './expand.ts';
+export { enhanceExpand } from './expand.ts';

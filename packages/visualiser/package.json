@@ -11,6 +11,7 @@
     "./interactive": "./src/interactive/index.ts",
     "./interactive/details": "./src/interactive/details.ts",
     "./interactive/details.css": "./src/interactive/details.css",
+    "./interactive/expand": "./src/interactive/expand.ts",
     "./interactive/filter": "./src/interactive/filter.ts",
     "./interactive/filter.css": "./src/interactive/filter.css",
     "./interactive/keyboard": "./src/interactive/keyboard.ts",

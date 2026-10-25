@@ -1,25 +1,12 @@
-import { fromSpecJson, type ContractSpec, type SpecJson } from '@signet/spec';
 import {
-  buildContractGraph,
-  buildDiagramOutline,
-  callersOnly,
-  CALLEES_MORE_ID,
-  diagramDecision,
-  layoutContractGraph,
-  renderDiagramSvg,
-  renderOutlineHtml,
   renderStorageOutlineHtml,
   renderStorageSvg,
   typeAnchor,
-  withMarks,
   MAX_NODES,
-  type LayoutOverlays,
-  type MutabilityOverlayInput,
-  type PositionedDiagramModel,
   type StorageViewInput,
 } from '@signet/visualiser';
+import type { SpecJson } from '@signet/spec';
 import { logger } from '@/lib/logger';
-import { resolveNetwork, stellarExpertTxUrl } from '@/lib/network';
 import { loadContractCallGraph, type ContractCallGraph } from '@/lib/server/call-graph-source';
 import {
   getInstanceStorage,
@@ -28,34 +15,23 @@ import {
   type InstanceStorage,
   type MutabilityOverlay,
 } from '@/lib/server/diagram';
+import { diagramPath, drawContractDiagram } from '@/lib/server/diagram-view';
+import { DiagramExpand } from './diagram-expand';
 import { StorageToggle } from './storage-toggle';
 import { SectionLabel } from '../../../_components/section-label';
 import { SlotPlaceholder } from './slot-placeholder';
 import type { ContractSlotProps } from './slot-props';
 
-/**
- * The decoded spec to draw from. The graph reads the flattened views, plus the raw
- * entries only to find error enums with no cases, so when the entries cannot be
- * decoded the views alone still give the diagram; this tab never throws (design §2.4).
- */
-function specForGraph(json: SpecJson, { address, network }: ContractSlotProps): ContractSpec {
-  try {
-    return fromSpecJson(json);
-  } catch (err) {
-    logger.warn(
-      { address, network, errorMessage: err instanceof Error ? err.message : String(err) },
-      'diagram: spec entries not decodable, using flattened views',
-    );
-    return { ...json, entries: [] } as unknown as ContractSpec;
-  }
-}
+/** The part of the tab the expand enhancer (#502) swaps in place. */
+const DIAGRAM_REGION_ID = 'diagram-region';
 
 /**
  * Diagram slot (#450, #499).
  *
  * Renders the server-rendered SVG diagram with four states (draw, too-simple, too-large, error).
  * Following #499 (E-19), the outline sits after the SVG in a `<details>` labelled
- * "Diagram as text", and the SVG gets `aria-describedby="diagram-outline"`.
+ * "Diagram as text", and the SVG gets `aria-describedby="diagram-outline"`. The
+ * drawing itself is `drawContractDiagram`, shared with the fragment route (#502).
  */
 function DiagramBody(
   props: ContractSlotProps & {
@@ -69,65 +45,21 @@ function DiagramBody(
     return <SlotPlaceholder slot="diagram" props={props} />;
   }
 
-  const spec = specForGraph(props.spec.spec as SpecJson, props);
-  const graph = buildContractGraph(spec);
-  const specModel = layoutContractGraph(graph);
-  const decision = diagramDecision(graph, specModel);
-
-  // The call graph (#543) rides on the spec diagram; when the interface is not
-  // worth drawing, the calls are drawn alone, from the functions that made them.
-  const { calls } = props;
-  const overlays: LayoutOverlays = calls
-    ? {
-        calls: {
-          overlay: calls.overlay,
-          labels: new Map([...calls.labels].map(([address, label]) => [address, label.text])),
-          expand: props.expandCallees,
-        },
-      }
-    : {};
-  const callsAlone = decision.kind !== 'draw' && calls !== null;
-  const model: PositionedDiagramModel =
-    decision.kind === 'draw'
-      ? layoutContractGraph(graph, {}, overlays)
-      : callsAlone
-        ? layoutContractGraph(callersOnly(graph, calls.overlay), {}, overlays)
-        : specModel;
-
-  const basePath = `/p/${encodeURIComponent(props.handle)}/contract/${encodeURIComponent(props.address)}`;
-  const hrefForNode = (nodeId: string) => {
-    const node = model.nodes.find((n) => n.id === nodeId);
-    if (node?.kind === 'function') return `${basePath}/functions#fn-${node.name}`;
-    if (node?.kind === 'type') return `${basePath}/types#${typeAnchor(node.name)}`;
-    if (node?.kind === 'callee' && node.address)
-      return calls?.labels.get(node.address)?.href ?? null;
-    if (node?.id === CALLEES_MORE_ID) return `${basePath}/diagram?callees=all`;
-    return null;
-  };
-
-  // Read/write marks (#512): observed from indexed transactions, stated as such
-  // under the diagram, never taken from the interface.
+  const view = drawContractDiagram({
+    handle: props.handle,
+    address: props.address,
+    network: props.network,
+    spec: props.spec.spec as SpecJson,
+    calls: props.calls,
+    mutability: props.mutability,
+    query: props.query,
+    focus: props.focus,
+    expandCallees: props.expandCallees,
+    writesOnly: props.writesOnly,
+    expand: props.expand,
+  });
+  const { decision, callsAlone, hasWrites, writesOnly } = view;
   const { mutability } = props;
-  const explorer = resolveNetwork(props.network).explorer;
-  const marks: MutabilityOverlayInput | undefined = mutability
-    ? {
-        marks: mutability.marks,
-        transactions: mutability.observations,
-        firstLedger: mutability.firstLedger,
-        lastLedger: mutability.lastLedger,
-        staleObservations: mutability.staleObservations,
-        txHref: (hash) => stellarExpertTxUrl(hash, explorer),
-      }
-    : undefined;
-  const hasWrites = mutability
-    ? Object.values(mutability.marks).some((m) => m.kind === 'writes')
-    : false;
-  const writesOnly = Boolean(props.writesOnly && hasWrites);
-
-  const outline = mutability
-    ? withMarks(buildDiagramOutline(model), mutability.marks)
-    : buildDiagramOutline(model);
-  const outlineHtml = renderOutlineHtml(outline, hrefForNode);
 
   const outlineDetails = (
     <details
@@ -138,7 +70,7 @@ function DiagramBody(
       <summary className="cursor-pointer font-medium text-[#f5f4ee] hover:text-[#e05a4b] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#e05a4b]">
         Diagram as text
       </summary>
-      <div className="mt-4" dangerouslySetInnerHTML={{ __html: outlineHtml }} />
+      <div className="mt-4" dangerouslySetInnerHTML={{ __html: view.outlineHtml }} />
       {props.storageOutline && (
         <div className="mt-6" dangerouslySetInnerHTML={{ __html: props.storageOutline }} />
       )}
@@ -177,39 +109,11 @@ function DiagramBody(
 
   const query = props.query;
   const cleanQuery = query?.trim().toLowerCase();
-
-  const svg = renderDiagramSvg(model, {
-    idPrefix: `diagram-${props.address}-`,
-    hrefForNode,
-    title: `${props.handle} (${props.address})`,
-    ariaDescribedBy: 'diagram-outline',
-    query,
-    focus: props.focus,
-    writesOnly,
-    ...(marks && { overlays: { mutability: marks } }),
-  });
-
-  const totalFunctions = model.nodes.filter((n) => n.id.startsWith('fn:')).length;
-  const matchingFunctions = cleanQuery
-    ? model.nodes.filter(
-        (n) =>
-          n.id.startsWith('fn:') &&
-          (n.id.toLowerCase().includes(cleanQuery) || n.label.toLowerCase().includes(cleanQuery)),
-      ).length
-    : totalFunctions;
-
-  const totalMatches = cleanQuery
-    ? model.nodes.filter(
-        (n) =>
-          n.id.toLowerCase().includes(cleanQuery) || n.label.toLowerCase().includes(cleanQuery),
-      ).length
-    : model.nodes.length;
-
   const announcement =
     cleanQuery && cleanQuery.length > 0
-      ? totalMatches === 0
+      ? view.totalMatches === 0
         ? 'No functions or types match'
-        : `${matchingFunctions} of ${totalFunctions} functions match`
+        : `${view.matchingFunctions} of ${view.totalFunctions} functions match`
       : '';
 
   return (
@@ -225,6 +129,9 @@ function DiagramBody(
             className="viz-filter-input bg-[#181614] border border-[#2b2721] rounded px-3 py-1.5 text-xs text-[#f5f4ee] placeholder-[#8a8779] focus:outline-none focus:border-[#e05252] w-64"
             aria-label="Filter functions and types"
           />
+          {view.expanded.length > 0 && (
+            <input type="hidden" name="expand" value={view.expanded.join(',')} />
+          )}
           <label
             className={`flex items-center gap-2 text-xs ${hasWrites ? 'text-[#f5f4ee]' : 'text-[#8a8779]'}`}
             title={
@@ -254,7 +161,7 @@ function DiagramBody(
           {announcement}
         </div>
       </div>
-      {cleanQuery && totalMatches === 0 && (
+      {cleanQuery && view.totalMatches === 0 && (
         <p className="my-4 text-xs text-[#8a8779]">No functions or types match</p>
       )}
       {callsAlone && (
@@ -264,7 +171,13 @@ function DiagramBody(
             : 'This contract’s interface has no types to connect, so this shows only the calls it makes to other contracts.'}
         </p>
       )}
-      <div className="overflow-x-auto" dangerouslySetInnerHTML={{ __html: svg }} />
+      <div id={DIAGRAM_REGION_ID} dangerouslySetInnerHTML={{ __html: view.regionHtml }} />
+      {view.collapsible && (
+        <DiagramExpand
+          region={DIAGRAM_REGION_ID}
+          fragmentPath={`${diagramPath(props.handle, props.address)}/fragment`}
+        />
+      )}
       {mutability?.reason && (
         <p className="mt-2 text-xs text-[#8a8779]">
           {mutability.reason} {mutability.retentionNote}

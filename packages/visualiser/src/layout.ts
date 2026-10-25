@@ -188,6 +188,8 @@ export interface PositionedNode extends RoutableNode {
   address?: string;
   /** For "+K other contracts": the addresses it stands for. */
   hiddenAddresses?: string[];
+  /** For a collapsed function group (#502): the group, and the functions it stands for. */
+  collapsed?: { group: string; members: string[] };
 }
 
 export interface PositionedEdge extends RoutableEdge {
@@ -409,10 +411,14 @@ function sweep(
   }
 }
 
-/** One group with the node ids of its members, in order. */
+/**
+ * One group with the node ids of its members, in order. A collapsed group
+ * (#502) is its one node, drawn in the group's place without a box.
+ */
 interface GroupMembers {
   group: FunctionGroup;
   ids: string[];
+  collapsed?: true;
 }
 
 /** A function's order in column 0: groups first (as `groupFunctions` ranks them). */
@@ -421,21 +427,33 @@ function orderFunctions(functions: readonly Extract<GraphNode, { kind: 'function
   groups: GroupMembers[];
   groupOf: Map<string, string>;
 } {
-  const groups = groupFunctions(functions.map((f) => f.name));
+  // A collapsed group (#502) is grouped by its members, and takes their place.
+  const names = functions.flatMap((f) => (f.collapsed ? f.collapsed.members : [f.name]));
+  const groups = groupFunctions(names);
   if (groups.length === 0) {
     return { ids: functions.map((f) => f.id), groups: [], groupOf: new Map() };
   }
-  const idByName = new Map(functions.map((f) => [f.name, f.id]));
+  const idByName = new Map(functions.filter((f) => !f.collapsed).map((f) => [f.name, f.id]));
+  const collapsedId = new Map(
+    functions.filter((f) => f.collapsed).map((f) => [f.collapsed!.group, f.id]),
+  );
   const ids: string[] = [];
   const groupOf = new Map<string, string>();
-  const members: GroupMembers[] = groups.map((group) => {
+  const members: GroupMembers[] = [];
+  for (const group of groups) {
+    const collapsed = collapsedId.get(group.name);
+    if (collapsed) {
+      ids.push(collapsed);
+      members.push({ group, ids: [collapsed], collapsed: true });
+      continue;
+    }
     const memberIds = group.functions.map((name) => idByName.get(name)!);
     for (const id of memberIds) {
       ids.push(id);
       groupOf.set(id, `group:${group.name}`);
     }
-    return { group, ids: memberIds };
-  });
+    members.push({ group, ids: memberIds });
+  }
   return { ids, groups: members, groupOf };
 }
 
@@ -579,13 +597,14 @@ export function layoutContractGraph(
   const stackHeight = (count: number) =>
     count === 0 ? 0 : count * geo.nodeHeight + (count - 1) * geo.rowGap;
   const groupMembers = fnOrder.groups.map((g) => g.ids.length);
+  const blockHeight = (g: GroupMembers) =>
+    g.collapsed
+      ? geo.nodeHeight
+      : geo.groupHeaderHeight + stackHeight(g.ids.length) + geo.groupPadding;
   const groupedHeight =
     groupMembers.length === 0
       ? 0
-      : groupMembers.reduce(
-          (sum, count) => sum + geo.groupHeaderHeight + stackHeight(count) + geo.groupPadding,
-          0,
-        ) +
+      : fnOrder.groups.reduce((sum, g) => sum + blockHeight(g), 0) +
         (groupMembers.length - 1) * geo.groupGap;
   // The anchor sits above the functions, a group gap clear of the first box.
   const anchorShift = calls.anchor
@@ -608,7 +627,12 @@ export function layoutContractGraph(
   if (calls.anchor) pos.set(CALL_ANCHOR_ID, { x: columnX[0]!, y: top });
   let cursor = top + anchorShift;
   if (groupMembers.length > 0) {
-    for (const { group, ids } of fnOrder.groups) {
+    for (const { group, ids, collapsed } of fnOrder.groups) {
+      if (collapsed) {
+        pos.set(ids[0]!, { x: columnX[0]!, y: cursor });
+        cursor += geo.nodeHeight + geo.groupGap;
+        continue;
+      }
       const boxY = cursor;
       let y = boxY + geo.groupHeaderHeight;
       for (const id of ids) {
@@ -662,6 +686,9 @@ export function layoutContractGraph(
       column: columnOf.get(node.id)!,
     };
     if (node.kind === 'type') positioned.typeKind = node.typeKind;
+    if (node.kind === 'function' && node.collapsed) {
+      positioned.collapsed = { group: node.collapsed.group, members: [...node.collapsed.members] };
+    }
     const groupId = fnOrder.groupOf.get(node.id);
     if (groupId !== undefined) positioned.groupId = groupId;
     return positioned;
@@ -766,7 +793,14 @@ function placeCalls(
   };
   if (!input || input.overlay.edges.length === 0) return none;
   const { overlay } = input;
-  const fnId = new Map(functions.map((f) => [f.name, f.id]));
+  // A call from a member of a collapsed group starts from the group's node.
+  const fnId = new Map(
+    functions.flatMap((f) =>
+      f.collapsed
+        ? f.collapsed.members.map((name) => [name, f.id] as const)
+        : [[f.name, f.id] as const],
+    ),
+  );
 
   const weightOf = new Map<string, number>();
   for (const e of overlay.edges) {

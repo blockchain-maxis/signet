@@ -1,0 +1,446 @@
+<svg
+  xmlns="http://www.w3.org/2000/svg"
+  role="figure"
+  aria-labelledby="collapsed-title collapsed-desc"
+  class="contract-diagram"
+  width="1023" height="436" viewBox="0 0 1023 436"
+  font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="14"
+>
+  <title id="collapsed-title">axelar-its, groups collapsed</title>
+  <desc id="collapsed-desc">49 functions in 8 groups (8 collapsed), 14 types, 15 references</desc>
+  <defs>
+    <marker id="collapsed-filled-arrow" markerWidth="8" markerHeight="8" refX="7.5" refY="3" orient="auto" markerUnits="userSpaceOnUse"><path class="viz-arrow viz-arrow--filled" d="M0,0 L8,3 L0,6 Z" fill="var(--viz-edge)"/></marker>
+    <marker id="collapsed-open-arrow" markerWidth="8" markerHeight="8" refX="7.5" refY="3" orient="auto" markerUnits="userSpaceOnUse"><path class="viz-arrow viz-arrow--open" d="M0,0 L8,3 L0,6" fill="none" stroke="var(--viz-edge)" stroke-width="1.25"/></marker>
+  </defs>
+  <polyline
+    id="collapsed-edge-collapsed:token-type:TokenManagerType"
+    class="diagram-edge"
+    data-edge-from="collapsed:token"
+    data-edge-to="type:TokenManagerType"
+    data-edge-kind="return"
+    points="137,374 227,374 227,298.2 562,298.2 562,206.4 610,206.4"
+    fill="none" stroke="var(--viz-edge)" stroke-width="1.5"
+    marker-end="url(#collapsed-open-arrow)"
+  />
+  <polyline
+    id="collapsed-edge-collapsed:deploy-type:TokenMetadata"
+    class="diagram-edge"
+    data-edge-from="collapsed:deploy"
+    data-edge-to="type:TokenMetadata"
+    data-edge-kind="arg"
+    points="145,186.66666666666666 227,186.66666666666666 227,278 275,278"
+    fill="none" stroke="var(--viz-edge)" stroke-width="1.5"
+    marker-end="url(#collapsed-filled-arrow)"
+  />
+  <polyline
+    id="collapsed-edge-collapsed:deploy-type:Token"
+    class="diagram-edge"
+    data-edge-from="collapsed:deploy"
+    data-edge-to="type:Token"
+    data-edge-kind="arg"
+    points="145,177.33333333333334 227,177.33333333333334 227,240.8 275,240.8"
+    fill="none" stroke="var(--viz-edge)" stroke-width="1.5"
+    marker-end="url(#collapsed-filled-arrow)"
+  />
+  <polyline
+    id="collapsed-edge-collapsed:register-type:Token"
+    class="diagram-edge"
+    data-edge-from="collapsed:register"
+    data-edge-to="type:Token"
+    data-edge-kind="arg"
+    points="162,330.6666666666667 227,330.6666666666667 227,246.4 275,246.4"
+    fill="none" stroke="var(--viz-edge)" stroke-width="1.5"
+    marker-end="url(#collapsed-filled-arrow)"
+  />
+  <polyline
+    id="collapsed-edge-collapsed:register-type:TokenManagerType"
+    class="diagram-edge"
+    data-edge-from="collapsed:register"
+    data-edge-to="type:TokenManagerType"
+    data-edge-kind="arg"
+    points="162,321.3333333333333 227,321.3333333333333 227,421.06666666666666 562,421.06666666666666 562,200.8 610,200.8"
+    fill="none" stroke="var(--viz-edge)" stroke-width="1.5"
+    marker-end="url(#collapsed-filled-arrow)"
+  />
+  <polyline
+    id="collapsed-edge-collapsed:other-type:TokenManagerType"
+    class="diagram-edge"
+    data-edge-from="collapsed:other"
+    data-edge-to="type:TokenManagerType"
+    data-edge-kind="arg"
+    points="128,40.8 227,40.8 227,99.19999999999999 562,99.19999999999999 562,189.6 610,189.6"
+    fill="none" stroke="var(--viz-edge)" stroke-width="1.5"
+    marker-end="url(#collapsed-filled-arrow)"
+  />
+  <polyline
+    id="collapsed-edge-collapsed:other-type:Token"
+    class="diagram-edge"
+    data-edge-from="collapsed:other"
+    data-edge-to="type:Token"
+    data-edge-kind="arg"
+    points="128,46.4 227,46.4 227,229.6 275,229.6"
+    fill="none" stroke="var(--viz-edge)" stroke-width="1.5"
+    marker-end="url(#collapsed-filled-arrow)"
+  />
+  <polyline
+    id="collapsed-edge-collapsed:interchain-type:Token"
+    class="diagram-edge"
+    data-edge-from="collapsed:interchain"
+    data-edge-to="type:Token"
+    data-edge-kind="arg"
+    points="179,86 227,86 227,235.2 275,235.2"
+    fill="none" stroke="var(--viz-edge)" stroke-width="1.5"
+    marker-end="url(#collapsed-filled-arrow)"
+  />
+  <polyline
+    id="collapsed-edge-collapsed:other-type:__InterchainTokenServiceMigrationData"
+    class="diagram-edge"
+    data-edge-from="collapsed:other"
+    data-edge-to="type:__InterchainTokenServiceMigrationData"
+    data-edge-kind="arg"
+    points="128,35.2 227,35.2 227,198 275,198"
+    fill="none" stroke="var(--viz-edge)" stroke-width="1.5"
+    marker-end="url(#collapsed-filled-arrow)"
+  />
+  <polyline
+    id="collapsed-edge-collapsed:other-type:__InterchainTokenServiceAxelarExecutableInterfaceError"
+    class="diagram-edge"
+    data-edge-from="collapsed:other"
+    data-edge-to="type:__InterchainTokenServiceAxelarExecutableInterfaceError"
+    data-edge-kind="return"
+    points="128,29.6 227,29.6 227,78 275,78"
+    fill="none" stroke="var(--viz-edge)" stroke-width="1.5"
+    marker-end="url(#collapsed-open-arrow)"
+  />
+  <polyline
+    id="collapsed-edge-type:TokenIdConfigValue-type:TokenManagerType"
+    class="diagram-edge"
+    data-edge-from="type:TokenIdConfigValue"
+    data-edge-to="type:TokenManagerType"
+    data-edge-kind="field"
+    points="447,118 562,118 562,195.2 610,195.2"
+    fill="none" stroke="var(--viz-edge)" stroke-width="1"
+  />
+  <polyline
+    id="collapsed-edge-type:WeightedSigners-type:WeightedSigner"
+    class="diagram-edge"
+    data-edge-from="type:WeightedSigners"
+    data-edge-to="type:WeightedSigner"
+    data-edge-kind="field"
+    points="421,158 562,158 562,175.66666666666669 813,175.66666666666669 813,193.33333333333334 861,193.33333333333334"
+    fill="none" stroke="var(--viz-edge)" stroke-width="1"
+  />
+  <polyline
+    id="collapsed-edge-type:ProofSigner-type:ProofSignature"
+    class="diagram-edge"
+    data-edge-from="type:ProofSigner"
+    data-edge-to="type:ProofSignature"
+    data-edge-kind="field"
+    points="723,242.66666666666666 813,242.66666666666666 813,238 861,238"
+    fill="none" stroke="var(--viz-edge)" stroke-width="1"
+  />
+  <polyline
+    id="collapsed-edge-type:ProofSigner-type:WeightedSigner"
+    class="diagram-edge"
+    data-edge-from="type:ProofSigner"
+    data-edge-to="type:WeightedSigner"
+    data-edge-kind="field"
+    points="723,233.33333333333334 813,233.33333333333334 813,202.66666666666666 861,202.66666666666666"
+    fill="none" stroke="var(--viz-edge)" stroke-width="1"
+  />
+  <polyline
+    id="collapsed-edge-type:Proof-type:ProofSigner"
+    class="diagram-edge"
+    data-edge-from="type:Proof"
+    data-edge-to="type:ProofSigner"
+    data-edge-kind="field"
+    points="337,318 562,318 562,238 610,238"
+    fill="none" stroke="var(--viz-edge)" stroke-width="1"
+  />
+  <a id="diagram-collapsed-other" href="?expand=other" data-node-id="collapsed:other" data-group-toggle="other">
+    <rect id="collapsed-node-collapsed:other" class="viz-shape viz-shape--dashed-outline-rect diagram-node diagram-node--collapsed-group" data-node-shape="dashed-outline-rect" fill="none" stroke="var(--viz-edge)" x="24" y="24" width="104" height="28" rx="0" ry="0" stroke-dasharray="5 3"/>
+    <title>other (26): gas_service, chain_name, its_hub_chain_name, its_hub_address, native_token_address, is_trusted_chain, set_trusted_chain, remove_trusted_chain, canonical_interchain_token_id, linked_token_id, registered_token_address, deployed_token_manager, is_flow_limiter, set_flow_limit, add_flow_limiter, remove_flow_limiter, link_token, operator, owner, paused, pause, unpause, required_auths, migrate, gateway, execute. Expand to draw them.</title>
+    <text
+      class="diagram-node-label"
+      x="34"
+      y="38"
+      dominant-baseline="central"
+      fill="var(--viz-node-text)"
+    >
+      other (26)
+    </text>
+  </a>
+  <a id="diagram-collapsed-interchain" href="?expand=interchain" data-node-id="collapsed:interchain" data-group-toggle="interchain">
+    <rect id="collapsed-node-collapsed:interchain" class="viz-shape viz-shape--dashed-outline-rect diagram-node diagram-node--collapsed-group" data-node-shape="dashed-outline-rect" fill="none" stroke="var(--viz-edge)" x="24" y="72" width="155" height="28" rx="0" ry="0" stroke-dasharray="5 3"/>
+    <title>interchain_* (4): interchain_token_wasm_hash, interchain_token_id, interchain_token_address, interchain_transfer. Expand to draw them.</title>
+    <text
+      class="diagram-node-label"
+      x="34"
+      y="86"
+      dominant-baseline="central"
+      fill="var(--viz-node-text)"
+    >
+      interchain_* (4)
+    </text>
+  </a>
+  <a id="diagram-collapsed-token" href="?expand=token" data-node-id="collapsed:token" data-group-toggle="token">
+    <rect id="collapsed-node-collapsed:token" class="viz-shape viz-shape--dashed-outline-rect diagram-node diagram-node--collapsed-group" data-node-shape="dashed-outline-rect" fill="none" stroke="var(--viz-edge)" x="24" y="360" width="113" height="28" rx="0" ry="0" stroke-dasharray="5 3"/>
+    <title>token_* (3): token_manager_wasm_hash, token_manager_address, token_manager_type. Expand to draw them.</title>
+    <text
+      class="diagram-node-label"
+      x="34"
+      y="374"
+      dominant-baseline="central"
+      fill="var(--viz-node-text)"
+    >
+      token_* (3)
+    </text>
+  </a>
+  <a id="diagram-collapsed-flow" href="?expand=flow" data-node-id="collapsed:flow" data-group-toggle="flow">
+    <rect id="collapsed-node-collapsed:flow" class="viz-shape viz-shape--dashed-outline-rect diagram-node diagram-node--collapsed-group" data-node-shape="dashed-outline-rect" fill="none" stroke="var(--viz-edge)" x="24" y="216" width="104" height="28" rx="0" ry="0" stroke-dasharray="5 3"/>
+    <title>flow_* (3): flow_limit, flow_out_amount, flow_in_amount. Expand to draw them.</title>
+    <text
+      class="diagram-node-label"
+      x="34"
+      y="230"
+      dominant-baseline="central"
+      fill="var(--viz-node-text)"
+    >
+      flow_* (3)
+    </text>
+  </a>
+  <a id="diagram-collapsed-transfer" href="?expand=transfer" data-node-id="collapsed:transfer" data-group-toggle="transfer">
+    <rect id="collapsed-node-collapsed:transfer" class="viz-shape viz-shape--dashed-outline-rect diagram-node diagram-node--collapsed-group" data-node-shape="dashed-outline-rect" fill="none" stroke="var(--viz-edge)" x="24" y="120" width="138" height="28" rx="0" ry="0" stroke-dasharray="5 3"/>
+    <title>transfer_* (4): transfer_flow_limiter, transfer_token_admin, transfer_operatorship, transfer_ownership. Expand to draw them.</title>
+    <text
+      class="diagram-node-label"
+      x="34"
+      y="134"
+      dominant-baseline="central"
+      fill="var(--viz-node-text)"
+    >
+      transfer_* (4)
+    </text>
+  </a>
+  <a id="diagram-collapsed-deploy" href="?expand=deploy" data-node-id="collapsed:deploy" data-group-toggle="deploy">
+    <rect id="collapsed-node-collapsed:deploy" class="viz-shape viz-shape--dashed-outline-rect diagram-node diagram-node--collapsed-group" data-node-shape="dashed-outline-rect" fill="none" stroke="var(--viz-edge)" x="24" y="168" width="121" height="28" rx="0" ry="0" stroke-dasharray="5 3"/>
+    <title>deploy_* (3): deploy_interchain_token, deploy_remote_interchain_token, deploy_remote_canonical_token. Expand to draw them.</title>
+    <text
+      class="diagram-node-label"
+      x="34"
+      y="182"
+      dominant-baseline="central"
+      fill="var(--viz-node-text)"
+    >
+      deploy_* (3)
+    </text>
+  </a>
+  <a id="diagram-collapsed-register" href="?expand=register" data-node-id="collapsed:register" data-group-toggle="register">
+    <rect id="collapsed-node-collapsed:register" class="viz-shape viz-shape--dashed-outline-rect diagram-node diagram-node--collapsed-group" data-node-shape="dashed-outline-rect" fill="none" stroke="var(--viz-edge)" x="24" y="312" width="138" height="28" rx="0" ry="0" stroke-dasharray="5 3"/>
+    <title>register_* (3): register_canonical_token, register_token_metadata, register_custom_token. Expand to draw them.</title>
+    <text
+      class="diagram-node-label"
+      x="34"
+      y="326"
+      dominant-baseline="central"
+      fill="var(--viz-node-text)"
+    >
+      register_* (3)
+    </text>
+  </a>
+  <a id="diagram-collapsed-lifecycle" href="?expand=lifecycle" data-node-id="collapsed:lifecycle" data-group-toggle="lifecycle">
+    <rect id="collapsed-node-collapsed:lifecycle" class="viz-shape viz-shape--dashed-outline-rect diagram-node diagram-node--collapsed-group" data-node-shape="dashed-outline-rect" fill="none" stroke="var(--viz-edge)" x="24" y="264" width="130" height="28" rx="0" ry="0" stroke-dasharray="5 3"/>
+    <title>lifecycle (3): __constructor, version, upgrade. Expand to draw them.</title>
+    <text
+      class="diagram-node-label"
+      x="34"
+      y="278"
+      dominant-baseline="central"
+      fill="var(--viz-node-text)"
+    >
+      lifecycle (3)
+    </text>
+  </a>
+  <g id="diagram-type-TokenManagerType" data-node-id="type:TokenManagerType">
+    <rect id="collapsed-node-type:TokenManagerType" class="viz-shape viz-shape--rect diagram-node diagram-node--type" data-node-shape="rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="610" y="184" width="155" height="28" rx="0" ry="0"/>
+    <title>TokenManagerType</title>
+    <text
+      class="diagram-node-label"
+      x="620"
+      y="198"
+      dominant-baseline="central"
+      fill="var(--viz-node-text)"
+    >
+      TokenManagerType
+    </text>
+  </g>
+  <g id="diagram-type-RecoveryMigrationData" data-node-id="type:RecoveryMigrationData">
+    <rect id="collapsed-node-type:RecoveryMigrationData" class="viz-shape viz-shape--rect diagram-node diagram-node--type" data-node-shape="rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="275" y="24" width="197" height="28" rx="0" ry="0"/>
+    <title>RecoveryMigrationData</title>
+    <text
+      class="diagram-node-label"
+      x="285"
+      y="38"
+      dominant-baseline="central"
+      fill="var(--viz-node-text)"
+    >
+      RecoveryMigrationData
+    </text>
+  </g>
+  <g id="diagram-type-TokenIdConfigValue" data-node-id="type:TokenIdConfigValue">
+    <rect id="collapsed-node-type:TokenIdConfigValue" class="viz-shape viz-shape--rect diagram-node diagram-node--type" data-node-shape="rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="275" y="104" width="172" height="28" rx="0" ry="0"/>
+    <title>TokenIdConfigValue</title>
+    <text
+      class="diagram-node-label"
+      x="285"
+      y="118"
+      dominant-baseline="central"
+      fill="var(--viz-node-text)"
+    >
+      TokenIdConfigValue
+    </text>
+  </g>
+  <g id="diagram-type-TokenMetadata" data-node-id="type:TokenMetadata">
+    <rect id="collapsed-node-type:TokenMetadata" class="viz-shape viz-shape--rect diagram-node diagram-node--type" data-node-shape="rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="275" y="264" width="130" height="28" rx="0" ry="0"/>
+    <title>TokenMetadata</title>
+    <text
+      class="diagram-node-label"
+      x="285"
+      y="278"
+      dominant-baseline="central"
+      fill="var(--viz-node-text)"
+    >
+      TokenMetadata
+    </text>
+  </g>
+  <g id="diagram-type-WeightedSigner" data-node-id="type:WeightedSigner">
+    <rect id="collapsed-node-type:WeightedSigner" class="viz-shape viz-shape--rect diagram-node diagram-node--type" data-node-shape="rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="861" y="184" width="138" height="28" rx="0" ry="0"/>
+    <title>WeightedSigner</title>
+    <text
+      class="diagram-node-label"
+      x="871"
+      y="198"
+      dominant-baseline="central"
+      fill="var(--viz-node-text)"
+    >
+      WeightedSigner
+    </text>
+  </g>
+  <g id="diagram-type-WeightedSigners" data-node-id="type:WeightedSigners">
+    <rect id="collapsed-node-type:WeightedSigners" class="viz-shape viz-shape--rect diagram-node diagram-node--type" data-node-shape="rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="275" y="144" width="146" height="28" rx="0" ry="0"/>
+    <title>WeightedSigners</title>
+    <text
+      class="diagram-node-label"
+      x="285"
+      y="158"
+      dominant-baseline="central"
+      fill="var(--viz-node-text)"
+    >
+      WeightedSigners
+    </text>
+  </g>
+  <g id="diagram-type-ProofSignature" data-node-id="type:ProofSignature">
+    <path id="collapsed-node-type:ProofSignature" class="viz-shape viz-shape--notched diagram-node diagram-node--type" data-node-shape="notched-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" d="M 861 224 H 992 L 999 231 V 252 H 861 Z"/>
+    <title>ProofSignature</title>
+    <text
+      class="diagram-node-label"
+      x="871"
+      y="238"
+      dominant-baseline="central"
+      fill="var(--viz-node-text)"
+    >
+      ProofSignature
+    </text>
+  </g>
+  <g id="diagram-type-ProofSigner" data-node-id="type:ProofSigner">
+    <rect id="collapsed-node-type:ProofSigner" class="viz-shape viz-shape--rect diagram-node diagram-node--type" data-node-shape="rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="610" y="224" width="113" height="28" rx="0" ry="0"/>
+    <title>ProofSigner</title>
+    <text
+      class="diagram-node-label"
+      x="620"
+      y="238"
+      dominant-baseline="central"
+      fill="var(--viz-node-text)"
+    >
+      ProofSigner
+    </text>
+  </g>
+  <g id="diagram-type-Proof" data-node-id="type:Proof">
+    <rect id="collapsed-node-type:Proof" class="viz-shape viz-shape--rect diagram-node diagram-node--type" data-node-shape="rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="275" y="304" width="62" height="28" rx="0" ry="0"/>
+    <title>Proof</title>
+    <text
+      class="diagram-node-label"
+      x="285"
+      y="318"
+      dominant-baseline="central"
+      fill="var(--viz-node-text)"
+    >
+      Proof
+    </text>
+  </g>
+  <g id="diagram-type-CommandType" data-node-id="type:CommandType">
+    <path id="collapsed-node-type:CommandType" class="viz-shape viz-shape--notched diagram-node diagram-node--type" data-node-shape="notched-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" d="M 275 344 H 381 L 388 351 V 372 H 275 Z"/>
+    <title>CommandType</title>
+    <text
+      class="diagram-node-label"
+      x="285"
+      y="358"
+      dominant-baseline="central"
+      fill="var(--viz-node-text)"
+    >
+      CommandType
+    </text>
+  </g>
+  <g id="diagram-type-Message" data-node-id="type:Message">
+    <rect id="collapsed-node-type:Message" class="viz-shape viz-shape--rect diagram-node diagram-node--type" data-node-shape="rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="275" y="384" width="79" height="28" rx="0" ry="0"/>
+    <title>Message</title>
+    <text
+      class="diagram-node-label"
+      x="285"
+      y="398"
+      dominant-baseline="central"
+      fill="var(--viz-node-text)"
+    >
+      Message
+    </text>
+  </g>
+  <g id="diagram-type-Token" data-node-id="type:Token">
+    <rect id="collapsed-node-type:Token" class="viz-shape viz-shape--rect diagram-node diagram-node--type" data-node-shape="rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="275" y="224" width="62" height="28" rx="0" ry="0"/>
+    <title>Token</title>
+    <text
+      class="diagram-node-label"
+      x="285"
+      y="238"
+      dominant-baseline="central"
+      fill="var(--viz-node-text)"
+    >
+      Token
+    </text>
+  </g>
+  <g id="diagram-type-__InterchainTokenServiceMigrationData" data-node-id="type:__InterchainTokenServiceMigrationData">
+    <rect id="collapsed-node-type:__InterchainTokenServiceMigrationData" class="viz-shape viz-shape--dashed-outline-rect diagram-node diagram-node--stub" data-node-shape="dashed-outline-rect" fill="none" stroke="var(--viz-edge)" x="275" y="184" width="239" height="28" rx="0" ry="0" stroke-dasharray="5 3"/>
+    <title>__InterchainTokenServiceMigrationData</title>
+    <text
+      class="diagram-node-label"
+      x="285"
+      y="198"
+      dominant-baseline="central"
+      fill="var(--viz-muted)"
+    >
+      __InterchainTokenServiceM…
+    </text>
+  </g>
+  <g id="diagram-type-__InterchainTokenServiceAxelarExecutableInterfaceError" data-node-id="type:__InterchainTokenServiceAxelarExecutableInterfaceError">
+    <rect id="collapsed-node-type:__InterchainTokenServiceAxelarExecutableInterfaceError" class="viz-shape viz-shape--dashed-outline-rect diagram-node diagram-node--stub" data-node-shape="dashed-outline-rect" fill="none" stroke="var(--viz-edge)" x="275" y="64" width="239" height="28" rx="0" ry="0" stroke-dasharray="5 3"/>
+    <title>__InterchainTokenServiceAxelarExecutableInterfaceError</title>
+    <text
+      class="diagram-node-label"
+      x="285"
+      y="78"
+      dominant-baseline="central"
+      fill="var(--viz-muted)"
+    >
+      __InterchainTokenServiceA…
+    </text>
+  </g>
+</svg>

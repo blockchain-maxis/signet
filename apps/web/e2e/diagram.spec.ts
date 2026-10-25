@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { CONTRACT_A, FIXTURE_HANDLE } from './fixtures/contracts';
+import { GROUPED, GROUPS_HANDLE } from './fixtures/grouped';
 
 const HAS_DB = Boolean(process.env.DATABASE_URL);
 
@@ -82,5 +83,51 @@ test.describe('diagram embed mode e2e', () => {
     await expect(copyBtn).toBeVisible();
     await copyBtn.click();
     await expect(dialog.getByRole('button', { name: /Copied!/i })).toBeVisible();
+  });
+});
+
+// Collapse and expand function groups (#502): the 30-function fixture is past
+// the threshold, so its groups start collapsed.
+test.describe('function groups collapse and expand (#502)', () => {
+  test.skip(!HAS_DB, 'needs the grouped fixture (DATABASE_URL)');
+  const diagramUrl = `/p/${GROUPS_HANDLE}/contract/${GROUPED}/diagram`;
+  const collapsedPool = '[data-node-id="collapsed:pool"]';
+
+  test.describe('without JavaScript', () => {
+    test.use({ javaScriptEnabled: false });
+
+    test('a collapsed group is a link that navigates to it expanded', async ({ page }) => {
+      await page.goto(diagramUrl);
+      await page.locator(collapsedPool).click();
+      await expect(page).toHaveURL(/\?expand=pool$/);
+      await expect(page.locator('[data-node-id="fn:pool_op0"]')).toBeVisible();
+      await expect(page.locator(collapsedPool)).toHaveCount(0);
+    });
+  });
+
+  test('with JavaScript the group expands in place, focus stays on it, and the URL updates', async ({ page }) => {
+    await page.goto(diagramUrl);
+    await page.evaluate(() => ((window as unknown as { __noReload: boolean }).__noReload = true));
+    await page.locator(collapsedPool).focus();
+    await page.keyboard.press('Enter');
+    await expect(page.locator('[data-node-id="fn:pool_op0"]')).toBeVisible();
+    await expect(page).toHaveURL(/\?expand=pool$/);
+    expect(await page.evaluate(() => (window as unknown as { __noReload?: boolean }).__noReload)).toBe(true);
+    await expect(page.locator('[data-group-toggle="pool"]')).toBeFocused();
+
+    // And back: the collapse link swaps the collapsed group in again.
+    await page.keyboard.press('Enter');
+    await expect(page.locator(collapsedPool)).toBeVisible();
+    await expect(page.locator(collapsedPool)).toBeFocused();
+    expect(new URL(page.url()).searchParams.get('expand')).toBeNull();
+  });
+
+  test('?expand=<script> draws the default state and reflects nothing', async ({ page, request }) => {
+    const hostile = `${diagramUrl}?expand=${encodeURIComponent('<script>alert(1)</script>')}`;
+    const body = await (await request.get(hostile)).text();
+    expect(body).not.toContain('<script>alert(1)</script>');
+    expect(body).not.toContain('&lt;script&gt;alert(1)');
+    await page.goto(hostile);
+    await expect(page.locator(collapsedPool)).toBeVisible();
   });
 });
