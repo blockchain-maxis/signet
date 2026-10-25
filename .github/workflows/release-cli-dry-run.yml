@@ -92,6 +92,16 @@ jobs:
           HEAD_SHA: ${{ github.event.pull_request.head.sha }}
         run: echo "version=0.0.0-dryrun.${HEAD_SHA::12}" >> "$GITHUB_OUTPUT"
 
+      # The local UI (#579) is embedded into the binary: build it before the
+      # cross-compile, or every artifact would serve the placeholder page.
+      - uses: pnpm/action-setup@v6.1.0
+
+      - name: Build the sandbox UI
+        run: |
+          pnpm install --frozen-lockfile --filter "@signet/sandbox-ui..." --ignore-scripts
+          pnpm --filter @signet/sandbox-ui build
+          test -f cli/internal/devui/dist/index.html
+
       - name: Build every target, stage npm packages, archive, checksum, pin shim
         env:
           VERSION: ${{ steps.version.outputs.version }}

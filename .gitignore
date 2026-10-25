@@ -48,3 +48,9 @@ ISSUES.md
 
 # signet dev session logs (#572)
 .signet/
+
+# The sandbox UI build (#579): pnpm --filter @signet/sandbox-ui build. The
+# directory itself stays, for go:embed.
+!cli/internal/devui/dist/
+cli/internal/devui/dist/*
+!cli/internal/devui/dist/.gitkeep

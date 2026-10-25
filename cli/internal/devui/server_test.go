@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"io/fs"
 	"net"
 	"net/http"
 	"strings"
@@ -149,5 +150,36 @@ func TestAPreflightIsNeverAnswered(t *testing.T) {
 		if strings.HasPrefix(k, "Access-Control-Allow-") {
 			t.Fatalf("%s: %s", k, resp.Header.Get(k))
 		}
+	}
+}
+
+// #579: the embedded UI when it was built, the page saying how to build it
+// when it was not; either way a page with no inline script, which the CSP
+// would refuse.
+func TestTheBuiltUIOrThePlaceholderIsServed(t *testing.T) {
+	assets := Assets()
+	page, err := fs.ReadFile(assets, "index.html")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if Built() {
+		if !strings.Contains(string(page), `type="module"`) || !strings.Contains(string(page), "./assets/") {
+			t.Fatalf("the built page:\n%s", page)
+		}
+	} else if !strings.Contains(string(page), "pnpm --filter @signet/sandbox-ui build") {
+		t.Fatalf("the placeholder:\n%s", page)
+	}
+	if strings.Contains(string(page), "<script>") || strings.Contains(string(page), "style=") {
+		t.Fatalf("inline script or style, which the CSP blocks:\n%s", page)
+	}
+	s, err := New(Options{Static: assets})
+	if err != nil {
+		t.Fatal(err)
+	}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	go func() { _ = s.Serve(ctx) }()
+	if r := do(t, s, "GET", "/", s.Addr().String(), nil); r.StatusCode != 200 {
+		t.Fatalf("GET / = %d", r.StatusCode)
 	}
 }

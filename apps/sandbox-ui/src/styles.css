@@ -1,0 +1,42 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* apps/web's palette (app/globals.css): the page and raised surfaces, the
+   muted and faint text that keep WCAG AA on both, and the one accent. */
+:root {
+  color-scheme: dark;
+  --surface-page: #0a0908;
+  --surface-raised: #1f1d19;
+  --line: #34312b;
+  --text: #ece8de;
+  --text-muted: #9b978b;
+  --text-faint: #8a8779;
+  --text-accent: #e05a4b;
+  --ok: #7fb685;
+  --bad: #e05a4b;
+  --font-body: 'IBM Plex Sans', ui-sans-serif, system-ui, sans-serif;
+  --font-mono:
+    'IBM Plex Mono', ui-monospace, 'Cascadia Code', 'Source Code Pro', Menlo, Consolas, monospace;
+}
+
+html,
+body {
+  background: var(--surface-page);
+  color: var(--text);
+  font-family: var(--font-body);
+}
+
+:focus-visible {
+  outline: 2px solid var(--text-accent);
+  outline-offset: 2px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}

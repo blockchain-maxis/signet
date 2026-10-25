@@ -104,6 +104,16 @@ jobs:
       # The cross-compile loop, per-package staging (both binaries), archives,
       # checksums and shim pin live in scripts/release/build-cli.sh, shared with
       # the PR dry run (release-cli-dry-run.yml) so the two cannot drift.
+      # The local UI (#579) is embedded into the binary: build it before the
+      # cross-compile, or every artifact would serve the placeholder page.
+      - uses: pnpm/action-setup@v6.1.0
+
+      - name: Build the sandbox UI
+        run: |
+          pnpm install --frozen-lockfile --filter "@signet/sandbox-ui..." --ignore-scripts
+          pnpm --filter @signet/sandbox-ui build
+          test -f cli/internal/devui/dist/index.html
+
       - name: Build every target, stage npm packages, archive, checksum, pin shim
         env:
           VERSION: ${{ steps.version.outputs.version }}

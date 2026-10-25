@@ -603,7 +603,7 @@ func gitignore(dir, pattern string) error {
 // The token is only ever in that URL's fragment.
 func startUI(ctx context.Context, cmd *cobra.Command, view *uiSession, noBrowser bool, progress func(string)) (func(), error) {
 	view.session.events = devui.NewEvents()
-	server, err := devui.New(devui.Options{Static: devui.Placeholder(), API: devui.NewAPI(view, view.session.events)})
+	server, err := devui.New(devui.Options{Static: devui.Assets(), API: devui.NewAPI(view, view.session.events)})
 	if err != nil {
 		return nil, fmt.Errorf("%w: the UI server: %v", exitcode.ErrConfiguration, err)
 	}
