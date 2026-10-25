@@ -200,6 +200,16 @@ is none) in the local simulator. Nothing is submitted.
   accounts and nested auth. `enforce --auth-entries file.json` checks
   pre-signed entries (a JSON array of base64 `SorobanAuthorizationEntry`, e.g.
   from `stellar`); signet signs nothing.
+- `--ledger-seq N` and `--timestamp <unix|RFC 3339>` run the call at another
+  ledger; `--advance 30d` (or `12h`, `+N` ledgers) moves both from the fork's,
+  taking a ledger as the network's nominal 5s, which is an approximation. The
+  session's own ledger stays put. An entry whose TTL runs out on the way is
+  named: a persistent one (`⚠ archived: …`) is restored by the call, as the
+  network does from protocol 23, for a restore fee, so the call now writes it;
+  a temporary one (`⚠ expired: …`) reads as absent. `--unlimited` runs under
+  the sandbox's budget ceiling, 10x the network's limits, and
+  `--budget-instructions N` sets the instruction limit; on the network the call
+  would still need to fit. Each override is in the footer.
 - A result reads as one of three things: a read (`→ value`: nothing written,
   no auth), a write preview (what it would write and who would have to sign,
   and that nothing was submitted), or the contract refusing, by name. Host

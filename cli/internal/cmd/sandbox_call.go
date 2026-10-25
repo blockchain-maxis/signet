@@ -56,6 +56,15 @@ type CallResult struct {
 	ForkTime time.Time `json:"forkTime"`
 	// AuthMode is how require_auth was answered: record, strict, enforce.
 	AuthMode string `json:"authMode"`
+	// Ledger is the ledger the call ran at; Overridden when --ledger-seq,
+	// --timestamp or --advance moved it off the fork's (#558).
+	Ledger *simulator.LedgerInfo `json:"ledger,omitempty"`
+	// Budget is the limits a call ran under when --unlimited or
+	// --budget-instructions overrode the network's.
+	Budget    *simulator.Budget `json:"budget,omitempty"`
+	Unlimited bool              `json:"unlimited,omitempty"`
+	// Archived are the archived entries the call read.
+	Archived []simulator.Archived `json:"archived,omitempty"`
 }
 
 func newSandboxCallCmd() *cobra.Command {
@@ -67,6 +76,11 @@ func newSandboxCallCmd() *cobra.Command {
 		session       string
 		authMode      string
 		authFile      string
+		ledgerSeq     uint32
+		timestamp     string
+		advance       string
+		unlimited     bool
+		instructions  uint64
 	)
 	cmd := &cobra.Command{
 		Use:   "call <contract> <function>",
@@ -85,11 +99,21 @@ call's writes are kept in the fork cache and the next call with the same name
 starts from them; signet sandbox session reset <name> clears them.
 
 The account a call runs as is --source-account (a G… address), not the root's
---source, which names the stellar identity signet signs with.`,
+--source, which names the stellar identity signet signs with.
+
+Time-dependent logic is tested by moving the ledger for the call:
+--ledger-seq and --timestamp set it, --advance moves both from the fork's
+(30d, 12h, or +N ledgers; one ledger is taken as the network's nominal 5s, an
+approximation). An entry whose TTL runs out on the way reads as archived: the
+call restores it, as the network does from protocol 23, and says which.
+--unlimited lifts the budget to the sandbox's ceiling (10x the network's),
+--budget-instructions sets the instruction limit. Every override shows in the
+result's footer.`,
 		Example: `  signet sandbox call CASF…RCN count
   signet sandbox call CASF…RCN claim --arg handle=alice --arg wallet=GA5Z… --session demo
   signet sandbox call CASF…RCN resolve --arg handle=alice --session demo
-  signet sandbox call CASF…RCN count --wasm ./target/wasm32v1-none/release/registry.wasm`,
+  signet sandbox call CASF…RCN count --wasm ./target/wasm32v1-none/release/registry.wasm
+  signet sandbox call CASF…RCN claim --arg unlock_time=1790000000 --advance 30d`,
 		Args: cobra.ExactArgs(2),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			deps, err := depsFor(cmd)
@@ -127,6 +151,17 @@ The account a call runs as is --source-account (a G… address), not the root's
 				}
 			default:
 				return &inputError{"--auth must be record, strict or enforce, not " + strconv.Quote(authMode)}
+			}
+			move, err := parseLedgerMove(cmd, ledgerSeq, timestamp, advance)
+			if err != nil {
+				return err
+			}
+			req.move = move
+			if cmd.Flags().Changed("budget-instructions") && instructions == 0 {
+				return &inputError{"--budget-instructions must be at least 1"}
+			}
+			if unlimited || instructions > 0 {
+				req.budget = &simulator.Budget{Instructions: instructions, Unlimited: unlimited}
 			}
 			var wasm []byte
 			if wasmPath != "" {
@@ -180,7 +215,127 @@ The account a call runs as is --source-account (a G… address), not the root's
 	cmd.Flags().StringVar(&session, "session", "", "keep this call's writes under a name, and start from that name's earlier writes")
 	cmd.Flags().StringVar(&authMode, "auth", "record", "how require_auth is answered: record (approve and list it; signatures unchecked), strict (also refuse auth below the root call), enforce (check --auth-entries)")
 	cmd.Flags().StringVar(&authFile, "auth-entries", "", "with --auth enforce: a JSON array of pre-signed base64 SorobanAuthorizationEntry")
+	cmd.Flags().Uint32Var(&ledgerSeq, "ledger-seq", 0, "run the call at this ledger sequence")
+	cmd.Flags().StringVar(&timestamp, "timestamp", "", "run the call at this ledger close time (Unix seconds or RFC 3339)")
+	cmd.Flags().StringVar(&advance, "advance", "", "move the ledger forward from the fork's: a duration (30d, 12h, 90m) or +N ledgers, at a nominal 5s per ledger")
+	cmd.Flags().BoolVar(&unlimited, "unlimited", false, "run under the sandbox's budget ceiling (10x the network's limits)")
+	cmd.Flags().Uint64Var(&instructions, "budget-instructions", 0, "run under this CPU instruction limit (up to 10x the network's)")
 	return cmd
+}
+
+// nominalClose is the network's target ledger close time. Real closes vary,
+// so --advance's ledger count for a duration is an approximation.
+const nominalClose = 5 * time.Second
+
+// ledgerMove is where --ledger-seq, --timestamp and --advance put a call,
+// resolved against the fork's ledger once it is known.
+type ledgerMove struct {
+	sequence  *uint32
+	timestamp *time.Time
+	// advanceLedgers and advanceBy are --advance, in both terms.
+	advanceLedgers uint32
+	advanceBy      time.Duration
+	advance        bool
+}
+
+func parseLedgerMove(cmd *cobra.Command, seq uint32, timestamp, advance string) (ledgerMove, error) {
+	var m ledgerMove
+	if cmd.Flags().Changed("ledger-seq") {
+		if seq == 0 {
+			return m, &inputError{"--ledger-seq must be at least 1"}
+		}
+		m.sequence = &seq
+	}
+	if timestamp != "" {
+		t, err := parseTimestamp(timestamp)
+		if err != nil {
+			return m, err
+		}
+		m.timestamp = &t
+	}
+	if advance == "" {
+		return m, nil
+	}
+	if m.sequence != nil || m.timestamp != nil {
+		return m, &inputError{"--advance moves the fork's ledger; it does not combine with --ledger-seq or --timestamp"}
+	}
+	m.advance = true
+	if n, ok := strings.CutPrefix(advance, "+"); ok {
+		ledgers, err := strconv.ParseUint(n, 10, 32)
+		if err != nil || ledgers == 0 {
+			return m, &inputError{fmt.Sprintf("--advance %q: want +N ledgers, N at least 1", advance)}
+		}
+		m.advanceLedgers = uint32(ledgers)
+		m.advanceBy = time.Duration(ledgers) * nominalClose
+		return m, nil
+	}
+	d, err := parseSpan(advance)
+	if err != nil || d < nominalClose {
+		return m, &inputError{fmt.Sprintf("--advance %q: want a duration of at least 5s (30d, 12h, 90m) or +N ledgers", advance)}
+	}
+	m.advanceBy = d
+	m.advanceLedgers = uint32(min(int64(d/nominalClose), int64(^uint32(0))))
+	return m, nil
+}
+
+// parseTimestamp reads Unix seconds or RFC 3339.
+func parseTimestamp(s string) (time.Time, error) {
+	if n, err := strconv.ParseUint(s, 10, 63); err == nil {
+		return time.Unix(int64(n), 0).UTC(), nil
+	}
+	t, err := time.Parse(time.RFC3339, s)
+	if err != nil || t.Unix() < 0 {
+		return time.Time{}, &inputError{fmt.Sprintf("--timestamp %q: want Unix seconds or RFC 3339 (2026-11-24T00:00:00Z)", s)}
+	}
+	return t.UTC(), nil
+}
+
+// parseSpan is time.ParseDuration plus days and weeks: 30d, 2w, 1d12h.
+func parseSpan(s string) (time.Duration, error) {
+	var total time.Duration
+	for _, unit := range []struct {
+		suffix string
+		size   time.Duration
+	}{{"w", 7 * 24 * time.Hour}, {"d", 24 * time.Hour}} {
+		before, after, ok := strings.Cut(s, unit.suffix)
+		if !ok {
+			continue
+		}
+		n, err := strconv.ParseUint(before, 10, 32)
+		if err != nil {
+			return 0, err
+		}
+		total += time.Duration(n) * unit.size
+		s = after
+	}
+	if s != "" {
+		d, err := time.ParseDuration(s)
+		if err != nil {
+			return 0, err
+		}
+		total += d
+	}
+	return total, nil
+}
+
+// at resolves the move against the fork's ledger, or nil for none.
+func (m ledgerMove) at(forkLedger uint32, forkTime time.Time) *simulator.LedgerOverride {
+	var o simulator.LedgerOverride
+	switch {
+	case m.advance:
+		seq := uint32(min(uint64(forkLedger)+uint64(m.advanceLedgers), uint64(^uint32(0))))
+		ts := uint64(forkTime.Add(m.advanceBy).Unix())
+		o.Sequence, o.Timestamp = &seq, &ts
+	case m.sequence != nil || m.timestamp != nil:
+		o.Sequence = m.sequence
+		if m.timestamp != nil {
+			ts := uint64(m.timestamp.Unix())
+			o.Timestamp = &ts
+		}
+	default:
+		return nil
+	}
+	return &o
 }
 
 // parseCallArgs reads --arg name=value and --args-file into one object.
@@ -217,6 +372,8 @@ type callRequest struct {
 	session            string
 	authMode           string
 	authEntries        []string
+	move               ledgerMove
+	budget             *simulator.Budget
 }
 
 // latestFork returns the newest fork of contract on network, if any.
@@ -314,7 +471,7 @@ func runCall(ctx context.Context, deps Deps, network rpc.Network, req callReques
 	res := CallResult{
 		Contract: req.contract, Function: req.function, Args: req.args, SourceAccount: req.sourceAccount,
 		Network: m.Network, ForkID: info.ID, ForkLedger: m.ForkLedger, Protocol: m.Protocol, Session: req.session,
-		ForkTime: m.ForkTime, AuthMode: req.authMode,
+		ForkTime: m.ForkTime, AuthMode: req.authMode, Unlimited: req.budget != nil && req.budget.Unlimited,
 	}
 	if len(req.wasm) > 0 {
 		var installed simulator.ContractInstallResult
@@ -335,6 +492,7 @@ func runCall(ctx context.Context, deps Deps, network rpc.Network, req callReques
 	ce, err := sim.Call(ctx, simulator.TypeSimulate, simulator.SimulateParams{
 		ContractID: req.contract, Function: req.function, Args: req.args, SourceAccount: req.sourceAccount,
 		AuthMode: req.authMode, AuthEntries: req.authEntries,
+		Ledger: req.move.at(m.ForkLedger, m.ForkTime), Budget: req.budget,
 	}, &out)
 	if err != nil {
 		res.ForkTime = m.ForkTime
@@ -344,6 +502,7 @@ func runCall(ctx context.Context, deps Deps, network rpc.Network, req callReques
 		res.Outcome = "contract_error"
 		res.Error = ce
 		res.Cost, res.Misses, res.Seed = ce.Cost, ce.Misses, ce.Seed
+		res.Ledger, res.Budget, res.Archived = ce.Ledger, ce.Budget, ce.Archived
 		res.Events, res.Auth, res.Modified = []simulator.Event{}, []string{}, []simulator.ModifiedEntry{}
 		res.AuthEntries = []simulator.AuthEntry{}
 	} else {
@@ -355,6 +514,7 @@ func runCall(ctx context.Context, deps Deps, network rpc.Network, req callReques
 			res.AuthEntries = []simulator.AuthEntry{}
 		}
 		res.Resources, res.Fee, res.Cost, res.Misses, res.Seed = out.Resources, out.Fee, &out.Cost, out.Misses, out.Seed
+		res.Ledger, res.Budget, res.Archived = out.Ledger, out.Budget, out.Archived
 		if res.Auth == nil {
 			res.Auth = []string{}
 		}
@@ -473,6 +633,9 @@ func asInputError(err error, flag string) error {
 // callView maps a call's result onto the three meanings (#556).
 func callView(res CallResult) render.Call {
 	c := render.Call{Function: res.Function, Value: string(res.ReturnValue), Writes: len(res.Modified)}
+	for _, a := range res.Archived {
+		c.Archived = append(c.Archived, render.Archived{Key: a.Key, LiveUntil: a.LiveUntilLedger, Restored: a.Outcome == "restored"})
+	}
 	if res.Outcome == "contract_error" {
 		e := res.Error
 		if e.Kind == "contract" {
@@ -533,7 +696,39 @@ func callProvenance(res CallResult) render.Provenance {
 	if res.SwappedWasm != "" {
 		p.Overrides = append(p.Overrides, "wasm "+shorten(res.SwappedWasm, 4, 2)+" swapped in")
 	}
+	if l := res.Ledger; l != nil && l.Overridden {
+		if l.Sequence != res.ForkLedger {
+			p.Overrides = append(p.Overrides, fmt.Sprintf("ledger %d (%+d)", l.Sequence, int64(l.Sequence)-int64(res.ForkLedger)))
+		}
+		at := time.Unix(int64(l.Timestamp), 0).UTC()
+		if !at.Equal(res.ForkTime) {
+			p.Overrides = append(p.Overrides, fmt.Sprintf("time %s (%s)", at.Format(time.RFC3339), span(at.Sub(res.ForkTime))))
+		}
+	}
+	if b := res.Budget; b != nil {
+		if res.Unlimited {
+			p.Overrides = append(p.Overrides, fmt.Sprintf("budget unlimited (%d instructions, 10x)", b.Instructions))
+		} else {
+			p.Overrides = append(p.Overrides, fmt.Sprintf("budget %d instructions", b.Instructions))
+		}
+	}
 	return p
+}
+
+// span is a time offset as +30d, +12h, -90m.
+func span(d time.Duration) string {
+	sign := "+"
+	if d < 0 {
+		sign, d = "-", -d
+	}
+	day := 24 * time.Hour
+	switch {
+	case d%day == 0:
+		return fmt.Sprintf("%s%dd", sign, d/day)
+	case d >= day:
+		return fmt.Sprintf("%s%dd%s", sign, d/day, (d % day).String())
+	}
+	return sign + d.String()
 }
 
 // renderedFailure gives a simulator failure or a timeout its own wording and

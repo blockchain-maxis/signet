@@ -112,6 +112,15 @@ pub fn simulate(
         AuthMode::Strict => "strict",
         AuthMode::Enforce(_) => "enforce",
     };
+    let (ledger_sequence, ledger_timestamp, ledger_overridden) = match parse_ledger(id, object) {
+        Ok(Some((seq, ts))) => (
+            seq.unwrap_or_else(|| open.store.borrow().sequence()),
+            ts.unwrap_or(open.timestamp),
+            true,
+        ),
+        Ok(None) => (open.store.borrow().sequence(), open.timestamp, false),
+        Err(reply) => return reply,
+    };
     let budget = match parse_budget(id, object) {
         Ok(budget) => budget,
         Err(reply) => return reply,
@@ -152,13 +161,13 @@ pub fn simulate(
         }
     };
 
-    let sequence = open.store.borrow().sequence();
+    let sequence = ledger_sequence;
     let seed = call_seed(&open.session_id, open.calls);
     open.calls += 1;
     let request = SimulateBytes {
         network_passphrase: open.network_passphrase.clone(),
         sequence,
-        timestamp: open.timestamp,
+        timestamp: ledger_timestamp,
         base_reserve: open.base_reserve,
         host_function_xdr,
         source_account_xdr,
@@ -167,8 +176,13 @@ pub fn simulate(
         budget,
         auth,
     };
+    // An override moves the ledger for this call only: archival and new
+    // entries' TTLs follow it, then the session's own sequence is back.
+    let session_sequence = open.store.borrow().sequence();
+    open.store.borrow_mut().set_sequence(sequence);
     let src: Rc<dyn ByteSnapshotSource> = fork.clone();
     let outcome = lane.simulate(&request, src);
+    open.store.borrow_mut().set_sequence(session_sequence);
 
     if let Some(failure) = fork.failure() {
         return fetch_failed(id, lane, &failure);
@@ -208,11 +222,26 @@ pub fn simulate(
     let mut miss_keys = fork.misses();
     miss_keys.sort();
     let misses = b64_all(&miss_keys);
-    let ledger_info = json!({
+    let mut ledger_info = json!({
         "sequence": sequence,
-        "timestamp": open.timestamp,
+        "timestamp": ledger_timestamp,
         "protocol": lane.ledger_protocol(),
     });
+    if ledger_overridden {
+        ledger_info["overridden"] = json!(true);
+    }
+    let archived: Vec<Value> = fork
+        .archived()
+        .iter()
+        .map(|(key, live_until)| {
+            json!({
+                "key_xdr": BASE64.encode(key),
+                "key": lane.describe_key(key),
+                "live_until_ledger": live_until,
+                "outcome": if is_temporary_key(key) { "expired" } else { "restored" },
+            })
+        })
+        .collect();
     match &run.return_value {
         Err(failure) => {
             let mut reply = json!({
@@ -232,6 +261,9 @@ pub fn simulate(
                 "seed": hex(&seed),
                 "auth_mode": auth_name,
             });
+            if !archived.is_empty() {
+                reply["archived"] = json!(archived);
+            }
             if run.budget.overridden {
                 reply["budget"] = budget_json(&run);
             }
@@ -280,6 +312,9 @@ pub fn simulate(
             fields["ledger"] = ledger_info;
             fields["seed"] = json!(hex(&seed));
             fields["auth_mode"] = json!(auth_name);
+            if !archived.is_empty() {
+                fields["archived"] = json!(archived);
+            }
             if run.budget.overridden {
                 fields["budget"] = budget_json(&run);
             }
@@ -388,6 +423,57 @@ fn success_body(
     body
 }
 
+/// A temporary contract-data key: `LedgerKey` arm 6 (CONTRACT_DATA), whose
+/// last field is the durability, TEMPORARY = 0. Expired, such an entry is
+/// gone for good; an archived persistent one is restored by the call.
+fn is_temporary_key(key_xdr: &[u8]) -> bool {
+    key_xdr.len() > 8
+        && key_xdr[..4] == [0, 0, 0, 6]
+        && key_xdr[key_xdr.len() - 4..] == [0, 0, 0, 0]
+}
+
+/// `ledger: {sequence?, timestamp?}` (#558): this call runs at another
+/// ledger than the session's.
+type LedgerOverride = Option<(Option<u32>, Option<u64>)>;
+
+fn parse_ledger(id: &Value, object: &Map<String, Value>) -> Result<LedgerOverride, Value> {
+    let Some(raw) = object.get("ledger") else {
+        return Ok(None);
+    };
+    let Some(raw) = raw.as_object() else {
+        return Err(invalid_field(
+            id,
+            "ledger",
+            "an object with `sequence` and/or `timestamp`",
+        ));
+    };
+    let sequence = match raw.get("sequence") {
+        None => None,
+        Some(v) => match v
+            .as_u64()
+            .and_then(|n| u32::try_from(n).ok())
+            .filter(|n| *n >= 1)
+        {
+            Some(n) => Some(n),
+            None => {
+                return Err(invalid_field(
+                    id,
+                    "ledger.sequence",
+                    "a ledger sequence >= 1",
+                ))
+            }
+        },
+    };
+    let timestamp = match raw.get("timestamp") {
+        None => None,
+        Some(v) => match v.as_u64() {
+            Some(t) => Some(t),
+            None => return Err(invalid_field(id, "ledger.timestamp", "Unix seconds")),
+        },
+    };
+    Ok(Some((sequence, timestamp)))
+}
+
 /// `auth_mode` (record, strict, enforce) and, for enforce, `auth_entries`
 /// (#557).
 fn parse_auth(id: &Value, object: &Map<String, Value>) -> Result<AuthMode, Value> {
@@ -429,7 +515,7 @@ fn parse_budget(id: &Value, object: &Map<String, Value>) -> Result<Option<Budget
         return Err(invalid_field(
             id,
             "budget",
-            "an object with `instructions` and/or `mem_bytes`",
+            "an object with `instructions`, `mem_bytes` and/or `unlimited`",
         ));
     };
     let field = |name: &str| match raw.get(name) {
@@ -439,9 +525,16 @@ fn parse_budget(id: &Value, object: &Map<String, Value>) -> Result<Option<Budget
             .map(Some)
             .ok_or_else(|| invalid_field(id, &format!("budget.{name}"), "a positive integer")),
     };
+    let unlimited = match raw.get("unlimited") {
+        None => false,
+        Some(v) => v
+            .as_bool()
+            .ok_or_else(|| invalid_field(id, "budget.unlimited", "true or false"))?,
+    };
     Ok(Some(BudgetOverride {
         instructions: field("instructions")?,
         mem_bytes: field("mem_bytes")?,
+        unlimited,
     }))
 }
 

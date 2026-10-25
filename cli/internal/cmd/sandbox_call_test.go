@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -174,6 +175,7 @@ func TestSandboxCallJSONMatchesItsSchema(t *testing.T) {
 		{registryContract, "count"},
 		{registryContract, "claim", "--arg", "handle=schema-check", "--arg", "wallet=" + testWallet, "--source-account", testWallet},
 		{registryContract, "initialize", "--arg", "admin=" + testWallet},
+		{registryContract, "count", "--advance", "30d", "--unlimited"},
 	} {
 		stdout, stderr, err := e.run(append(args, "--json")...)
 		if err != nil {
@@ -281,5 +283,109 @@ func TestSandboxCallAuthModes(t *testing.T) {
 	enforced := e.json(registryContract, "claim", "--arg", "handle=enforce-check", "--arg", "wallet="+testWallet, "--auth", "enforce", "--auth-entries", file)
 	if enforced.Outcome != "contract_error" || enforced.AuthMode != "enforce" {
 		t.Fatalf("enforced = %+v", enforced)
+	}
+}
+
+func TestSandboxCallMovesTheLedger(t *testing.T) {
+	e := newCallEnv(t)
+	base := e.json(registryContract, "count")
+	if base.Ledger == nil || base.Ledger.Overridden || base.Ledger.Sequence != registryLedger {
+		t.Fatalf("ledger = %+v", base.Ledger)
+	}
+
+	// A short step: the footer names the new ledger and time; every TTL holds.
+	stdout, stderr, err := e.run(registryContract, "count", "--advance", "+100")
+	if err != nil {
+		t.Fatalf("%v\n%s", err, stderr)
+	}
+	if !strings.Contains(stdout, "ledger 4887104 (+100)") || !strings.Contains(stdout, "(+8m20s)") || strings.Contains(stdout, "archived") {
+		t.Fatalf("stdout:\n%s", stdout)
+	}
+
+	// Past the registry's TTL (ledger 4916420): its instance and code are
+	// archived, and the call restores them, saying so.
+	stdout, stderr, err = e.run(registryContract, "count", "--advance", "30d")
+	if err != nil {
+		t.Fatalf("%v\n%s", err, stderr)
+	}
+	for _, want := range []string{"⚠ archived: ", "instance (TTL ran out after ledger 4916420)", "restores it", "(+30d)"} {
+		if !strings.Contains(stdout, want) {
+			t.Errorf("lacks %q:\n%s", want, stdout)
+		}
+	}
+	far := e.json(registryContract, "count", "--advance", "30d")
+	if len(far.Archived) != 2 || far.Archived[0].Outcome != "restored" || string(far.ReturnValue) != string(base.ReturnValue) {
+		t.Fatalf("archived = %+v, value %s", far.Archived, far.ReturnValue)
+	}
+
+	// A vesting lock 20 days out opens once the clock moves 30 days.
+	vesting := filepath.Join("..", "..", "..", "sandbox", "fixtures", "wasm", "vesting.wasm")
+	unlock := "--arg=unlock_time=" + strconv.FormatInt(base.ForkTime.Add(20*24*time.Hour).Unix(), 10)
+	locked := e.json(registryContract, "is_unlocked", unlock, "--wasm", vesting)
+	opened := e.json(registryContract, "is_unlocked", unlock, "--wasm", vesting, "--advance", "30d")
+	if string(locked.ReturnValue) != "false" || string(opened.ReturnValue) != "true" {
+		t.Fatalf("locked %s, opened %s", locked.ReturnValue, opened.ReturnValue)
+	}
+	at := e.json(registryContract, "is_unlocked", unlock, "--wasm", vesting,
+		"--timestamp", base.ForkTime.Add(21*24*time.Hour).UTC().Format(time.RFC3339))
+	if string(at.ReturnValue) != "true" || at.Ledger.Sequence != registryLedger {
+		t.Fatalf("--timestamp: %s at %+v", at.ReturnValue, at.Ledger)
+	}
+
+	stdout, _, err = e.run(registryContract, "count", "--unlimited")
+	if err != nil || !strings.Contains(stdout, "budget unlimited (") {
+		t.Fatalf("--unlimited: %v\n%s", err, stdout)
+	}
+
+	for _, args := range [][]string{
+		{registryContract, "count", "--advance", "30d", "--ledger-seq", "5"},
+		{registryContract, "count", "--advance", "soon"},
+		{registryContract, "count", "--advance", "+0"},
+		{registryContract, "count", "--timestamp", "yesterday"},
+		{registryContract, "count", "--ledger-seq", "0"},
+		{registryContract, "count", "--budget-instructions", "0"},
+	} {
+		if _, _, err := e.run(args...); ExitCode(err) != exitcode.InvalidInput {
+			t.Errorf("%v: exit %d (%v), want 2", args, ExitCode(err), err)
+		}
+	}
+}
+
+func TestLedgerMoveResolvesAgainstTheFork(t *testing.T) {
+	forkTime := time.Unix(1_790_458_607, 0)
+	for _, tc := range []struct {
+		advance   string
+		ledgers   uint32
+		timestamp int64
+	}{
+		{"+100", 4887104, 1_790_458_607 + 500},
+		{"30d", 4887004 + 518_400, 1_790_458_607 + 30*86400},
+		{"1w1d12h", 4887004 + 146_880, 1_790_458_607 + 8*86400 + 12*3600},
+		{"90m", 4887004 + 1080, 1_790_458_607 + 5400},
+	} {
+		cmd := newSandboxCallCmd()
+		m, err := parseLedgerMove(cmd, 0, "", tc.advance)
+		if err != nil {
+			t.Fatalf("%s: %v", tc.advance, err)
+		}
+		o := m.at(4887004, forkTime)
+		if *o.Sequence != tc.ledgers || int64(*o.Timestamp) != tc.timestamp {
+			t.Errorf("%s: ledger %d at %d, want %d at %d", tc.advance, *o.Sequence, *o.Timestamp, tc.ledgers, tc.timestamp)
+		}
+	}
+	if m, _ := parseLedgerMove(newSandboxCallCmd(), 0, "", ""); m.at(1, forkTime) != nil {
+		t.Fatal("no flags, no override")
+	}
+	m, err := parseLedgerMove(newSandboxCallCmd(), 0, "2026-11-24T00:00:00Z", "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if o := m.at(1, forkTime); o.Sequence != nil || *o.Timestamp != 1795478400 {
+		t.Fatalf("--timestamp alone: %+v", o)
+	}
+	for in, want := range map[time.Duration]string{30 * 24 * time.Hour: "+30d", 500 * time.Second: "+8m20s", -36 * time.Hour: "-1d12h0m0s"} {
+		if got := span(in); got != want {
+			t.Errorf("span(%s) = %q, want %q", in, got, want)
+		}
 	}
 }

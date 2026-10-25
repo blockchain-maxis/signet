@@ -141,10 +141,12 @@ fn apply_budget(
     };
     let instructions = match requested.instructions {
         Some(v) => check("budget.instructions", v, network_instructions)?,
+        None if requested.unlimited => network_instructions.saturating_mul(BUDGET_CEILING_FACTOR),
         None => network_instructions,
     };
     let mem_bytes = match requested.mem_bytes {
         Some(v) => check("budget.mem_bytes", v, network_mem)?,
+        None if requested.unlimited => network_mem.saturating_mul(BUDGET_CEILING_FACTOR),
         None => network_mem,
     };
     config.tx_max_instructions = i64::try_from(instructions).unwrap_or(i64::MAX);
@@ -329,7 +331,9 @@ impl Lane for HostLane {
                 .flatten()
                 .and_then(|(_, live_until)| live_until);
             let live_until = match (&diff.state_before, previous_ttl) {
-                (Some(_), Some(ttl)) => Some(ttl),
+                // An archived entry the call restored starts a fresh TTL,
+                // as a restored entry does on the network.
+                (Some(_), Some(ttl)) if ttl >= request.sequence => Some(ttl),
                 _ => match &key {
                     LedgerKey::ContractData(data)
                         if data.durability == ContractDataDurability::Temporary =>

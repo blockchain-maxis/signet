@@ -18,8 +18,9 @@
 //! [`LayeredStore::stored_entry_count`] makes assertable.
 //!
 //! An entry whose `live_until` has fallen below the current ledger sequence
-//! reads as [`Lookup::Archived`], matching the host's refusal to touch an
-//! expired entry rather than pretending it is absent.
+//! reads as [`Lookup::Archived`], never as absent: what touching it means is
+//! the host's call (from protocol 23 a call restores a persistent entry and
+//! a temporary one is gone), which the fork's source hands it (#558).
 
 //!
 //! Keys and entries are kept as XDR bytes (#533): the store never decodes
@@ -89,6 +90,7 @@ pub enum Lookup {
     },
     /// The entry exists but its `live_until` is below the current sequence.
     Archived {
+        entry: Rc<[u8]>,
         live_until: u32,
         provenance: Provenance,
     },
@@ -145,7 +147,6 @@ impl LayeredStore {
 
     /// Advance (or rewind, for tests) the simulated sequence. Archival is
     /// evaluated lazily at read time against this value.
-    #[allow(dead_code)] // ledger time overrides (#558); unit-tested today.
     pub fn set_sequence(&mut self, sequence: u32) {
         self.sequence = sequence;
     }
@@ -285,6 +286,7 @@ impl LayeredStore {
                 provenance,
             }) => match live_until {
                 Some(until) if *until < self.sequence => Lookup::Archived {
+                    entry: entry.clone(),
                     live_until: *until,
                     provenance: *provenance,
                 },
@@ -299,10 +301,9 @@ impl LayeredStore {
 }
 
 impl ByteSnapshotSource for LayeredStore {
-    /// The host's view: a live entry with its expiry, `None` for anything it
-    /// cannot touch. An archived entry maps to `None` as well — the host must
-    /// treat it exactly like the network would, where the footprint fails
-    /// until a restore, not like a value that happens to still be around.
+    /// The live view: a live entry with its expiry, `None` for anything
+    /// else, an archived entry included. Calls read through the fork's
+    /// source instead, which gives the host archived entries as they are.
     fn get(&self, key_xdr: &[u8]) -> SourceResult {
         Ok(match self.lookup(key_xdr) {
             Lookup::Live {
@@ -450,6 +451,7 @@ mod tests {
         let Lookup::Archived {
             live_until,
             provenance,
+            ..
         } = store.lookup(&key(1))
         else {
             panic!("expected archived");
@@ -457,7 +459,7 @@ mod tests {
         assert_eq!(live_until, 100);
         assert_eq!(provenance.source, Source::Fork);
 
-        // The host's view refuses it outright, like the network would.
+        // The live view leaves it out.
         assert!(ByteSnapshotSource::get(&store, &key(1)).unwrap().is_none());
 
         // A TTL extension applied from a simulate result revives it.

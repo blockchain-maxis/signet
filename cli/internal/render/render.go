@@ -50,7 +50,18 @@ type Call struct {
 	Error *Refusal
 	// Failure is the message of a simulator failure or a timeout.
 	Failure string
-	Kind    Kind
+	// Archived are the archived entries the call read (#558).
+	Archived []Archived
+	Kind     Kind
+}
+
+// Archived is an entry whose TTL had run out when the call read it.
+type Archived struct {
+	Key       string
+	LiveUntil uint32
+	// Restored is a persistent entry the call restored; otherwise it was a
+	// temporary one, gone.
+	Restored bool
 }
 
 // Signer is one address whose auth a call needed, and for what.
@@ -169,6 +180,15 @@ func Render(w io.Writer, c Call, p Provenance, now time.Time, s Style) error {
 	case Timeout:
 		lines = append(lines, s.red("timed out: "+c.Failure),
 			"The call may be looping. Raise --timeout if it is only slow.")
+	}
+	for _, a := range c.Archived {
+		if a.Restored {
+			lines = append(lines, s.yellow(fmt.Sprintf("⚠ archived: %s (TTL ran out after ledger %d)", a.Key, a.LiveUntil)),
+				"  This call restores it, as the network does from protocol 23, for a restore fee; extend its TTL to keep it live.")
+		} else {
+			lines = append(lines, s.yellow(fmt.Sprintf("⚠ expired: %s (temporary; TTL ran out after ledger %d)", a.Key, a.LiveUntil)),
+				"  A temporary entry is gone once it expires: the call read it as absent.")
+		}
 	}
 	if p.AuthMocked() && (c.Kind == WritePreview || c.Kind == Read) {
 		lines = append(lines, s.yellow("⚠ auth mocked: signatures were not checked"))

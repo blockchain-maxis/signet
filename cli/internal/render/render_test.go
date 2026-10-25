@@ -52,6 +52,12 @@ func TestRenderings(t *testing.T) {
 	unmocked.AuthMode = "enforce"
 	strict := provenance()
 	strict.AuthMode = "strict"
+	moved := provenance()
+	moved.Overrides = []string{"ledger 5405404 (+518400)", "time 2026-10-26T21:36:47Z (+30d)", "budget unlimited (1000000000 instructions, 10x)"}
+	lapsed := []Archived{
+		{Key: "CASF…RCN instance", LiveUntil: 4916420, Restored: true},
+		{Key: "CASF…RCN temporary data \"nonce\"", LiveUntil: 4890000},
+	}
 
 	cases := []struct {
 		name string
@@ -67,6 +73,7 @@ func TestRenderings(t *testing.T) {
 		{"host_error", Call{Kind: HostError, Function: "run", Error: &Refusal{HostType: "Budget", HostCode: "ExceededLimit"}}, provenance()},
 		{"simulator_error", Call{Kind: SimulatorError, Function: "count", Failure: "the simulator exited with status 101 during simulate"}, unmocked},
 		{"timeout", Call{Kind: Timeout, Function: "run", Failure: "simulate did not answer within 10s"}, unmocked},
+		{"archived", Call{Kind: WritePreview, Function: "count", Value: "2", Writes: 1, Archived: lapsed}, moved},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

@@ -1,0 +1,9 @@
+Would write 1 entry
+→ 2
+Local sandbox: nothing was submitted to testnet
+⚠ archived: CASF…RCN instance (TTL ran out after ledger 4916420)
+  This call restores it, as the network does from protocol 23, for a restore fee; extend its TTL to keep it live.
+⚠ expired: CASF…RCN temporary data "nonce" (temporary; TTL ran out after ledger 4890000)
+  A temporary entry is gone once it expires: the call read it as absent.
+⚠ auth mocked: signatures were not checked
+ran against testnet · fork ledger 4887004 (1m ago) · protocol 29 lane · no drift · ledger 5405404 (+518400), time 2026-10-26T21:36:47Z (+30d), budget unlimited (1000000000 instructions, 10x) · auth mocked

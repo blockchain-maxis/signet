@@ -136,6 +136,79 @@
     },
     "authMode": {
       "enum": ["record", "strict", "enforce"]
+    },
+    "ledger": {
+      "type": "object",
+      "description": "The ledger the call ran at; overridden when --ledger-seq, --timestamp or --advance moved it (#558)",
+      "properties": {
+        "sequence": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "timestamp": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "protocol": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "overridden": {
+          "const": true,
+          "description": "The call ran at a sequence or timestamp other than the session's (#558)"
+        }
+      },
+      "required": ["sequence", "timestamp", "protocol"],
+      "additionalProperties": false
+    },
+    "budget": {
+      "type": "object",
+      "description": "The limits the call ran under, when --unlimited or --budget-instructions overrode the network's",
+      "properties": {
+        "instructions": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "mem_bytes": {
+          "type": "integer",
+          "minimum": 1
+        }
+      },
+      "required": ["instructions", "mem_bytes"],
+      "additionalProperties": false
+    },
+    "unlimited": {
+      "const": true,
+      "description": "--unlimited was given"
+    },
+    "archived": {
+      "type": "array",
+      "description": "Archived entries the call read (#558): a persistent one is restored by the call, as the network does from protocol 23; an expired temporary one reads as absent",
+      "items": {
+        "type": "object",
+        "properties": {
+          "key_xdr": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9+/]+={0,2}$",
+            "description": "LedgerKey"
+          },
+          "key": {
+            "type": "string",
+            "description": "The key in plain terms"
+          },
+          "live_until_ledger": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "The ledger its TTL ran out after"
+          },
+          "outcome": {
+            "enum": ["restored", "expired"]
+          }
+        },
+        "required": ["key_xdr", "key", "live_until_ledger", "outcome"],
+        "additionalProperties": false
+      }
     }
   },
   "required": [

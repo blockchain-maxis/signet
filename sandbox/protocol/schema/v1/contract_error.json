@@ -129,6 +129,10 @@
         "protocol": {
           "type": "integer",
           "minimum": 1
+        },
+        "overridden": {
+          "const": true,
+          "description": "The call ran at a sequence or timestamp other than the session's (#558)"
         }
       },
       "required": ["sequence", "timestamp", "protocol"],
@@ -158,6 +162,35 @@
     "auth_mode": {
       "enum": ["record", "strict", "enforce"],
       "description": "How require_auth was answered (#557)"
+    },
+    "archived": {
+      "type": "array",
+      "description": "Archived entries the call read (#558): a persistent one is restored by the call, as the network does from protocol 23; an expired temporary one reads as absent",
+      "items": {
+        "type": "object",
+        "properties": {
+          "key_xdr": {
+            "type": "string",
+            "minLength": 1,
+            "pattern": "^[A-Za-z0-9+/]+={0,2}$",
+            "description": "LedgerKey"
+          },
+          "key": {
+            "type": "string",
+            "description": "The key in plain terms"
+          },
+          "live_until_ledger": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "The ledger its TTL ran out after"
+          },
+          "outcome": {
+            "enum": ["restored", "expired"]
+          }
+        },
+        "required": ["key_xdr", "key", "live_until_ledger", "outcome"],
+        "additionalProperties": false
+      }
     }
   },
   "required": ["version", "id", "type", "kind", "code", "message", "diagnostic_events"],

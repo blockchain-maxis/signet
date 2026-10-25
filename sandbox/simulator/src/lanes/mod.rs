@@ -88,6 +88,8 @@ pub enum AuthMode {
 pub struct BudgetOverride {
     pub instructions: Option<u64>,
     pub mem_bytes: Option<u64>,
+    /// A limit not given is the ceiling rather than the network's (#558).
+    pub unlimited: bool,
 }
 
 /// How far a budget override may go: this many times the network's limit.

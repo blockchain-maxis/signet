@@ -376,6 +376,7 @@ pub fn ledger_get(ledger: &Option<OpenLedger>, id: &Value, object: &Map<String, 
             Lookup::Archived {
                 live_until,
                 provenance,
+                ..
             } => json!({
                 "key_xdr": key_xdr,
                 "entry_xdr": Value::Null,

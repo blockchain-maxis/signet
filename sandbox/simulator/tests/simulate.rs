@@ -876,6 +876,24 @@ fn a_budget_override_is_capped_and_reported(lane: u32) {
     assert_eq!(halved["budget"]["instructions"], limit / 2);
     let spent = halved["cost"]["cpu_insns"].as_u64().unwrap();
     assert!(spent <= limit / 2 + limit / 10, "{halved}");
+
+    // Unlimited is the ceiling, for both limits, and is reported as such.
+    // (A cheap call: running the looper to ten times the limit takes minutes
+    // in a debug build.)
+    let (dice, _) = install(&mut sim, &fixture_wasm("dice"));
+    let unlimited = sim.send(json!({
+        "type": "simulate", "contract_id": dice, "function": "roll", "args": {},
+        "budget": { "unlimited": true },
+    }));
+    assert_eq!(
+        unlimited["budget"]["instructions"],
+        limit * 10,
+        "{unlimited}"
+    );
+    let mem = sim.send(json!({ "type": "status" }))["network_config"]["tx_memory_limit"]
+        .as_u64()
+        .unwrap();
+    assert_eq!(unlimited["budget"]["mem_bytes"], mem * 10, "{unlimited}");
 }
 
 fn the_memory_guard_stops_the_process_with_resource_limit(lane: u32) {
@@ -982,6 +1000,128 @@ fn auth_modes_record_strict_and_enforce(lane: u32) {
     assert_eq!(missing["detail"]["path"], "auth_entries", "{missing}");
 }
 
+fn at(sim: &mut Sim, contract_id: &str, function: &str, args: Value, ledger: Value) -> Value {
+    sim.send(json!({
+        "type": "simulate", "contract_id": contract_id, "function": function, "args": args,
+        "ledger": ledger,
+    }))
+}
+
+fn a_vesting_lock_opens_when_the_clock_is_moved(lane: u32) {
+    let mut sim = config_only(lane);
+    let (vesting, _) = install(&mut sim, &fixture_wasm("vesting"));
+    let unlock = json!({ "unlock_time": 2_000_000_000u64 });
+
+    let now = sim.call(&vesting, "is_unlocked", unlock.clone());
+    assert_eq!(now["return_value"], false, "{now}");
+    assert!(now["ledger"].get("overridden").is_none(), "{now}");
+
+    let later = at(
+        &mut sim,
+        &vesting,
+        "is_unlocked",
+        unlock.clone(),
+        json!({ "timestamp": 2_000_000_000u64 }),
+    );
+    assert_eq!(later["return_value"], true, "{later}");
+    assert_eq!(later["ledger"]["timestamp"], 2_000_000_000u64);
+    assert_eq!(
+        later["ledger"]["sequence"], 100,
+        "the sequence is left alone"
+    );
+    assert_eq!(later["ledger"]["overridden"], true);
+
+    let claimed = at(
+        &mut sim,
+        &vesting,
+        "claim",
+        unlock.clone(),
+        json!({ "timestamp": 2_000_000_000u64 }),
+    );
+    assert_eq!(claimed["return_value"], true, "{claimed}");
+    let again = at(
+        &mut sim,
+        &vesting,
+        "claim",
+        unlock.clone(),
+        json!({ "timestamp": 2_000_000_000u64 }),
+    );
+    assert_eq!(
+        again["type"], "contract_error",
+        "the claim was kept: {again}"
+    );
+
+    // The override was for those calls only: the session's clock is where
+    // it was.
+    let after = sim.call(&vesting, "is_unlocked", unlock);
+    assert_eq!(after["return_value"], false, "{after}");
+
+    let bad = at(
+        &mut sim,
+        &vesting,
+        "is_unlocked",
+        json!({ "unlock_time": 0 }),
+        json!({ "sequence": 0 }),
+    );
+    assert_eq!(bad["type"], "error", "{bad}");
+    assert!(
+        bad["message"].as_str().unwrap().contains("ledger.sequence"),
+        "{bad}"
+    );
+}
+
+fn moving_past_a_ttl_archives_the_entry_and_the_call_restores_it(lane: u32) {
+    // A forked contract carries the network's TTLs; an installed one never
+    // lapses.
+    let mut sim = forked(lane);
+    let live = sim.call(REGISTRY, "count", json!({}));
+    assert_eq!(live["type"], "result", "{live}");
+    assert!(live.get("archived").is_none(), "{live}");
+
+    // Far past every TTL the network gave it.
+    let far = 3_000_000_000u32;
+    let lapsed = at(
+        &mut sim,
+        REGISTRY,
+        "count",
+        json!({}),
+        json!({ "sequence": far }),
+    );
+    assert_eq!(lapsed["type"], "result", "{lapsed}");
+    assert_eq!(
+        lapsed["return_value"], live["return_value"],
+        "a restored entry keeps its value"
+    );
+    let archived = lapsed["archived"]
+        .as_array()
+        .expect("archived entries are named");
+    assert!(
+        archived
+            .iter()
+            .any(|a| a["key"].as_str().unwrap().ends_with("instance")),
+        "{lapsed}"
+    );
+    assert!(
+        archived.iter().all(|a| a["outcome"] == "restored"),
+        "{lapsed}"
+    );
+    assert!(archived
+        .iter()
+        .all(|a| a["live_until_ledger"].as_u64().unwrap() < far as u64));
+    // Restoring is a write: each restored entry comes back with a fresh TTL.
+    let modified = lapsed["modified_entries"].as_array().unwrap();
+    for entry in archived {
+        let restored = modified
+            .iter()
+            .find(|m| m["key_xdr"] == entry["key_xdr"])
+            .unwrap_or_else(|| panic!("{} not restored: {lapsed}", entry["key"]));
+        assert!(
+            restored["live_until_ledger"].as_u64().unwrap() >= far as u64,
+            "{restored}"
+        );
+    }
+}
+
 /// The same suite on every lane (#538): each test above runs once per
 /// ledger protocol the binary carries.
 macro_rules! on_lane {
@@ -1076,6 +1216,14 @@ macro_rules! on_lane {
             #[test]
             fn auth_modes_record_strict_and_enforce() {
                 super::auth_modes_record_strict_and_enforce($protocol)
+            }
+            #[test]
+            fn a_vesting_lock_opens_when_the_clock_is_moved() {
+                super::a_vesting_lock_opens_when_the_clock_is_moved($protocol)
+            }
+            #[test]
+            fn moving_past_a_ttl_archives_the_entry_and_the_call_restores_it() {
+                super::moving_past_a_ttl_archives_the_entry_and_the_call_restores_it($protocol)
             }
         }
     };

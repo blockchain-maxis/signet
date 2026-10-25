@@ -18,7 +18,7 @@ use std::rc::Rc;
 use crate::lanes::{ByteSnapshotSource, Lane, SourceFailed, SourceResult};
 use crate::stdio::{Channel, FetchedBytes};
 
-use super::store::LayeredStore;
+use super::store::{LayeredStore, Lookup};
 
 /// Whether a miss may go to Go.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -45,6 +45,8 @@ pub struct FetchingSource {
     mode: FetchMode,
     misses: RefCell<Vec<Vec<u8>>>,
     failure: RefCell<Option<FetchFailure>>,
+    /// Entries read while archived, with their `live_until` (#558).
+    archived: RefCell<Vec<(Vec<u8>, u32)>>,
 }
 
 impl FetchingSource {
@@ -61,12 +63,19 @@ impl FetchingSource {
             mode,
             misses: RefCell::new(Vec::new()),
             failure: RefCell::new(None),
+            archived: RefCell::new(Vec::new()),
         }
     }
 
     /// The keys fetched so far, in order.
     pub fn misses(&self) -> Vec<Vec<u8>> {
         self.misses.borrow().clone()
+    }
+
+    /// The archived entries read so far, with their `live_until`, in order
+    /// and without repeats.
+    pub fn archived(&self) -> Vec<(Vec<u8>, u32)> {
+        self.archived.borrow().clone()
     }
 
     /// Why the source gave up, if it did.
@@ -149,7 +158,25 @@ impl ByteSnapshotSource for FetchingSource {
         if !self.store.borrow().knows(key_xdr) {
             self.fetch(key_xdr)?;
         }
-        let found = self.store.borrow().get(key_xdr);
-        found
+        let lookup = self.store.borrow().lookup(key_xdr);
+        match lookup {
+            // The host gets an archived entry as it is, stale TTL and all:
+            // from protocol 23 it restores a persistent one in the same
+            // transaction and treats a temporary one as gone (CAP-66),
+            // exactly as the network would. The caller hears which.
+            Lookup::Archived {
+                entry, live_until, ..
+            } => {
+                let mut archived = self.archived.borrow_mut();
+                if !archived.iter().any(|(k, _)| k == key_xdr) {
+                    archived.push((key_xdr.to_vec(), live_until));
+                }
+                Ok(Some((entry, Some(live_until))))
+            }
+            Lookup::Live {
+                entry, live_until, ..
+            } => Ok(Some((entry, live_until))),
+            Lookup::Absent => Ok(None),
+        }
     }
 }

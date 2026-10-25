@@ -16,6 +16,15 @@ starts from them; signet sandbox session reset <name> clears them.
 The account a call runs as is --source-account (a G… address), not the root's
 --source, which names the stellar identity signet signs with.
 
+Time-dependent logic is tested by moving the ledger for the call:
+--ledger-seq and --timestamp set it, --advance moves both from the fork's
+(30d, 12h, or +N ledgers; one ledger is taken as the network's nominal 5s, an
+approximation). An entry whose TTL runs out on the way reads as archived: the
+call restores it, as the network does from protocol 23, and says which.
+--unlimited lifts the budget to the sandbox's ceiling (10x the network's),
+--budget-instructions sets the instruction limit. Every override shows in the
+result's footer.
+
 Usage:
   signet sandbox call <contract> <function> [flags]
 
@@ -24,16 +33,22 @@ Examples:
   signet sandbox call CASF…RCN claim --arg handle=alice --arg wallet=GA5Z… --session demo
   signet sandbox call CASF…RCN resolve --arg handle=alice --session demo
   signet sandbox call CASF…RCN count --wasm ./target/wasm32v1-none/release/registry.wasm
+  signet sandbox call CASF…RCN claim --arg unlock_time=1790000000 --advance 30d
 
 Flags:
-      --arg stringArray         a named argument, name=value (JSON, or a plain string); repeat for each
-      --args-file string        a JSON file holding an object of named arguments
-      --auth string             how require_auth is answered: record (approve and list it; signatures unchecked), strict (also refuse auth below the root call), enforce (check --auth-entries) (default "record")
-      --auth-entries string     with --auth enforce: a JSON array of pre-signed base64 SorobanAuthorizationEntry
-  -h, --help                    help for call
-      --session string          keep this call's writes under a name, and start from that name's earlier writes
-      --source-account string   the account (G…) the call runs as
-      --wasm string             swap this local WASM in first, as an upgrade would, keeping storage
+      --advance string             move the ledger forward from the fork's: a duration (30d, 12h, 90m) or +N ledgers, at a nominal 5s per ledger
+      --arg stringArray            a named argument, name=value (JSON, or a plain string); repeat for each
+      --args-file string           a JSON file holding an object of named arguments
+      --auth string                how require_auth is answered: record (approve and list it; signatures unchecked), strict (also refuse auth below the root call), enforce (check --auth-entries) (default "record")
+      --auth-entries string        with --auth enforce: a JSON array of pre-signed base64 SorobanAuthorizationEntry
+      --budget-instructions uint   run under this CPU instruction limit (up to 10x the network's)
+  -h, --help                       help for call
+      --ledger-seq uint32          run the call at this ledger sequence
+      --session string             keep this call's writes under a name, and start from that name's earlier writes
+      --source-account string      the account (G…) the call runs as
+      --timestamp string           run the call at this ledger close time (Unix seconds or RFC 3339)
+      --unlimited                  run under the sandbox's budget ceiling (10x the network's limits)
+      --wasm string                swap this local WASM in first, as an upgrade would, keeping storage
 
 Global Flags:
       --context string              deployment context to use (overrides SIGNET_CONTEXT and the config file's current context)

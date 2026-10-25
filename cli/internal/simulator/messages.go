@@ -91,6 +91,7 @@ type ContractError struct {
 	Seed             string        `json:"seed,omitempty"`
 	Budget           *Budget       `json:"budget,omitempty"`
 	AuthMode         string        `json:"auth_mode,omitempty"`
+	Archived         []Archived    `json:"archived,omitempty"`
 }
 
 // DecodedError is a contracterror read from the contract's spec (#546).
@@ -116,6 +117,19 @@ type LedgerInfo struct {
 	Sequence  uint32 `json:"sequence"`
 	Timestamp uint64 `json:"timestamp"`
 	Protocol  int    `json:"protocol"`
+	// Overridden is set when the call ran at another ledger than the
+	// session's (#558).
+	Overridden bool `json:"overridden,omitempty"`
+}
+
+// Archived is an archived entry a call read (#558). A persistent one is
+// restored by the call, as the network does from protocol 23 ("restored");
+// an expired temporary one read as absent ("expired").
+type Archived struct {
+	KeyXDR          string `json:"key_xdr"`
+	Key             string `json:"key"`
+	LiveUntilLedger uint32 `json:"live_until_ledger"`
+	Outcome         string `json:"outcome"`
 }
 
 // LedgerFetch is the simulator asking Go for entries mid-call (#531).
@@ -329,12 +343,24 @@ type SimulateParams struct {
 	// AuthEntries, pre-signed SorobanAuthorizationEntry XDR (#557).
 	AuthMode    string   `json:"auth_mode,omitempty"`
 	AuthEntries []string `json:"auth_entries,omitempty"`
+	// Ledger runs this call at another sequence or time (#558).
+	Ledger *LedgerOverride `json:"ledger,omitempty"`
+}
+
+// LedgerOverride is the ledger one call runs at; an unset field stays the
+// session's.
+type LedgerOverride struct {
+	Sequence  *uint32 `json:"sequence,omitempty"`
+	Timestamp *uint64 `json:"timestamp,omitempty"`
 }
 
 // Budget is a call's CPU and memory limits.
 type Budget struct {
 	Instructions uint64 `json:"instructions,omitempty"`
 	MemBytes     uint64 `json:"mem_bytes,omitempty"`
+	// Unlimited makes a limit not given the 10x ceiling (#558); requests
+	// only.
+	Unlimited bool `json:"unlimited,omitempty"`
 }
 
 // SimulateResult answers a simulate that executed, whatever it returned.
@@ -360,6 +386,8 @@ type SimulateResult struct {
 	Budget *Budget `json:"budget,omitempty"`
 	// AuthMode is how require_auth was answered.
 	AuthMode string `json:"auth_mode,omitempty"`
+	// Archived are the archived entries the call read (#558).
+	Archived []Archived `json:"archived,omitempty"`
 }
 
 // Event is one contract event, as XDR, with its spec decoding when there
