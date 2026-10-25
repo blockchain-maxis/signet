@@ -1211,6 +1211,41 @@ fn a_trace_shows_the_two_level_call_tree(lane: u32) {
     assert_eq!(call(&mut sim, json!({ "max_frames": 0 }))["type"], "error");
 }
 
+fn a_call_reports_the_contracts_it_reached_and_can_be_kept_to_its_own(lane: u32) {
+    let mut sim = config_only(lane);
+    let (callee, _) = install(&mut sim, &fixture_wasm("callee"));
+    let (caller, _) = install(&mut sim, &fixture_wasm("caller"));
+    let args = json!({ "callee": callee, "a": 2, "b": 3 });
+
+    let reached = sim.call(&caller, "call_add", args.clone());
+    assert_eq!(reached["return_value"], 5, "{reached}");
+    assert_eq!(
+        reached["contracts"],
+        json!([{ "contract_id": callee, "executable": "wasm" }]),
+        "the callee, not the caller itself"
+    );
+    let alone = sim.call(&callee, "add", json!({ "a": 1, "b": 1 }));
+    assert_eq!(alone["contracts"], json!([]));
+
+    let kept = sim.send(json!({
+        "type": "simulate", "contract_id": caller, "function": "call_add", "args": args,
+        "related": false,
+    }));
+    assert_eq!(kept["code"], "fetch_failed", "{kept}");
+    assert_eq!(kept["detail"]["kind"], "related");
+    assert_eq!(kept["detail"]["contract_id"], callee);
+    assert!(
+        kept["message"].as_str().unwrap().contains(callee.as_str()),
+        "{kept}"
+    );
+    // Kept to itself, a contract that calls nothing still runs.
+    let own = sim.send(json!({
+        "type": "simulate", "contract_id": callee, "function": "add", "args": { "a": 1, "b": 1 },
+        "related": false,
+    }));
+    assert_eq!(own["return_value"], 2, "{own}");
+}
+
 /// The same suite on every lane (#538): each test above runs once per
 /// ledger protocol the binary carries.
 macro_rules! on_lane {
@@ -1305,6 +1340,10 @@ macro_rules! on_lane {
             #[test]
             fn auth_modes_record_strict_and_enforce() {
                 super::auth_modes_record_strict_and_enforce($protocol)
+            }
+            #[test]
+            fn a_call_reports_the_contracts_it_reached_and_can_be_kept_to_its_own() {
+                super::a_call_reports_the_contracts_it_reached_and_can_be_kept_to_its_own($protocol)
             }
             #[test]
             fn a_trace_shows_the_two_level_call_tree() {

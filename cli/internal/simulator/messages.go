@@ -80,19 +80,20 @@ type ErrorMessage struct {
 // ContractError is a `contract_error` line: the call ran, and the contract or
 // the host said no. Call returns it as a value, never as a Go error.
 type ContractError struct {
-	Kind             string        `json:"kind"` // "contract" or "host"
-	Code             string        `json:"code"`
-	Message          string        `json:"message"`
-	Decoded          *DecodedError `json:"decoded,omitempty"`
-	DiagnosticEvents []string      `json:"diagnostic_events"`
-	Cost             *Cost         `json:"cost,omitempty"`
-	Misses           []string      `json:"misses,omitempty"`
-	Ledger           *LedgerInfo   `json:"ledger,omitempty"`
-	Seed             string        `json:"seed,omitempty"`
-	Budget           *Budget       `json:"budget,omitempty"`
-	AuthMode         string        `json:"auth_mode,omitempty"`
-	Archived         []Archived    `json:"archived,omitempty"`
-	Trace            *Trace        `json:"trace,omitempty"`
+	Kind             string            `json:"kind"` // "contract" or "host"
+	Code             string            `json:"code"`
+	Message          string            `json:"message"`
+	Decoded          *DecodedError     `json:"decoded,omitempty"`
+	DiagnosticEvents []string          `json:"diagnostic_events"`
+	Cost             *Cost             `json:"cost,omitempty"`
+	Misses           []string          `json:"misses,omitempty"`
+	Ledger           *LedgerInfo       `json:"ledger,omitempty"`
+	Seed             string            `json:"seed,omitempty"`
+	Budget           *Budget           `json:"budget,omitempty"`
+	AuthMode         string            `json:"auth_mode,omitempty"`
+	Archived         []Archived        `json:"archived,omitempty"`
+	Trace            *Trace            `json:"trace,omitempty"`
+	Contracts        []RelatedContract `json:"contracts,omitempty"`
 }
 
 // DecodedError is a contracterror read from the contract's spec (#546).
@@ -348,6 +349,18 @@ type SimulateParams struct {
 	Ledger *LedgerOverride `json:"ledger,omitempty"`
 	// Trace asks for the call tree (#541): true, or a *TraceOptions.
 	Trace any `json:"trace,omitempty"`
+	// Related, false, keeps the call to its own contract: reaching another
+	// contract's instance fails with fetch_failed / related (#552).
+	Related *bool `json:"related,omitempty"`
+}
+
+// RelatedContract is another contract a call reached (#552).
+type RelatedContract struct {
+	ContractID string `json:"contract_id"`
+	// Executable is wasm, stellar_asset or external_ref; empty if unread.
+	Executable string `json:"executable,omitempty"`
+	// Asset is a Stellar Asset Contract's: native, or CODE:ISSUER.
+	Asset string `json:"asset,omitempty"`
 }
 
 // TraceOptions caps a trace's frames (default 10,000).
@@ -438,6 +451,8 @@ type SimulateResult struct {
 	// Archived are the archived entries the call read (#558).
 	Archived []Archived `json:"archived,omitempty"`
 	Trace    *Trace     `json:"trace,omitempty"`
+	// Contracts are the other contracts the call reached (#552).
+	Contracts []RelatedContract `json:"contracts,omitempty"`
 }
 
 // Event is one contract event, as XDR, with its spec decoding when there

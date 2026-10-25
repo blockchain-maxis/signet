@@ -136,16 +136,16 @@ pub fn fetch_failed(
     lane: &dyn Lane,
     failure: &crate::ledger::fetch::FetchFailure,
 ) -> Value {
-    error_message(
-        id,
-        "fetch_failed",
-        failure.message.clone(),
-        json!({
-            "kind": failure.kind,
-            "key_xdr": BASE64.encode(&failure.key),
-            "key": lane.describe_key(&failure.key),
-        }),
-    )
+    let mut detail = json!({
+        "kind": failure.kind,
+        "key_xdr": BASE64.encode(&failure.key),
+        "key": lane.describe_key(&failure.key),
+    });
+    // A call kept to one contract that reached another (#552) names it.
+    if let Some(contract) = lane.instance_owner(&failure.key) {
+        detail["contract_id"] = json!(contract);
+    }
+    error_message(id, "fetch_failed", failure.message.clone(), detail)
 }
 
 /// The WASM an installed contract runs, read through `src`.

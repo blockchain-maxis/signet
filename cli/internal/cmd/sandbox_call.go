@@ -65,6 +65,8 @@ type CallResult struct {
 	Unlimited bool              `json:"unlimited,omitempty"`
 	// Archived are the archived entries the call read.
 	Archived []simulator.Archived `json:"archived,omitempty"`
+	// Contracts are the other contracts the call reached (#552).
+	Contracts []simulator.RelatedContract `json:"contracts"`
 }
 
 func newSandboxCallCmd() *cobra.Command {
@@ -81,6 +83,7 @@ func newSandboxCallCmd() *cobra.Command {
 		advance       string
 		unlimited     bool
 		instructions  uint64
+		noRelated     bool
 	)
 	cmd := &cobra.Command{
 		Use:   "call <contract> <function>",
@@ -179,6 +182,7 @@ result's footer.`,
 			printer := printerFor(cmd)
 			req.contract, req.function, req.args = contract, function, callArgs
 			req.sourceAccount, req.wasm, req.session = sourceAccount, wasm, session
+			req.noRelated = noRelated
 			res, drift, err := runCall(ctx, deps, network, req, printer.Progress)
 			if err != nil {
 				return err
@@ -220,6 +224,7 @@ result's footer.`,
 	cmd.Flags().StringVar(&advance, "advance", "", "move the ledger forward from the fork's: a duration (30d, 12h, 90m) or +N ledgers, at a nominal 5s per ledger")
 	cmd.Flags().BoolVar(&unlimited, "unlimited", false, "run under the sandbox's budget ceiling (10x the network's limits)")
 	cmd.Flags().Uint64Var(&instructions, "budget-instructions", 0, "run under this CPU instruction limit (up to 10x the network's)")
+	cmd.Flags().BoolVar(&noRelated, "no-related", false, "keep the run to this contract: reaching any other contract is an error")
 	return cmd
 }
 
@@ -374,6 +379,7 @@ type callRequest struct {
 	authEntries        []string
 	move               ledgerMove
 	budget             *simulator.Budget
+	noRelated          bool
 }
 
 // latestFork returns the newest fork of contract on network, if any.
@@ -488,12 +494,24 @@ func runCall(ctx context.Context, deps Deps, network rpc.Network, req callReques
 		res.SwappedWasm = installed.WasmHash
 	}
 
-	var out simulator.SimulateResult
-	ce, err := sim.Call(ctx, simulator.TypeSimulate, simulator.SimulateParams{
+	// What earlier runs of this call fetched, in one batch before it starts
+	// rather than one round trip at a time (#552). Best effort: a key that
+	// cannot be had now is fetched, or fails, when the call reads it.
+	if keys, err := fork.PrefetchKeys(root, m.Passphrase, req.contract, req.function); err == nil && len(keys) > 0 {
+		_, _ = fetcher.Fetch(keys)
+	}
+
+	params := simulator.SimulateParams{
 		ContractID: req.contract, Function: req.function, Args: req.args, SourceAccount: req.sourceAccount,
 		AuthMode: req.authMode, AuthEntries: req.authEntries,
 		Ledger: req.move.at(m.ForkLedger, m.ForkTime), Budget: req.budget,
-	}, &out)
+	}
+	if req.noRelated {
+		related := false
+		params.Related = &related
+	}
+	var out simulator.SimulateResult
+	ce, err := sim.Call(ctx, simulator.TypeSimulate, params, &out)
 	if err != nil {
 		res.ForkTime = m.ForkTime
 		return CallResult{}, fork.Drift{}, renderedFailure(callError(ctx, sim, req, err), res, deps)
@@ -502,7 +520,7 @@ func runCall(ctx context.Context, deps Deps, network rpc.Network, req callReques
 		res.Outcome = "contract_error"
 		res.Error = ce
 		res.Cost, res.Misses, res.Seed = ce.Cost, ce.Misses, ce.Seed
-		res.Ledger, res.Budget, res.Archived = ce.Ledger, ce.Budget, ce.Archived
+		res.Ledger, res.Budget, res.Archived, res.Contracts = ce.Ledger, ce.Budget, ce.Archived, ce.Contracts
 		res.Events, res.Auth, res.Modified = []simulator.Event{}, []string{}, []simulator.ModifiedEntry{}
 		res.AuthEntries = []simulator.AuthEntry{}
 	} else {
@@ -514,7 +532,7 @@ func runCall(ctx context.Context, deps Deps, network rpc.Network, req callReques
 			res.AuthEntries = []simulator.AuthEntry{}
 		}
 		res.Resources, res.Fee, res.Cost, res.Misses, res.Seed = out.Resources, out.Fee, &out.Cost, out.Misses, out.Seed
-		res.Ledger, res.Budget, res.Archived = out.Ledger, out.Budget, out.Archived
+		res.Ledger, res.Budget, res.Archived, res.Contracts = out.Ledger, out.Budget, out.Archived, out.Contracts
 		if res.Auth == nil {
 			res.Auth = []string{}
 		}
@@ -533,9 +551,61 @@ func runCall(ctx context.Context, deps Deps, network rpc.Network, req callReques
 	if res.Events == nil {
 		res.Events = []simulator.Event{}
 	}
+	if res.Contracts == nil {
+		res.Contracts = []simulator.RelatedContract{}
+	}
+	if err := recordRelated(cache, res.Contracts, progress); err != nil {
+		return CallResult{}, fork.Drift{}, err
+	}
+	if err := fork.RememberMisses(root, m.Passphrase, req.contract, req.function, res.Misses); err != nil {
+		return CallResult{}, fork.Drift{}, fmt.Errorf("%w: remembering what the call fetched: %v", exitcode.ErrConfiguration, err)
+	}
 	drift := fetcher.Drift()
 	res.Drift = drift
 	return res, drift, nil
+}
+
+// recordRelated adds the contracts a call reached to the fork's manifest,
+// saying so the first time each is pulled in (#552).
+func recordRelated(cache *fork.Cache, contracts []simulator.RelatedContract, progress func(string)) error {
+	m := cache.Manifest()
+	known := map[string]bool{}
+	for _, c := range m.Contracts {
+		known[c] = true
+	}
+	added := false
+	for _, c := range contracts {
+		if known[c.ContractID] {
+			continue
+		}
+		known[c.ContractID] = true
+		m.Contracts = append(m.Contracts, c.ContractID)
+		added = true
+		progress(fmt.Sprintf("+ pulled in %s (%s)", shorten(c.ContractID, 4, 3), relatedKind(c)))
+	}
+	if !added {
+		return nil
+	}
+	return cache.SaveManifest(m)
+}
+
+// relatedKind says what a related contract is: "native SAC", "USDC SAC",
+// "contract".
+func relatedKind(c simulator.RelatedContract) string {
+	switch c.Executable {
+	case "stellar_asset":
+		switch {
+		case c.Asset == "native":
+			return "native SAC"
+		case c.Asset != "":
+			code, _, _ := strings.Cut(c.Asset, ":")
+			return code + " SAC"
+		}
+		return "SAC"
+	case "external_ref":
+		return "contract, shared executable"
+	}
+	return "contract"
 }
 
 // savedSession is a named session in the fork cache: its writes, and how
@@ -578,7 +648,14 @@ func saveSession(cache *fork.Cache, name string, saved savedSession, writes []si
 // (exit 2), the rest stays a simulator failure.
 func callError(ctx context.Context, sim *simulator.Client, req callRequest, err error) error {
 	var se *simulator.Error
-	if !errors.As(err, &se) || se.Code != "bad_request" {
+	if !errors.As(err, &se) {
+		return err
+	}
+	if se.Code == "fetch_failed" && se.Detail["kind"] == "related" {
+		other, _ := se.Detail["contract_id"].(string)
+		return &inputError{fmt.Sprintf("--no-related: %s reached another contract, %s; drop --no-related to let it", req.function, other)}
+	}
+	if se.Code != "bad_request" {
 		return err
 	}
 	path, _ := se.Detail["path"].(string)

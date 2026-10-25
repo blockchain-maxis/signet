@@ -749,6 +749,17 @@ impl Lane for HostLane {
         }
     }
 
+    fn instance_owner(&self, key_xdr: &[u8]) -> Option<String> {
+        match decode::<LedgerKey>(key_xdr, "LedgerKey").ok()? {
+            LedgerKey::ContractData(LedgerKeyContractData {
+                contract: contract @ ScAddress::Contract(_),
+                key: ScVal::LedgerKeyContractInstance,
+                ..
+            }) => Some(contract.to_string()),
+            _ => None,
+        }
+    }
+
     fn key_contract(&self, key_xdr: &[u8]) -> Option<String> {
         match decode::<LedgerKey>(key_xdr, "LedgerKey").ok()? {
             // An account's auth nonce is contract data too, owned by no
@@ -861,11 +872,31 @@ impl Lane for HostLane {
                 )
             }
         };
+        // A SAC's METADATA, as the host writes it: { decimal, name, symbol },
+        // `name` being `native` or `CODE:ISSUER`.
+        let asset = (executable == "stellar_asset")
+            .then(|| {
+                instance.storage.as_ref()?.iter().find_map(|item| {
+                    let ScVal::Symbol(key) = &item.key else { return None };
+                    if key.to_utf8_string_lossy() != "METADATA" {
+                        return None;
+                    }
+                    let ScVal::Map(Some(fields)) = &item.val else { return None };
+                    fields.iter().find_map(|f| match (&f.key, &f.val) {
+                        (ScVal::Symbol(k), ScVal::String(v)) if k.to_utf8_string_lossy() == "name" => {
+                            Some(v.to_utf8_string_lossy())
+                        }
+                        _ => None,
+                    })
+                })
+            })
+            .flatten();
         Ok(InstanceInfo {
             executable,
             wasm_hash,
             external_ref,
             storage_entries: instance.storage.as_ref().map_or(0, |m| m.len()),
+            asset,
         })
     }
 
@@ -1893,6 +1924,68 @@ mod tests {
 
     fn fn_return(callee: u8, function: &str, value: ScVal) -> Vec<u8> {
         diagnostic(Some(callee), vec![sym("fn_return"), sym(function)], value)
+    }
+
+    #[test]
+    fn a_stellar_asset_contract_names_its_asset() {
+        let sym = |s: &str| ScVal::Symbol(ScSymbol(s.try_into().unwrap()));
+        let string = |s: &str| ScVal::String(soroban_env_host::xdr::ScString(s.try_into().unwrap()));
+        let instance = |storage: Option<Vec<(ScVal, ScVal)>>, executable| {
+            let entry = LedgerEntry {
+                last_modified_ledger_seq: 1,
+                data: LedgerEntryData::ContractData(ContractDataEntry {
+                    ext: ExtensionPoint::V0,
+                    contract: ScAddress::Contract(ContractId(Hash([9; 32]))),
+                    key: ScVal::LedgerKeyContractInstance,
+                    durability: ContractDataDurability::Persistent,
+                    val: ScVal::ContractInstance(ScContractInstance {
+                        executable,
+                        storage: storage.map(|items| {
+                            items
+                                .into_iter()
+                                .map(|(key, val)| soroban_env_host::xdr::ScMapEntry { key, val })
+                                .collect::<Vec<_>>()
+                                .try_into()
+                                .unwrap()
+                        }),
+                    }),
+                }),
+                ext: LedgerEntryExt::V0,
+            };
+            LANE.instance_info(&encode(&entry, "LedgerEntry").unwrap()).unwrap()
+        };
+        let metadata = |name: &str| {
+            ScVal::Map(Some(
+                vec![
+                    soroban_env_host::xdr::ScMapEntry { key: sym("decimal"), val: ScVal::U32(7) },
+                    soroban_env_host::xdr::ScMapEntry { key: sym("name"), val: string(name) },
+                    soroban_env_host::xdr::ScMapEntry { key: sym("symbol"), val: string("USDC") },
+                ]
+                .try_into()
+                .unwrap(),
+            ))
+        };
+        let usdc = "USDC:GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN";
+        let sac = instance(Some(vec![(sym("METADATA"), metadata(usdc))]), ContractExecutable::StellarAsset);
+        assert_eq!((sac.executable, sac.asset.as_deref()), ("stellar_asset", Some(usdc)));
+        let bare = instance(None, ContractExecutable::StellarAsset);
+        assert_eq!(bare.asset, None, "no METADATA, no asset: never a guess");
+        let wasm = instance(Some(vec![(sym("METADATA"), metadata(usdc))]), ContractExecutable::Wasm(Hash([1; 32])));
+        assert_eq!(wasm.asset, None, "only a SAC's METADATA names an asset");
+
+        let key = LedgerKey::ContractData(LedgerKeyContractData {
+            contract: ScAddress::Contract(ContractId(Hash([9; 32]))),
+            key: ScVal::LedgerKeyContractInstance,
+            durability: ContractDataDurability::Persistent,
+        });
+        let owner = LANE.instance_owner(&encode(&key, "LedgerKey").unwrap());
+        assert_eq!(owner, Some(contract_strkey(&ContractId(Hash([9; 32])))));
+        let data = LedgerKey::ContractData(LedgerKeyContractData {
+            contract: ScAddress::Contract(ContractId(Hash([9; 32]))),
+            key: sym("count"),
+            durability: ContractDataDurability::Persistent,
+        });
+        assert_eq!(LANE.instance_owner(&encode(&data, "LedgerKey").unwrap()), None);
     }
 
     #[test]

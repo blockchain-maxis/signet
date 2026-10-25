@@ -76,10 +76,12 @@ func buildFakeSimulator(t *testing.T) string {
 // registryRPC serves internal/rpc/testdata/registry: each method from the
 // file of its name, getLedgerEntries narrowed to the keys asked for.
 type registryRPC struct {
-	t        *testing.T
-	srv      *httptest.Server
-	mu       sync.Mutex
-	asked    []string
+	t     *testing.T
+	srv   *httptest.Server
+	mu    sync.Mutex
+	asked []string
+	// batches are the keys of each getLedgerEntries request, in order.
+	batches  [][]string
 	override map[string]any // method -> result, replacing the fixture
 	// latest, when set, answers getLatestLedger in turn (the last repeats).
 	latest []map[string]any
@@ -127,13 +129,17 @@ func (r *registryRPC) serve(w http.ResponseWriter, req *http.Request) {
 			_ = json.Unmarshal(call.Params, &params)
 			r.mu.Lock()
 			r.asked = append(r.asked, params.Keys...)
+			r.batches = append(r.batches, params.Keys)
 			r.mu.Unlock()
 			want := map[string]bool{}
 			for _, k := range params.Keys {
 				want[k] = true
 			}
+			// The registry's recordings, and a contract pair where one calls
+			// the other (generate-calls.mjs).
+			calls := r.fixture("calls-getLedgerEntries")
 			var picked []any
-			for _, e := range fixture["entries"].([]any) {
+			for _, e := range append(fixture["entries"].([]any), calls["entries"].([]any)...) {
 				if want[e.(map[string]any)["key"].(string)] {
 					picked = append(picked, e)
 				}

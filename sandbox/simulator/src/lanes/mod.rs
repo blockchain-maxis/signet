@@ -156,6 +156,9 @@ pub struct InstanceInfo {
     pub external_ref: Option<ExternalRef>,
     /// Entries in the instance's own storage map.
     pub storage_entries: usize,
+    /// For a Stellar Asset Contract, the asset its `METADATA` names:
+    /// `native`, or `CODE:ISSUER` (#552).
+    pub asset: Option<String>,
 }
 
 /// A CAP-85 executable reference, as plain values.
@@ -447,6 +450,10 @@ pub trait Lane: Sync {
 
     /// A `LedgerKey` in words, for messages (`contract data CAS…: Owner("alice")`).
     fn describe_key(&self, key_xdr: &[u8]) -> String;
+
+    /// The contract (C...) whose instance a `LedgerKey` is; `None` for any
+    /// other key (#552).
+    fn instance_owner(&self, key_xdr: &[u8]) -> Option<String>;
 
     /// The contract (C...) a contract-data `LedgerKey` belongs to; `None`
     /// for any other key, an account's auth nonce included.

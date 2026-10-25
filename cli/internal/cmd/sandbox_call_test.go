@@ -14,6 +14,7 @@ import (
 
 	"github.com/blockchain-maxis/signet/cli/internal/config"
 	"github.com/blockchain-maxis/signet/cli/internal/exitcode"
+	"github.com/blockchain-maxis/signet/cli/internal/fork"
 	"github.com/blockchain-maxis/signet/cli/internal/jsonschema"
 	"github.com/blockchain-maxis/signet/cli/internal/simulator"
 )
@@ -387,5 +388,89 @@ func TestLedgerMoveResolvesAgainstTheFork(t *testing.T) {
 		if got := span(in); got != want {
 			t.Errorf("span(%s) = %q, want %q", in, got, want)
 		}
+	}
+}
+
+// callsFixture is the contract pair of calls-getLedgerEntries.json: the
+// caller, the callee, and the callee's instance and code keys.
+func callsFixture(t *testing.T) (caller, callee string, calleeKeys [2]string) {
+	t.Helper()
+	raw, err := os.ReadFile(filepath.Join("..", "rpc", "testdata", "registry", "calls-getLedgerEntries.json"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var f struct {
+		Contracts struct{ Caller, Callee string }
+		Entries   []struct{ Key string }
+	}
+	if err := json.Unmarshal(raw, &f); err != nil {
+		t.Fatal(err)
+	}
+	return f.Contracts.Caller, f.Contracts.Callee, [2]string{f.Entries[2].Key, f.Entries[3].Key}
+}
+
+func TestSandboxCallPullsInWhatItCallsAndPrefetchesItNextTime(t *testing.T) {
+	e := newCallEnv(t)
+	caller, callee, calleeKeys := callsFixture(t)
+	args := []string{caller, "call_add", "--arg", "callee=" + callee, "--arg", "a=2", "--arg", "b=3"}
+	batchHolding := func(key string) []int {
+		e.rpc.mu.Lock()
+		defer e.rpc.mu.Unlock()
+		var at []int
+		for i, b := range e.rpc.batches {
+			for _, k := range b {
+				if k == key {
+					at = append(at, i)
+				}
+			}
+		}
+		return at
+	}
+
+	// First run: the callee is fetched when the call reaches it, one key at
+	// a time, and said once.
+	stdout, stderr, err := e.run(args...)
+	if err != nil {
+		t.Fatalf("%v\n%s", err, stderr)
+	}
+	pulled := "+ pulled in " + shorten(callee, 4, 3) + " (contract)"
+	if !strings.Contains(stdout, "→ 5") || !strings.Contains(stdout+stderr, pulled) {
+		t.Fatalf("stdout:\n%s\nstderr:\n%s", stdout, stderr)
+	}
+	instanceAt, codeAt := batchHolding(calleeKeys[0]), batchHolding(calleeKeys[1])
+	if len(instanceAt) != 1 || len(codeAt) != 1 || instanceAt[0] == codeAt[0] {
+		t.Fatalf("lazily: instance in batches %v, code in %v", instanceAt, codeAt)
+	}
+	forks, err := fork.List(e.root)
+	if err != nil || len(forks) != 1 || len(forks[0].Contracts) != 1 || forks[0].Contracts[0] != callee {
+		t.Fatalf("manifest contracts = %+v (%v)", forks, err)
+	}
+	res := e.json(args...)
+	if len(res.Contracts) != 1 || res.Contracts[0].ContractID != callee || res.Contracts[0].Executable != "wasm" {
+		t.Fatalf("contracts = %+v", res.Contracts)
+	}
+	if stdout, stderr, _ := e.run(args...); strings.Contains(stdout+stderr, "pulled in") {
+		t.Fatalf("said twice:\n%s%s", stdout, stderr)
+	}
+
+	// A fresh fork of the same contract: what the call needed comes in one
+	// batch before it runs, and nothing about the callee is asked again.
+	if err := fork.Remove(forks[0]); err != nil {
+		t.Fatal(err)
+	}
+	before := len(e.rpc.batches)
+	if _, stderr, err := e.run(args...); err != nil {
+		t.Fatalf("%v\n%s", err, stderr)
+	}
+	instanceAt, codeAt = batchHolding(calleeKeys[0]), batchHolding(calleeKeys[1])
+	last := func(at []int) int { return at[len(at)-1] }
+	if last(instanceAt) < before || last(instanceAt) != last(codeAt) {
+		t.Fatalf("prefetch: instance in batches %v, code in %v (this run from %d)", instanceAt, codeAt, before)
+	}
+
+	// Kept to the caller, the call fails naming the callee.
+	_, _, err = e.run(append(args, "--no-related")...)
+	if ExitCode(err) != exitcode.InvalidInput || !strings.Contains(err.Error(), callee) {
+		t.Fatalf("--no-related: exit %d, %v", ExitCode(err), err)
 	}
 }

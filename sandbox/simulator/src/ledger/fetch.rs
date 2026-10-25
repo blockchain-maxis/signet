@@ -11,6 +11,10 @@
 //!
 //! In `deny` mode (offline runs and bundle replay, #573) a miss is an error
 //! naming the key instead.
+//!
+//! Every contract whose instance a request reads is recorded, so a call can
+//! report the contracts it reached (#552); restricted to one contract, the
+//! source refuses to read any other's instance, naming it.
 
 use std::cell::RefCell;
 use std::rc::Rc;
@@ -47,6 +51,10 @@ pub struct FetchingSource {
     failure: RefCell<Option<FetchFailure>>,
     /// Entries read while archived, with their `live_until` (#558).
     archived: RefCell<Vec<(Vec<u8>, u32)>>,
+    /// Contracts whose instance was read, in order, without repeats (#552).
+    instances: RefCell<Vec<String>>,
+    /// When set, the only contract whose instance may be read.
+    only: RefCell<Option<String>>,
 }
 
 impl FetchingSource {
@@ -64,7 +72,20 @@ impl FetchingSource {
             misses: RefCell::new(Vec::new()),
             failure: RefCell::new(None),
             archived: RefCell::new(Vec::new()),
+            instances: RefCell::new(Vec::new()),
+            only: RefCell::new(None),
         }
+    }
+
+    /// Keep this request to `contract`: reading another contract's instance
+    /// fails with `related`, naming it (#552's `--no-related`).
+    pub fn restrict_to(&self, contract: &str) {
+        *self.only.borrow_mut() = Some(contract.to_string());
+    }
+
+    /// The contracts whose instance was read so far, in order.
+    pub fn instances(&self) -> Vec<String> {
+        self.instances.borrow().clone()
     }
 
     /// The keys fetched so far, in order.
@@ -154,6 +175,20 @@ impl ByteSnapshotSource for FetchingSource {
     fn get(&self, key_xdr: &[u8]) -> SourceResult {
         if self.failure.borrow().is_some() {
             return Err(SourceFailed);
+        }
+        if let Some(owner) = self.lane.instance_owner(key_xdr) {
+            let only = self.only.borrow().clone();
+            if let Some(only) = only.filter(|only| *only != owner) {
+                return Err(self.fail(
+                    "related",
+                    format!("the call reached another contract, {owner}, and this run is kept to {only}"),
+                    key_xdr,
+                ));
+            }
+            let mut instances = self.instances.borrow_mut();
+            if !instances.contains(&owner) {
+                instances.push(owner);
+            }
         }
         if !self.store.borrow().knows(key_xdr) {
             self.fetch(key_xdr)?;

@@ -209,6 +209,29 @@
         "required": ["key_xdr", "key", "live_until_ledger", "outcome"],
         "additionalProperties": false
       }
+    },
+    "contracts": {
+      "type": "array",
+      "description": "The other contracts the call reached, by reading their instance, in the order it reached them (#552)",
+      "items": {
+        "type": "object",
+        "properties": {
+          "contract_id": {
+            "type": "string",
+            "pattern": "^C[A-Z2-7]{55}$"
+          },
+          "executable": {
+            "enum": ["wasm", "stellar_asset", "external_ref"]
+          },
+          "asset": {
+            "type": "string",
+            "minLength": 1,
+            "description": "A Stellar Asset Contract's asset: native, or CODE:ISSUER"
+          }
+        },
+        "required": ["contract_id"],
+        "additionalProperties": false
+      }
     }
   },
   "required": [
@@ -228,7 +251,8 @@
     "seed",
     "authEntries",
     "forkTime",
-    "authMode"
+    "authMode",
+    "contracts"
   ],
   "additionalProperties": false,
   "allOf": [

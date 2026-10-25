@@ -130,6 +130,15 @@ pub fn simulate(
             (Ok(d), Ok(r)) => (d, r),
             (Err(e), _) | (_, Err(e)) => return e,
         };
+    // `related: false` keeps the call to this contract (#552).
+    let related = match object.get("related") {
+        None => true,
+        Some(Value::Bool(b)) => *b,
+        Some(_) => return invalid_field(id, "related", "a boolean"),
+    };
+    if !related {
+        fork.restrict_to(contract_id);
+    }
     let max_frames = match crate::trace::parse(object.get("trace")) {
         Ok(max) => max,
         Err(want) => return invalid_field(id, "trace", want),
@@ -247,6 +256,7 @@ pub fn simulate(
             })
         })
         .collect();
+    let contracts = related_contracts(lane, &open.store.borrow(), &fork.instances(), contract_id);
     let trace = max_frames.map(|max| {
         let cx = crate::trace::Context {
             lane,
@@ -288,6 +298,7 @@ pub fn simulate(
             if let Some(trace) = trace {
                 reply["trace"] = trace;
             }
+            reply["contracts"] = json!(contracts);
             if run.budget.overridden {
                 reply["budget"] = budget_json(&run);
             }
@@ -343,6 +354,7 @@ pub fn simulate(
             if let Some(trace) = trace {
                 fields["trace"] = trace;
             }
+            fields["contracts"] = json!(contracts);
             if run.budget.overridden {
                 fields["budget"] = budget_json(&run);
             }
@@ -449,6 +461,43 @@ fn success_body(
         }
     }
     body
+}
+
+/// The other contracts a call read the instance of (#552), in the order it
+/// reached them: their executable, and a Stellar Asset Contract's asset.
+fn related_contracts(
+    lane: &dyn Lane,
+    store: &crate::ledger::store::LayeredStore,
+    instances: &[String],
+    contract_id: &str,
+) -> Vec<Value> {
+    instances
+        .iter()
+        .filter(|c| c.as_str() != contract_id)
+        .map(|c| {
+            let mut item = json!({ "contract_id": c });
+            let info = lane
+                .ledger_keys(&KeyRequest::ContractInstance {
+                    contract_id: c.clone(),
+                })
+                .ok()
+                .and_then(|keys| keys.into_iter().next())
+                .and_then(|key| match store.lookup(&key.key_xdr) {
+                    crate::ledger::store::Lookup::Live { entry, .. }
+                    | crate::ledger::store::Lookup::Archived { entry, .. } => {
+                        lane.instance_info(&entry).ok()
+                    }
+                    crate::ledger::store::Lookup::Absent => None,
+                });
+            if let Some(info) = info {
+                item["executable"] = json!(info.executable);
+                if let Some(asset) = info.asset {
+                    item["asset"] = json!(asset);
+                }
+            }
+            item
+        })
+        .collect()
 }
 
 /// A temporary contract-data key: `LedgerKey` arm 6 (CONTRACT_DATA), whose

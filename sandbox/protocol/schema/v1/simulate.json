@@ -66,6 +66,10 @@
         }
       ]
     },
+    "related": {
+      "type": "boolean",
+      "description": "false keeps the call to this contract: reading another contract's instance fails with fetch_failed / related, naming it (#552). Default true"
+    },
     "dry_run": {
       "type": "boolean",
       "description": "Do not apply the call's writes to the session (default false)"
@@ -441,6 +445,29 @@
         "trace": {
           "type": "object",
           "description": "The call tree, when the request asked for `trace` (#541); its shape is trace.json"
+        },
+        "contracts": {
+          "type": "array",
+          "description": "The other contracts the call reached, by reading their instance, in the order it reached them (#552)",
+          "items": {
+            "type": "object",
+            "properties": {
+              "contract_id": {
+                "type": "string",
+                "pattern": "^C[A-Z2-7]{55}$"
+              },
+              "executable": {
+                "enum": ["wasm", "stellar_asset", "external_ref"]
+              },
+              "asset": {
+                "type": "string",
+                "minLength": 1,
+                "description": "A Stellar Asset Contract's asset: native, or CODE:ISSUER"
+              }
+            },
+            "required": ["contract_id"],
+            "additionalProperties": false
+          }
         }
       },
       "required": ["version", "id", "type", "return_value_xdr", "events", "cost", "logs"],

@@ -167,7 +167,14 @@
             "type": "object",
             "properties": {
               "kind": {
-                "enum": ["rpc_unavailable", "timeout", "rejected", "denied", "missing_config"]
+                "enum": [
+                  "rpc_unavailable",
+                  "timeout",
+                  "rejected",
+                  "denied",
+                  "missing_config",
+                  "related"
+                ]
               }
             }
           }

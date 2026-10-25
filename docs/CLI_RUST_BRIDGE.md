@@ -288,6 +288,14 @@ have in a negative cache, so a session never fetches one key twice. A
 request with `fetch_failed` / `denied`, and `detail.key` names the key in
 words.
 
+A `simulate` result (and a `contract_error`) also lists, as `contracts`, the
+other contracts the call reached by reading their instance, in order, each
+with its `executable` and, for a Stellar Asset Contract, its `asset`
+(`native` or `CODE:ISSUER`) ([#552](https://github.com/blockchain-maxis/signet/issues/552)).
+With `related: false` the call is kept to its own contract: reading another
+contract's instance fails it with `fetch_failed` / `related`, and
+`detail.contract_id` names the contract it reached.
+
 When Go cannot answer at all (the RPC is down, the fetch timed out, or this
 session has no ledger source), it replies to the same `sim-` id with an `error`
 whose `code` is `fetch_failed` and whose `detail.kind` is `rpc_unavailable`,

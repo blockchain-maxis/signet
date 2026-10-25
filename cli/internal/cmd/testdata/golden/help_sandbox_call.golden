@@ -44,6 +44,7 @@ Flags:
       --budget-instructions uint   run under this CPU instruction limit (up to 10x the network's)
   -h, --help                       help for call
       --ledger-seq uint32          run the call at this ledger sequence
+      --no-related                 keep the run to this contract: reaching any other contract is an error
       --session string             keep this call's writes under a name, and start from that name's earlier writes
       --source-account string      the account (G…) the call runs as
       --timestamp string           run the call at this ledger close time (Unix seconds or RFC 3339)

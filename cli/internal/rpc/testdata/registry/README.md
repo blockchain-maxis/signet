@@ -15,3 +15,9 @@ entries asked for.
   passphrase, the ledger the registry was captured at, and protocol 28, the
   older of the two lanes the simulator runs. `getLatestLedger`'s `id` is a placeholder and its
   `closeTime` the capture's `latestLedgerCloseTime`.
+
+- `calls-getLedgerEntries.json` is not a recording: a pair of contracts where
+  one calls the other (#552), the sandbox's `caller` and `callee` fixture WASMs
+  with ids derived from fixed labels and entries dated before the fork ledger.
+  `generate-calls.mjs` writes it; the test server answers `getLedgerEntries`
+  from it as well as from the recordings.

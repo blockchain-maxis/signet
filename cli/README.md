@@ -210,6 +210,17 @@ is none) in the local simulator. Nothing is submitted.
   the sandbox's budget ceiling, 10x the network's limits, and
   `--budget-instructions N` sets the instruction limit; on the network the call
   would still need to fit. Each override is in the footer.
+- Calls reach other contracts (a token, an oracle). Whatever the call reads is
+  fetched as it reads it, and each other contract it reaches is recorded in
+  the fork's manifest (`contracts`), said once:
+  `+ pulled in CB64…XYZ (native SAC)`. The next run of the same function
+  fetches everything earlier runs needed in one batch before it starts, even
+  on a new fork of the contract. `--no-related` keeps a run to this contract:
+  reaching any other is an error that names it.
+- A Stellar Asset Contract's code is built into the host, so nothing is
+  fetched for it; its instance, balances and trustlines are fetched when read.
+  Like `stellar snapshot create`, a fork holds only the holders' entries the
+  call read, never every trustline of an asset.
 - A result reads as one of three things: a read (`→ value`: nothing written,
   no auth), a write preview (what it would write and who would have to sign,
   and that nothing was submitted), or the contract refusing, by name. Host
