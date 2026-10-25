@@ -6,7 +6,7 @@
  */
 
 import { VIZ_CSS_VARIABLES, VIZ_TOKENS, type VizTheme, type VizTokenName } from './tokens.ts';
-import type { PositionedDiagramModel, PositionedEdge, PositionedNode } from './layout.ts';
+import { HEAT_FONT_PX, MARK_SLOT, type PositionedDiagramModel, type PositionedEdge, type PositionedNode } from './layout.ts';
 import { routeEdges } from './route.ts';
 import { textWidth } from './metrics.ts';
 import { describeCallWindow } from './observe/call-graph.ts';
@@ -149,6 +149,7 @@ interface DrawnNode extends DiagramNode {
   typeKind?: string;
   name?: string;
   collapsed?: PositionedNode['collapsed'];
+  uses?: number;
 }
 
 const isPositioned = (n: DiagramNode): n is DrawnNode => {
@@ -432,6 +433,8 @@ export function renderDiagramSvg(model: DiagramModel, opts: RenderOptions): stri
     }
   }
 
+  const maxUses = Math.max(1, ...nodes.map((n) => n.uses ?? 0));
+
   // Nodes
   for (const node of nodes) {
     const href = hrefForNode(node.id);
@@ -532,6 +535,20 @@ export function renderDiagramSvg(model: DiagramModel, opts: RenderOptions): stri
     svgParts.push(`    >`);
     svgParts.push(`      ${label}`);
     svgParts.push(`    </text>`);
+
+    // Observed use (issue 518): the count right of the label, and a heat bar
+    // along the node's foot sized against the busiest function. Zero is the
+    // text "0" with no bar.
+    if (node.uses !== undefined) {
+      const tx = node.x + node.width - MARK_SLOT - 2;
+      const bar =
+        node.uses > 0
+          ? `<rect class="diagram-heat-bar" x="${node.x + 3}" y="${node.y + node.height - 5}" width="${Math.max(1, Math.round(((node.width - 6) * node.uses) / maxUses))}" height="2" fill="${cssVar('accent')}"/>`
+          : '';
+      svgParts.push(
+        `    <g class="diagram-heat" data-uses="${node.uses}"><title>${node.uses} call${node.uses === 1 ? '' : 's'} in the activity range, observed</title><text x="${tx}" y="${node.y + node.height / 2}" text-anchor="end" dominant-baseline="central" font-size="${HEAT_FONT_PX}" fill="${cssVar('muted')}">${node.uses}</text>${bar}</g>`,
+      );
+    }
 
     if (markKind) {
       const bx = node.x + node.width - 6 - MARK_SIZE;

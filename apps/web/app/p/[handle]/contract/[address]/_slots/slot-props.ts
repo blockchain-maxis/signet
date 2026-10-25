@@ -25,4 +25,8 @@ export interface ContractSlotProps {
   storage?: boolean;
   /** Function groups drawn expanded (?expand=pool,admin, #502), raw. */
   expand?: string;
+  /** Activity range (?range=24h|7d|30d, #518), raw. */
+  range?: string;
+  /** Function order (?order=use ranks each group by observed use, #518). */
+  order?: string;
 }

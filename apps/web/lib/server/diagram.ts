@@ -27,12 +27,17 @@ import {
   type ContractSpec,
   type FootprintObservation,
   type MutabilityMark,
+  type SpecJson,
   type StorageSlot,
 } from '@signet/spec';
 import {
+  aggregateActivity,
   buildContractGraph,
   layoutContractGraph,
   LAYOUT_VERSION,
+  type ActivityCall,
+  type ActivityOverlay,
+  type ActivityRange,
   type ContractGraph,
   type PositionedDiagramModel,
 } from '@signet/visualiser';
@@ -255,7 +260,7 @@ export async function getDiagram(
     try {
       const build = deps.buildGraph ?? buildContractGraph;
       const layoutFn = deps.computeLayout ?? deps.layout ?? layoutContractGraph;
-      const graph = build(fromSpecJson(specResult.spec));
+      const graph = build(decodeSpec(specResult.spec));
       const layout = layoutFn(graph);
 
       await activeStore.set(wasmHash, layout, targetVersion);
@@ -476,6 +481,20 @@ export async function labelCallees(
   return labels;
 }
 
+/**
+ * A stored spec, decoded. A spec whose XDR entries are missing or do not
+ * decode (hand-written ones, e2e fixtures) still has its flattened views,
+ * which is all the marks, slots and key matching read, so it is used as
+ * those rather than dropped, as the diagram does (design §2.4).
+ */
+function decodeSpec(json: SpecJson): ContractSpec {
+  try {
+    return fromSpecJson(json);
+  } catch {
+    return { ...json, entries: [] } as unknown as ContractSpec;
+  }
+}
+
 // ── Mutability marks (#511) ────────────────────────────────────────────
 
 /** How many of each function's latest invocations decide its mark. */
@@ -617,7 +636,7 @@ export async function getMutabilityOverlay(
     const resolveSpec = deps.getContractSpec ?? loadContractSpec;
     const specResult = await resolveSpec({ address, network, wasmHash: deps.wasmHash ?? null });
     if (!specResult.ok) return null;
-    const spec = fromSpecJson(specResult.spec);
+    const spec = decodeSpec(specResult.spec);
     const key = `${network}:${address}:${spec.wasmHash}`;
     const hit = mutabilityCache.get(key);
     if (hit && now() - hit.at < MUTABILITY_TTL_MS) return hit.overlay;
@@ -823,7 +842,7 @@ export async function getInstanceStorage(
   let spec: ContractSpec | undefined;
   try {
     const resolved = await (deps.getContractSpec ?? loadContractSpec)({ address, network, wasmHash: null });
-    if (resolved.ok) spec = fromSpecJson(resolved.spec);
+    if (resolved.ok) spec = decodeSpec(resolved.spec);
   } catch {
     // Keys are still listed, just not matched to a spec type.
   }
@@ -883,7 +902,7 @@ export async function getStorageObservations(
       wasmHash: deps.wasmHash ?? null,
     });
     if (!specResult.ok) return null;
-    const spec = fromSpecJson(specResult.spec);
+    const spec = decodeSpec(specResult.spec);
     const key = `${network}:${address}:${spec.wasmHash}`;
     const hit = storageCache.get(key);
     if (hit && now() - hit.at < MUTABILITY_TTL_MS) return hit.storage;
@@ -900,6 +919,94 @@ export async function getStorageObservations(
     return storage;
   } catch (error) {
     logger.warn({ address, network, error }, 'failed to group storage observations');
+    return null;
+  }
+}
+
+// ── Activity (#518) ────────────────────────────────────────────────────
+
+/** Why the activity counts are partial, stated next to them. */
+export const ACTIVITY_LIMITS =
+  'Counts from indexed calls. Only calls captured since indexing began, inside the RPC retention window (about 7 days on testnet), are counted, and at most INDEXER_INVOCATIONS_MAX_PER_CONTRACT (default 1000) are kept per contract.';
+
+/** What the activity overlay reads from the database, so tests can stub it. */
+export interface ActivityDb {
+  /** Calls at or after `since`; null when there is no database. */
+  calls(request: { address: string; network: string; since: Date }): Promise<ActivityCall[] | null>;
+  /** The oldest and newest stored call, and the newest snapshot's #429 fields. */
+  bounds(request: { address: string; network: string }): Promise<{
+    oldest: Date | null;
+    newest: Date | null;
+    countedSince: Date | null;
+    totalIsFloor: boolean;
+  } | null>;
+}
+
+const prismaActivity: ActivityDb = {
+  async calls({ address, network, since }) {
+    if (!process.env.DATABASE_URL) return null;
+    const { prisma } = await import('@signet/db');
+    return prisma.contractInvocation.findMany({
+      where: { contract: { address, network }, createdAt: { gte: since } },
+      select: { function: true, createdAt: true },
+    });
+  },
+  async bounds({ address, network }) {
+    if (!process.env.DATABASE_URL) return null;
+    const { prisma } = await import('@signet/db');
+    const where = { contract: { address, network } };
+    const [range, snapshot] = await Promise.all([
+      prisma.contractInvocation.aggregate({ where, _min: { createdAt: true }, _max: { createdAt: true } }),
+      prisma.contractSnapshot.findFirst({
+        where,
+        orderBy: { capturedAt: 'desc' },
+        select: { countedSince: true, totalIsFloor: true },
+      }),
+    ]);
+    return {
+      oldest: range._min.createdAt,
+      newest: range._max.createdAt,
+      countedSince: snapshot?.countedSince ?? null,
+      totalIsFloor: snapshot?.totalIsFloor ?? false,
+    };
+  },
+};
+
+/** A `?range=` value, or the default `7d`. */
+export function parseActivityRange(raw: string | null | undefined): ActivityRange {
+  return raw === '24h' || raw === '30d' ? raw : '7d';
+}
+
+/**
+ * Invocations per hour or day over the range, and per function, from the
+ * stored `ContractInvocation` rows (#417); the snapshots' Horizon counts are
+ * zero for contracts, so they only supply `countedSince` and `totalIsFloor`.
+ * Null without a database or on a failed read: the page then draws no
+ * activity, rather than a misleading zero.
+ */
+export async function getActivityOverlay(
+  address: string,
+  network: string,
+  range: ActivityRange,
+  deps: { db?: ActivityDb; now?: () => number } = {},
+): Promise<ActivityOverlay | null> {
+  const db = deps.db ?? prismaActivity;
+  const now = (deps.now ?? Date.now)();
+  const span = range === '24h' ? 24 * 60 * 60 * 1000 : (range === '7d' ? 7 : 30) * 24 * 60 * 60 * 1000;
+  try {
+    const [calls, bounds] = await Promise.all([
+      db.calls({ address, network, since: new Date(now - span - 24 * 60 * 60 * 1000) }),
+      db.bounds({ address, network }),
+    ]);
+    if (calls === null || bounds === null) return null;
+    return aggregateActivity(calls, range, now, {
+      oldestStored: bounds.oldest,
+      lastActivity: bounds.newest,
+      countedSince: bounds.countedSince,
+      totalIsFloor: bounds.totalIsFloor,
+    });
+  } catch (error) {
+    logger.warn({ address, network, error }, 'failed to read contract activity');
     return null;
   }
 }

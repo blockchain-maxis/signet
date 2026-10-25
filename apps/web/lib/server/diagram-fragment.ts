@@ -2,7 +2,7 @@ import { normalizeNetwork } from '@signet/types';
 import { attributeContract } from '../contract-attribution.ts';
 import { loadContractCallGraph } from './call-graph-source.ts';
 import { loadContractSpec } from './contract-spec.ts';
-import { getMutabilityOverlay } from './diagram.ts';
+import { getActivityOverlay, getMutabilityOverlay, parseActivityRange } from './diagram.ts';
 import { drawContractDiagram } from './diagram-view.ts';
 
 export interface DiagramFragmentDeps {
@@ -10,6 +10,7 @@ export interface DiagramFragmentDeps {
   loadSpec: typeof loadContractSpec;
   loadCalls: typeof loadContractCallGraph;
   loadMutability: typeof getMutabilityOverlay;
+  loadActivity: typeof getActivityOverlay;
 }
 
 const DEFAULT_DEPS: DiagramFragmentDeps = {
@@ -17,6 +18,7 @@ const DEFAULT_DEPS: DiagramFragmentDeps = {
   loadSpec: loadContractSpec,
   loadCalls: loadContractCallGraph,
   loadMutability: getMutabilityOverlay,
+  loadActivity: getActivityOverlay,
 };
 
 /**
@@ -43,11 +45,13 @@ export async function exportDiagramFragment(
   const network = normalizeNetwork(attribution.contract.network);
   const spec = await deps.loadSpec({ address, network, wasmHash });
   if (!spec.ok) return new Response('Contract interface unavailable', { status: 503, headers });
-  const [calls, mutability] = await Promise.all([
+  const query = new URL(request.url).searchParams;
+  const range = parseActivityRange(query.get('range'));
+  const [calls, mutability, activity] = await Promise.all([
     deps.loadCalls(address, network),
     deps.loadMutability(address, network, { wasmHash }),
+    deps.loadActivity(address, network, range),
   ]);
-  const query = new URL(request.url).searchParams;
   const view = drawContractDiagram({
     handle: params.handle,
     address,
@@ -60,6 +64,9 @@ export async function exportDiagramFragment(
     expandCallees: query.get('callees') === 'all',
     writesOnly: query.get('writes') === '1',
     expand: query.get('expand'),
+    activity,
+    range,
+    rankByFrequency: query.get('order') === 'use',
   });
   if (!view.regionHtml) return new Response('No diagram drawn', { status: 409, headers });
   return new Response(view.regionHtml, {

@@ -280,3 +280,21 @@ export {
 } from './collapse.ts';
 export type { CollapseOptions } from './collapse.ts';
 export type { CollapsedGroup } from './graph.ts';
+
+// Activity overlay (#518): use over a range from indexed invocations.
+export {
+  ACTIVITY_RANGES,
+  aggregateActivity,
+  coverageNote,
+  describeActivity,
+  formatBucket,
+  renderActivitySparkline,
+} from './activity.ts';
+export type {
+  ActivityBucket,
+  ActivityCall,
+  ActivityOverlay,
+  ActivityRange,
+  ActivitySeries,
+  SparklineOptions,
+} from './activity.ts';

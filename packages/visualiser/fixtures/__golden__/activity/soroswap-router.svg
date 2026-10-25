@@ -1,0 +1,345 @@
+<svg
+  xmlns="http://www.w3.org/2000/svg"
+  role="figure"
+  aria-labelledby="activity-title activity-desc"
+  class="contract-diagram"
+  width="564" height="1004" viewBox="0 0 564 1004"
+  font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="14"
+>
+  <title id="activity-title">soroswap-router, observed use</title>
+  <desc id="activity-desc">20 functions in 9 groups, 4 types, 0 references</desc>
+  <defs>
+  </defs>
+  <g id="diagram-fn-initialize" data-node-id="fn:initialize">
+    <rect id="activity-node-fn:initialize" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="944" width="148" height="28" rx="6" ry="6"/>
+    <title>initialize</title>
+    <text
+      class="diagram-node-label"
+      x="34"
+      y="958"
+      dominant-baseline="central"
+      fill="var(--viz-node-text)"
+    >
+      initialize
+    </text>
+    <g class="diagram-heat" data-uses="0"><title>0 calls in the activity range, observed</title><text x="148" y="958" text-anchor="end" dominant-baseline="central" font-size="11" fill="var(--viz-muted)">0</text></g>
+  </g>
+  <g id="diagram-fn-add_liquidity" data-node-id="fn:add_liquidity">
+    <rect id="activity-node-fn:add_liquidity" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="92" width="174" height="28" rx="6" ry="6"/>
+    <title>add_liquidity</title>
+    <text
+      class="diagram-node-label"
+      x="34"
+      y="106"
+      dominant-baseline="central"
+      fill="var(--viz-node-text)"
+    >
+      add_liquidity
+    </text>
+    <g class="diagram-heat" data-uses="0"><title>0 calls in the activity range, observed</title><text x="174" y="106" text-anchor="end" dominant-baseline="central" font-size="11" fill="var(--viz-muted)">0</text></g>
+  </g>
+  <g id="diagram-fn-remove_liquidity" data-node-id="fn:remove_liquidity">
+    <rect id="activity-node-fn:remove_liquidity" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="132" width="199" height="28" rx="6" ry="6"/>
+    <title>remove_liquidity</title>
+    <text
+      class="diagram-node-label"
+      x="34"
+      y="146"
+      dominant-baseline="central"
+      fill="var(--viz-node-text)"
+    >
+      remove_liquidity
+    </text>
+    <g class="diagram-heat" data-uses="0"><title>0 calls in the activity range, observed</title><text x="199" y="146" text-anchor="end" dominant-baseline="central" font-size="11" fill="var(--viz-muted)">0</text></g>
+  </g>
+  <g id="diagram-fn-swap_exact_tokens_for_tokens" data-node-id="fn:swap_exact_tokens_for_tokens">
+    <rect id="activity-node-fn:swap_exact_tokens_for_tokens" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="52" width="232" height="28" rx="6" ry="6"/>
+    <title>swap_exact_tokens_for_tokens</title>
+    <text
+      class="diagram-node-label"
+      x="34"
+      y="66"
+      dominant-baseline="central"
+      fill="var(--viz-node-text)"
+    >
+      swap_exact_tokens_f…
+    </text>
+    <g class="diagram-heat" data-uses="90"><title>90 calls in the activity range, observed</title><text x="232" y="66" text-anchor="end" dominant-baseline="central" font-size="11" fill="var(--viz-muted)">90</text><rect class="diagram-heat-bar" x="27" y="75" width="226" height="2" fill="var(--viz-accent)"/></g>
+  </g>
+  <g id="diagram-fn-swap_tokens_for_exact_tokens" data-node-id="fn:swap_tokens_for_exact_tokens">
+    <rect id="activity-node-fn:swap_tokens_for_exact_tokens" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="172" width="232" height="28" rx="6" ry="6"/>
+    <title>swap_tokens_for_exact_tokens</title>
+    <text
+      class="diagram-node-label"
+      x="34"
+      y="186"
+      dominant-baseline="central"
+      fill="var(--viz-node-text)"
+    >
+      swap_tokens_for_exa…
+    </text>
+    <g class="diagram-heat" data-uses="0"><title>0 calls in the activity range, observed</title><text x="232" y="186" text-anchor="end" dominant-baseline="central" font-size="11" fill="var(--viz-muted)">0</text></g>
+  </g>
+  <g id="diagram-fn-get_factory" data-node-id="fn:get_factory">
+    <rect id="activity-node-fn:get_factory" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="456" width="157" height="28" rx="6" ry="6"/>
+    <title>get_factory</title>
+    <text
+      class="diagram-node-label"
+      x="34"
+      y="470"
+      dominant-baseline="central"
+      fill="var(--viz-node-text)"
+    >
+      get_factory
+    </text>
+    <g class="diagram-heat" data-uses="0"><title>0 calls in the activity range, observed</title><text x="157" y="470" text-anchor="end" dominant-baseline="central" font-size="11" fill="var(--viz-muted)">0</text></g>
+  </g>
+  <g id="diagram-fn-router_pair_for" data-node-id="fn:router_pair_for">
+    <rect id="activity-node-fn:router_pair_for" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="660" width="190" height="28" rx="6" ry="6"/>
+    <title>router_pair_for</title>
+    <text
+      class="diagram-node-label"
+      x="34"
+      y="674"
+      dominant-baseline="central"
+      fill="var(--viz-node-text)"
+    >
+      router_pair_for
+    </text>
+    <g class="diagram-heat" data-uses="0"><title>0 calls in the activity range, observed</title><text x="190" y="674" text-anchor="end" dominant-baseline="central" font-size="11" fill="var(--viz-muted)">0</text></g>
+  </g>
+  <g id="diagram-fn-router_quote" data-node-id="fn:router_quote">
+    <rect id="activity-node-fn:router_quote" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="700" width="165" height="28" rx="6" ry="6"/>
+    <title>router_quote</title>
+    <text
+      class="diagram-node-label"
+      x="34"
+      y="714"
+      dominant-baseline="central"
+      fill="var(--viz-node-text)"
+    >
+      router_quote
+    </text>
+    <g class="diagram-heat" data-uses="0"><title>0 calls in the activity range, observed</title><text x="165" y="714" text-anchor="end" dominant-baseline="central" font-size="11" fill="var(--viz-muted)">0</text></g>
+  </g>
+  <g id="diagram-fn-router_get_amount_out" data-node-id="fn:router_get_amount_out">
+    <rect id="activity-node-fn:router_get_amount_out" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="740" width="232" height="28" rx="6" ry="6"/>
+    <title>router_get_amount_out</title>
+    <text
+      class="diagram-node-label"
+      x="34"
+      y="754"
+      dominant-baseline="central"
+      fill="var(--viz-node-text)"
+    >
+      router_get_amount_o…
+    </text>
+    <g class="diagram-heat" data-uses="0"><title>0 calls in the activity range, observed</title><text x="232" y="754" text-anchor="end" dominant-baseline="central" font-size="11" fill="var(--viz-muted)">0</text></g>
+  </g>
+  <g id="diagram-fn-router_get_amount_in" data-node-id="fn:router_get_amount_in">
+    <rect id="activity-node-fn:router_get_amount_in" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="780" width="232" height="28" rx="6" ry="6"/>
+    <title>router_get_amount_in</title>
+    <text
+      class="diagram-node-label"
+      x="34"
+      y="794"
+      dominant-baseline="central"
+      fill="var(--viz-node-text)"
+    >
+      router_get_amount_in
+    </text>
+    <g class="diagram-heat" data-uses="0"><title>0 calls in the activity range, observed</title><text x="232" y="794" text-anchor="end" dominant-baseline="central" font-size="11" fill="var(--viz-muted)">0</text></g>
+  </g>
+  <g id="diagram-fn-router_get_amounts_out" data-node-id="fn:router_get_amounts_out">
+    <rect id="activity-node-fn:router_get_amounts_out" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="820" width="232" height="28" rx="6" ry="6"/>
+    <title>router_get_amounts_out</title>
+    <text
+      class="diagram-node-label"
+      x="34"
+      y="834"
+      dominant-baseline="central"
+      fill="var(--viz-node-text)"
+    >
+      router_get_amounts_…
+    </text>
+    <g class="diagram-heat" data-uses="0"><title>0 calls in the activity range, observed</title><text x="232" y="834" text-anchor="end" dominant-baseline="central" font-size="11" fill="var(--viz-muted)">0</text></g>
+  </g>
+  <g id="diagram-fn-router_get_amounts_in" data-node-id="fn:router_get_amounts_in">
+    <rect id="activity-node-fn:router_get_amounts_in" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="860" width="232" height="28" rx="6" ry="6"/>
+    <title>router_get_amounts_in</title>
+    <text
+      class="diagram-node-label"
+      x="34"
+      y="874"
+      dominant-baseline="central"
+      fill="var(--viz-node-text)"
+    >
+      router_get_amounts_…
+    </text>
+    <g class="diagram-heat" data-uses="0"><title>0 calls in the activity range, observed</title><text x="232" y="874" text-anchor="end" dominant-baseline="central" font-size="11" fill="var(--viz-muted)">0</text></g>
+  </g>
+  <g id="diagram-fn-sort_tokens" data-node-id="fn:sort_tokens">
+    <rect id="activity-node-fn:sort_tokens" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="212" width="157" height="28" rx="6" ry="6"/>
+    <title>sort_tokens</title>
+    <text
+      class="diagram-node-label"
+      x="34"
+      y="226"
+      dominant-baseline="central"
+      fill="var(--viz-node-text)"
+    >
+      sort_tokens
+    </text>
+    <g class="diagram-heat" data-uses="0"><title>0 calls in the activity range, observed</title><text x="157" y="226" text-anchor="end" dominant-baseline="central" font-size="11" fill="var(--viz-muted)">0</text></g>
+  </g>
+  <g id="diagram-fn-pair_for" data-node-id="fn:pair_for">
+    <rect id="activity-node-fn:pair_for" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="252" width="132" height="28" rx="6" ry="6"/>
+    <title>pair_for</title>
+    <text
+      class="diagram-node-label"
+      x="34"
+      y="266"
+      dominant-baseline="central"
+      fill="var(--viz-node-text)"
+    >
+      pair_for
+    </text>
+    <g class="diagram-heat" data-uses="0"><title>0 calls in the activity range, observed</title><text x="132" y="266" text-anchor="end" dominant-baseline="central" font-size="11" fill="var(--viz-muted)">0</text></g>
+  </g>
+  <g id="diagram-fn-get_reserves" data-node-id="fn:get_reserves">
+    <rect id="activity-node-fn:get_reserves" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="416" width="165" height="28" rx="6" ry="6"/>
+    <title>get_reserves</title>
+    <text
+      class="diagram-node-label"
+      x="34"
+      y="430"
+      dominant-baseline="central"
+      fill="var(--viz-node-text)"
+    >
+      get_reserves
+    </text>
+    <g class="diagram-heat" data-uses="12"><title>12 calls in the activity range, observed</title><text x="165" y="430" text-anchor="end" dominant-baseline="central" font-size="11" fill="var(--viz-muted)">12</text><rect class="diagram-heat-bar" x="27" y="439" width="21" height="2" fill="var(--viz-accent)"/></g>
+  </g>
+  <g id="diagram-fn-quote" data-node-id="fn:quote">
+    <rect id="activity-node-fn:quote" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="292" width="106" height="28" rx="6" ry="6"/>
+    <title>quote</title>
+    <text
+      class="diagram-node-label"
+      x="34"
+      y="306"
+      dominant-baseline="central"
+      fill="var(--viz-node-text)"
+    >
+      quote
+    </text>
+    <g class="diagram-heat" data-uses="0"><title>0 calls in the activity range, observed</title><text x="106" y="306" text-anchor="end" dominant-baseline="central" font-size="11" fill="var(--viz-muted)">0</text></g>
+  </g>
+  <g id="diagram-fn-get_amount_out" data-node-id="fn:get_amount_out">
+    <rect id="activity-node-fn:get_amount_out" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="496" width="182" height="28" rx="6" ry="6"/>
+    <title>get_amount_out</title>
+    <text
+      class="diagram-node-label"
+      x="34"
+      y="510"
+      dominant-baseline="central"
+      fill="var(--viz-node-text)"
+    >
+      get_amount_out
+    </text>
+    <g class="diagram-heat" data-uses="0"><title>0 calls in the activity range, observed</title><text x="182" y="510" text-anchor="end" dominant-baseline="central" font-size="11" fill="var(--viz-muted)">0</text></g>
+  </g>
+  <g id="diagram-fn-get_amount_in" data-node-id="fn:get_amount_in">
+    <rect id="activity-node-fn:get_amount_in" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="536" width="174" height="28" rx="6" ry="6"/>
+    <title>get_amount_in</title>
+    <text
+      class="diagram-node-label"
+      x="34"
+      y="550"
+      dominant-baseline="central"
+      fill="var(--viz-node-text)"
+    >
+      get_amount_in
+    </text>
+    <g class="diagram-heat" data-uses="0"><title>0 calls in the activity range, observed</title><text x="174" y="550" text-anchor="end" dominant-baseline="central" font-size="11" fill="var(--viz-muted)">0</text></g>
+  </g>
+  <g id="diagram-fn-get_amounts_out" data-node-id="fn:get_amounts_out">
+    <rect id="activity-node-fn:get_amounts_out" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="576" width="190" height="28" rx="6" ry="6"/>
+    <title>get_amounts_out</title>
+    <text
+      class="diagram-node-label"
+      x="34"
+      y="590"
+      dominant-baseline="central"
+      fill="var(--viz-node-text)"
+    >
+      get_amounts_out
+    </text>
+    <g class="diagram-heat" data-uses="0"><title>0 calls in the activity range, observed</title><text x="190" y="590" text-anchor="end" dominant-baseline="central" font-size="11" fill="var(--viz-muted)">0</text></g>
+  </g>
+  <g id="diagram-fn-get_amounts_in" data-node-id="fn:get_amounts_in">
+    <rect id="activity-node-fn:get_amounts_in" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="376" width="182" height="28" rx="6" ry="6"/>
+    <title>get_amounts_in</title>
+    <text
+      class="diagram-node-label"
+      x="34"
+      y="390"
+      dominant-baseline="central"
+      fill="var(--viz-node-text)"
+    >
+      get_amounts_in
+    </text>
+    <g class="diagram-heat" data-uses="40"><title>40 calls in the activity range, observed</title><text x="182" y="390" text-anchor="end" dominant-baseline="central" font-size="11" fill="var(--viz-muted)">40</text><rect class="diagram-heat-bar" x="27" y="399" width="78" height="2" fill="var(--viz-accent)"/></g>
+  </g>
+  <g id="diagram-type-InitializedEvent" data-node-id="type:InitializedEvent">
+    <rect id="activity-node-type:InitializedEvent" class="viz-shape viz-shape--rect diagram-node diagram-node--type" data-node-shape="rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="352" y="428" width="155" height="28" rx="0" ry="0"/>
+    <title>InitializedEvent</title>
+    <text
+      class="diagram-node-label"
+      x="362"
+      y="442"
+      dominant-baseline="central"
+      fill="var(--viz-node-text)"
+    >
+      InitializedEvent
+    </text>
+  </g>
+  <g id="diagram-type-AddLiquidityEvent" data-node-id="type:AddLiquidityEvent">
+    <rect id="activity-node-type:AddLiquidityEvent" class="viz-shape viz-shape--rect diagram-node diagram-node--type" data-node-shape="rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="352" y="468" width="163" height="28" rx="0" ry="0"/>
+    <title>AddLiquidityEvent</title>
+    <text
+      class="diagram-node-label"
+      x="362"
+      y="482"
+      dominant-baseline="central"
+      fill="var(--viz-node-text)"
+    >
+      AddLiquidityEvent
+    </text>
+  </g>
+  <g id="diagram-type-RemoveLiquidityEvent" data-node-id="type:RemoveLiquidityEvent">
+    <rect id="activity-node-type:RemoveLiquidityEvent" class="viz-shape viz-shape--rect diagram-node diagram-node--type" data-node-shape="rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="352" y="508" width="188" height="28" rx="0" ry="0"/>
+    <title>RemoveLiquidityEvent</title>
+    <text
+      class="diagram-node-label"
+      x="362"
+      y="522"
+      dominant-baseline="central"
+      fill="var(--viz-node-text)"
+    >
+      RemoveLiquidityEvent
+    </text>
+  </g>
+  <g id="diagram-type-SwapEvent" data-node-id="type:SwapEvent">
+    <rect id="activity-node-type:SwapEvent" class="viz-shape viz-shape--rect diagram-node diagram-node--type" data-node-shape="rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="352" y="548" width="96" height="28" rx="0" ry="0"/>
+    <title>SwapEvent</title>
+    <text
+      class="diagram-node-label"
+      x="362"
+      y="562"
+      dominant-baseline="central"
+      fill="var(--viz-node-text)"
+    >
+      SwapEvent
+    </text>
+  </g>
+</svg>

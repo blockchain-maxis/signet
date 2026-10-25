@@ -8,10 +8,10 @@ export default async function DiagramPage({
   searchParams,
 }: {
   params: Promise<{ handle: string; address: string }>;
-  searchParams?: Promise<{ q?: string; focus?: string; callees?: string; writes?: string; storage?: string; expand?: string }>;
+  searchParams?: Promise<{ q?: string; focus?: string; callees?: string; writes?: string; storage?: string; expand?: string; range?: string; order?: string }>;
 }) {
   const { handle, address } = await params;
-  const { q, focus, callees, writes, storage, expand } = (await searchParams) ?? {};
+  const { q, focus, callees, writes, storage, expand, range, order } = (await searchParams) ?? {};
   const props = await loadSlotProps(handle, address);
   if (!props) return null;
   return (
@@ -39,6 +39,8 @@ export default async function DiagramPage({
         writesOnly={writes === '1'}
         storage={storage === '0' ? false : storage === '1' ? true : undefined}
         expand={typeof expand === 'string' ? expand : undefined}
+        range={typeof range === 'string' ? range : undefined}
+        order={typeof order === 'string' ? order : undefined}
       />
     </>
   );

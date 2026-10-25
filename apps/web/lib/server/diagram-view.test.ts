@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import type { SpecJson } from '@signet/spec';
+import { aggregateActivity } from '@signet/visualiser';
 import { drawContractDiagram, __resetDiagramViewCache, type DiagramViewInput } from './diagram-view.ts';
 import { exportDiagramFragment, type DiagramFragmentDeps } from './diagram-fragment.ts';
 import type { Attribution } from '../contract-attribution.ts';
@@ -95,6 +96,7 @@ const deps = (attribution: Attribution = attributed): DiagramFragmentDeps => ({
   loadSpec: async () => ({ ok: true, spec: groupedSpec, wasmHash: 'c'.repeat(64), source: 'memory' }),
   loadCalls: async () => null,
   loadMutability: async () => null,
+  loadActivity: async () => null,
 });
 const request = (query: string) => new Request(`https://signet.example/p/alice/contract/${address}/diagram/fragment${query}`);
 
@@ -116,4 +118,23 @@ test('the fragment route repeats the attribution gate', async () => {
     const res = await exportDiagramFragment(request(''), { handle: 'alice', address }, d);
     assert.equal(res.status, status === 'unavailable' ? 503 : 404);
   }
+});
+
+test('observed use draws heat counts, ranks by use on request, and links keep the range', () => {
+  const activity = aggregateActivity(
+    [
+      { function: 'admin_op4', createdAt: Date.UTC(2026, 9, 25, 10) },
+      { function: 'admin_op4', createdAt: Date.UTC(2026, 9, 25, 11) },
+    ],
+    '24h',
+    Date.UTC(2026, 9, 25, 14),
+  );
+  const ranked = drawContractDiagram(input({ expand: 'admin', activity, range: '24h', rankByFrequency: true }));
+  assert.match(ranked.regionHtml, /data-node-id="fn:admin_op4"[^]*?data-uses="2"/);
+  const admin = ranked.model.nodes.filter((n) => n.id.startsWith('fn:admin')).sort((a, b) => a.y - b.y);
+  assert.equal(admin[0]!.id, 'fn:admin_op4');
+  const spec = drawContractDiagram(input({ expand: 'admin', activity, range: '24h' }));
+  assert.equal(spec.model.nodes.filter((n) => n.id.startsWith('fn:admin')).sort((a, b) => a.y - b.y)[0]!.id, 'fn:admin_op0');
+  // The collapse link keeps the range and the order.
+  assert.match(ranked.regionHtml, /diagram\?range=24h&amp;order=use" data-group-toggle="admin"/);
 });

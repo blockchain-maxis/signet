@@ -144,7 +144,25 @@ export interface LayoutOverlays {
     /** Draw every callee instead of collapsing past `MAX_CALLEES`. */
     expand?: boolean;
   };
+  /**
+   * Observed use (#518): calls per function name in the chosen range. Each
+   * function node keeps room for its count, which the renderer draws with a
+   * heat bar.
+   */
+  activity?: {
+    counts: Readonly<Record<string, number>>;
+    /**
+     * Order each group's functions by count, most used first; a group with
+     * no counts keeps spec order. The order is then a function of the
+     * counts too, so a cached layout must be keyed on them.
+     */
+    rankByFrequency?: boolean;
+  };
 }
+
+/** Font size of a function's count, and the room kept for it. */
+export const HEAT_FONT_PX = 11;
+const HEAT_GAP = 8;
 
 /** A call edge's weight and evidence (#543). */
 export interface PositionedCall {
@@ -190,6 +208,9 @@ export interface PositionedNode extends RoutableNode {
   hiddenAddresses?: string[];
   /** For a collapsed function group (#502): the group, and the functions it stands for. */
   collapsed?: { group: string; members: string[] };
+  /** A function's calls in the activity range (#518), with the room `heatSlot` kept for it. */
+  uses?: number;
+  heatSlot?: number;
 }
 
 export interface PositionedEdge extends RoutableEdge {
@@ -421,17 +442,39 @@ interface GroupMembers {
   collapsed?: true;
 }
 
+/**
+ * Names most used first when ranking by frequency (#518), ties and unused
+ * names in their given order; unchanged when nothing in the list was used.
+ */
+function byUse(names: readonly string[], activity?: LayoutOverlays['activity']): string[] {
+  if (!activity?.rankByFrequency) return [...names];
+  const count = (name: string) => activity.counts[name] ?? 0;
+  if (!names.some((name) => count(name) > 0)) return [...names];
+  return names
+    .map((name, i) => ({ name, i }))
+    .sort((a, b) => count(b.name) - count(a.name) || a.i - b.i)
+    .map(({ name }) => name);
+}
+
 /** A function's order in column 0: groups first (as `groupFunctions` ranks them). */
-function orderFunctions(functions: readonly Extract<GraphNode, { kind: 'function' }>[]): {
+function orderFunctions(
+  functions: readonly Extract<GraphNode, { kind: 'function' }>[],
+  activity?: LayoutOverlays['activity'],
+): {
   ids: string[];
   groups: GroupMembers[];
   groupOf: Map<string, string>;
 } {
   // A collapsed group (#502) is grouped by its members, and takes their place.
   const names = functions.flatMap((f) => (f.collapsed ? f.collapsed.members : [f.name]));
-  const groups = groupFunctions(names);
+  const groups = groupFunctions(names).map((g) => ({ ...g, functions: byUse(g.functions, activity) }));
   if (groups.length === 0) {
-    return { ids: functions.map((f) => f.id), groups: [], groupOf: new Map() };
+    const order = byUse(
+      functions.map((f) => f.name),
+      activity,
+    );
+    const idOf = new Map(functions.map((f) => [f.name, f.id]));
+    return { ids: order.map((name) => idOf.get(name)!), groups: [], groupOf: new Map() };
   }
   const idByName = new Map(functions.filter((f) => !f.collapsed).map((f) => [f.name, f.id]));
   const collapsedId = new Map(
@@ -517,7 +560,7 @@ export function layoutContractGraph(
   const rank = assignRanks(order, out, kindOf, back);
 
   // Columns: rank -> node ids. Column 0 is the grouped function order.
-  const fnOrder = orderFunctions(functions);
+  const fnOrder = orderFunctions(functions, overlays.activity);
   const maxRank = Math.max(0, ...order.map((id) => rank.get(id)!));
   const columns: string[][] = Array.from({ length: maxRank + 1 }, () => []);
   columns[0] = [...fnOrder.ids];
@@ -556,13 +599,17 @@ export function layoutContractGraph(
   // is the point of the column, so the overlay's nodes get half again the cap.
   const callMaxWidth = Math.round(geo.maxNodeWidth * 1.5);
   const callMaxCells = Math.floor((callMaxWidth - 2 * geo.nodePaddingX) / cell + 1e-9);
+  // A function's count (#518) sits right of its label, before the mark slot.
+  const activity = overlays.activity;
+  const maxUses = activity ? Math.max(0, ...Object.values(activity.counts)) : 0;
+  const heatSlot = activity ? Math.ceil(textWidth(String(maxUses), HEAT_FONT_PX)) + HEAT_GAP : 0;
   const sizedNodes: { id: string; name: string; call?: true }[] = [
     ...graph.nodes,
     ...calls.callees.map((c) => ({ ...c, call: true as const })),
     ...(calls.anchor ? [{ id: CALL_ANCHOR_ID, name: ANCHOR_NAME, call: true as const }] : []),
   ];
   for (const node of sizedNodes) {
-    const slot = node.id.startsWith('fn:') ? MARK_SLOT : 0;
+    const slot = node.id.startsWith('fn:') ? MARK_SLOT + heatSlot : 0;
     const cap = node.call ? callMaxWidth : geo.maxNodeWidth;
     const fits = Math.ceil(textWidth(node.name, geo.fontSizePx)) + 2 * geo.nodePaddingX + slot;
     const truncated = fits > cap;
@@ -688,6 +735,10 @@ export function layoutContractGraph(
     if (node.kind === 'type') positioned.typeKind = node.typeKind;
     if (node.kind === 'function' && node.collapsed) {
       positioned.collapsed = { group: node.collapsed.group, members: [...node.collapsed.members] };
+    }
+    if (activity && node.kind === 'function' && !node.collapsed) {
+      positioned.uses = activity.counts[node.name] ?? 0;
+      positioned.heatSlot = heatSlot;
     }
     const groupId = fnOrder.groupOf.get(node.id);
     if (groupId !== undefined) positioned.groupId = groupId;

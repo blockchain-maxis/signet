@@ -31,7 +31,8 @@ const TABS = [
 test.describe('contract page accessibility @db', () => {
   test.skip(!HAS_DB, 'needs DATABASE_URL: contract pages 404 without the fixture database');
 
-  const suffix = Date.now().toString(36);
+  // Each worker loads this file; two in the same millisecond must not share a handle.
+  const suffix = `${Date.now().toString(36)}${randomBytes(3).toString('hex')}`;
   const handle = `a11y${suffix}`.slice(0, 32);
   const address = StrKey.encodeContract(randomBytes(32));
   const base = `/p/${handle}/contract/${address}`;

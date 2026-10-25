@@ -26,6 +26,8 @@ import {
   withMarks,
   COLLAPSE_THRESHOLD,
   LAYOUT_VERSION,
+  type ActivityOverlay,
+  type ActivityRange,
   type DiagramDecision,
   type LayoutOverlays,
   type MutabilityOverlayInput,
@@ -50,6 +52,10 @@ export interface DiagramViewInput {
   readonly writesOnly?: boolean;
   /** The raw `?expand=` list; checked against the spec's group names. */
   readonly expand?: string | null;
+  /** Observed use in `range` (#518): heat bars, and the order when `rankByFrequency`. */
+  readonly activity?: ActivityOverlay | null;
+  readonly range?: ActivityRange;
+  readonly rankByFrequency?: boolean;
 }
 
 export interface DiagramView {
@@ -110,7 +116,10 @@ export function diagramPath(handle: string, address: string): string {
  * list is sorted, so the same state is always the same URL.
  */
 export function diagramStateHref(
-  input: Pick<DiagramViewInput, 'handle' | 'address' | 'query' | 'writesOnly' | 'expandCallees'>,
+  input: Pick<
+    DiagramViewInput,
+    'handle' | 'address' | 'query' | 'writesOnly' | 'expandCallees' | 'range' | 'rankByFrequency'
+  >,
   expand: readonly string[],
 ): string {
   const params = new URLSearchParams();
@@ -118,6 +127,8 @@ export function diagramStateHref(
   if (input.query) params.set('q', input.query);
   if (input.writesOnly) params.set('writes', '1');
   if (input.expandCallees) params.set('callees', 'all');
+  if (input.range && input.range !== '7d') params.set('range', input.range);
+  if (input.rankByFrequency) params.set('order', 'use');
   const query = params.toString();
   return `${diagramPath(input.handle, input.address)}${query ? `?${query}` : ''}`;
 }
@@ -158,20 +169,23 @@ export function drawContractDiagram(input: DiagramViewInput): DiagramView {
 
   // The call graph (#543) rides on the spec diagram; when the interface is not
   // worth drawing, the calls are drawn alone, from the functions that made them.
-  const { calls } = input;
-  const overlays: LayoutOverlays = calls
-    ? {
-        calls: {
-          overlay: calls.overlay,
-          labels: new Map([...calls.labels].map(([address, label]) => [address, label.text])),
-          expand: input.expandCallees,
-        },
-      }
-    : {};
+  const { calls, activity } = input;
+  const overlays: LayoutOverlays = {
+    ...(calls && {
+      calls: {
+        overlay: calls.overlay,
+        labels: new Map([...calls.labels].map(([address, label]) => [address, label.text])),
+        expand: input.expandCallees,
+      },
+    }),
+    ...(activity && {
+      activity: { counts: activity.counts, rankByFrequency: input.rankByFrequency ?? false },
+    }),
+  };
   const callsAlone = decision.kind !== 'draw' && calls !== null;
   const model: PositionedDiagramModel =
     decision.kind === 'draw'
-      ? calls
+      ? calls || activity
         ? layoutContractGraph(graph, {}, overlays)
         : specModel
       : callsAlone

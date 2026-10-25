@@ -457,3 +457,85 @@ test('with no database there are no observations, and nothing to draw', async ()
   const storage = await getStorageObservations(address, 'testnet', { ...specDeps, invocations: async () => null });
   assert.deepEqual(storage, { slots: [], observations: 0, firstLedger: null, lastLedger: null });
 });
+
+// ── Activity (#518) ────────────────────────────────────────────────────
+
+import { describeActivity, coverageNote } from '@signet/visualiser';
+import { getActivityOverlay, parseActivityRange, type ActivityDb } from './diagram.ts';
+
+const NOW = Date.UTC(2026, 9, 25, 14, 30);
+const HOURS = 3_600_000;
+const ago = (ms: number) => new Date(NOW - ms);
+
+function activityDb(calls: { function: string | null; createdAt: Date }[], oldest = calls.at(-1)?.createdAt ?? null): ActivityDb & { since: Date[] } {
+  const since: Date[] = [];
+  return {
+    since,
+    calls: async (r) => {
+      since.push(r.since);
+      return calls.filter((c) => c.createdAt >= r.since);
+    },
+    bounds: async () => ({
+      oldest,
+      newest: calls[0]?.createdAt ?? null,
+      countedSince: oldest,
+      totalIsFloor: false,
+    }),
+  };
+}
+
+const history = [
+  { function: 'swap', createdAt: ago(1 * HOURS) },
+  { function: 'swap', createdAt: ago(2 * HOURS) },
+  { function: 'quote', createdAt: ago(30 * HOURS) },
+  { function: 'swap', createdAt: ago(5 * 24 * HOURS) },
+  { function: 'swap', createdAt: ago(20 * 24 * HOURS) },
+];
+
+test('activity aggregates the stored calls for each range', async () => {
+  const counts = async (range: '24h' | '7d' | '30d') =>
+    (await getActivityOverlay(address, 'testnet', range, { db: activityDb(history), now: () => NOW }))!;
+  const day = await counts('24h');
+  assert.equal(day.series.buckets.length, 24);
+  assert.equal(day.series.total, 2);
+  assert.deepEqual(day.counts, { swap: 2 });
+  const week = await counts('7d');
+  assert.equal(week.series.total, 4);
+  assert.deepEqual(week.counts, { swap: 3, quote: 1 });
+  const month = await counts('30d');
+  assert.equal(month.series.total, 5);
+  assert.equal(describeActivity(month.series), '5 transactions in the last 30 days, peak on 2026-10-25 (2).');
+  // The oldest stored call is 20 days back, so the 30 days are not all counted.
+  assert.equal(coverageNote(month.series), 'Counted only since 2026-10-05: 21 of the 30 days.');
+  assert.equal(coverageNote(week.series), null);
+});
+
+test('a range longer than the stored calls is labelled with the span they cover', async () => {
+  const recent = history.slice(0, 3);
+  const month = (await getActivityOverlay(address, 'testnet', '30d', { db: activityDb(recent), now: () => NOW }))!;
+  assert.equal(coverageNote(month.series), 'Counted only since 2026-10-24: 2 of the 30 days.');
+});
+
+test('an empty history says no activity is recorded; no database draws nothing', async () => {
+  const empty = (await getActivityOverlay(address, 'testnet', '7d', { db: activityDb([]), now: () => NOW }))!;
+  assert.equal(describeActivity(empty.series), 'No activity recorded yet.');
+  const none: ActivityDb = { calls: async () => null, bounds: async () => null };
+  assert.equal(await getActivityOverlay(address, 'testnet', '7d', { db: none }), null);
+  assert.equal(parseActivityRange('<script>'), '7d');
+  assert.equal(parseActivityRange('30d'), '30d');
+});
+
+test('a stored spec without XDR entries still gives marks and slots from its views', async () => {
+  __resetMutabilityCache();
+  __resetStorageObservations();
+  const viewsOnly = { ...twoFunctions, entriesXdr: [] };
+  const deps = {
+    getContractSpec: async () => ({ ok: true as const, spec: viewsOnly, wasmHash: hash }) as never,
+    invocations: async ({ fn }: { fn: string }) => (fn === 'write' ? [row('write', 120, true)] : []),
+  };
+  const overlay = await getMutabilityOverlay(address, 'testnet', deps);
+  assert.equal(overlay?.marks.write?.kind, 'writes');
+  const storage = await getStorageObservations(address, 'testnet', deps);
+  assert.equal(storage?.observations, 1);
+  assert.equal(storage?.slots.length, 1);
+});

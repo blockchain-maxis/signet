@@ -1,21 +1,29 @@
 import {
+  coverageNote,
+  describeActivity,
+  renderActivitySparkline,
   renderStorageOutlineHtml,
   renderStorageSvg,
   typeAnchor,
+  ACTIVITY_RANGES,
   MAX_NODES,
+  type ActivityOverlay,
   type StorageViewInput,
 } from '@signet/visualiser';
 import type { SpecJson } from '@signet/spec';
 import { logger } from '@/lib/logger';
 import { loadContractCallGraph, type ContractCallGraph } from '@/lib/server/call-graph-source';
 import {
+  getActivityOverlay,
   getInstanceStorage,
   getMutabilityOverlay,
+  parseActivityRange,
+  ACTIVITY_LIMITS,
   getStorageObservations,
   type InstanceStorage,
   type MutabilityOverlay,
 } from '@/lib/server/diagram';
-import { diagramPath, drawContractDiagram } from '@/lib/server/diagram-view';
+import { diagramPath, diagramStateHref, drawContractDiagram } from '@/lib/server/diagram-view';
 import { DiagramExpand } from './diagram-expand';
 import { StorageToggle } from './storage-toggle';
 import { SectionLabel } from '../../../_components/section-label';
@@ -37,6 +45,7 @@ function DiagramBody(
   props: ContractSlotProps & {
     calls: ContractCallGraph | null;
     mutability: MutabilityOverlay | null;
+    activity: ActivityOverlay | null;
     /** The storage view's text, appended to the outline (#515). */
     storageOutline: string | null;
   },
@@ -57,6 +66,9 @@ function DiagramBody(
     expandCallees: props.expandCallees,
     writesOnly: props.writesOnly,
     expand: props.expand,
+    activity: props.activity,
+    range: parseActivityRange(props.range),
+    rankByFrequency: props.order === 'use',
   });
   const { decision, callsAlone, hasWrites, writesOnly } = view;
   const { mutability } = props;
@@ -132,6 +144,8 @@ function DiagramBody(
           {view.expanded.length > 0 && (
             <input type="hidden" name="expand" value={view.expanded.join(',')} />
           )}
+          {props.range && <input type="hidden" name="range" value={parseActivityRange(props.range)} />}
+          {props.order === 'use' && <input type="hidden" name="order" value="use" />}
           <label
             className={`flex items-center gap-2 text-xs ${hasWrites ? 'text-[#f5f4ee]' : 'text-[#8a8779]'}`}
             title={
@@ -171,6 +185,7 @@ function DiagramBody(
             : 'This contract’s interface has no types to connect, so this shows only the calls it makes to other contracts.'}
         </p>
       )}
+      {props.activity && <ActivityPanel {...props} activity={props.activity} expanded={view.expanded} />}
       <div id={DIAGRAM_REGION_ID} dangerouslySetInnerHTML={{ __html: view.regionHtml }} />
       {view.collapsible && (
         <DiagramExpand
@@ -188,6 +203,71 @@ function DiagramBody(
   );
 }
 
+/** `2026-10-25 14:32 UTC`. */
+function lastSeen(at: number): string {
+  const iso = new Date(at).toISOString();
+  return `${iso.slice(0, 10)} ${iso.slice(11, 16)} UTC`;
+}
+
+/**
+ * Observed use (#518): the sparkline for the range, its summary, the range
+ * and order controls, and what the counts cannot see.
+ */
+function ActivityPanel(
+  props: ContractSlotProps & { activity: ActivityOverlay; expanded: readonly string[] },
+) {
+  const { series } = props.activity;
+  const range = parseActivityRange(props.range);
+  const rankByFrequency = props.order === 'use';
+  const state = {
+    handle: props.handle,
+    address: props.address,
+    query: props.query,
+    writesOnly: props.writesOnly,
+    expandCallees: props.expandCallees,
+    range,
+    rankByFrequency,
+  };
+  const coverage = coverageNote(series);
+  const link =
+    'rounded border border-[#2b2721] px-2 py-0.5 hover:border-[#e05a4b] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#e05a4b]';
+  return (
+    <div className="mb-4 flex flex-wrap items-start gap-4" data-testid="diagram-activity">
+      <div
+        dangerouslySetInnerHTML={{
+          __html: renderActivitySparkline(series, { idPrefix: `activity-${props.address}-` }),
+        }}
+      />
+      <div className="flex max-w-[60ch] flex-col gap-1 text-xs text-[#8a8779]">
+        <p className="text-[#f5f4ee]">
+          {describeActivity(series)}
+          {series.lastActivity !== null && ` Last activity ${lastSeen(series.lastActivity)}.`}
+        </p>
+        <nav aria-label="Activity range" className="flex flex-wrap items-center gap-2">
+          {ACTIVITY_RANGES.map((r) => (
+            <a
+              key={r}
+              href={diagramStateHref({ ...state, range: r }, props.expanded)}
+              aria-current={r === range ? 'true' : undefined}
+              className={`${link} ${r === range ? 'border-[#e05a4b] text-[#f5f4ee]' : ''}`}
+            >
+              {r}
+            </a>
+          ))}
+          <a
+            href={diagramStateHref({ ...state, rankByFrequency: !rankByFrequency }, props.expanded)}
+            className={link}
+          >
+            {rankByFrequency ? 'Spec order' : 'Order by use'}
+          </a>
+        </nav>
+        {coverage && <p>{coverage}</p>}
+        <p>{ACTIVITY_LIMITS}</p>
+      </div>
+    </div>
+  );
+}
+
 const STORAGE_VIEW_ID = 'storage-view';
 
 /** The instance read (#514) as the storage view states it. */
@@ -202,14 +282,15 @@ function instanceView(storage: InstanceStorage): StorageViewInput['instance'] {
  * focusable `role="region"` so keyboard users can scroll a large diagram.
  */
 export async function ContractDiagram(props: ContractSlotProps) {
-  const [calls, mutability, observed] =
+  const [calls, mutability, observed, activity] =
     props.spec.kind === 'spec'
       ? await Promise.all([
           loadContractCallGraph(props.address, props.network),
           getMutabilityOverlay(props.address, props.network, { wasmHash: props.wasmHash }),
           getStorageObservations(props.address, props.network, { wasmHash: props.wasmHash }),
+          getActivityOverlay(props.address, props.network, parseActivityRange(props.range)),
         ])
-      : [null, null, null];
+      : [null, null, null, null];
 
   // The storage view (#515): only with observations, since the instance
   // entry alone is not what this view is about; the RPC is read only then.
@@ -236,6 +317,7 @@ export async function ContractDiagram(props: ContractSlotProps) {
           {...props}
           calls={calls}
           mutability={mutability}
+          activity={activity}
           storageOutline={storage ? renderStorageOutlineHtml(storage, hrefForType) : null}
         />
       </div>
