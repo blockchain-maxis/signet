@@ -148,6 +148,21 @@ rebinding, and no other site can reach it, preflights included. The checks are
 listed in [`SECURITY_REVIEW.md`](SECURITY_REVIEW.md). Don't share the link
 while `signet dev` runs.
 
+What the UI defends against, and how each is checked in a real browser
+(#587, `apps/sandbox-ui/e2e/security.spec.ts`, in CI on Linux):
+
+| Threat | Defence | Checked by |
+| --- | --- | --- |
+| A web page you visit calls the UI (fetch, or a form POST) | Every request's `Origin` must be the server's own; no CORS headers are ever sent | A page on a second local origin, holding the real token: its fetch fails, its form POST is refused (403), nothing changes |
+| DNS rebinding: a hostile name that resolves to 127.0.0.1 | The `Host` header must be the server's own | A raw request with `Host: evil.example` is refused (403) |
+| Someone without the link | A per-run token, sent as a header from the URL fragment; no cookie | The page without the fragment says the link is needed; the API answers 401 |
+| Another machine on the network | The server listens on 127.0.0.1 only | Connecting on the machine's non-loopback address fails (skipped where there is none) |
+
+The tests run the UI's real server code, embedded app and API through
+`cli/internal/devui/harness` over a stub session: `signet dev` itself needs a
+contract crate, cargo, the stellar CLI and a live RPC, which a hermetic test
+does not have.
+
 The page is a view over the same session the terminal drives (#577), through
 an API under `/api/` that is local to the server and versioned with the
 binary: the session's provenance, the deployed and built specs and WASMs, a

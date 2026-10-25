@@ -424,11 +424,16 @@ jobs:
   e2e:
     name: e2e smoke tests
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v7
 
       - uses: pnpm/action-setup@v6.1.0
+
+      # The local UI's security tests (#587) run its real server, in Go.
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: cli/go.mod
 
       - uses: actions/setup-node@v7
         with:
@@ -467,7 +472,7 @@ jobs:
       - name: Build the local UI
         run: pnpm --filter @signet/sandbox-ui build
 
-      - name: Local UI accessibility
+      - name: Local UI accessibility and security
         run: pnpm --filter @signet/sandbox-ui exec playwright test
 
   e2e-linked:

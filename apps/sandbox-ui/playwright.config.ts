@@ -21,7 +21,8 @@ export default defineConfig({
   },
   projects: [
     { name: 'dark', use: { ...devices['Desktop Chrome'], colorScheme: 'dark' } },
-    { name: 'light', use: { ...devices['Desktop Chrome'], colorScheme: 'light' } },
+    // The server's protections do not depend on the theme: checked once.
+    { name: 'light', use: { ...devices['Desktop Chrome'], colorScheme: 'light' }, testIgnore: /security\.spec/ },
   ],
   webServer: {
     command: `node e2e/harness.mjs`,
