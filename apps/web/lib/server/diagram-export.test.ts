@@ -121,3 +121,43 @@ test('oversized diagrams are rejected before layout/export', async () => {
   assert.equal(res.status, 422);
   assert.equal(res.headers.get('content-disposition'), null);
 });
+
+// The storage view (#515) exports like the interface diagram.
+const observed = {
+  slots: [
+    {
+      durability: 'persistent' as const,
+      shape: 'Count',
+      distinctKeys: 1,
+      readBy: ['read'],
+      writtenBy: ['write'],
+      firstSeenLedger: 110,
+      lastSeenLedger: 120,
+    },
+  ],
+  observations: 3,
+  firstLedger: 110,
+  lastLedger: 120,
+};
+
+test('export ?view=storage draws the observed slots and the instance entry', async () => {
+  const deps: DiagramExportDeps = {
+    ...dependencies(),
+    loadStorage: async () => observed,
+    loadInstance: async () => ({ status: 'ok', ledger: 130, liveUntilLedger: null, entries: [] }),
+  };
+  const res = await exportContractDiagram(request('?view=storage&theme=dark'), params, deps);
+  assert.equal(res.status, 200);
+  assert.match(res.headers.get('content-disposition') ?? '', /signet-C\w+-storage-dark\.svg/);
+  const svg = await res.text();
+  assert.match(svg, /Storage seen in 3 observed calls \(ledgers 110–120\) and the instance entry at ledger 130/);
+  assert.match(svg, /data-node-id="slot:persistent:Count"/);
+  assert.match(svg, /<style>/);
+});
+
+test('export ?view=storage with no observations is not found, and a bad view is refused', async () => {
+  const none = { ...observed, slots: [], observations: 0, firstLedger: null, lastLedger: null };
+  const deps: DiagramExportDeps = { ...dependencies(), loadStorage: async () => none };
+  assert.equal((await exportContractDiagram(request('?view=storage'), params, deps)).status, 404);
+  assert.equal((await exportContractDiagram(request('?view=<script>'), params, deps)).status, 400);
+});

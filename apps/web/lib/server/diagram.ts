@@ -20,12 +20,14 @@
 import {
   classifyFunctions,
   fromSpecJson,
+  groupLedgerKeys,
   keyShape,
   LruSpecCache,
   normaliseFootprint,
   type ContractSpec,
   type FootprintObservation,
   type MutabilityMark,
+  type StorageSlot,
 } from '@signet/spec';
 import {
   buildContractGraph,
@@ -547,6 +549,41 @@ async function prismaInvocations(request: { address: string; network: string; fn
   });
 }
 
+/**
+ * The latest `MUTABILITY_PER_FUNCTION` stored invocations of each of the
+ * spec's functions, with their keys normalised (#509); null when there is
+ * no database.
+ */
+async function readObservations(
+  address: string,
+  network: string,
+  spec: ContractSpec,
+  read: NonNullable<MutabilityDeps['invocations']>,
+): Promise<FootprintObservation[] | null> {
+  const observations: FootprintObservation[] = [];
+  for (const fn of spec.functions) {
+    const rows = await read({ address, network, fn: fn.name, limit: MUTABILITY_PER_FUNCTION });
+    if (rows === null) return null;
+    for (const row of rows) {
+      observations.push(
+        normaliseFootprint({
+          contract: address,
+          function: row.function,
+          source: 'transaction',
+          ledger: row.ledger,
+          txHash: row.txHash,
+          wasmHash: row.wasmHash,
+          readOnly: keys(row.readOnly),
+          readWrite: keys(row.readWrite),
+          changed: row.changed === null || row.changed === undefined ? null : keys(row.changed),
+          successful: row.successful,
+        }),
+      );
+    }
+  }
+  return observations;
+}
+
 const mutabilityCache = new Map<string, { at: number; overlay: MutabilityOverlay }>();
 
 export function __resetMutabilityCache(): void {
@@ -583,31 +620,11 @@ export async function getMutabilityOverlay(
     const hit = mutabilityCache.get(key);
     if (hit && now() - hit.at < MUTABILITY_TTL_MS) return hit.overlay;
 
-    const read = deps.invocations ?? prismaInvocations;
-    const observations: FootprintObservation[] = [];
-    for (const fn of spec.functions) {
-      const rows = await read({ address, network, fn: fn.name, limit: MUTABILITY_PER_FUNCTION });
-      if (rows === null) {
-        const overlay = unknownFor(spec.functions, spec.wasmHash, 'No indexed observations in this environment.');
-        mutabilityCache.set(key, { at: now(), overlay });
-        return overlay;
-      }
-      for (const row of rows) {
-        observations.push(
-          normaliseFootprint({
-            contract: address,
-            function: row.function,
-            source: 'transaction',
-            ledger: row.ledger,
-            txHash: row.txHash,
-            wasmHash: row.wasmHash,
-            readOnly: keys(row.readOnly),
-            readWrite: keys(row.readWrite),
-            changed: row.changed === null || row.changed === undefined ? null : keys(row.changed),
-            successful: row.successful,
-          }),
-        );
-      }
+    const observations = await readObservations(address, network, spec, deps.invocations ?? prismaInvocations);
+    if (observations === null) {
+      const overlay = unknownFor(spec.functions, spec.wasmHash, 'No indexed observations in this environment.');
+      mutabilityCache.set(key, { at: now(), overlay });
+      return overlay;
     }
     const classified = classifyFunctions(spec, observations);
     const marks: Record<string, MutabilityMark> = {};
@@ -823,4 +840,60 @@ export async function getInstanceStorage(
   const result: InstanceStorage = { status: 'ok', ledger, liveUntilLedger: liveUntil, entries };
   instanceCache.set(key, { at: now(), storage: result });
   return result;
+}
+
+// ── Storage layout (#515) ──────────────────────────────────────────────
+
+/**
+ * The storage slots a contract's current code has been seen using (#513),
+ * from the same stored invocations as the read/write marks. Observed, never
+ * a schema: keys no observed call touched are not here.
+ */
+export interface StorageObservations {
+  readonly slots: readonly StorageSlot[];
+  /** Calls of the current code the slots come from, and their ledgers. */
+  readonly observations: number;
+  readonly firstLedger: number | null;
+  readonly lastLedger: number | null;
+}
+
+const storageCache = new Map<string, { at: number; storage: StorageObservations }>();
+
+export function __resetStorageObservations(): void {
+  storageCache.clear();
+}
+
+/**
+ * Groups the stored invocations of the contract's current code into slots.
+ * Null when the spec cannot be read; zero observations (no database, or no
+ * calls indexed) when there is nothing to show. Cached like the marks.
+ */
+export async function getStorageObservations(
+  address: string,
+  network: string,
+  deps: MutabilityDeps = {},
+): Promise<StorageObservations | null> {
+  const now = deps.now ?? Date.now;
+  try {
+    const specResult = await (deps.getContractSpec ?? loadContractSpec)({ address, network, wasmHash: null });
+    if (!specResult.ok) return null;
+    const spec = fromSpecJson(specResult.spec);
+    const key = `${network}:${address}:${spec.wasmHash}`;
+    const hit = storageCache.get(key);
+    if (hit && now() - hit.at < MUTABILITY_TTL_MS) return hit.storage;
+    const all = (await readObservations(address, network, spec, deps.invocations ?? prismaInvocations)) ?? [];
+    const current = all.filter((o) => o.wasmHash === spec.wasmHash);
+    const ledgers = current.map((o) => o.ledger);
+    const storage: StorageObservations = {
+      slots: groupLedgerKeys(current, address, spec),
+      observations: current.length,
+      firstLedger: ledgers.length ? Math.min(...ledgers) : null,
+      lastLedger: ledgers.length ? Math.max(...ledgers) : null,
+    };
+    storageCache.set(key, { at: now(), storage });
+    return storage;
+  } catch (error) {
+    logger.warn({ address, network, error }, 'failed to group storage observations');
+    return null;
+  }
 }

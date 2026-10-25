@@ -8,17 +8,27 @@ import {
   layoutContractGraph,
   renderDiagramSvg,
   renderOutlineHtml,
+  renderStorageOutlineHtml,
+  renderStorageSvg,
   typeAnchor,
   withMarks,
   MAX_NODES,
   type LayoutOverlays,
   type MutabilityOverlayInput,
   type PositionedDiagramModel,
+  type StorageViewInput,
 } from '@signet/visualiser';
 import { logger } from '@/lib/logger';
 import { resolveNetwork, stellarExpertTxUrl } from '@/lib/network';
 import { loadContractCallGraph, type ContractCallGraph } from '@/lib/server/call-graph-source';
-import { getMutabilityOverlay, type MutabilityOverlay } from '@/lib/server/diagram';
+import {
+  getInstanceStorage,
+  getMutabilityOverlay,
+  getStorageObservations,
+  type InstanceStorage,
+  type MutabilityOverlay,
+} from '@/lib/server/diagram';
+import { StorageToggle } from './storage-toggle';
 import { SectionLabel } from '../../../_components/section-label';
 import { SlotPlaceholder } from './slot-placeholder';
 import type { ContractSlotProps } from './slot-props';
@@ -51,6 +61,8 @@ function DiagramBody(
   props: ContractSlotProps & {
     calls: ContractCallGraph | null;
     mutability: MutabilityOverlay | null;
+    /** The storage view's text, appended to the outline (#515). */
+    storageOutline: string | null;
   },
 ) {
   if (props.spec.kind !== 'spec') {
@@ -127,6 +139,9 @@ function DiagramBody(
         Diagram as text
       </summary>
       <div className="mt-4" dangerouslySetInnerHTML={{ __html: outlineHtml }} />
+      {props.storageOutline && (
+        <div className="mt-6" dangerouslySetInnerHTML={{ __html: props.storageOutline }} />
+      )}
     </details>
   );
 
@@ -260,26 +275,99 @@ function DiagramBody(
   );
 }
 
+const STORAGE_VIEW_ID = 'storage-view';
+
+/** The instance read (#514) as the storage view states it. */
+function instanceView(storage: InstanceStorage): StorageViewInput['instance'] {
+  return storage.status === 'ok'
+    ? { ledger: storage.ledger, entries: storage.entries }
+    : { ledger: storage.ledger, reason: storage.reason };
+}
+
 /**
  * Bounded viewport container (#504): overflow: auto, max-height: 70vh, a
  * focusable `role="region"` so keyboard users can scroll a large diagram.
  */
 export async function ContractDiagram(props: ContractSlotProps) {
-  const [calls, mutability] =
+  const [calls, mutability, observed] =
     props.spec.kind === 'spec'
       ? await Promise.all([
           loadContractCallGraph(props.address, props.network),
           getMutabilityOverlay(props.address, props.network),
+          getStorageObservations(props.address, props.network),
         ])
-      : [null, null];
+      : [null, null, null];
+
+  // The storage view (#515): only with observations, since the instance
+  // entry alone is not what this view is about; the RPC is read only then.
+  const hasStorage = observed !== null && observed.observations > 0;
+  const storage: StorageViewInput | null = hasStorage
+    ? {
+        ...observed,
+        instance: instanceView(await getInstanceStorage(props.address, props.network)),
+      }
+    : null;
+  const basePath = `/p/${encodeURIComponent(props.handle)}/contract/${encodeURIComponent(props.address)}`;
+  const hrefForType = (name: string) => `${basePath}/types#${typeAnchor(name)}`;
+  const storageOn = hasStorage && (props.focus?.startsWith('slot:') || props.storage !== false);
+
   return (
-    <div
-      role="region"
-      aria-label="Contract diagram viewport"
-      tabIndex={0}
-      className="viz-viewport max-h-[70vh] max-w-full overflow-auto outline-none focus-visible:ring-2 focus-visible:ring-[#60a5fa]"
-    >
-      <DiagramBody {...props} calls={calls} mutability={mutability} />
-    </div>
+    <>
+      <div
+        role="region"
+        aria-label="Contract diagram viewport"
+        tabIndex={0}
+        className="viz-viewport max-h-[70vh] max-w-full overflow-auto outline-none focus-visible:ring-2 focus-visible:ring-[#60a5fa]"
+      >
+        <DiagramBody
+          {...props}
+          calls={calls}
+          mutability={mutability}
+          storageOutline={storage ? renderStorageOutlineHtml(storage, hrefForType) : null}
+        />
+      </div>
+      {props.spec.kind === 'spec' && (
+        <section className="mt-10" aria-label="Storage" data-testid="slot-storage">
+          <div className="mb-4 flex flex-wrap items-center gap-6">
+            <SectionLabel>Storage</SectionLabel>
+            <StorageToggle
+              controls={STORAGE_VIEW_ID}
+              initiallyOn={storageOn}
+              disabledReason={
+                hasStorage
+                  ? undefined
+                  : 'No calls to this contract have been observed, so there is no storage to show.'
+              }
+            />
+          </div>
+          {storage && (
+            <div id={STORAGE_VIEW_ID} hidden={!storageOn}>
+              <a
+                href={`${basePath}/diagram.svg?view=storage&theme=auto`}
+                className="mb-3 inline-block text-xs underline underline-offset-4 focus-visible:outline focus-visible:outline-2"
+                download
+              >
+                Download storage SVG
+              </a>
+              <div
+                role="region"
+                aria-label="Storage view viewport"
+                tabIndex={0}
+                className="viz-viewport max-h-[70vh] max-w-full overflow-auto outline-none focus-visible:ring-2 focus-visible:ring-[#60a5fa]"
+                dangerouslySetInnerHTML={{
+                  __html: renderStorageSvg(storage, {
+                    idPrefix: `storage-${props.address}-`,
+                    title: `${props.handle} (${props.address}) storage, observed`,
+                    hrefForType,
+                    hrefForFunction: (name) => `${basePath}/functions#fn-${name}`,
+                    ...(props.focus?.startsWith('slot:') && { focus: props.focus }),
+                  }),
+                }}
+              />
+            </div>
+          )}
+        </section>
+      )}
+    </>
   );
 }

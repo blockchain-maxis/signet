@@ -251,3 +251,19 @@ export {
   type CallGraphOverlay,
   type CallGraphRow,
 } from './observe/call-graph.ts';
+
+// Storage layout view (#515): observed slots by durability, and the
+// functions that read and wrote them.
+export {
+  DURABILITY_ORDER,
+  renderStorageOutlineHtml,
+  renderStorageSvg,
+  slotId,
+  storageHeading,
+} from './storage/render.ts';
+export type {
+  InstanceEntryView,
+  InstanceView,
+  StorageRenderOptions,
+  StorageViewInput,
+} from './storage/render.ts';

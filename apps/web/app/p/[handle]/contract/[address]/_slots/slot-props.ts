@@ -21,4 +21,6 @@ export interface ContractSlotProps {
   expandCallees?: boolean;
   /** Dim every function not seen writing (?writes=1, #512) */
   writesOnly?: boolean;
+  /** Show the storage view (?storage=, #515); undefined is its default. */
+  storage?: boolean;
 }

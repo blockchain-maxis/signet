@@ -1,0 +1,46 @@
+{
+  "note": "Footprints captured from real testnet transactions against the deployed Identity Registry (#509): claim tx 58e3133e87828eea21e89e0e6d6fc9007525840059817e0dd3c43b50a5c7ffa4 and a count() simulation. Copied from packages/spec/src/observe/testnet-fixtures.ts.",
+  "contract": "CASFJHI5PQSRWS7JV25CF7FOMRKIVBP3RXRP3E2GH2CV4BCAG7FUJRCN",
+  "footprints": [
+    {
+      "contract": "CASFJHI5PQSRWS7JV25CF7FOMRKIVBP3RXRP3E2GH2CV4BCAG7FUJRCN",
+      "function": "claim",
+      "source": "transaction",
+      "ledger": 5257992,
+      "txHash": "58e3133e87828eea21e89e0e6d6fc9007525840059817e0dd3c43b50a5c7ffa4",
+      "readOnly": [
+        "AAAAAAAAAAAUISVXTvGL+xsm86aOilYYUv0b+nqpR5VoSnDwqoHigA==",
+        "AAAAB5NplsdLfTg8VuwXSFexWSfN0pR4xpCdozK03si2czX+"
+      ],
+      "readWrite": [
+        "AAAABgAAAAAAAAAAFCElV07xi/sbJvOmjopWGFL9G/p6qUeVaEpw8KqB4oAAAAAVOYp0dc+ZxkgAAAAA",
+        "AAAABgAAAAEkVJ0dfCUbS+muuiL8rmRUioX7jeL9k0Y+hV4EQDfLRAAAABAAAAABAAAAAgAAAA8AAAAGSGFuZGxlAAAAAAASAAAAAAAAAAAUISVXTvGL+xsm86aOilYYUv0b+nqpR5VoSnDwqoHigAAAAAE=",
+        "AAAABgAAAAEkVJ0dfCUbS+muuiL8rmRUioX7jeL9k0Y+hV4EQDfLRAAAABAAAAABAAAAAgAAAA8AAAAFT3duZXIAAAAAAAAOAAAACmZ4bXZkbDdkbGQAAAAAAAE=",
+        "AAAABgAAAAEkVJ0dfCUbS+muuiL8rmRUioX7jeL9k0Y+hV4EQDfLRAAAABQAAAAB"
+      ],
+      "changed": [
+        "AAAABgAAAAEkVJ0dfCUbS+muuiL8rmRUioX7jeL9k0Y+hV4EQDfLRAAAABQAAAAB",
+        "AAAACe+mTTu/Yl527okxOz3vVhLUHGAFhZZZtOQWl2QVaCM4",
+        "AAAABgAAAAEkVJ0dfCUbS+muuiL8rmRUioX7jeL9k0Y+hV4EQDfLRAAAABAAAAABAAAAAgAAAA8AAAAGSGFuZGxlAAAAAAASAAAAAAAAAAAUISVXTvGL+xsm86aOilYYUv0b+nqpR5VoSnDwqoHigAAAAAE=",
+        "AAAACT+ZI7zxMDcBjtL3GbPFyWcfYw9PicuvK5Z66i9pgyfD",
+        "AAAABgAAAAEkVJ0dfCUbS+muuiL8rmRUioX7jeL9k0Y+hV4EQDfLRAAAABAAAAABAAAAAgAAAA8AAAAFT3duZXIAAAAAAAAOAAAACmZ4bXZkbDdkbGQAAAAAAAE=",
+        "AAAACdVpD8KsnfcOkk93jDN1lTUYgZEA4ncqCRvSMV90yiD5",
+        "AAAABgAAAAAAAAAAFCElV07xi/sbJvOmjopWGFL9G/p6qUeVaEpw8KqB4oAAAAAVOYp0dc+ZxkgAAAAA",
+        "AAAAAAAAAAAYoatIoo4mAQ8TXAZidCVXYIHWkl4HcuCLMyCrzsfk8g=="
+      ],
+      "successful": true
+    },
+    {
+      "contract": "CASFJHI5PQSRWS7JV25CF7FOMRKIVBP3RXRP3E2GH2CV4BCAG7FUJRCN",
+      "function": "count",
+      "source": "transaction",
+      "ledger": 5257995,
+      "readOnly": [
+        "AAAABgAAAAEkVJ0dfCUbS+muuiL8rmRUioX7jeL9k0Y+hV4EQDfLRAAAABQAAAAB",
+        "AAAAB5NplsdLfTg8VuwXSFexWSfN0pR4xpCdozK03si2czX+"
+      ],
+      "readWrite": [],
+      "successful": true
+    }
+  ]
+}

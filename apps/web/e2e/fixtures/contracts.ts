@@ -1,4 +1,4 @@
-import { StrKey } from '@stellar/stellar-sdk';
+import { Address, StrKey, xdr } from '@stellar/stellar-sdk';
 import { CALLEE_SAC } from './docs-failures';
 
 /**
@@ -53,6 +53,18 @@ export const OTHER_NETWORK = 'mainnet';
 
 export const WASM_HASH_1 = '11'.repeat(32);
 export const WASM_HASH_2 = '22'.repeat(32);
+
+/**
+ * Contract A's `Owner("e2e-dev")` storage key (#515): every `claim` changes
+ * it, every `resolve` reads it, so the storage view has a slot to draw.
+ */
+export const OWNER_KEY = xdr.LedgerKey.contractData(
+  new xdr.LedgerKeyContractData({
+    contract: new Address(CONTRACT_A).toScAddress(),
+    key: xdr.ScVal.scvVec([xdr.ScVal.scvSymbol('Owner'), xdr.ScVal.scvString('e2e-dev')]),
+    durability: xdr.ContractDataDurability.persistent(),
+  }),
+).toXDR('base64');
 
 /** Fixed timestamps keep the fixture byte-identical between runs. */
 const at = (iso: string) => new Date(iso);
@@ -201,8 +213,9 @@ export async function seedContractFixture(): Promise<void> {
         function: i % 2 === 0 ? 'claim' : 'resolve',
         successful: i !== 3,
         wasmHash: WASM_HASH_2,
-        readOnly: [],
-        readWrite: [],
+        readOnly: i % 2 === 0 ? [] : [OWNER_KEY],
+        readWrite: i % 2 === 0 ? [OWNER_KEY] : [],
+        changed: i % 2 === 0 ? [OWNER_KEY] : [],
         eventsContractIds: [],
         // Every `claim` pays a USDC asset contract (#543's call graph): the
         // auth tree names the transfer, as the indexer records it (#516).

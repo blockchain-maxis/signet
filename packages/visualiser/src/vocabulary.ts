@@ -62,6 +62,7 @@ export type EdgeKind =
   | 'return'
   | 'field'
   | 'observed'
+  | 'observed-write'
   | 'call-auth-tree'
   | 'call-event'
   | 'call-footprint'
@@ -210,6 +211,17 @@ export const EDGE_VOCABULARY: Record<EdgeKind, EdgeVocabulary> = {
     requiresLabel: true,
     label: 'observed (dashed, labelled)',
   },
+  // The storage view (#515): a function seen changing a slot. Reads there
+  // are plain `observed` edges, so the arrowhead alone tells them apart.
+  'observed-write': {
+    dash: 'dashed',
+    marker: 'filled-arrow',
+    strokeWidth: 'normal',
+    token: 'observed',
+    specDerived: false,
+    requiresLabel: true,
+    label: 'observed write (dashed, filled arrow)',
+  },
   'call-auth-tree': {
     dash: 'long-dash',
     marker: 'filled-arrow',
@@ -287,6 +299,7 @@ export const EDGE_KIND_ORDER: readonly EdgeKind[] = [
   'return',
   'field',
   'observed',
+  'observed-write',
   'call-auth-tree',
   'call-event',
   'call-footprint',

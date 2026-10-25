@@ -110,3 +110,11 @@ The default endpoints are `https://soroban-testnet.stellar.org` and
 test checks that every fixture's address, network, ledger and hash appear in
 this file. Only capture a contract whose source and licence you have
 confirmed.
+
+## Observations
+
+`observations/identity-registry.json` holds two real footprints against the
+deployed Identity Registry (#509): the `claim` transaction
+`58e3133e87828eea21e89e0e6d6fc9007525840059817e0dd3c43b50a5c7ffa4` and a
+`count()` simulation, copied from `packages/spec/src/observe/testnet-fixtures.ts`.
+The storage view's golden (#515, `__golden__/storage/`) groups them into slots.

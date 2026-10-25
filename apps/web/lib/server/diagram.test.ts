@@ -431,3 +431,29 @@ test('getInstanceStorage: an RPC timeout is reported as unavailable', async () =
   });
   assert.equal((await getInstanceStorage(address, 'testnet', { server: failing.server })).status, 'unavailable');
 });
+
+// ── Storage layout (#515) ──────────────────────────────────────────────
+
+import { getStorageObservations, __resetStorageObservations } from './diagram.ts';
+
+test('stored invocations of the current code become storage slots', async () => {
+  __resetStorageObservations();
+  const storage = await getStorageObservations(address, 'testnet', {
+    ...specDeps,
+    invocations: async ({ fn }) =>
+      fn === 'write' ? [row('write', 120, true), row('write', 80, true, 'b'.repeat(64))] : [row('read', 115, false)],
+  });
+  assert.ok(storage);
+  assert.equal(storage.observations, 2);
+  assert.deepEqual([storage.firstLedger, storage.lastLedger], [115, 120]);
+  assert.deepEqual(
+    storage.slots.map((s) => [s.durability, s.shape, s.writtenBy, s.readBy]),
+    [['persistent', 'Count', ['write'], ['read']]],
+  );
+});
+
+test('with no database there are no observations, and nothing to draw', async () => {
+  __resetStorageObservations();
+  const storage = await getStorageObservations(address, 'testnet', { ...specDeps, invocations: async () => null });
+  assert.deepEqual(storage, { slots: [], observations: 0, firstLedger: null, lastLedger: null });
+});
