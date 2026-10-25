@@ -54,7 +54,7 @@ export async function exportContractDiagram(
     });
   if (view === 'storage') {
     // The storage view (#515): observed slots and the instance entry, as on the page.
-    const observed = await (deps.loadStorage ?? getStorageObservations)(address, network);
+    const observed = await (deps.loadStorage ?? getStorageObservations)(address, network, { wasmHash });
     if (!observed || observed.observations === 0) {
       return new Response('No storage observations for this contract', { status: 404, headers });
     }

@@ -36,7 +36,7 @@ export function StorageToggle({ controls, initiallyOn, disabledReason }: Storage
         type="button"
         onClick={toggle}
         aria-pressed={on}
-        aria-controls={controls}
+        aria-controls={disabledReason ? undefined : controls}
         aria-disabled={disabledReason ? true : undefined}
         aria-describedby={disabledReason ? reasonId : undefined}
         data-testid="storage-toggle"

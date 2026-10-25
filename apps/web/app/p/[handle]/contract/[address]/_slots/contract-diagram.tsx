@@ -206,8 +206,8 @@ export async function ContractDiagram(props: ContractSlotProps) {
     props.spec.kind === 'spec'
       ? await Promise.all([
           loadContractCallGraph(props.address, props.network),
-          getMutabilityOverlay(props.address, props.network),
-          getStorageObservations(props.address, props.network),
+          getMutabilityOverlay(props.address, props.network, { wasmHash: props.wasmHash }),
+          getStorageObservations(props.address, props.network, { wasmHash: props.wasmHash }),
         ])
       : [null, null, null];
 

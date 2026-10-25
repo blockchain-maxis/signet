@@ -10,7 +10,7 @@ const HAS_DB = Boolean(process.env.DATABASE_URL);
 const diagram = (address: string, query = '') =>
   `/p/${FIXTURE_HANDLE}/contract/${address}/diagram${query}`;
 
-test.describe('storage layout view (#515)', () => {
+test.describe('storage layout view (#515) @db', () => {
   test.skip(!HAS_DB, 'needs the contract-page fixture (DATABASE_URL)');
 
   test('toggling the view on and off keeps focus on the toggle', async ({ page }) => {

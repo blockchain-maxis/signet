@@ -20,15 +20,16 @@ const WALLET_5 = StrKey.encodeEd25519PublicKey(Buffer.alloc(32, 0xe5));
 const GROUPED_WASM = '55'.repeat(32);
 const SDK_VERSION = '16.1.0';
 
-const fn = (name: string, inputs: unknown[], outputs: unknown[] = []) => ({
+type Named = { type: 'named'; name: string };
+const pool: Named = { type: 'named', name: 'Pool' };
+const config: Named = { type: 'named', name: 'Config' };
+const fn = (name: string, inputs: { name: string; type: Named }[], outputs: Named[] = []) => ({
   name,
   doc: '',
   isConstructor: false,
   inputs,
   outputs,
 });
-const pool = { type: 'named', name: 'Pool' };
-const config = { type: 'named', name: 'Config' };
 
 const groupedSpec = {
   schemaVersion: 1,

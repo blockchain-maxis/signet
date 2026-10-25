@@ -521,6 +521,8 @@ export interface InvocationRow {
 }
 
 export interface MutabilityDeps {
+  /** The indexed WASM hash, so the spec is not re-read from the chain; null reads the live one. */
+  wasmHash?: string | null;
   getContractSpec?: DiagramDeps['getContractSpec'];
   /** The latest `limit` invocations of `fn`; null when there is no database. */
   invocations?: (request: { address: string; network: string; fn: string; limit: number }) => Promise<InvocationRow[] | null>;
@@ -613,7 +615,7 @@ export async function getMutabilityOverlay(
   const now = deps.now ?? Date.now;
   try {
     const resolveSpec = deps.getContractSpec ?? loadContractSpec;
-    const specResult = await resolveSpec({ address, network, wasmHash: null });
+    const specResult = await resolveSpec({ address, network, wasmHash: deps.wasmHash ?? null });
     if (!specResult.ok) return null;
     const spec = fromSpecJson(specResult.spec);
     const key = `${network}:${address}:${spec.wasmHash}`;
@@ -875,7 +877,11 @@ export async function getStorageObservations(
 ): Promise<StorageObservations | null> {
   const now = deps.now ?? Date.now;
   try {
-    const specResult = await (deps.getContractSpec ?? loadContractSpec)({ address, network, wasmHash: null });
+    const specResult = await (deps.getContractSpec ?? loadContractSpec)({
+      address,
+      network,
+      wasmHash: deps.wasmHash ?? null,
+    });
     if (!specResult.ok) return null;
     const spec = fromSpecJson(specResult.spec);
     const key = `${network}:${address}:${spec.wasmHash}`;

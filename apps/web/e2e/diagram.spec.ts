@@ -88,7 +88,7 @@ test.describe('diagram embed mode e2e', () => {
 
 // Collapse and expand function groups (#502): the 30-function fixture is past
 // the threshold, so its groups start collapsed.
-test.describe('function groups collapse and expand (#502)', () => {
+test.describe('function groups collapse and expand (#502) @db', () => {
   test.skip(!HAS_DB, 'needs the grouped fixture (DATABASE_URL)');
   const diagramUrl = `/p/${GROUPS_HANDLE}/contract/${GROUPED}/diagram`;
   const collapsedPool = '[data-node-id="collapsed:pool"]';

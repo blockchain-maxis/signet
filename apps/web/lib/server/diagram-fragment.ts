@@ -45,7 +45,7 @@ export async function exportDiagramFragment(
   if (!spec.ok) return new Response('Contract interface unavailable', { status: 503, headers });
   const [calls, mutability] = await Promise.all([
     deps.loadCalls(address, network),
-    deps.loadMutability(address, network),
+    deps.loadMutability(address, network, { wasmHash }),
   ]);
   const query = new URL(request.url).searchParams;
   const view = drawContractDiagram({
