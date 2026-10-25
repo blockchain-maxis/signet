@@ -5,3 +5,4 @@ docs/api/openapi-v1.json
 
 sandbox/simulator/tests/fixtures/*.json
 cli/internal/visualise/bundle/
+sandbox/conformance/corpus.json

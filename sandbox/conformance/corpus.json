@@ -1,0 +1,4319 @@
+{
+  "version": 1,
+  "generatedBy": "sandbox/conformance/generate.mts",
+  "fixtures": [
+    {
+      "fixture": "packages/spec/fixtures/errors_multi.wasm",
+      "name": "errors_multi",
+      "wasmHash": "213050ab0576cb1532135e92289e93235dea534a8bf9606a1577320e75d35954",
+      "specJson": {
+        "build": {
+          "entries": {
+            "rssdk_spec_shaking": "2",
+            "rssdkver": "28.0.0#48d506712f964094d14176e2f0b02afcd1054567",
+            "rsver": "1.97.1"
+          },
+          "rustVersion": "1.97.1",
+          "sdkVersion": "28.0.0#48d506712f964094d14176e2f0b02afcd1054567"
+        },
+        "entriesXdr": [
+          "AAAABAAAAB1GYWlsdXJlcyBmcm9tIGFjY2VzcyBjb250cm9sLgAAAAAAAAAAAAAJQXV0aEVycm9yAAAAAAAAAgAAAB1UaGUgY2FsbGVyIGlzIG5vdCBhbGxvd2VkIGluLgAAAAAAAAZEZW5pZWQAAAAAAAEAAAAcVGhlIGNhbGxlcidzIHNlc3Npb24gbGFwc2VkLgAAAAdFeHBpcmVkAAAAAAI=",
+          "AAAABAAAAB1GYWlsdXJlcyBmcm9tIHN0b3JpbmcgdmFsdWVzLgAAAAAAAAAAAAAKU3RvcmVFcnJvcgAAAAAAAgAAACFOb3RoaW5nIHdhcyBzdG9yZWQgdW5kZXIgdGhlIGtleS4AAAAAAAAHTWlzc2luZwAAAAABAAAAI1RoZSBzdG9yZWQgdmFsdWUgZmFpbGVkIHZhbGlkYXRpb24uAAAAAAdJbnZhbGlkAAAAAAI=",
+          "AAAAAAAAAB9BbHdheXMgZmFpbHMgd2hpbGUgYXV0aG9yaXppbmcuAAAAAAVlbnRlcgAAAAAAAAAAAAABAAAD6QAAAAIAAAfQAAAACUF1dGhFcnJvcgAAAA==",
+          "AAAAAAAAABtBbHdheXMgZmFpbHMgd2hpbGUgc3RvcmluZy4AAAAABXN0b3JlAAAAAAAAAAAAAAEAAAPpAAAAAgAAB9AAAAAKU3RvcmVFcnJvcgAA"
+        ],
+        "env": {
+          "preRelease": 0,
+          "protocolVersion": 28
+        },
+        "errors": [
+          {
+            "doc": "The caller is not allowed in.",
+            "enumName": "AuthError",
+            "name": "Denied",
+            "value": 1
+          },
+          {
+            "doc": "The caller's session lapsed.",
+            "enumName": "AuthError",
+            "name": "Expired",
+            "value": 2
+          },
+          {
+            "doc": "Nothing was stored under the key.",
+            "enumName": "StoreError",
+            "name": "Missing",
+            "value": 1
+          },
+          {
+            "doc": "The stored value failed validation.",
+            "enumName": "StoreError",
+            "name": "Invalid",
+            "value": 2
+          }
+        ],
+        "events": [],
+        "functions": [
+          {
+            "doc": "Always fails while authorizing.",
+            "inputs": [],
+            "isConstructor": false,
+            "name": "enter",
+            "outputs": [
+              {
+                "error": {
+                  "name": "AuthError",
+                  "type": "named"
+                },
+                "ok": "void",
+                "type": "result"
+              }
+            ]
+          },
+          {
+            "doc": "Always fails while storing.",
+            "inputs": [],
+            "isConstructor": false,
+            "name": "store",
+            "outputs": [
+              {
+                "error": {
+                  "name": "StoreError",
+                  "type": "named"
+                },
+                "ok": "void",
+                "type": "result"
+              }
+            ]
+          }
+        ],
+        "provenance": "embedded",
+        "schemaVersion": 1,
+        "sdkVersion": "16.1.0",
+        "types": [],
+        "warnings": [],
+        "wasmHash": "213050ab0576cb1532135e92289e93235dea534a8bf9606a1577320e75d35954"
+      },
+      "cases": [
+        {
+          "name": "enter valid 0",
+          "function": "enter",
+          "args": {},
+          "expected": {
+            "ok": true,
+            "argsXdr": []
+          }
+        },
+        {
+          "name": "enter valid 1",
+          "function": "enter",
+          "args": {},
+          "expected": {
+            "ok": true,
+            "argsXdr": []
+          }
+        },
+        {
+          "name": "store valid 0",
+          "function": "store",
+          "args": {},
+          "expected": {
+            "ok": true,
+            "argsXdr": []
+          }
+        },
+        {
+          "name": "store valid 1",
+          "function": "store",
+          "args": {},
+          "expected": {
+            "ok": true,
+            "argsXdr": []
+          }
+        }
+      ]
+    },
+    {
+      "fixture": "packages/spec/fixtures/events.wasm",
+      "name": "events",
+      "wasmHash": "061e6aaae907d479b33634cd26962d001f5d24fc9992a489aa809366f62c05a4",
+      "specJson": {
+        "build": {
+          "entries": {
+            "rssdk_spec_shaking": "2",
+            "rssdkver": "28.0.0#48d506712f964094d14176e2f0b02afcd1054567",
+            "rsver": "1.97.1"
+          },
+          "rustVersion": "1.97.1",
+          "sdkVersion": "28.0.0#48d506712f964094d14176e2f0b02afcd1054567"
+        },
+        "entriesXdr": [
+          "AAAABQAAACBBIHRyYW5zZmVyIGJldHdlZW4gdHdvIGFjY291bnRzLgAAAAAAAAAIVHJhbnNmZXIAAAABAAAACHRyYW5zZmVyAAAAAwAAAAtUaGUgc2VuZGVyLgAAAAAEZnJvbQAAABMAAAABAAAADlRoZSByZWNpcGllbnQuAAAAAAACdG8AAAAAABMAAAABAAAAD0hvdyBtdWNoIG1vdmVkLgAAAAAGYW1vdW50AAAAAAALAAAAAAAAAAI=",
+          "AAAABQAAABxBIGNoZWNrcG9pbnQgd2l0aCBubyB0b3BpY3MuAAAAAAAAAApDaGVja3BvaW50AAAAAAABAAAACmNoZWNrcG9pbnQAAAAAAAIAAAAaTW9ub3RvbmljIHNlcXVlbmNlIG51bWJlci4AAAAAAANzZXEAAAAABAAAAAAAAAATSHVtYW4tcmVhZGFibGUgdGFnLgAAAAADdGFnAAAAABEAAAAAAAAAAg==",
+          "AAAAAAAAABtQdWJsaXNoZXMgYSB0cmFuc2ZlciBldmVudC4AAAAABHNlbmQAAAADAAAAAAAAAARmcm9tAAAAEwAAAAAAAAACdG8AAAAAABMAAAAAAAAABmFtb3VudAAAAAAACwAAAAA=",
+          "AAAAAAAAAB1QdWJsaXNoZXMgYSBjaGVja3BvaW50IGV2ZW50LgAAAAAAAAVjaGVjawAAAAAAAAIAAAAAAAAAA3NlcQAAAAAEAAAAAAAAAAN0YWcAAAAAEQAAAAA="
+        ],
+        "env": {
+          "preRelease": 0,
+          "protocolVersion": 28
+        },
+        "errors": [],
+        "events": [],
+        "functions": [
+          {
+            "doc": "Publishes a transfer event.",
+            "inputs": [
+              {
+                "doc": "",
+                "name": "from",
+                "type": "address"
+              },
+              {
+                "doc": "",
+                "name": "to",
+                "type": "address"
+              },
+              {
+                "doc": "",
+                "name": "amount",
+                "type": "i128"
+              }
+            ],
+            "isConstructor": false,
+            "name": "send",
+            "outputs": []
+          },
+          {
+            "doc": "Publishes a checkpoint event.",
+            "inputs": [
+              {
+                "doc": "",
+                "name": "seq",
+                "type": "u32"
+              },
+              {
+                "doc": "",
+                "name": "tag",
+                "type": "symbol"
+              }
+            ],
+            "isConstructor": false,
+            "name": "check",
+            "outputs": []
+          }
+        ],
+        "provenance": "embedded",
+        "schemaVersion": 1,
+        "sdkVersion": "16.1.0",
+        "types": [],
+        "warnings": [],
+        "wasmHash": "061e6aaae907d479b33634cd26962d001f5d24fc9992a489aa809366f62c05a4"
+      },
+      "cases": [
+        {
+          "name": "send valid 0",
+          "function": "send",
+          "args": {
+            "from": "GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN",
+            "to": "GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN",
+            "amount": "-1000000000000000000000"
+          },
+          "expected": {
+            "ok": true,
+            "argsXdr": [
+              "AAAAEgAAAAAAAAAAO5kROA7+mIugqJAOsc/kTzZvfb6Ua+0HckD39iTfFcU=",
+              "AAAAEgAAAAAAAAAAO5kROA7+mIugqJAOsc/kTzZvfb6Ua+0HckD39iTfFcU=",
+              "AAAACv/////////JyjZSOiFgAAA="
+            ]
+          }
+        },
+        {
+          "name": "send valid 1",
+          "function": "send",
+          "args": {
+            "from": "CASFJHI5PQSRWS7JV25CF7FOMRKIVBP3RXRP3E2GH2CV4BCAG7FUJRCN",
+            "to": "CASFJHI5PQSRWS7JV25CF7FOMRKIVBP3RXRP3E2GH2CV4BCAG7FUJRCN",
+            "amount": "170141183460469231731687303715884105727"
+          },
+          "expected": {
+            "ok": true,
+            "argsXdr": [
+              "AAAAEgAAAAEkVJ0dfCUbS+muuiL8rmRUioX7jeL9k0Y+hV4EQDfLRA==",
+              "AAAAEgAAAAEkVJ0dfCUbS+muuiL8rmRUioX7jeL9k0Y+hV4EQDfLRA==",
+              "AAAACn////////////////////8="
+            ]
+          }
+        },
+        {
+          "name": "send wrong from",
+          "function": "send",
+          "args": {
+            "from": 5,
+            "to": "GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN",
+            "amount": "-1000000000000000000000"
+          },
+          "expected": {
+            "ok": false,
+            "reason": "invalid type ([object Object]) specified for integer"
+          }
+        },
+        {
+          "name": "send wrong to",
+          "function": "send",
+          "args": {
+            "from": "GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN",
+            "to": 5,
+            "amount": "-1000000000000000000000"
+          },
+          "expected": {
+            "ok": false,
+            "reason": "invalid type ([object Object]) specified for integer"
+          }
+        },
+        {
+          "name": "send wrong amount",
+          "function": "send",
+          "args": {
+            "from": "GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN",
+            "to": "GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN",
+            "amount": {
+              "not": "this"
+            }
+          },
+          "expected": {
+            "ok": false,
+            "reason": "Received object [object Object]  did not match the provided type [object Object]"
+          }
+        },
+        {
+          "name": "send missing from",
+          "function": "send",
+          "args": {
+            "to": "GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN",
+            "amount": "-1000000000000000000000"
+          },
+          "expected": {
+            "ok": false,
+            "reason": "Missing field from"
+          }
+        },
+        {
+          "name": "check valid 0",
+          "function": "check",
+          "args": {
+            "seq": 7,
+            "tag": "sym"
+          },
+          "expected": {
+            "ok": true,
+            "argsXdr": [
+              "AAAAAwAAAAc=",
+              "AAAADwAAAANzeW0A"
+            ]
+          }
+        },
+        {
+          "name": "check valid 1",
+          "function": "check",
+          "args": {
+            "seq": 4294967295,
+            "tag": "a_longer_symbol"
+          },
+          "expected": {
+            "ok": true,
+            "argsXdr": [
+              "AAAAA/////8=",
+              "AAAADwAAAA9hX2xvbmdlcl9zeW1ib2wA"
+            ]
+          }
+        },
+        {
+          "name": "check wrong seq",
+          "function": "check",
+          "args": {
+            "seq": 4294967296,
+            "tag": "sym"
+          },
+          "expected": {
+            "ok": false,
+            "reason": "Value 4294967296 is out of range for U32"
+          }
+        },
+        {
+          "name": "check wrong tag",
+          "function": "check",
+          "args": {
+            "seq": 7,
+            "tag": 5
+          },
+          "expected": {
+            "ok": false,
+            "reason": "invalid type ([object Object]) specified for integer"
+          }
+        },
+        {
+          "name": "check missing seq",
+          "function": "check",
+          "args": {
+            "tag": "sym"
+          },
+          "expected": {
+            "ok": false,
+            "reason": "Missing field seq"
+          }
+        }
+      ]
+    },
+    {
+      "fixture": "packages/spec/fixtures/identity-registry.wasm",
+      "name": "identity-registry",
+      "wasmHash": "936996c74b7d383c56ec174857b15927cdd29478c6909da332b4dec8b67335fe",
+      "specJson": {
+        "build": {
+          "entries": {
+            "rssdkver": "26.1.0#175aa41306f383057a8cdfc84b68d931664fc34e",
+            "rsver": "1.91.1"
+          },
+          "rustVersion": "1.91.1",
+          "sdkVersion": "26.1.0#175aa41306f383057a8cdfc84b68d931664fc34e"
+        },
+        "entriesXdr": [
+          "AAAABAAAAAAAAAAAAAAABUVycm9yAAAAAAAABwAAAAAAAAASQWxyZWFkeUluaXRpYWxpemVkAAAAAAABAAAAAAAAAA5Ob3RJbml0aWFsaXplZAAAAAAAAgAAAAAAAAALSGFuZGxlVGFrZW4AAAAAAwAAAAAAAAAOSGFuZGxlTm90Rm91bmQAAAAAAAQAAAAAAAAACE5vdE93bmVyAAAABQAAAAAAAAANSW52YWxpZEhhbmRsZQAAAAAAAAYAAAAAAAAAEldhbGxldEFscmVhZHlCb3VuZAAAAAAABw==",
+          "AAAAAAAAALhCaW5kIGBoYW5kbGVgIHRvIGB3YWxsZXRgLiBSZXF1aXJlcyB0aGUgd2FsbGV0J3MgYXV0aG9yaXphdGlvbiwgd2hpY2gKaXMgdGhlIGNyeXB0b2dyYXBoaWMgcHJvb2Ygb2Ygb3duZXJzaGlwLiBGYWlscyBpZiB0aGUgaGFuZGxlIGlzIGFscmVhZHkKdGFrZW4gb3IgdGhlIHdhbGxldCBhbHJlYWR5IG93bnMgYSBoYW5kbGUuAAAABWNsYWltAAAAAAAAAgAAAAAAAAAGaGFuZGxlAAAAAAAQAAAAAAAAAAZ3YWxsZXQAAAAAABMAAAABAAAD6QAAAAIAAAAD",
+          "AAAAAAAAAEhOdW1iZXIgb2YgY3VycmVudGx5LWJvdW5kIGhhbmRsZXMuIE8oMSk7IGVudW1lcmF0ZSB2aWEgdGhlIGV2ZW50IHN0cmVhbS4AAAAFY291bnQAAAAAAAAAAAAAAQAAAAQ=",
+          "AAAAAAAAADFSZXZlcnNlIGxvb2t1cDogdGhlIGhhbmRsZSBhIHdhbGxldCBvd25zLCBpZiBhbnkuAAAAAAAABmxvb2t1cAAAAAAAAQAAAAAAAAAGd2FsbGV0AAAAAAATAAAAAQAAA+gAAAAQ",
+          "AAAAAAAAADdSZWxlYXNlIGEgaGFuZGxlLiBPbmx5IHRoZSBvd25pbmcgd2FsbGV0IG1heSBjYWxsIHRoaXMuAAAAAAdyZWxlYXNlAAAAAAEAAAAAAAAABmhhbmRsZQAAAAAAEAAAAAEAAAPpAAAAAgAAAAM=",
+          "AAAAAAAAADBSZXNvbHZlIGEgaGFuZGxlIHRvIGl0cyBvd25pbmcgd2FsbGV0LCBpZiBib3VuZC4AAAAHcmVzb2x2ZQAAAAABAAAAAAAAAAZoYW5kbGUAAAAAABAAAAABAAAD6AAAABM=",
+          "AAAAAAAAACRXaGV0aGVyIGEgaGFuZGxlIGlzIGN1cnJlbnRseSBib3VuZC4AAAAIaXNfYm91bmQAAAABAAAAAAAAAAZoYW5kbGUAAAAAABAAAAABAAAAAQ==",
+          "AAAAAAAAAD5PbmUtdGltZSBzZXR1cC4gUmVjb3JkcyB0aGUgYWRtaW4gdXNlZCBmb3IgbW9kZXJhdGlvbiBhY3Rpb25zLgAAAAAACmluaXRpYWxpemUAAAAAAAEAAAAAAAAABWFkbWluAAAAAAAAEwAAAAEAAAPpAAAAAgAAAAM=",
+          "AAAAAAAAADtGb3JjZS1yZW1vdmUgYSBiaW5kaW5nLiBBZG1pbi1vbmx5IG1vZGVyYXRpb24gZXNjYXBlIGhhdGNoLgAAAAAMYWRtaW5fcmV2b2tlAAAAAQAAAAAAAAAGaGFuZGxlAAAAAAAQAAAAAQAAA+kAAAACAAAAAw=="
+        ],
+        "env": {
+          "preRelease": 0,
+          "protocolVersion": 26
+        },
+        "errors": [
+          {
+            "doc": "",
+            "enumName": "Error",
+            "name": "AlreadyInitialized",
+            "value": 1
+          },
+          {
+            "doc": "",
+            "enumName": "Error",
+            "name": "NotInitialized",
+            "value": 2
+          },
+          {
+            "doc": "",
+            "enumName": "Error",
+            "name": "HandleTaken",
+            "value": 3
+          },
+          {
+            "doc": "",
+            "enumName": "Error",
+            "name": "HandleNotFound",
+            "value": 4
+          },
+          {
+            "doc": "",
+            "enumName": "Error",
+            "name": "NotOwner",
+            "value": 5
+          },
+          {
+            "doc": "",
+            "enumName": "Error",
+            "name": "InvalidHandle",
+            "value": 6
+          },
+          {
+            "doc": "",
+            "enumName": "Error",
+            "name": "WalletAlreadyBound",
+            "value": 7
+          }
+        ],
+        "events": [],
+        "functions": [
+          {
+            "doc": "Bind `handle` to `wallet`. Requires the wallet's authorization, which\nis the cryptographic proof of ownership. Fails if the handle is already\ntaken or the wallet already owns a handle.",
+            "inputs": [
+              {
+                "doc": "",
+                "name": "handle",
+                "type": "string"
+              },
+              {
+                "doc": "",
+                "name": "wallet",
+                "type": "address"
+              }
+            ],
+            "isConstructor": false,
+            "name": "claim",
+            "outputs": [
+              {
+                "error": "error",
+                "ok": "void",
+                "type": "result"
+              }
+            ]
+          },
+          {
+            "doc": "Number of currently-bound handles. O(1); enumerate via the event stream.",
+            "inputs": [],
+            "isConstructor": false,
+            "name": "count",
+            "outputs": [
+              "u32"
+            ]
+          },
+          {
+            "doc": "Reverse lookup: the handle a wallet owns, if any.",
+            "inputs": [
+              {
+                "doc": "",
+                "name": "wallet",
+                "type": "address"
+              }
+            ],
+            "isConstructor": false,
+            "name": "lookup",
+            "outputs": [
+              {
+                "type": "option",
+                "value": "string"
+              }
+            ]
+          },
+          {
+            "doc": "Release a handle. Only the owning wallet may call this.",
+            "inputs": [
+              {
+                "doc": "",
+                "name": "handle",
+                "type": "string"
+              }
+            ],
+            "isConstructor": false,
+            "name": "release",
+            "outputs": [
+              {
+                "error": "error",
+                "ok": "void",
+                "type": "result"
+              }
+            ]
+          },
+          {
+            "doc": "Resolve a handle to its owning wallet, if bound.",
+            "inputs": [
+              {
+                "doc": "",
+                "name": "handle",
+                "type": "string"
+              }
+            ],
+            "isConstructor": false,
+            "name": "resolve",
+            "outputs": [
+              {
+                "type": "option",
+                "value": "address"
+              }
+            ]
+          },
+          {
+            "doc": "Whether a handle is currently bound.",
+            "inputs": [
+              {
+                "doc": "",
+                "name": "handle",
+                "type": "string"
+              }
+            ],
+            "isConstructor": false,
+            "name": "is_bound",
+            "outputs": [
+              "bool"
+            ]
+          },
+          {
+            "doc": "One-time setup. Records the admin used for moderation actions.",
+            "inputs": [
+              {
+                "doc": "",
+                "name": "admin",
+                "type": "address"
+              }
+            ],
+            "isConstructor": false,
+            "name": "initialize",
+            "outputs": [
+              {
+                "error": "error",
+                "ok": "void",
+                "type": "result"
+              }
+            ]
+          },
+          {
+            "doc": "Force-remove a binding. Admin-only moderation escape hatch.",
+            "inputs": [
+              {
+                "doc": "",
+                "name": "handle",
+                "type": "string"
+              }
+            ],
+            "isConstructor": false,
+            "name": "admin_revoke",
+            "outputs": [
+              {
+                "error": "error",
+                "ok": "void",
+                "type": "result"
+              }
+            ]
+          }
+        ],
+        "provenance": "embedded",
+        "schemaVersion": 1,
+        "sdkVersion": "16.1.0",
+        "types": [],
+        "warnings": [],
+        "wasmHash": "936996c74b7d383c56ec174857b15927cdd29478c6909da332b4dec8b67335fe"
+      },
+      "cases": [
+        {
+          "name": "claim valid 0",
+          "function": "claim",
+          "args": {
+            "handle": "hello",
+            "wallet": "GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN"
+          },
+          "expected": {
+            "ok": true,
+            "argsXdr": [
+              "AAAADgAAAAVoZWxsbwAAAA==",
+              "AAAAEgAAAAAAAAAAO5kROA7+mIugqJAOsc/kTzZvfb6Ua+0HckD39iTfFcU="
+            ]
+          }
+        },
+        {
+          "name": "claim valid 1",
+          "function": "claim",
+          "args": {
+            "handle": "héllo wörld",
+            "wallet": "CASFJHI5PQSRWS7JV25CF7FOMRKIVBP3RXRP3E2GH2CV4BCAG7FUJRCN"
+          },
+          "expected": {
+            "ok": true,
+            "argsXdr": [
+              "AAAADgAAAA1ow6lsbG8gd8O2cmxkAAAA",
+              "AAAAEgAAAAEkVJ0dfCUbS+muuiL8rmRUioX7jeL9k0Y+hV4EQDfLRA=="
+            ]
+          }
+        },
+        {
+          "name": "claim wrong handle",
+          "function": "claim",
+          "args": {
+            "handle": 5,
+            "wallet": "GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN"
+          },
+          "expected": {
+            "ok": false,
+            "reason": "invalid type ([object Object]) specified for integer"
+          }
+        },
+        {
+          "name": "claim wrong wallet",
+          "function": "claim",
+          "args": {
+            "handle": "hello",
+            "wallet": 5
+          },
+          "expected": {
+            "ok": false,
+            "reason": "invalid type ([object Object]) specified for integer"
+          }
+        },
+        {
+          "name": "claim missing handle",
+          "function": "claim",
+          "args": {
+            "wallet": "GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN"
+          },
+          "expected": {
+            "ok": false,
+            "reason": "Missing field handle"
+          }
+        },
+        {
+          "name": "count valid 0",
+          "function": "count",
+          "args": {},
+          "expected": {
+            "ok": true,
+            "argsXdr": []
+          }
+        },
+        {
+          "name": "count valid 1",
+          "function": "count",
+          "args": {},
+          "expected": {
+            "ok": true,
+            "argsXdr": []
+          }
+        },
+        {
+          "name": "lookup valid 0",
+          "function": "lookup",
+          "args": {
+            "wallet": "GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN"
+          },
+          "expected": {
+            "ok": true,
+            "argsXdr": [
+              "AAAAEgAAAAAAAAAAO5kROA7+mIugqJAOsc/kTzZvfb6Ua+0HckD39iTfFcU="
+            ]
+          }
+        },
+        {
+          "name": "lookup valid 1",
+          "function": "lookup",
+          "args": {
+            "wallet": "CASFJHI5PQSRWS7JV25CF7FOMRKIVBP3RXRP3E2GH2CV4BCAG7FUJRCN"
+          },
+          "expected": {
+            "ok": true,
+            "argsXdr": [
+              "AAAAEgAAAAEkVJ0dfCUbS+muuiL8rmRUioX7jeL9k0Y+hV4EQDfLRA=="
+            ]
+          }
+        },
+        {
+          "name": "lookup wrong wallet",
+          "function": "lookup",
+          "args": {
+            "wallet": 5
+          },
+          "expected": {
+            "ok": false,
+            "reason": "invalid type ([object Object]) specified for integer"
+          }
+        },
+        {
+          "name": "lookup missing wallet",
+          "function": "lookup",
+          "args": {},
+          "expected": {
+            "ok": false,
+            "reason": "Missing field wallet"
+          }
+        },
+        {
+          "name": "release valid 0",
+          "function": "release",
+          "args": {
+            "handle": "hello"
+          },
+          "expected": {
+            "ok": true,
+            "argsXdr": [
+              "AAAADgAAAAVoZWxsbwAAAA=="
+            ]
+          }
+        },
+        {
+          "name": "release valid 1",
+          "function": "release",
+          "args": {
+            "handle": "héllo wörld"
+          },
+          "expected": {
+            "ok": true,
+            "argsXdr": [
+              "AAAADgAAAA1ow6lsbG8gd8O2cmxkAAAA"
+            ]
+          }
+        },
+        {
+          "name": "release wrong handle",
+          "function": "release",
+          "args": {
+            "handle": 5
+          },
+          "expected": {
+            "ok": false,
+            "reason": "invalid type ([object Object]) specified for integer"
+          }
+        },
+        {
+          "name": "release missing handle",
+          "function": "release",
+          "args": {},
+          "expected": {
+            "ok": false,
+            "reason": "Missing field handle"
+          }
+        },
+        {
+          "name": "resolve valid 0",
+          "function": "resolve",
+          "args": {
+            "handle": "hello"
+          },
+          "expected": {
+            "ok": true,
+            "argsXdr": [
+              "AAAADgAAAAVoZWxsbwAAAA=="
+            ]
+          }
+        },
+        {
+          "name": "resolve valid 1",
+          "function": "resolve",
+          "args": {
+            "handle": "héllo wörld"
+          },
+          "expected": {
+            "ok": true,
+            "argsXdr": [
+              "AAAADgAAAA1ow6lsbG8gd8O2cmxkAAAA"
+            ]
+          }
+        },
+        {
+          "name": "resolve wrong handle",
+          "function": "resolve",
+          "args": {
+            "handle": 5
+          },
+          "expected": {
+            "ok": false,
+            "reason": "invalid type ([object Object]) specified for integer"
+          }
+        },
+        {
+          "name": "resolve missing handle",
+          "function": "resolve",
+          "args": {},
+          "expected": {
+            "ok": false,
+            "reason": "Missing field handle"
+          }
+        },
+        {
+          "name": "is_bound valid 0",
+          "function": "is_bound",
+          "args": {
+            "handle": "hello"
+          },
+          "expected": {
+            "ok": true,
+            "argsXdr": [
+              "AAAADgAAAAVoZWxsbwAAAA=="
+            ]
+          }
+        },
+        {
+          "name": "is_bound valid 1",
+          "function": "is_bound",
+          "args": {
+            "handle": "héllo wörld"
+          },
+          "expected": {
+            "ok": true,
+            "argsXdr": [
+              "AAAADgAAAA1ow6lsbG8gd8O2cmxkAAAA"
+            ]
+          }
+        },
+        {
+          "name": "is_bound wrong handle",
+          "function": "is_bound",
+          "args": {
+            "handle": 5
+          },
+          "expected": {
+            "ok": false,
+            "reason": "invalid type ([object Object]) specified for integer"
+          }
+        },
+        {
+          "name": "is_bound missing handle",
+          "function": "is_bound",
+          "args": {},
+          "expected": {
+            "ok": false,
+            "reason": "Missing field handle"
+          }
+        },
+        {
+          "name": "initialize valid 0",
+          "function": "initialize",
+          "args": {
+            "admin": "GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN"
+          },
+          "expected": {
+            "ok": true,
+            "argsXdr": [
+              "AAAAEgAAAAAAAAAAO5kROA7+mIugqJAOsc/kTzZvfb6Ua+0HckD39iTfFcU="
+            ]
+          }
+        },
+        {
+          "name": "initialize valid 1",
+          "function": "initialize",
+          "args": {
+            "admin": "CASFJHI5PQSRWS7JV25CF7FOMRKIVBP3RXRP3E2GH2CV4BCAG7FUJRCN"
+          },
+          "expected": {
+            "ok": true,
+            "argsXdr": [
+              "AAAAEgAAAAEkVJ0dfCUbS+muuiL8rmRUioX7jeL9k0Y+hV4EQDfLRA=="
+            ]
+          }
+        },
+        {
+          "name": "initialize wrong admin",
+          "function": "initialize",
+          "args": {
+            "admin": 5
+          },
+          "expected": {
+            "ok": false,
+            "reason": "invalid type ([object Object]) specified for integer"
+          }
+        },
+        {
+          "name": "initialize missing admin",
+          "function": "initialize",
+          "args": {},
+          "expected": {
+            "ok": false,
+            "reason": "Missing field admin"
+          }
+        },
+        {
+          "name": "admin_revoke valid 0",
+          "function": "admin_revoke",
+          "args": {
+            "handle": "hello"
+          },
+          "expected": {
+            "ok": true,
+            "argsXdr": [
+              "AAAADgAAAAVoZWxsbwAAAA=="
+            ]
+          }
+        },
+        {
+          "name": "admin_revoke valid 1",
+          "function": "admin_revoke",
+          "args": {
+            "handle": "héllo wörld"
+          },
+          "expected": {
+            "ok": true,
+            "argsXdr": [
+              "AAAADgAAAA1ow6lsbG8gd8O2cmxkAAAA"
+            ]
+          }
+        },
+        {
+          "name": "admin_revoke wrong handle",
+          "function": "admin_revoke",
+          "args": {
+            "handle": 5
+          },
+          "expected": {
+            "ok": false,
+            "reason": "invalid type ([object Object]) specified for integer"
+          }
+        },
+        {
+          "name": "admin_revoke missing handle",
+          "function": "admin_revoke",
+          "args": {},
+          "expected": {
+            "ok": false,
+            "reason": "Missing field handle"
+          }
+        }
+      ]
+    },
+    {
+      "fixture": "packages/spec/fixtures/types_zoo.wasm",
+      "name": "types_zoo",
+      "wasmHash": "02ef70d0c788ab498217f3f38d234575a01622d9c166af443c7d8dc6a245ab7d",
+      "specJson": {
+        "build": {
+          "entries": {
+            "rssdk_spec_shaking": "2",
+            "rssdkver": "28.0.0#48d506712f964094d14176e2f0b02afcd1054567",
+            "rsver": "1.97.1"
+          },
+          "rustVersion": "1.97.1",
+          "sdkVersion": "28.0.0#48d506712f964094d14176e2f0b02afcd1054567"
+        },
+        "entriesXdr": [
+          "AAAAAwAAACtVbml0LW9ubHkgdmFyaWFudHM6IGVtaXR0ZWQgYXMgYSBzcGVjIGVudW0uAAAAAAAAAAAFQ29sb3IAAAAAAAACAAAADlRoZSBjb2xvciByZWQuAAAAAAADUmVkAAAAAAEAAAAQVGhlIGNvbG9yIGdyZWVuLgAAAAVHcmVlbgAAAAAAAAI=",
+          "AAAAAgAAAChUdXBsZSB2YXJpYW50czogZW1pdHRlZCBhcyBhIHNwZWMgdW5pb24uAAAAAAAAAAVTaGFwZQAAAAAAAAIAAAABAAAAFUEgcG9pbnQgaW4gdGhlIHBsYW5lLgAAAAAAAAVQb2ludAAAAAAAAAIAAAAEAAAABAAAAAAAAAAPTm90aGluZyBhdCBhbGwuAAAAAAVFbXB0eQAAAA==",
+          "AAAAAQAAACNUb3Agb2YgYSB0aHJlZS1sZXZlbCBuZXN0aW5nIGNoYWluLgAAAAAAAAAABkxldmVsMQAAAAAAAQAAABBUaGUgbGV2ZWwgYmVsb3cuAAAABWlubmVyAAAAAAAH0AAAAAZMZXZlbDIAAA==",
+          "AAAAAQAAABVTZWNvbmQgbmVzdGluZyBsZXZlbC4AAAAAAAAAAAAABkxldmVsMgAAAAAAAQAAABBUaGUgbGV2ZWwgYmVsb3cuAAAABWlubmVyAAAAAAAH0AAAAAZMZXZlbDMAAA==",
+          "AAAAAQAAABRUaGlyZCBuZXN0aW5nIGxldmVsLgAAAAAAAAAGTGV2ZWwzAAAAAAABAAAAFUEgcGxhaW4gaW50ZWdlciBsZWFmLgAAAAAAAAV2YWx1ZQAAAAAAAAQ=",
+          "AAAABAAAACpUaGUgZXJyb3Igc2V0IGZvciB0aGUgZmFsbGlibGUgZGVtbyBiZWxvdy4AAAAAAAAAAAAIWm9vRXJyb3IAAAABAAAAG1RoZSBpbnB1dCB3YXMgb3V0IG9mIHJhbmdlLgAAAAAKT3V0T2ZSYW5nZQAAAAAAAQ==",
+          "AAAAAAAAABpFY2hvZXMgYW4gYWNjb3VudCBhZGRyZXNzLgAAAAAAA3dobwAAAAABAAAAAAAAAAN3aG8AAAAAEwAAAAEAAAAT",
+          "AAAAAAAAABFFY2hvZXMgYSBib29sZWFuLgAAAAAAAARmbGlwAAAAAQAAAAAAAAABdgAAAAAAAAEAAAABAAAAAQ==",
+          "AAAAAAAAAC1FY2hvZXMgZXZlcnkgaW50ZWdlciB3aWR0aCB0aGUgc3BlYyBzdXBwb3J0cy4AAAAAAAAEaW50cwAAAAgAAAAAAAAAAWEAAAAAAAAEAAAAAAAAAAFiAAAAAAAABQAAAAAAAAABYwAAAAAAAAYAAAAAAAAAAWQAAAAAAAAHAAAAAAAAAAFlAAAAAAAACgAAAAAAAAABZgAAAAAAAAsAAAAAAAAAAWcAAAAAAAAMAAAAAAAAAAFoAAAAAAAADQAAAAEAAAAE",
+          "AAAAAAAAABBFY2hvZXMgYSB2ZWN0b3IuAAAABG1hbnkAAAABAAAAAAAAAAF2AAAAAAAD6gAAAAQAAAABAAAD6gAAAAQ=",
+          "AAAAAAAAACVSZXR1cm5zIG5vdGhpbmc6IHRoZSB2b2lkIG91dHB1dCBhcm0uAAAAAAAABG5vb3AAAAAAAAAAAA==",
+          "AAAAAAAAABxFY2hvZXMgYSBoZXRlcm9nZW5lb3VzIHBhaXIuAAAABHBhaXIAAAABAAAAAAAAAAFwAAAAAAAD7QAAAAIAAAAEAAAAEQAAAAEAAAPtAAAAAgAAAAQAAAAR",
+          "AAAAAAAAAB5FY2hvZXMgbGVkZ2VyLXRpbWUgcHJpbWl0aXZlcy4AAAAAAAR3aGVuAAAAAgAAAAAAAAACYXQAAAAAAAgAAAAAAAAABWxhc3RzAAAAAAAACQAAAAEAAAAI",
+          "AAAAAAAAACJFY2hvZXMgdGV4dCBhbmQgYmluYXJ5IHByaW1pdGl2ZXMuAAAAAAAFYmxvYnMAAAAAAAAEAAAAAAAAAAFzAAAAAAAAEAAAAAAAAAADc3ltAAAAABEAAAAAAAAAAWIAAAAAAAAOAAAAAAAAAAVmaXhlZAAAAAAAA+4AAAAgAAAAAQAAAA4=",
+          "AAAAAAAAABlFY2hvZXMgYW4gb3B0aW9uYWwgdmFsdWUuAAAAAAAABW1heWJlAAAAAAAAAQAAAAAAAAABdgAAAAAAA+gAAAAEAAAAAQAAA+gAAAAE",
+          "AAAAAAAAABVFY2hvZXMgdGhlIHVuaXQgZW51bS4AAAAAAAAFcGFpbnQAAAAAAAABAAAAAAAAAAFjAAAAAAAH0AAAAAVDb2xvcgAAAAAAAAEAAAfQAAAABUNvbG9yAAAA",
+          "AAAAAAAAABZFY2hvZXMgdGhlIHR1cGxlIGVudW0uAAAAAAAFc2hhcGUAAAAAAAABAAAAAAAAAAFzAAAAAAAH0AAAAAVTaGFwZQAAAAAAAAEAAAfQAAAABVNoYXBlAAAA",
+          "AAAAAAAAAA1FY2hvZXMgYSBtYXAuAAAAAAAABmxvb2t1cAAAAAAAAQAAAAAAAAABbQAAAAAAA+wAAAARAAAABAAAAAEAAAPsAAAAEQAAAAQ=",
+          "AAAAAAAAAB5FY2hvZXMgdGhlIHRocmVlLWxldmVsIHN0cnVjdC4AAAAAAAZuZXN0ZWQAAAAAAAEAAAAAAAAAAXYAAAAAAAfQAAAABkxldmVsMQAAAAAAAQAAB9AAAAAGTGV2ZWwxAAA=",
+          "AAAAAAAAABhFY2hvZXMgYSBmYWxsaWJsZSB2YWx1ZS4AAAAIZmFsbGlibGUAAAABAAAAAAAAAAF2AAAAAAAD6QAAAAQAAAfQAAAACFpvb0Vycm9yAAAAAQAAA+kAAAAEAAAH0AAAAAhab29FcnJvcg=="
+        ],
+        "env": {
+          "preRelease": 0,
+          "protocolVersion": 28
+        },
+        "errors": [
+          {
+            "doc": "The input was out of range.",
+            "enumName": "ZooError",
+            "name": "OutOfRange",
+            "value": 1
+          }
+        ],
+        "events": [],
+        "functions": [
+          {
+            "doc": "Echoes an account address.",
+            "inputs": [
+              {
+                "doc": "",
+                "name": "who",
+                "type": "address"
+              }
+            ],
+            "isConstructor": false,
+            "name": "who",
+            "outputs": [
+              "address"
+            ]
+          },
+          {
+            "doc": "Echoes a boolean.",
+            "inputs": [
+              {
+                "doc": "",
+                "name": "v",
+                "type": "bool"
+              }
+            ],
+            "isConstructor": false,
+            "name": "flip",
+            "outputs": [
+              "bool"
+            ]
+          },
+          {
+            "doc": "Echoes every integer width the spec supports.",
+            "inputs": [
+              {
+                "doc": "",
+                "name": "a",
+                "type": "u32"
+              },
+              {
+                "doc": "",
+                "name": "b",
+                "type": "i32"
+              },
+              {
+                "doc": "",
+                "name": "c",
+                "type": "u64"
+              },
+              {
+                "doc": "",
+                "name": "d",
+                "type": "i64"
+              },
+              {
+                "doc": "",
+                "name": "e",
+                "type": "u128"
+              },
+              {
+                "doc": "",
+                "name": "f",
+                "type": "i128"
+              },
+              {
+                "doc": "",
+                "name": "g",
+                "type": "u256"
+              },
+              {
+                "doc": "",
+                "name": "h",
+                "type": "i256"
+              }
+            ],
+            "isConstructor": false,
+            "name": "ints",
+            "outputs": [
+              "u32"
+            ]
+          },
+          {
+            "doc": "Echoes a vector.",
+            "inputs": [
+              {
+                "doc": "",
+                "name": "v",
+                "type": {
+                  "element": "u32",
+                  "type": "vec"
+                }
+              }
+            ],
+            "isConstructor": false,
+            "name": "many",
+            "outputs": [
+              {
+                "element": "u32",
+                "type": "vec"
+              }
+            ]
+          },
+          {
+            "doc": "Returns nothing: the void output arm.",
+            "inputs": [],
+            "isConstructor": false,
+            "name": "noop",
+            "outputs": []
+          },
+          {
+            "doc": "Echoes a heterogeneous pair.",
+            "inputs": [
+              {
+                "doc": "",
+                "name": "p",
+                "type": {
+                  "elements": [
+                    "u32",
+                    "symbol"
+                  ],
+                  "type": "tuple"
+                }
+              }
+            ],
+            "isConstructor": false,
+            "name": "pair",
+            "outputs": [
+              {
+                "elements": [
+                  "u32",
+                  "symbol"
+                ],
+                "type": "tuple"
+              }
+            ]
+          },
+          {
+            "doc": "Echoes ledger-time primitives.",
+            "inputs": [
+              {
+                "doc": "",
+                "name": "at",
+                "type": "timepoint"
+              },
+              {
+                "doc": "",
+                "name": "lasts",
+                "type": "duration"
+              }
+            ],
+            "isConstructor": false,
+            "name": "when",
+            "outputs": [
+              "timepoint"
+            ]
+          },
+          {
+            "doc": "Echoes text and binary primitives.",
+            "inputs": [
+              {
+                "doc": "",
+                "name": "s",
+                "type": "string"
+              },
+              {
+                "doc": "",
+                "name": "sym",
+                "type": "symbol"
+              },
+              {
+                "doc": "",
+                "name": "b",
+                "type": "bytes"
+              },
+              {
+                "doc": "",
+                "name": "fixed",
+                "type": {
+                  "n": 32,
+                  "type": "bytes_n"
+                }
+              }
+            ],
+            "isConstructor": false,
+            "name": "blobs",
+            "outputs": [
+              "bytes"
+            ]
+          },
+          {
+            "doc": "Echoes an optional value.",
+            "inputs": [
+              {
+                "doc": "",
+                "name": "v",
+                "type": {
+                  "type": "option",
+                  "value": "u32"
+                }
+              }
+            ],
+            "isConstructor": false,
+            "name": "maybe",
+            "outputs": [
+              {
+                "type": "option",
+                "value": "u32"
+              }
+            ]
+          },
+          {
+            "doc": "Echoes the unit enum.",
+            "inputs": [
+              {
+                "doc": "",
+                "name": "c",
+                "type": {
+                  "name": "Color",
+                  "type": "named"
+                }
+              }
+            ],
+            "isConstructor": false,
+            "name": "paint",
+            "outputs": [
+              {
+                "name": "Color",
+                "type": "named"
+              }
+            ]
+          },
+          {
+            "doc": "Echoes the tuple enum.",
+            "inputs": [
+              {
+                "doc": "",
+                "name": "s",
+                "type": {
+                  "name": "Shape",
+                  "type": "named"
+                }
+              }
+            ],
+            "isConstructor": false,
+            "name": "shape",
+            "outputs": [
+              {
+                "name": "Shape",
+                "type": "named"
+              }
+            ]
+          },
+          {
+            "doc": "Echoes a map.",
+            "inputs": [
+              {
+                "doc": "",
+                "name": "m",
+                "type": {
+                  "key": "symbol",
+                  "type": "map",
+                  "value": "u32"
+                }
+              }
+            ],
+            "isConstructor": false,
+            "name": "lookup",
+            "outputs": [
+              {
+                "key": "symbol",
+                "type": "map",
+                "value": "u32"
+              }
+            ]
+          },
+          {
+            "doc": "Echoes the three-level struct.",
+            "inputs": [
+              {
+                "doc": "",
+                "name": "v",
+                "type": {
+                  "name": "Level1",
+                  "type": "named"
+                }
+              }
+            ],
+            "isConstructor": false,
+            "name": "nested",
+            "outputs": [
+              {
+                "name": "Level1",
+                "type": "named"
+              }
+            ]
+          },
+          {
+            "doc": "Echoes a fallible value.",
+            "inputs": [
+              {
+                "doc": "",
+                "name": "v",
+                "type": {
+                  "error": {
+                    "name": "ZooError",
+                    "type": "named"
+                  },
+                  "ok": "u32",
+                  "type": "result"
+                }
+              }
+            ],
+            "isConstructor": false,
+            "name": "fallible",
+            "outputs": [
+              {
+                "error": {
+                  "name": "ZooError",
+                  "type": "named"
+                },
+                "ok": "u32",
+                "type": "result"
+              }
+            ]
+          }
+        ],
+        "provenance": "embedded",
+        "schemaVersion": 1,
+        "sdkVersion": "16.1.0",
+        "types": [
+          {
+            "doc": "Unit-only variants: emitted as a spec enum.",
+            "kind": "enum",
+            "name": "Color",
+            "variants": [
+              {
+                "doc": "The color red.",
+                "name": "Red",
+                "value": 1
+              },
+              {
+                "doc": "The color green.",
+                "name": "Green",
+                "value": 2
+              }
+            ]
+          },
+          {
+            "cases": [
+              {
+                "doc": "A point in the plane.",
+                "fields": [
+                  {
+                    "name": "0",
+                    "type": "u32"
+                  },
+                  {
+                    "name": "1",
+                    "type": "u32"
+                  }
+                ],
+                "name": "Point"
+              },
+              {
+                "doc": "Nothing at all.",
+                "fields": [],
+                "name": "Empty"
+              }
+            ],
+            "doc": "Tuple variants: emitted as a spec union.",
+            "kind": "union",
+            "name": "Shape"
+          },
+          {
+            "doc": "Top of a three-level nesting chain.",
+            "fields": [
+              {
+                "doc": "The level below.",
+                "name": "inner",
+                "type": {
+                  "name": "Level2",
+                  "type": "named"
+                }
+              }
+            ],
+            "kind": "struct",
+            "name": "Level1"
+          },
+          {
+            "doc": "Second nesting level.",
+            "fields": [
+              {
+                "doc": "The level below.",
+                "name": "inner",
+                "type": {
+                  "name": "Level3",
+                  "type": "named"
+                }
+              }
+            ],
+            "kind": "struct",
+            "name": "Level2"
+          },
+          {
+            "doc": "Third nesting level.",
+            "fields": [
+              {
+                "doc": "A plain integer leaf.",
+                "name": "value",
+                "type": "u32"
+              }
+            ],
+            "kind": "struct",
+            "name": "Level3"
+          }
+        ],
+        "warnings": [],
+        "wasmHash": "02ef70d0c788ab498217f3f38d234575a01622d9c166af443c7d8dc6a245ab7d"
+      },
+      "cases": [
+        {
+          "name": "who valid 0",
+          "function": "who",
+          "args": {
+            "who": "GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN"
+          },
+          "expected": {
+            "ok": true,
+            "argsXdr": [
+              "AAAAEgAAAAAAAAAAO5kROA7+mIugqJAOsc/kTzZvfb6Ua+0HckD39iTfFcU="
+            ]
+          }
+        },
+        {
+          "name": "who valid 1",
+          "function": "who",
+          "args": {
+            "who": "CASFJHI5PQSRWS7JV25CF7FOMRKIVBP3RXRP3E2GH2CV4BCAG7FUJRCN"
+          },
+          "expected": {
+            "ok": true,
+            "argsXdr": [
+              "AAAAEgAAAAEkVJ0dfCUbS+muuiL8rmRUioX7jeL9k0Y+hV4EQDfLRA=="
+            ]
+          }
+        },
+        {
+          "name": "who wrong who",
+          "function": "who",
+          "args": {
+            "who": 5
+          },
+          "expected": {
+            "ok": false,
+            "reason": "invalid type ([object Object]) specified for integer"
+          }
+        },
+        {
+          "name": "who missing who",
+          "function": "who",
+          "args": {},
+          "expected": {
+            "ok": false,
+            "reason": "Missing field who"
+          }
+        },
+        {
+          "name": "flip valid 0",
+          "function": "flip",
+          "args": {
+            "v": true
+          },
+          "expected": {
+            "ok": true,
+            "argsXdr": [
+              "AAAAAAAAAAE="
+            ]
+          }
+        },
+        {
+          "name": "flip valid 1",
+          "function": "flip",
+          "args": {
+            "v": false
+          },
+          "expected": {
+            "ok": true,
+            "argsXdr": [
+              "AAAAAAAAAAA="
+            ]
+          }
+        },
+        {
+          "name": "flip wrong v",
+          "function": "flip",
+          "args": {
+            "v": "yes"
+          },
+          "expected": {
+            "ok": false,
+            "reason": "invalid type scSpecTypeBool specified for string value"
+          }
+        },
+        {
+          "name": "flip missing v",
+          "function": "flip",
+          "args": {},
+          "expected": {
+            "ok": false,
+            "reason": "Missing field v"
+          }
+        },
+        {
+          "name": "ints valid 0",
+          "function": "ints",
+          "args": {
+            "a": 7,
+            "b": -7,
+            "c": "1700000000",
+            "d": "-42",
+            "e": "1000000000000000000000",
+            "f": "-1000000000000000000000",
+            "g": "12345678901234567890123456789",
+            "h": "-12345678901234567890123456789"
+          },
+          "expected": {
+            "ok": true,
+            "argsXdr": [
+              "AAAAAwAAAAc=",
+              "AAAABP////k=",
+              "AAAABQAAAABlU/EA",
+              "AAAABv/////////W",
+              "AAAACQAAAAAAAAA2Ncmtxd6gAAA=",
+              "AAAACv/////////JyjZSOiFgAAA=",
+              "AAAACwAAAAAAAAAAAAAAAAAAAAAAAAAAJ+QbMka+ybFuOYEV",
+              "AAAADP//////////////////////////2BvkzblBNk6Rxn7r"
+            ]
+          }
+        },
+        {
+          "name": "ints valid 1",
+          "function": "ints",
+          "args": {
+            "a": 4294967295,
+            "b": 2147483647,
+            "c": "18446744073709551615",
+            "d": "9223372036854775807",
+            "e": "340282366920938463463374607431768211455",
+            "f": "170141183460469231731687303715884105727",
+            "g": "0",
+            "h": "0"
+          },
+          "expected": {
+            "ok": true,
+            "argsXdr": [
+              "AAAAA/////8=",
+              "AAAABH////8=",
+              "AAAABf//////////",
+              "AAAABn//////////",
+              "AAAACf////////////////////8=",
+              "AAAACn////////////////////8=",
+              "AAAACwAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+              "AAAADAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+            ]
+          }
+        },
+        {
+          "name": "ints wrong a",
+          "function": "ints",
+          "args": {
+            "a": 4294967296,
+            "b": -7,
+            "c": "1700000000",
+            "d": "-42",
+            "e": "1000000000000000000000",
+            "f": "-1000000000000000000000",
+            "g": "12345678901234567890123456789",
+            "h": "-12345678901234567890123456789"
+          },
+          "expected": {
+            "ok": false,
+            "reason": "Value 4294967296 is out of range for U32"
+          }
+        },
+        {
+          "name": "ints wrong b",
+          "function": "ints",
+          "args": {
+            "a": 7,
+            "b": "seven",
+            "c": "1700000000",
+            "d": "-42",
+            "e": "1000000000000000000000",
+            "f": "-1000000000000000000000",
+            "g": "12345678901234567890123456789",
+            "h": "-12345678901234567890123456789"
+          },
+          "expected": {
+            "ok": false,
+            "reason": "invalid type scSpecTypeI32 specified for string value"
+          }
+        },
+        {
+          "name": "ints wrong c",
+          "function": "ints",
+          "args": {
+            "a": 7,
+            "b": -7,
+            "c": {
+              "not": "this"
+            },
+            "d": "-42",
+            "e": "1000000000000000000000",
+            "f": "-1000000000000000000000",
+            "g": "12345678901234567890123456789",
+            "h": "-12345678901234567890123456789"
+          },
+          "expected": {
+            "ok": false,
+            "reason": "Received object [object Object]  did not match the provided type [object Object]"
+          }
+        },
+        {
+          "name": "ints wrong d",
+          "function": "ints",
+          "args": {
+            "a": 7,
+            "b": -7,
+            "c": "1700000000",
+            "d": {
+              "not": "this"
+            },
+            "e": "1000000000000000000000",
+            "f": "-1000000000000000000000",
+            "g": "12345678901234567890123456789",
+            "h": "-12345678901234567890123456789"
+          },
+          "expected": {
+            "ok": false,
+            "reason": "Received object [object Object]  did not match the provided type [object Object]"
+          }
+        },
+        {
+          "name": "ints wrong e",
+          "function": "ints",
+          "args": {
+            "a": 7,
+            "b": -7,
+            "c": "1700000000",
+            "d": "-42",
+            "e": {
+              "not": "this"
+            },
+            "f": "-1000000000000000000000",
+            "g": "12345678901234567890123456789",
+            "h": "-12345678901234567890123456789"
+          },
+          "expected": {
+            "ok": false,
+            "reason": "Received object [object Object]  did not match the provided type [object Object]"
+          }
+        },
+        {
+          "name": "ints wrong f",
+          "function": "ints",
+          "args": {
+            "a": 7,
+            "b": -7,
+            "c": "1700000000",
+            "d": "-42",
+            "e": "1000000000000000000000",
+            "f": {
+              "not": "this"
+            },
+            "g": "12345678901234567890123456789",
+            "h": "-12345678901234567890123456789"
+          },
+          "expected": {
+            "ok": false,
+            "reason": "Received object [object Object]  did not match the provided type [object Object]"
+          }
+        },
+        {
+          "name": "ints wrong g",
+          "function": "ints",
+          "args": {
+            "a": 7,
+            "b": -7,
+            "c": "1700000000",
+            "d": "-42",
+            "e": "1000000000000000000000",
+            "f": "-1000000000000000000000",
+            "g": {
+              "not": "this"
+            },
+            "h": "-12345678901234567890123456789"
+          },
+          "expected": {
+            "ok": false,
+            "reason": "Received object [object Object]  did not match the provided type [object Object]"
+          }
+        },
+        {
+          "name": "ints wrong h",
+          "function": "ints",
+          "args": {
+            "a": 7,
+            "b": -7,
+            "c": "1700000000",
+            "d": "-42",
+            "e": "1000000000000000000000",
+            "f": "-1000000000000000000000",
+            "g": "12345678901234567890123456789",
+            "h": {
+              "not": "this"
+            }
+          },
+          "expected": {
+            "ok": false,
+            "reason": "Received object [object Object]  did not match the provided type [object Object]"
+          }
+        },
+        {
+          "name": "ints missing a",
+          "function": "ints",
+          "args": {
+            "b": -7,
+            "c": "1700000000",
+            "d": "-42",
+            "e": "1000000000000000000000",
+            "f": "-1000000000000000000000",
+            "g": "12345678901234567890123456789",
+            "h": "-12345678901234567890123456789"
+          },
+          "expected": {
+            "ok": false,
+            "reason": "Missing field a"
+          }
+        },
+        {
+          "name": "many valid 0",
+          "function": "many",
+          "args": {
+            "v": [
+              7,
+              4294967295
+            ]
+          },
+          "expected": {
+            "ok": true,
+            "argsXdr": [
+              "AAAAEAAAAAEAAAACAAAAAwAAAAcAAAAD/////w=="
+            ]
+          }
+        },
+        {
+          "name": "many valid 1",
+          "function": "many",
+          "args": {
+            "v": []
+          },
+          "expected": {
+            "ok": true,
+            "argsXdr": [
+              "AAAAEAAAAAEAAAAA"
+            ]
+          }
+        },
+        {
+          "name": "many wrong v",
+          "function": "many",
+          "args": {
+            "v": 42
+          },
+          "expected": {
+            "ok": false,
+            "reason": "invalid type ([object Object]) specified for integer"
+          }
+        },
+        {
+          "name": "many missing v",
+          "function": "many",
+          "args": {},
+          "expected": {
+            "ok": false,
+            "reason": "Missing field v"
+          }
+        },
+        {
+          "name": "noop valid 0",
+          "function": "noop",
+          "args": {},
+          "expected": {
+            "ok": true,
+            "argsXdr": []
+          }
+        },
+        {
+          "name": "noop valid 1",
+          "function": "noop",
+          "args": {},
+          "expected": {
+            "ok": true,
+            "argsXdr": []
+          }
+        },
+        {
+          "name": "pair valid 0",
+          "function": "pair",
+          "args": {
+            "p": [
+              7,
+              "sym"
+            ]
+          },
+          "expected": {
+            "ok": true,
+            "argsXdr": [
+              "AAAAEAAAAAEAAAACAAAAAwAAAAcAAAAPAAAAA3N5bQA="
+            ]
+          }
+        },
+        {
+          "name": "pair valid 1",
+          "function": "pair",
+          "args": {
+            "p": [
+              4294967295,
+              "a_longer_symbol"
+            ]
+          },
+          "expected": {
+            "ok": true,
+            "argsXdr": [
+              "AAAAEAAAAAEAAAACAAAAA/////8AAAAPAAAAD2FfbG9uZ2VyX3N5bWJvbAA="
+            ]
+          }
+        },
+        {
+          "name": "pair wrong p",
+          "function": "pair",
+          "args": {
+            "p": 42
+          },
+          "expected": {
+            "ok": false,
+            "reason": "invalid type ([object Object]) specified for integer"
+          }
+        },
+        {
+          "name": "pair missing p",
+          "function": "pair",
+          "args": {},
+          "expected": {
+            "ok": false,
+            "reason": "Missing field p"
+          }
+        },
+        {
+          "name": "when valid 0",
+          "function": "when",
+          "args": {
+            "at": "1700000000",
+            "lasts": "1700000000"
+          },
+          "expected": {
+            "ok": true,
+            "argsXdr": [
+              "AAAABwAAAABlU/EA",
+              "AAAACAAAAABlU/EA"
+            ]
+          }
+        },
+        {
+          "name": "when valid 1",
+          "function": "when",
+          "args": {
+            "at": "18446744073709551615",
+            "lasts": "18446744073709551615"
+          },
+          "expected": {
+            "ok": true,
+            "argsXdr": [
+              "AAAAB///////////",
+              "AAAACP//////////"
+            ]
+          }
+        },
+        {
+          "name": "when wrong at",
+          "function": "when",
+          "args": {
+            "at": {
+              "not": "this"
+            },
+            "lasts": "1700000000"
+          },
+          "expected": {
+            "ok": false,
+            "reason": "Received object [object Object]  did not match the provided type [object Object]"
+          }
+        },
+        {
+          "name": "when wrong lasts",
+          "function": "when",
+          "args": {
+            "at": "1700000000",
+            "lasts": {
+              "not": "this"
+            }
+          },
+          "expected": {
+            "ok": false,
+            "reason": "Received object [object Object]  did not match the provided type [object Object]"
+          }
+        },
+        {
+          "name": "when missing at",
+          "function": "when",
+          "args": {
+            "lasts": "1700000000"
+          },
+          "expected": {
+            "ok": false,
+            "reason": "Missing field at"
+          }
+        },
+        {
+          "name": "blobs valid 0",
+          "function": "blobs",
+          "args": {
+            "s": "hello",
+            "sym": "sym",
+            "b": "AQID",
+            "fixed": "AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE="
+          },
+          "expected": {
+            "ok": true,
+            "argsXdr": [
+              "AAAADgAAAAVoZWxsbwAAAA==",
+              "AAAADwAAAANzeW0A",
+              "AAAADQAAAAMBAgMA",
+              "AAAADQAAACABAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQ=="
+            ]
+          }
+        },
+        {
+          "name": "blobs valid 1",
+          "function": "blobs",
+          "args": {
+            "s": "héllo wörld",
+            "sym": "a_longer_symbol",
+            "b": "",
+            "fixed": "AgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgI="
+          },
+          "expected": {
+            "ok": true,
+            "argsXdr": [
+              "AAAADgAAAA1ow6lsbG8gd8O2cmxkAAAA",
+              "AAAADwAAAA9hX2xvbmdlcl9zeW1ib2wA",
+              "AAAADQAAAAA=",
+              "AAAADQAAACACAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAg=="
+            ]
+          }
+        },
+        {
+          "name": "blobs wrong s",
+          "function": "blobs",
+          "args": {
+            "s": 5,
+            "sym": "sym",
+            "b": "AQID",
+            "fixed": "AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE="
+          },
+          "expected": {
+            "ok": false,
+            "reason": "invalid type ([object Object]) specified for integer"
+          }
+        },
+        {
+          "name": "blobs wrong sym",
+          "function": "blobs",
+          "args": {
+            "s": "hello",
+            "sym": 5,
+            "b": "AQID",
+            "fixed": "AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE="
+          },
+          "expected": {
+            "ok": false,
+            "reason": "invalid type ([object Object]) specified for integer"
+          }
+        },
+        {
+          "name": "blobs wrong b",
+          "function": "blobs",
+          "args": {
+            "s": "hello",
+            "sym": "sym",
+            "b": {
+              "not": "this"
+            },
+            "fixed": "AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE="
+          },
+          "expected": {
+            "ok": false,
+            "reason": "Received object [object Object]  did not match the provided type [object Object]"
+          }
+        },
+        {
+          "name": "blobs wrong fixed",
+          "function": "blobs",
+          "args": {
+            "s": "hello",
+            "sym": "sym",
+            "b": "AQID",
+            "fixed": 42
+          },
+          "expected": {
+            "ok": false,
+            "reason": "invalid type ([object Object]) specified for integer"
+          }
+        },
+        {
+          "name": "blobs missing s",
+          "function": "blobs",
+          "args": {
+            "sym": "sym",
+            "b": "AQID",
+            "fixed": "AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE="
+          },
+          "expected": {
+            "ok": false,
+            "reason": "Missing field s"
+          }
+        },
+        {
+          "name": "maybe valid 0",
+          "function": "maybe",
+          "args": {
+            "v": 7
+          },
+          "expected": {
+            "ok": true,
+            "argsXdr": [
+              "AAAAAwAAAAc="
+            ]
+          }
+        },
+        {
+          "name": "maybe valid 1",
+          "function": "maybe",
+          "args": {
+            "v": null
+          },
+          "expected": {
+            "ok": true,
+            "argsXdr": [
+              "AAAAAQ=="
+            ]
+          }
+        },
+        {
+          "name": "maybe wrong v",
+          "function": "maybe",
+          "args": {
+            "v": 4294967296
+          },
+          "expected": {
+            "ok": false,
+            "reason": "Value 4294967296 is out of range for U32"
+          }
+        },
+        {
+          "name": "paint valid 0",
+          "function": "paint",
+          "args": {
+            "c": 1
+          },
+          "expected": {
+            "ok": true,
+            "argsXdr": [
+              "AAAAAwAAAAE="
+            ]
+          }
+        },
+        {
+          "name": "paint valid 1",
+          "function": "paint",
+          "args": {
+            "c": 2
+          },
+          "expected": {
+            "ok": true,
+            "argsXdr": [
+              "AAAAAwAAAAI="
+            ]
+          }
+        },
+        {
+          "name": "paint wrong c",
+          "function": "paint",
+          "args": {
+            "c": 42
+          },
+          "expected": {
+            "ok": false,
+            "reason": "no such enum entry: 42 in [object Object]"
+          }
+        },
+        {
+          "name": "paint missing c",
+          "function": "paint",
+          "args": {},
+          "expected": {
+            "ok": false,
+            "reason": "Missing field c"
+          }
+        },
+        {
+          "name": "shape valid 0",
+          "function": "shape",
+          "args": {
+            "s": {
+              "tag": "Point",
+              "values": [
+                7,
+                7
+              ]
+            }
+          },
+          "expected": {
+            "ok": true,
+            "argsXdr": [
+              "AAAAEAAAAAEAAAADAAAADwAAAAVQb2ludAAAAAAAAAMAAAAHAAAAAwAAAAc="
+            ]
+          }
+        },
+        {
+          "name": "shape valid 1",
+          "function": "shape",
+          "args": {
+            "s": {
+              "tag": "Empty"
+            }
+          },
+          "expected": {
+            "ok": true,
+            "argsXdr": [
+              "AAAAEAAAAAEAAAABAAAADwAAAAVFbXB0eQAAAA=="
+            ]
+          }
+        },
+        {
+          "name": "shape wrong s",
+          "function": "shape",
+          "args": {
+            "s": 42
+          },
+          "expected": {
+            "ok": false,
+            "reason": "no such enum entry: undefined in [object Object]"
+          }
+        },
+        {
+          "name": "shape missing s",
+          "function": "shape",
+          "args": {},
+          "expected": {
+            "ok": false,
+            "reason": "Missing field s"
+          }
+        },
+        {
+          "name": "lookup valid 0",
+          "function": "lookup",
+          "args": {
+            "m": [
+              [
+                "sym",
+                7
+              ]
+            ]
+          },
+          "expected": {
+            "ok": true,
+            "argsXdr": [
+              "AAAAEQAAAAEAAAABAAAADwAAAANzeW0AAAAAAwAAAAc="
+            ]
+          }
+        },
+        {
+          "name": "lookup valid 1",
+          "function": "lookup",
+          "args": {
+            "m": []
+          },
+          "expected": {
+            "ok": true,
+            "argsXdr": [
+              "AAAAEQAAAAEAAAAA"
+            ]
+          }
+        },
+        {
+          "name": "lookup wrong m",
+          "function": "lookup",
+          "args": {
+            "m": 42
+          },
+          "expected": {
+            "ok": false,
+            "reason": "invalid type ([object Object]) specified for integer"
+          }
+        },
+        {
+          "name": "lookup missing m",
+          "function": "lookup",
+          "args": {},
+          "expected": {
+            "ok": false,
+            "reason": "Missing field m"
+          }
+        },
+        {
+          "name": "nested valid 0",
+          "function": "nested",
+          "args": {
+            "v": {
+              "inner": {
+                "inner": {
+                  "value": 7
+                }
+              }
+            }
+          },
+          "expected": {
+            "ok": true,
+            "argsXdr": [
+              "AAAAEQAAAAEAAAABAAAADwAAAAVpbm5lcgAAAAAAABEAAAABAAAAAQAAAA8AAAAFaW5uZXIAAAAAAAARAAAAAQAAAAEAAAAPAAAABXZhbHVlAAAAAAAAAwAAAAc="
+            ]
+          }
+        },
+        {
+          "name": "nested valid 1",
+          "function": "nested",
+          "args": {
+            "v": {
+              "inner": {
+                "inner": {
+                  "value": 4294967295
+                }
+              }
+            }
+          },
+          "expected": {
+            "ok": true,
+            "argsXdr": [
+              "AAAAEQAAAAEAAAABAAAADwAAAAVpbm5lcgAAAAAAABEAAAABAAAAAQAAAA8AAAAFaW5uZXIAAAAAAAARAAAAAQAAAAEAAAAPAAAABXZhbHVlAAAAAAAAA/////8="
+            ]
+          }
+        },
+        {
+          "name": "nested wrong v",
+          "function": "nested",
+          "args": {
+            "v": 42
+          },
+          "expected": {
+            "ok": false,
+            "reason": "Cannot read properties of undefined (reading 'inner')"
+          }
+        },
+        {
+          "name": "nested missing v",
+          "function": "nested",
+          "args": {},
+          "expected": {
+            "ok": false,
+            "reason": "Missing field v"
+          }
+        }
+      ]
+    },
+    {
+      "fixture": "packages/spec/fixtures/undocumented.wasm",
+      "name": "undocumented",
+      "wasmHash": "32f7f5bf37f05e8b95a742e84ad69e443f6c5ca67dc0212630f758be2f2e73e1",
+      "specJson": {
+        "build": {
+          "entries": {
+            "rssdk_spec_shaking": "2",
+            "rssdkver": "28.0.0#48d506712f964094d14176e2f0b02afcd1054567",
+            "rsver": "1.97.1"
+          },
+          "rustVersion": "1.97.1",
+          "sdkVersion": "28.0.0#48d506712f964094d14176e2f0b02afcd1054567"
+        },
+        "entriesXdr": [
+          "AAAAAAAAAAAAAAADYWRkAAAAAAIAAAAAAAAAAWEAAAAAAAAEAAAAAAAAAAFiAAAAAAAABAAAAAEAAAAE",
+          "AAAAAAAAAAAAAAAEcGluZwAAAAAAAAABAAAAEQ==",
+          "AAAAAAAAAAAAAAAFZ3JlZXQAAAAAAAACAAAAAAAAAAN3aG8AAAAAEwAAAAAAAAAFbmFtZXMAAAAAAAPqAAAAEQAAAAEAAAAE"
+        ],
+        "env": {
+          "preRelease": 0,
+          "protocolVersion": 28
+        },
+        "errors": [],
+        "events": [],
+        "functions": [
+          {
+            "doc": "",
+            "inputs": [
+              {
+                "doc": "",
+                "name": "a",
+                "type": "u32"
+              },
+              {
+                "doc": "",
+                "name": "b",
+                "type": "u32"
+              }
+            ],
+            "isConstructor": false,
+            "name": "add",
+            "outputs": [
+              "u32"
+            ]
+          },
+          {
+            "doc": "",
+            "inputs": [],
+            "isConstructor": false,
+            "name": "ping",
+            "outputs": [
+              "symbol"
+            ]
+          },
+          {
+            "doc": "",
+            "inputs": [
+              {
+                "doc": "",
+                "name": "who",
+                "type": "address"
+              },
+              {
+                "doc": "",
+                "name": "names",
+                "type": {
+                  "element": "symbol",
+                  "type": "vec"
+                }
+              }
+            ],
+            "isConstructor": false,
+            "name": "greet",
+            "outputs": [
+              "u32"
+            ]
+          }
+        ],
+        "provenance": "embedded",
+        "schemaVersion": 1,
+        "sdkVersion": "16.1.0",
+        "types": [],
+        "warnings": [],
+        "wasmHash": "32f7f5bf37f05e8b95a742e84ad69e443f6c5ca67dc0212630f758be2f2e73e1"
+      },
+      "cases": [
+        {
+          "name": "add valid 0",
+          "function": "add",
+          "args": {
+            "a": 7,
+            "b": 7
+          },
+          "expected": {
+            "ok": true,
+            "argsXdr": [
+              "AAAAAwAAAAc=",
+              "AAAAAwAAAAc="
+            ]
+          }
+        },
+        {
+          "name": "add valid 1",
+          "function": "add",
+          "args": {
+            "a": 4294967295,
+            "b": 4294967295
+          },
+          "expected": {
+            "ok": true,
+            "argsXdr": [
+              "AAAAA/////8=",
+              "AAAAA/////8="
+            ]
+          }
+        },
+        {
+          "name": "add wrong a",
+          "function": "add",
+          "args": {
+            "a": 4294967296,
+            "b": 7
+          },
+          "expected": {
+            "ok": false,
+            "reason": "Value 4294967296 is out of range for U32"
+          }
+        },
+        {
+          "name": "add wrong b",
+          "function": "add",
+          "args": {
+            "a": 7,
+            "b": 4294967296
+          },
+          "expected": {
+            "ok": false,
+            "reason": "Value 4294967296 is out of range for U32"
+          }
+        },
+        {
+          "name": "add missing a",
+          "function": "add",
+          "args": {
+            "b": 7
+          },
+          "expected": {
+            "ok": false,
+            "reason": "Missing field a"
+          }
+        },
+        {
+          "name": "ping valid 0",
+          "function": "ping",
+          "args": {},
+          "expected": {
+            "ok": true,
+            "argsXdr": []
+          }
+        },
+        {
+          "name": "ping valid 1",
+          "function": "ping",
+          "args": {},
+          "expected": {
+            "ok": true,
+            "argsXdr": []
+          }
+        },
+        {
+          "name": "greet valid 0",
+          "function": "greet",
+          "args": {
+            "who": "GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN",
+            "names": [
+              "sym",
+              "a_longer_symbol"
+            ]
+          },
+          "expected": {
+            "ok": true,
+            "argsXdr": [
+              "AAAAEgAAAAAAAAAAO5kROA7+mIugqJAOsc/kTzZvfb6Ua+0HckD39iTfFcU=",
+              "AAAAEAAAAAEAAAACAAAADwAAAANzeW0AAAAADwAAAA9hX2xvbmdlcl9zeW1ib2wA"
+            ]
+          }
+        },
+        {
+          "name": "greet valid 1",
+          "function": "greet",
+          "args": {
+            "who": "CASFJHI5PQSRWS7JV25CF7FOMRKIVBP3RXRP3E2GH2CV4BCAG7FUJRCN",
+            "names": []
+          },
+          "expected": {
+            "ok": true,
+            "argsXdr": [
+              "AAAAEgAAAAEkVJ0dfCUbS+muuiL8rmRUioX7jeL9k0Y+hV4EQDfLRA==",
+              "AAAAEAAAAAEAAAAA"
+            ]
+          }
+        },
+        {
+          "name": "greet wrong who",
+          "function": "greet",
+          "args": {
+            "who": 5,
+            "names": [
+              "sym",
+              "a_longer_symbol"
+            ]
+          },
+          "expected": {
+            "ok": false,
+            "reason": "invalid type ([object Object]) specified for integer"
+          }
+        },
+        {
+          "name": "greet wrong names",
+          "function": "greet",
+          "args": {
+            "who": "GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN",
+            "names": 42
+          },
+          "expected": {
+            "ok": false,
+            "reason": "invalid type ([object Object]) specified for integer"
+          }
+        },
+        {
+          "name": "greet missing who",
+          "function": "greet",
+          "args": {
+            "names": [
+              "sym",
+              "a_longer_symbol"
+            ]
+          },
+          "expected": {
+            "ok": false,
+            "reason": "Missing field who"
+          }
+        }
+      ]
+    },
+    {
+      "fixture": "sandbox/fixtures/wasm/callee.wasm",
+      "name": "callee",
+      "wasmHash": "1eb71402eae8897b1be9f352c379b4e66a39df5482527a0d7b4c3ac6a34f19a4",
+      "specJson": {
+        "build": {
+          "entries": {
+            "rssdk_spec_shaking": "2",
+            "rssdkver": "28.0.0#48d506712f964094d14176e2f0b02afcd1054567",
+            "rsver": "1.97.1"
+          },
+          "rustVersion": "1.97.1",
+          "sdkVersion": "28.0.0#48d506712f964094d14176e2f0b02afcd1054567"
+        },
+        "entriesXdr": [
+          "AAAAAAAAAAAAAAADYWRkAAAAAAIAAAAAAAAAAWEAAAAAAAAEAAAAAAAAAAFiAAAAAAAABAAAAAEAAAAE"
+        ],
+        "env": {
+          "preRelease": 0,
+          "protocolVersion": 28
+        },
+        "errors": [],
+        "events": [],
+        "functions": [
+          {
+            "doc": "",
+            "inputs": [
+              {
+                "doc": "",
+                "name": "a",
+                "type": "u32"
+              },
+              {
+                "doc": "",
+                "name": "b",
+                "type": "u32"
+              }
+            ],
+            "isConstructor": false,
+            "name": "add",
+            "outputs": [
+              "u32"
+            ]
+          }
+        ],
+        "provenance": "embedded",
+        "schemaVersion": 1,
+        "sdkVersion": "16.1.0",
+        "types": [],
+        "warnings": [],
+        "wasmHash": "1eb71402eae8897b1be9f352c379b4e66a39df5482527a0d7b4c3ac6a34f19a4"
+      },
+      "cases": [
+        {
+          "name": "add valid 0",
+          "function": "add",
+          "args": {
+            "a": 7,
+            "b": 7
+          },
+          "expected": {
+            "ok": true,
+            "argsXdr": [
+              "AAAAAwAAAAc=",
+              "AAAAAwAAAAc="
+            ]
+          }
+        },
+        {
+          "name": "add valid 1",
+          "function": "add",
+          "args": {
+            "a": 4294967295,
+            "b": 4294967295
+          },
+          "expected": {
+            "ok": true,
+            "argsXdr": [
+              "AAAAA/////8=",
+              "AAAAA/////8="
+            ]
+          }
+        },
+        {
+          "name": "add wrong a",
+          "function": "add",
+          "args": {
+            "a": 4294967296,
+            "b": 7
+          },
+          "expected": {
+            "ok": false,
+            "reason": "Value 4294967296 is out of range for U32"
+          }
+        },
+        {
+          "name": "add wrong b",
+          "function": "add",
+          "args": {
+            "a": 7,
+            "b": 4294967296
+          },
+          "expected": {
+            "ok": false,
+            "reason": "Value 4294967296 is out of range for U32"
+          }
+        },
+        {
+          "name": "add missing a",
+          "function": "add",
+          "args": {
+            "b": 7
+          },
+          "expected": {
+            "ok": false,
+            "reason": "Missing field a"
+          }
+        }
+      ]
+    },
+    {
+      "fixture": "sandbox/fixtures/wasm/caller.wasm",
+      "name": "caller",
+      "wasmHash": "e17c8e740c6413d171a03e885fca80cdc4b9f69a0a2743f5cd5f09ed65eb5d9e",
+      "specJson": {
+        "build": {
+          "entries": {
+            "rssdk_spec_shaking": "2",
+            "rssdkver": "28.0.0#48d506712f964094d14176e2f0b02afcd1054567",
+            "rsver": "1.97.1"
+          },
+          "rustVersion": "1.97.1",
+          "sdkVersion": "28.0.0#48d506712f964094d14176e2f0b02afcd1054567"
+        },
+        "entriesXdr": [
+          "AAAAAAAAAAAAAAAIY2FsbF9hZGQAAAADAAAAAAAAAAZjYWxsZWUAAAAAABMAAAAAAAAAAWEAAAAAAAAEAAAAAAAAAAFiAAAAAAAABAAAAAEAAAAE"
+        ],
+        "env": {
+          "preRelease": 0,
+          "protocolVersion": 28
+        },
+        "errors": [],
+        "events": [],
+        "functions": [
+          {
+            "doc": "",
+            "inputs": [
+              {
+                "doc": "",
+                "name": "callee",
+                "type": "address"
+              },
+              {
+                "doc": "",
+                "name": "a",
+                "type": "u32"
+              },
+              {
+                "doc": "",
+                "name": "b",
+                "type": "u32"
+              }
+            ],
+            "isConstructor": false,
+            "name": "call_add",
+            "outputs": [
+              "u32"
+            ]
+          }
+        ],
+        "provenance": "embedded",
+        "schemaVersion": 1,
+        "sdkVersion": "16.1.0",
+        "types": [],
+        "warnings": [],
+        "wasmHash": "e17c8e740c6413d171a03e885fca80cdc4b9f69a0a2743f5cd5f09ed65eb5d9e"
+      },
+      "cases": [
+        {
+          "name": "call_add valid 0",
+          "function": "call_add",
+          "args": {
+            "callee": "GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN",
+            "a": 7,
+            "b": 7
+          },
+          "expected": {
+            "ok": true,
+            "argsXdr": [
+              "AAAAEgAAAAAAAAAAO5kROA7+mIugqJAOsc/kTzZvfb6Ua+0HckD39iTfFcU=",
+              "AAAAAwAAAAc=",
+              "AAAAAwAAAAc="
+            ]
+          }
+        },
+        {
+          "name": "call_add valid 1",
+          "function": "call_add",
+          "args": {
+            "callee": "CASFJHI5PQSRWS7JV25CF7FOMRKIVBP3RXRP3E2GH2CV4BCAG7FUJRCN",
+            "a": 4294967295,
+            "b": 4294967295
+          },
+          "expected": {
+            "ok": true,
+            "argsXdr": [
+              "AAAAEgAAAAEkVJ0dfCUbS+muuiL8rmRUioX7jeL9k0Y+hV4EQDfLRA==",
+              "AAAAA/////8=",
+              "AAAAA/////8="
+            ]
+          }
+        },
+        {
+          "name": "call_add wrong callee",
+          "function": "call_add",
+          "args": {
+            "callee": 5,
+            "a": 7,
+            "b": 7
+          },
+          "expected": {
+            "ok": false,
+            "reason": "invalid type ([object Object]) specified for integer"
+          }
+        },
+        {
+          "name": "call_add wrong a",
+          "function": "call_add",
+          "args": {
+            "callee": "GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN",
+            "a": 4294967296,
+            "b": 7
+          },
+          "expected": {
+            "ok": false,
+            "reason": "Value 4294967296 is out of range for U32"
+          }
+        },
+        {
+          "name": "call_add wrong b",
+          "function": "call_add",
+          "args": {
+            "callee": "GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN",
+            "a": 7,
+            "b": 4294967296
+          },
+          "expected": {
+            "ok": false,
+            "reason": "Value 4294967296 is out of range for U32"
+          }
+        },
+        {
+          "name": "call_add missing callee",
+          "function": "call_add",
+          "args": {
+            "a": 7,
+            "b": 7
+          },
+          "expected": {
+            "ok": false,
+            "reason": "Missing field callee"
+          }
+        }
+      ]
+    },
+    {
+      "fixture": "sandbox/fixtures/wasm/counter_v1.wasm",
+      "name": "counter_v1",
+      "wasmHash": "c3295f35c288e9709721d220801fe8c0ff929fcdae18c454ba8abc15cef39e33",
+      "specJson": {
+        "build": {
+          "entries": {
+            "rssdk_spec_shaking": "2",
+            "rssdkver": "28.0.0#48d506712f964094d14176e2f0b02afcd1054567",
+            "rsver": "1.97.1"
+          },
+          "rustVersion": "1.97.1",
+          "sdkVersion": "28.0.0#48d506712f964094d14176e2f0b02afcd1054567"
+        },
+        "entriesXdr": [
+          "AAAAAAAAAAAAAAADZ2V0AAAAAAAAAAABAAAABA==",
+          "AAAAAAAAAAAAAAAHdXBncmFkZQAAAAABAAAAAAAAAARoYXNoAAAD7gAAACAAAAAA",
+          "AAAAAAAAAAAAAAAJaW5jcmVtZW50AAAAAAAAAAAAAAEAAAAE"
+        ],
+        "env": {
+          "preRelease": 0,
+          "protocolVersion": 28
+        },
+        "errors": [],
+        "events": [],
+        "functions": [
+          {
+            "doc": "",
+            "inputs": [],
+            "isConstructor": false,
+            "name": "get",
+            "outputs": [
+              "u32"
+            ]
+          },
+          {
+            "doc": "",
+            "inputs": [
+              {
+                "doc": "",
+                "name": "hash",
+                "type": {
+                  "n": 32,
+                  "type": "bytes_n"
+                }
+              }
+            ],
+            "isConstructor": false,
+            "name": "upgrade",
+            "outputs": []
+          },
+          {
+            "doc": "",
+            "inputs": [],
+            "isConstructor": false,
+            "name": "increment",
+            "outputs": [
+              "u32"
+            ]
+          }
+        ],
+        "provenance": "embedded",
+        "schemaVersion": 1,
+        "sdkVersion": "16.1.0",
+        "types": [],
+        "warnings": [],
+        "wasmHash": "c3295f35c288e9709721d220801fe8c0ff929fcdae18c454ba8abc15cef39e33"
+      },
+      "cases": [
+        {
+          "name": "get valid 0",
+          "function": "get",
+          "args": {},
+          "expected": {
+            "ok": true,
+            "argsXdr": []
+          }
+        },
+        {
+          "name": "get valid 1",
+          "function": "get",
+          "args": {},
+          "expected": {
+            "ok": true,
+            "argsXdr": []
+          }
+        },
+        {
+          "name": "upgrade valid 0",
+          "function": "upgrade",
+          "args": {
+            "hash": "AQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQE="
+          },
+          "expected": {
+            "ok": true,
+            "argsXdr": [
+              "AAAADQAAACABAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQ=="
+            ]
+          }
+        },
+        {
+          "name": "upgrade valid 1",
+          "function": "upgrade",
+          "args": {
+            "hash": "AgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgI="
+          },
+          "expected": {
+            "ok": true,
+            "argsXdr": [
+              "AAAADQAAACACAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAg=="
+            ]
+          }
+        },
+        {
+          "name": "upgrade wrong hash",
+          "function": "upgrade",
+          "args": {
+            "hash": 42
+          },
+          "expected": {
+            "ok": false,
+            "reason": "invalid type ([object Object]) specified for integer"
+          }
+        },
+        {
+          "name": "upgrade missing hash",
+          "function": "upgrade",
+          "args": {},
+          "expected": {
+            "ok": false,
+            "reason": "Missing field hash"
+          }
+        },
+        {
+          "name": "increment valid 0",
+          "function": "increment",
+          "args": {},
+          "expected": {
+            "ok": true,
+            "argsXdr": []
+          }
+        },
+        {
+          "name": "increment valid 1",
+          "function": "increment",
+          "args": {},
+          "expected": {
+            "ok": true,
+            "argsXdr": []
+          }
+        }
+      ]
+    },
+    {
+      "fixture": "sandbox/fixtures/wasm/counter_v2_auth.wasm",
+      "name": "counter_v2_auth",
+      "wasmHash": "6bac3430dd7c9bf1e60d8d529ca08e05d5ef30d0ed1ff3d42e61b12436018fe1",
+      "specJson": {
+        "build": {
+          "entries": {
+            "rssdk_spec_shaking": "2",
+            "rssdkver": "28.0.0#48d506712f964094d14176e2f0b02afcd1054567",
+            "rsver": "1.97.1"
+          },
+          "rustVersion": "1.97.1",
+          "sdkVersion": "28.0.0#48d506712f964094d14176e2f0b02afcd1054567"
+        },
+        "entriesXdr": [
+          "AAAAAAAAAAAAAAADZ2V0AAAAAAAAAAABAAAABA==",
+          "AAAAAAAAAAAAAAAJaW5jcmVtZW50AAAAAAAAAQAAAAAAAAAGY2FsbGVyAAAAAAATAAAAAQAAAAQ="
+        ],
+        "env": {
+          "preRelease": 0,
+          "protocolVersion": 28
+        },
+        "errors": [],
+        "events": [],
+        "functions": [
+          {
+            "doc": "",
+            "inputs": [],
+            "isConstructor": false,
+            "name": "get",
+            "outputs": [
+              "u32"
+            ]
+          },
+          {
+            "doc": "",
+            "inputs": [
+              {
+                "doc": "",
+                "name": "caller",
+                "type": "address"
+              }
+            ],
+            "isConstructor": false,
+            "name": "increment",
+            "outputs": [
+              "u32"
+            ]
+          }
+        ],
+        "provenance": "embedded",
+        "schemaVersion": 1,
+        "sdkVersion": "16.1.0",
+        "types": [],
+        "warnings": [],
+        "wasmHash": "6bac3430dd7c9bf1e60d8d529ca08e05d5ef30d0ed1ff3d42e61b12436018fe1"
+      },
+      "cases": [
+        {
+          "name": "get valid 0",
+          "function": "get",
+          "args": {},
+          "expected": {
+            "ok": true,
+            "argsXdr": []
+          }
+        },
+        {
+          "name": "get valid 1",
+          "function": "get",
+          "args": {},
+          "expected": {
+            "ok": true,
+            "argsXdr": []
+          }
+        },
+        {
+          "name": "increment valid 0",
+          "function": "increment",
+          "args": {
+            "caller": "GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN"
+          },
+          "expected": {
+            "ok": true,
+            "argsXdr": [
+              "AAAAEgAAAAAAAAAAO5kROA7+mIugqJAOsc/kTzZvfb6Ua+0HckD39iTfFcU="
+            ]
+          }
+        },
+        {
+          "name": "increment valid 1",
+          "function": "increment",
+          "args": {
+            "caller": "CASFJHI5PQSRWS7JV25CF7FOMRKIVBP3RXRP3E2GH2CV4BCAG7FUJRCN"
+          },
+          "expected": {
+            "ok": true,
+            "argsXdr": [
+              "AAAAEgAAAAEkVJ0dfCUbS+muuiL8rmRUioX7jeL9k0Y+hV4EQDfLRA=="
+            ]
+          }
+        },
+        {
+          "name": "increment wrong caller",
+          "function": "increment",
+          "args": {
+            "caller": 5
+          },
+          "expected": {
+            "ok": false,
+            "reason": "invalid type ([object Object]) specified for integer"
+          }
+        },
+        {
+          "name": "increment missing caller",
+          "function": "increment",
+          "args": {},
+          "expected": {
+            "ok": false,
+            "reason": "Missing field caller"
+          }
+        }
+      ]
+    },
+    {
+      "fixture": "sandbox/fixtures/wasm/counter_v2_cost.wasm",
+      "name": "counter_v2_cost",
+      "wasmHash": "e499caeaba1a63d0b71734071cdbe46e7badabfe17faa62d5ee32238aa6a83ee",
+      "specJson": {
+        "build": {
+          "entries": {
+            "rssdk_spec_shaking": "2",
+            "rssdkver": "28.0.0#48d506712f964094d14176e2f0b02afcd1054567",
+            "rsver": "1.97.1"
+          },
+          "rustVersion": "1.97.1",
+          "sdkVersion": "28.0.0#48d506712f964094d14176e2f0b02afcd1054567"
+        },
+        "entriesXdr": [
+          "AAAAAAAAAAAAAAADZ2V0AAAAAAAAAAABAAAABA==",
+          "AAAAAAAAAAAAAAAJaW5jcmVtZW50AAAAAAAAAAAAAAEAAAAE"
+        ],
+        "env": {
+          "preRelease": 0,
+          "protocolVersion": 28
+        },
+        "errors": [],
+        "events": [],
+        "functions": [
+          {
+            "doc": "",
+            "inputs": [],
+            "isConstructor": false,
+            "name": "get",
+            "outputs": [
+              "u32"
+            ]
+          },
+          {
+            "doc": "",
+            "inputs": [],
+            "isConstructor": false,
+            "name": "increment",
+            "outputs": [
+              "u32"
+            ]
+          }
+        ],
+        "provenance": "embedded",
+        "schemaVersion": 1,
+        "sdkVersion": "16.1.0",
+        "types": [],
+        "warnings": [],
+        "wasmHash": "e499caeaba1a63d0b71734071cdbe46e7badabfe17faa62d5ee32238aa6a83ee"
+      },
+      "cases": [
+        {
+          "name": "get valid 0",
+          "function": "get",
+          "args": {},
+          "expected": {
+            "ok": true,
+            "argsXdr": []
+          }
+        },
+        {
+          "name": "get valid 1",
+          "function": "get",
+          "args": {},
+          "expected": {
+            "ok": true,
+            "argsXdr": []
+          }
+        },
+        {
+          "name": "increment valid 0",
+          "function": "increment",
+          "args": {},
+          "expected": {
+            "ok": true,
+            "argsXdr": []
+          }
+        },
+        {
+          "name": "increment valid 1",
+          "function": "increment",
+          "args": {},
+          "expected": {
+            "ok": true,
+            "argsXdr": []
+          }
+        }
+      ]
+    },
+    {
+      "fixture": "sandbox/fixtures/wasm/counter_v2_event.wasm",
+      "name": "counter_v2_event",
+      "wasmHash": "f09e86513f7e9f3692b5bdf1bf350883546020f5e1386440478dfc91ee2d78b0",
+      "specJson": {
+        "build": {
+          "entries": {
+            "rssdk_spec_shaking": "2",
+            "rssdkver": "28.0.0#48d506712f964094d14176e2f0b02afcd1054567",
+            "rsver": "1.97.1"
+          },
+          "rustVersion": "1.97.1",
+          "sdkVersion": "28.0.0#48d506712f964094d14176e2f0b02afcd1054567"
+        },
+        "entriesXdr": [
+          "AAAABQAAAAAAAAAAAAAAC0luY3JlbWVudGVkAAAAAAEAAAALaW5jcmVtZW50ZWQAAAAAAQAAAAAAAAAFY291bnQAAAAAAAAEAAAAAAAAAAI=",
+          "AAAAAAAAAAAAAAADZ2V0AAAAAAAAAAABAAAABA==",
+          "AAAAAAAAAAAAAAAJaW5jcmVtZW50AAAAAAAAAAAAAAEAAAAE"
+        ],
+        "env": {
+          "preRelease": 0,
+          "protocolVersion": 28
+        },
+        "errors": [],
+        "events": [],
+        "functions": [
+          {
+            "doc": "",
+            "inputs": [],
+            "isConstructor": false,
+            "name": "get",
+            "outputs": [
+              "u32"
+            ]
+          },
+          {
+            "doc": "",
+            "inputs": [],
+            "isConstructor": false,
+            "name": "increment",
+            "outputs": [
+              "u32"
+            ]
+          }
+        ],
+        "provenance": "embedded",
+        "schemaVersion": 1,
+        "sdkVersion": "16.1.0",
+        "types": [],
+        "warnings": [],
+        "wasmHash": "f09e86513f7e9f3692b5bdf1bf350883546020f5e1386440478dfc91ee2d78b0"
+      },
+      "cases": [
+        {
+          "name": "get valid 0",
+          "function": "get",
+          "args": {},
+          "expected": {
+            "ok": true,
+            "argsXdr": []
+          }
+        },
+        {
+          "name": "get valid 1",
+          "function": "get",
+          "args": {},
+          "expected": {
+            "ok": true,
+            "argsXdr": []
+          }
+        },
+        {
+          "name": "increment valid 0",
+          "function": "increment",
+          "args": {},
+          "expected": {
+            "ok": true,
+            "argsXdr": []
+          }
+        },
+        {
+          "name": "increment valid 1",
+          "function": "increment",
+          "args": {},
+          "expected": {
+            "ok": true,
+            "argsXdr": []
+          }
+        }
+      ]
+    },
+    {
+      "fixture": "sandbox/fixtures/wasm/counter_v2_return.wasm",
+      "name": "counter_v2_return",
+      "wasmHash": "e7d811f3138aa63465f6393fa12ed9fb3bb49be35cb650f08bdd2e081209a5ca",
+      "specJson": {
+        "build": {
+          "entries": {
+            "rssdk_spec_shaking": "2",
+            "rssdkver": "28.0.0#48d506712f964094d14176e2f0b02afcd1054567",
+            "rsver": "1.97.1"
+          },
+          "rustVersion": "1.97.1",
+          "sdkVersion": "28.0.0#48d506712f964094d14176e2f0b02afcd1054567"
+        },
+        "entriesXdr": [
+          "AAAAAAAAAAAAAAADZ2V0AAAAAAAAAAABAAAACw==",
+          "AAAAAAAAAAAAAAAJaW5jcmVtZW50AAAAAAAAAAAAAAEAAAAL"
+        ],
+        "env": {
+          "preRelease": 0,
+          "protocolVersion": 28
+        },
+        "errors": [],
+        "events": [],
+        "functions": [
+          {
+            "doc": "",
+            "inputs": [],
+            "isConstructor": false,
+            "name": "get",
+            "outputs": [
+              "i128"
+            ]
+          },
+          {
+            "doc": "",
+            "inputs": [],
+            "isConstructor": false,
+            "name": "increment",
+            "outputs": [
+              "i128"
+            ]
+          }
+        ],
+        "provenance": "embedded",
+        "schemaVersion": 1,
+        "sdkVersion": "16.1.0",
+        "types": [],
+        "warnings": [],
+        "wasmHash": "e7d811f3138aa63465f6393fa12ed9fb3bb49be35cb650f08bdd2e081209a5ca"
+      },
+      "cases": [
+        {
+          "name": "get valid 0",
+          "function": "get",
+          "args": {},
+          "expected": {
+            "ok": true,
+            "argsXdr": []
+          }
+        },
+        {
+          "name": "get valid 1",
+          "function": "get",
+          "args": {},
+          "expected": {
+            "ok": true,
+            "argsXdr": []
+          }
+        },
+        {
+          "name": "increment valid 0",
+          "function": "increment",
+          "args": {},
+          "expected": {
+            "ok": true,
+            "argsXdr": []
+          }
+        },
+        {
+          "name": "increment valid 1",
+          "function": "increment",
+          "args": {},
+          "expected": {
+            "ok": true,
+            "argsXdr": []
+          }
+        }
+      ]
+    },
+    {
+      "fixture": "sandbox/fixtures/wasm/dice.wasm",
+      "name": "dice",
+      "wasmHash": "e968bdf700f715a878a476f5d40063397a2d46abac50db17c03d80706a14d3d6",
+      "specJson": {
+        "build": {
+          "entries": {
+            "rssdk_spec_shaking": "2",
+            "rssdkver": "28.0.0#48d506712f964094d14176e2f0b02afcd1054567",
+            "rsver": "1.97.1"
+          },
+          "rustVersion": "1.97.1",
+          "sdkVersion": "28.0.0#48d506712f964094d14176e2f0b02afcd1054567"
+        },
+        "entriesXdr": [
+          "AAAAAAAAAIlBIHZhbHVlIGZyb20gdGhlIGhvc3QncyBQUk5HOiB0aGUgc2FtZSBmb3IgdGhlIHNhbWUgc2VlZCwgZGlmZmVyZW50CmZvciBhbm90aGVyLCB3aGljaCBpcyB3aGF0IGRldGVybWluaXN0aWMgZXhlY3V0aW9uIHRlc3RzICgjNTM3KSBuZWVkLgAAAAAAAARyb2xsAAAAAAAAAAEAAAAG"
+        ],
+        "env": {
+          "preRelease": 0,
+          "protocolVersion": 28
+        },
+        "errors": [],
+        "events": [],
+        "functions": [
+          {
+            "doc": "A value from the host's PRNG: the same for the same seed, different\nfor another, which is what deterministic execution tests (#537) need.",
+            "inputs": [],
+            "isConstructor": false,
+            "name": "roll",
+            "outputs": [
+              "u64"
+            ]
+          }
+        ],
+        "provenance": "embedded",
+        "schemaVersion": 1,
+        "sdkVersion": "16.1.0",
+        "types": [],
+        "warnings": [],
+        "wasmHash": "e968bdf700f715a878a476f5d40063397a2d46abac50db17c03d80706a14d3d6"
+      },
+      "cases": [
+        {
+          "name": "roll valid 0",
+          "function": "roll",
+          "args": {},
+          "expected": {
+            "ok": true,
+            "argsXdr": []
+          }
+        },
+        {
+          "name": "roll valid 1",
+          "function": "roll",
+          "args": {},
+          "expected": {
+            "ok": true,
+            "argsXdr": []
+          }
+        }
+      ]
+    },
+    {
+      "fixture": "sandbox/fixtures/wasm/hog.wasm",
+      "name": "hog",
+      "wasmHash": "038d4c5650eb412d831d10aedaba26998165be2e4262294ad92446abd8cd5177",
+      "specJson": {
+        "build": {
+          "entries": {
+            "rssdk_spec_shaking": "2",
+            "rssdkver": "28.0.0#48d506712f964094d14176e2f0b02afcd1054567",
+            "rsver": "1.97.1"
+          },
+          "rustVersion": "1.97.1",
+          "sdkVersion": "28.0.0#48d506712f964094d14176e2f0b02afcd1054567"
+        },
+        "entriesXdr": [
+          "AAAAAAAAAAAAAAAIYWxsb2NhdGUAAAABAAAAAAAAAAVjb3VudAAAAAAAAAQAAAAA"
+        ],
+        "env": {
+          "preRelease": 0,
+          "protocolVersion": 28
+        },
+        "errors": [],
+        "events": [],
+        "functions": [
+          {
+            "doc": "",
+            "inputs": [
+              {
+                "doc": "",
+                "name": "count",
+                "type": "u32"
+              }
+            ],
+            "isConstructor": false,
+            "name": "allocate",
+            "outputs": []
+          }
+        ],
+        "provenance": "embedded",
+        "schemaVersion": 1,
+        "sdkVersion": "16.1.0",
+        "types": [],
+        "warnings": [],
+        "wasmHash": "038d4c5650eb412d831d10aedaba26998165be2e4262294ad92446abd8cd5177"
+      },
+      "cases": [
+        {
+          "name": "allocate valid 0",
+          "function": "allocate",
+          "args": {
+            "count": 7
+          },
+          "expected": {
+            "ok": true,
+            "argsXdr": [
+              "AAAAAwAAAAc="
+            ]
+          }
+        },
+        {
+          "name": "allocate valid 1",
+          "function": "allocate",
+          "args": {
+            "count": 4294967295
+          },
+          "expected": {
+            "ok": true,
+            "argsXdr": [
+              "AAAAA/////8="
+            ]
+          }
+        },
+        {
+          "name": "allocate wrong count",
+          "function": "allocate",
+          "args": {
+            "count": 4294967296
+          },
+          "expected": {
+            "ok": false,
+            "reason": "Value 4294967296 is out of range for U32"
+          }
+        },
+        {
+          "name": "allocate missing count",
+          "function": "allocate",
+          "args": {},
+          "expected": {
+            "ok": false,
+            "reason": "Missing field count"
+          }
+        }
+      ]
+    },
+    {
+      "fixture": "sandbox/fixtures/wasm/looper.wasm",
+      "name": "looper",
+      "wasmHash": "d2d82317e1ade492ecf2b77245d740a68a226d275a790835a808f0e18254ac18",
+      "specJson": {
+        "build": {
+          "entries": {
+            "rssdk_spec_shaking": "2",
+            "rssdkver": "28.0.0#48d506712f964094d14176e2f0b02afcd1054567",
+            "rsver": "1.97.1"
+          },
+          "rustVersion": "1.97.1",
+          "sdkVersion": "28.0.0#48d506712f964094d14176e2f0b02afcd1054567"
+        },
+        "entriesXdr": [
+          "AAAAAAAAAAAAAAADcnVuAAAAAAAAAAAA"
+        ],
+        "env": {
+          "preRelease": 0,
+          "protocolVersion": 28
+        },
+        "errors": [],
+        "events": [],
+        "functions": [
+          {
+            "doc": "",
+            "inputs": [],
+            "isConstructor": false,
+            "name": "run",
+            "outputs": []
+          }
+        ],
+        "provenance": "embedded",
+        "schemaVersion": 1,
+        "sdkVersion": "16.1.0",
+        "types": [],
+        "warnings": [],
+        "wasmHash": "d2d82317e1ade492ecf2b77245d740a68a226d275a790835a808f0e18254ac18"
+      },
+      "cases": [
+        {
+          "name": "run valid 0",
+          "function": "run",
+          "args": {},
+          "expected": {
+            "ok": true,
+            "argsXdr": []
+          }
+        },
+        {
+          "name": "run valid 1",
+          "function": "run",
+          "args": {},
+          "expected": {
+            "ok": true,
+            "argsXdr": []
+          }
+        }
+      ]
+    },
+    {
+      "fixture": "sandbox/fixtures/wasm/profile_v1.wasm",
+      "name": "profile_v1",
+      "wasmHash": "c7a59cb1551d396753e96879ee42f186b5ecefc7761849cdd787fb5fd7239d08",
+      "specJson": {
+        "build": {
+          "entries": {
+            "rssdk_spec_shaking": "2",
+            "rssdkver": "28.0.0#48d506712f964094d14176e2f0b02afcd1054567",
+            "rsver": "1.97.1"
+          },
+          "rustVersion": "1.97.1",
+          "sdkVersion": "28.0.0#48d506712f964094d14176e2f0b02afcd1054567"
+        },
+        "entriesXdr": [
+          "AAAAAQAAAAAAAAAAAAAAB1Byb2ZpbGUAAAAAAgAAAAAAAAACaWQAAAAAAAQAAAAAAAAABG5hbWUAAAAQ",
+          "AAAAAAAAAAAAAAALZ2V0X3Byb2ZpbGUAAAAAAAAAAAEAAAfQAAAAB1Byb2ZpbGUA",
+          "AAAAAAAAAAAAAAALc2V0X3Byb2ZpbGUAAAAAAQAAAAAAAAAHcHJvZmlsZQAAAAfQAAAAB1Byb2ZpbGUAAAAAAA=="
+        ],
+        "env": {
+          "preRelease": 0,
+          "protocolVersion": 28
+        },
+        "errors": [],
+        "events": [],
+        "functions": [
+          {
+            "doc": "",
+            "inputs": [],
+            "isConstructor": false,
+            "name": "get_profile",
+            "outputs": [
+              {
+                "name": "Profile",
+                "type": "named"
+              }
+            ]
+          },
+          {
+            "doc": "",
+            "inputs": [
+              {
+                "doc": "",
+                "name": "profile",
+                "type": {
+                  "name": "Profile",
+                  "type": "named"
+                }
+              }
+            ],
+            "isConstructor": false,
+            "name": "set_profile",
+            "outputs": []
+          }
+        ],
+        "provenance": "embedded",
+        "schemaVersion": 1,
+        "sdkVersion": "16.1.0",
+        "types": [
+          {
+            "doc": "",
+            "fields": [
+              {
+                "doc": "",
+                "name": "id",
+                "type": "u32"
+              },
+              {
+                "doc": "",
+                "name": "name",
+                "type": "string"
+              }
+            ],
+            "kind": "struct",
+            "name": "Profile"
+          }
+        ],
+        "warnings": [],
+        "wasmHash": "c7a59cb1551d396753e96879ee42f186b5ecefc7761849cdd787fb5fd7239d08"
+      },
+      "cases": [
+        {
+          "name": "get_profile valid 0",
+          "function": "get_profile",
+          "args": {},
+          "expected": {
+            "ok": true,
+            "argsXdr": []
+          }
+        },
+        {
+          "name": "get_profile valid 1",
+          "function": "get_profile",
+          "args": {},
+          "expected": {
+            "ok": true,
+            "argsXdr": []
+          }
+        },
+        {
+          "name": "set_profile valid 0",
+          "function": "set_profile",
+          "args": {
+            "profile": {
+              "id": 7,
+              "name": "hello"
+            }
+          },
+          "expected": {
+            "ok": true,
+            "argsXdr": [
+              "AAAAEQAAAAEAAAACAAAADwAAAAJpZAAAAAAAAwAAAAcAAAAPAAAABG5hbWUAAAAOAAAABWhlbGxvAAAA"
+            ]
+          }
+        },
+        {
+          "name": "set_profile valid 1",
+          "function": "set_profile",
+          "args": {
+            "profile": {
+              "id": 4294967295,
+              "name": "héllo wörld"
+            }
+          },
+          "expected": {
+            "ok": true,
+            "argsXdr": [
+              "AAAAEQAAAAEAAAACAAAADwAAAAJpZAAAAAAAA/////8AAAAPAAAABG5hbWUAAAAOAAAADWjDqWxsbyB3w7ZybGQAAAA="
+            ]
+          }
+        },
+        {
+          "name": "set_profile wrong profile",
+          "function": "set_profile",
+          "args": {
+            "profile": 42
+          },
+          "expected": {
+            "ok": false,
+            "reason": "Type [object Object] was not void, but value was undefined"
+          }
+        },
+        {
+          "name": "set_profile missing profile",
+          "function": "set_profile",
+          "args": {},
+          "expected": {
+            "ok": false,
+            "reason": "Missing field profile"
+          }
+        }
+      ]
+    },
+    {
+      "fixture": "sandbox/fixtures/wasm/profile_v2_field.wasm",
+      "name": "profile_v2_field",
+      "wasmHash": "7b2757fc001ecfdd2d5a736778f5817577ea2321ee9c421182167719fa9704af",
+      "specJson": {
+        "build": {
+          "entries": {
+            "rssdk_spec_shaking": "2",
+            "rssdkver": "28.0.0#48d506712f964094d14176e2f0b02afcd1054567",
+            "rsver": "1.97.1"
+          },
+          "rustVersion": "1.97.1",
+          "sdkVersion": "28.0.0#48d506712f964094d14176e2f0b02afcd1054567"
+        },
+        "entriesXdr": [
+          "AAAAAQAAAAAAAAAAAAAAB1Byb2ZpbGUAAAAAAwAAAAAAAAADYWdlAAAAAAQAAAAAAAAAAmlkAAAAAAAEAAAAAAAAAARuYW1lAAAAEA==",
+          "AAAAAAAAAAAAAAALZ2V0X3Byb2ZpbGUAAAAAAAAAAAEAAAfQAAAAB1Byb2ZpbGUA",
+          "AAAAAAAAAAAAAAALc2V0X3Byb2ZpbGUAAAAAAQAAAAAAAAAHcHJvZmlsZQAAAAfQAAAAB1Byb2ZpbGUAAAAAAA=="
+        ],
+        "env": {
+          "preRelease": 0,
+          "protocolVersion": 28
+        },
+        "errors": [],
+        "events": [],
+        "functions": [
+          {
+            "doc": "",
+            "inputs": [],
+            "isConstructor": false,
+            "name": "get_profile",
+            "outputs": [
+              {
+                "name": "Profile",
+                "type": "named"
+              }
+            ]
+          },
+          {
+            "doc": "",
+            "inputs": [
+              {
+                "doc": "",
+                "name": "profile",
+                "type": {
+                  "name": "Profile",
+                  "type": "named"
+                }
+              }
+            ],
+            "isConstructor": false,
+            "name": "set_profile",
+            "outputs": []
+          }
+        ],
+        "provenance": "embedded",
+        "schemaVersion": 1,
+        "sdkVersion": "16.1.0",
+        "types": [
+          {
+            "doc": "",
+            "fields": [
+              {
+                "doc": "",
+                "name": "age",
+                "type": "u32"
+              },
+              {
+                "doc": "",
+                "name": "id",
+                "type": "u32"
+              },
+              {
+                "doc": "",
+                "name": "name",
+                "type": "string"
+              }
+            ],
+            "kind": "struct",
+            "name": "Profile"
+          }
+        ],
+        "warnings": [],
+        "wasmHash": "7b2757fc001ecfdd2d5a736778f5817577ea2321ee9c421182167719fa9704af"
+      },
+      "cases": [
+        {
+          "name": "get_profile valid 0",
+          "function": "get_profile",
+          "args": {},
+          "expected": {
+            "ok": true,
+            "argsXdr": []
+          }
+        },
+        {
+          "name": "get_profile valid 1",
+          "function": "get_profile",
+          "args": {},
+          "expected": {
+            "ok": true,
+            "argsXdr": []
+          }
+        },
+        {
+          "name": "set_profile valid 0",
+          "function": "set_profile",
+          "args": {
+            "profile": {
+              "age": 7,
+              "id": 7,
+              "name": "hello"
+            }
+          },
+          "expected": {
+            "ok": true,
+            "argsXdr": [
+              "AAAAEQAAAAEAAAADAAAADwAAAANhZ2UAAAAAAwAAAAcAAAAPAAAAAmlkAAAAAAADAAAABwAAAA8AAAAEbmFtZQAAAA4AAAAFaGVsbG8AAAA="
+            ]
+          }
+        },
+        {
+          "name": "set_profile valid 1",
+          "function": "set_profile",
+          "args": {
+            "profile": {
+              "age": 4294967295,
+              "id": 4294967295,
+              "name": "héllo wörld"
+            }
+          },
+          "expected": {
+            "ok": true,
+            "argsXdr": [
+              "AAAAEQAAAAEAAAADAAAADwAAAANhZ2UAAAAAA/////8AAAAPAAAAAmlkAAAAAAAD/////wAAAA8AAAAEbmFtZQAAAA4AAAANaMOpbGxvIHfDtnJsZAAAAA=="
+            ]
+          }
+        },
+        {
+          "name": "set_profile wrong profile",
+          "function": "set_profile",
+          "args": {
+            "profile": 42
+          },
+          "expected": {
+            "ok": false,
+            "reason": "Type [object Object] was not void, but value was undefined"
+          }
+        },
+        {
+          "name": "set_profile missing profile",
+          "function": "set_profile",
+          "args": {},
+          "expected": {
+            "ok": false,
+            "reason": "Missing field profile"
+          }
+        }
+      ]
+    },
+    {
+      "fixture": "sandbox/fixtures/wasm/profile_v2_optional.wasm",
+      "name": "profile_v2_optional",
+      "wasmHash": "b9a7cdf56f5f7d31d19ab89f5701cebbb056d55f52c7abc200b70c8e2c96dd34",
+      "specJson": {
+        "build": {
+          "entries": {
+            "rssdk_spec_shaking": "2",
+            "rssdkver": "28.0.0#48d506712f964094d14176e2f0b02afcd1054567",
+            "rsver": "1.97.1"
+          },
+          "rustVersion": "1.97.1",
+          "sdkVersion": "28.0.0#48d506712f964094d14176e2f0b02afcd1054567"
+        },
+        "entriesXdr": [
+          "AAAAAQAAAAAAAAAAAAAAB1Byb2ZpbGUAAAAAAwAAAAAAAAADYmlvAAAAA+gAAAAQAAAAAAAAAAJpZAAAAAAABAAAAAAAAAAEbmFtZQAAABA=",
+          "AAAAAAAAAAAAAAALZ2V0X3Byb2ZpbGUAAAAAAAAAAAEAAAfQAAAAB1Byb2ZpbGUA",
+          "AAAAAAAAAAAAAAALc2V0X3Byb2ZpbGUAAAAAAQAAAAAAAAAHcHJvZmlsZQAAAAfQAAAAB1Byb2ZpbGUAAAAAAA=="
+        ],
+        "env": {
+          "preRelease": 0,
+          "protocolVersion": 28
+        },
+        "errors": [],
+        "events": [],
+        "functions": [
+          {
+            "doc": "",
+            "inputs": [],
+            "isConstructor": false,
+            "name": "get_profile",
+            "outputs": [
+              {
+                "name": "Profile",
+                "type": "named"
+              }
+            ]
+          },
+          {
+            "doc": "",
+            "inputs": [
+              {
+                "doc": "",
+                "name": "profile",
+                "type": {
+                  "name": "Profile",
+                  "type": "named"
+                }
+              }
+            ],
+            "isConstructor": false,
+            "name": "set_profile",
+            "outputs": []
+          }
+        ],
+        "provenance": "embedded",
+        "schemaVersion": 1,
+        "sdkVersion": "16.1.0",
+        "types": [
+          {
+            "doc": "",
+            "fields": [
+              {
+                "doc": "",
+                "name": "bio",
+                "type": {
+                  "type": "option",
+                  "value": "string"
+                }
+              },
+              {
+                "doc": "",
+                "name": "id",
+                "type": "u32"
+              },
+              {
+                "doc": "",
+                "name": "name",
+                "type": "string"
+              }
+            ],
+            "kind": "struct",
+            "name": "Profile"
+          }
+        ],
+        "warnings": [],
+        "wasmHash": "b9a7cdf56f5f7d31d19ab89f5701cebbb056d55f52c7abc200b70c8e2c96dd34"
+      },
+      "cases": [
+        {
+          "name": "get_profile valid 0",
+          "function": "get_profile",
+          "args": {},
+          "expected": {
+            "ok": true,
+            "argsXdr": []
+          }
+        },
+        {
+          "name": "get_profile valid 1",
+          "function": "get_profile",
+          "args": {},
+          "expected": {
+            "ok": true,
+            "argsXdr": []
+          }
+        },
+        {
+          "name": "set_profile valid 0",
+          "function": "set_profile",
+          "args": {
+            "profile": {
+              "bio": "hello",
+              "id": 7,
+              "name": "hello"
+            }
+          },
+          "expected": {
+            "ok": true,
+            "argsXdr": [
+              "AAAAEQAAAAEAAAADAAAADwAAAANiaW8AAAAADgAAAAVoZWxsbwAAAAAAAA8AAAACaWQAAAAAAAMAAAAHAAAADwAAAARuYW1lAAAADgAAAAVoZWxsbwAAAA=="
+            ]
+          }
+        },
+        {
+          "name": "set_profile valid 1",
+          "function": "set_profile",
+          "args": {
+            "profile": {
+              "bio": null,
+              "id": 4294967295,
+              "name": "héllo wörld"
+            }
+          },
+          "expected": {
+            "ok": true,
+            "argsXdr": [
+              "AAAAEQAAAAEAAAADAAAADwAAAANiaW8AAAAAAQAAAA8AAAACaWQAAAAAAAP/////AAAADwAAAARuYW1lAAAADgAAAA1ow6lsbG8gd8O2cmxkAAAA"
+            ]
+          }
+        },
+        {
+          "name": "set_profile wrong profile",
+          "function": "set_profile",
+          "args": {
+            "profile": 42
+          },
+          "expected": {
+            "ok": false,
+            "reason": "Type [object Object] was not void, but value was undefined"
+          }
+        },
+        {
+          "name": "set_profile missing profile",
+          "function": "set_profile",
+          "args": {},
+          "expected": {
+            "ok": false,
+            "reason": "Missing field profile"
+          }
+        }
+      ]
+    },
+    {
+      "fixture": "sandbox/fixtures/wasm/relay.wasm",
+      "name": "relay",
+      "wasmHash": "7b2596104b7ddf969d2b4d1c505900c938763b9b7d8d35ae08fe6ee4fccd8b50",
+      "specJson": {
+        "build": {
+          "entries": {
+            "rssdk_spec_shaking": "2",
+            "rssdkver": "28.0.0#48d506712f964094d14176e2f0b02afcd1054567",
+            "rsver": "1.97.1"
+          },
+          "rustVersion": "1.97.1",
+          "sdkVersion": "28.0.0#48d506712f964094d14176e2f0b02afcd1054567"
+        },
+        "entriesXdr": [
+          "AAAAAAAAAKpDYWxscyBgaW5jcmVtZW50KHVzZXIpYCBvbiBhIGNvdW50ZXJfdjJfYXV0aCBjb250cmFjdCwgc28gYHVzZXJgJ3MKYHJlcXVpcmVfYXV0aGAgaGFwcGVucyBiZWxvdyB0aGUgcm9vdCBpbnZvY2F0aW9uOiBub24tcm9vdCBhdXRoLCB3aGljaApzdHJpY3QgYXV0aCBtb2RlIHJlZnVzZXMgKCM1NTcpLgAAAAAABGJ1bXAAAAACAAAAAAAAAAZ0YXJnZXQAAAAAABMAAAAAAAAABHVzZXIAAAATAAAAAQAAAAQ="
+        ],
+        "env": {
+          "preRelease": 0,
+          "protocolVersion": 28
+        },
+        "errors": [],
+        "events": [],
+        "functions": [
+          {
+            "doc": "Calls `increment(user)` on a counter_v2_auth contract, so `user`'s\n`require_auth` happens below the root invocation: non-root auth, which\nstrict auth mode refuses (#557).",
+            "inputs": [
+              {
+                "doc": "",
+                "name": "target",
+                "type": "address"
+              },
+              {
+                "doc": "",
+                "name": "user",
+                "type": "address"
+              }
+            ],
+            "isConstructor": false,
+            "name": "bump",
+            "outputs": [
+              "u32"
+            ]
+          }
+        ],
+        "provenance": "embedded",
+        "schemaVersion": 1,
+        "sdkVersion": "16.1.0",
+        "types": [],
+        "warnings": [],
+        "wasmHash": "7b2596104b7ddf969d2b4d1c505900c938763b9b7d8d35ae08fe6ee4fccd8b50"
+      },
+      "cases": [
+        {
+          "name": "bump valid 0",
+          "function": "bump",
+          "args": {
+            "target": "GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN",
+            "user": "GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN"
+          },
+          "expected": {
+            "ok": true,
+            "argsXdr": [
+              "AAAAEgAAAAAAAAAAO5kROA7+mIugqJAOsc/kTzZvfb6Ua+0HckD39iTfFcU=",
+              "AAAAEgAAAAAAAAAAO5kROA7+mIugqJAOsc/kTzZvfb6Ua+0HckD39iTfFcU="
+            ]
+          }
+        },
+        {
+          "name": "bump valid 1",
+          "function": "bump",
+          "args": {
+            "target": "CASFJHI5PQSRWS7JV25CF7FOMRKIVBP3RXRP3E2GH2CV4BCAG7FUJRCN",
+            "user": "CASFJHI5PQSRWS7JV25CF7FOMRKIVBP3RXRP3E2GH2CV4BCAG7FUJRCN"
+          },
+          "expected": {
+            "ok": true,
+            "argsXdr": [
+              "AAAAEgAAAAEkVJ0dfCUbS+muuiL8rmRUioX7jeL9k0Y+hV4EQDfLRA==",
+              "AAAAEgAAAAEkVJ0dfCUbS+muuiL8rmRUioX7jeL9k0Y+hV4EQDfLRA=="
+            ]
+          }
+        },
+        {
+          "name": "bump wrong target",
+          "function": "bump",
+          "args": {
+            "target": 5,
+            "user": "GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN"
+          },
+          "expected": {
+            "ok": false,
+            "reason": "invalid type ([object Object]) specified for integer"
+          }
+        },
+        {
+          "name": "bump wrong user",
+          "function": "bump",
+          "args": {
+            "target": "GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN",
+            "user": 5
+          },
+          "expected": {
+            "ok": false,
+            "reason": "invalid type ([object Object]) specified for integer"
+          }
+        },
+        {
+          "name": "bump missing target",
+          "function": "bump",
+          "args": {
+            "user": "GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN"
+          },
+          "expected": {
+            "ok": false,
+            "reason": "Missing field target"
+          }
+        }
+      ]
+    },
+    {
+      "fixture": "sandbox/fixtures/wasm/vesting.wasm",
+      "name": "vesting",
+      "wasmHash": "9a2b96b78483c3dfb37a80693e1d377957e0ec76f370151e8392b7c06c18bb41",
+      "specJson": {
+        "build": {
+          "entries": {
+            "rssdk_spec_shaking": "2",
+            "rssdkver": "28.0.0#48d506712f964094d14176e2f0b02afcd1054567",
+            "rsver": "1.97.1"
+          },
+          "rustVersion": "1.97.1",
+          "sdkVersion": "28.0.0#48d506712f964094d14176e2f0b02afcd1054567"
+        },
+        "entriesXdr": [
+          "AAAAAAAAAAAAAAAFY2xhaW0AAAAAAAABAAAAAAAAAAt1bmxvY2tfdGltZQAAAAAGAAAAAQAAAAE=",
+          "AAAAAAAAAAAAAAALaXNfdW5sb2NrZWQAAAAAAQAAAAAAAAALdW5sb2NrX3RpbWUAAAAABgAAAAEAAAAB"
+        ],
+        "env": {
+          "preRelease": 0,
+          "protocolVersion": 28
+        },
+        "errors": [],
+        "events": [],
+        "functions": [
+          {
+            "doc": "",
+            "inputs": [
+              {
+                "doc": "",
+                "name": "unlock_time",
+                "type": "u64"
+              }
+            ],
+            "isConstructor": false,
+            "name": "claim",
+            "outputs": [
+              "bool"
+            ]
+          },
+          {
+            "doc": "",
+            "inputs": [
+              {
+                "doc": "",
+                "name": "unlock_time",
+                "type": "u64"
+              }
+            ],
+            "isConstructor": false,
+            "name": "is_unlocked",
+            "outputs": [
+              "bool"
+            ]
+          }
+        ],
+        "provenance": "embedded",
+        "schemaVersion": 1,
+        "sdkVersion": "16.1.0",
+        "types": [],
+        "warnings": [],
+        "wasmHash": "9a2b96b78483c3dfb37a80693e1d377957e0ec76f370151e8392b7c06c18bb41"
+      },
+      "cases": [
+        {
+          "name": "claim valid 0",
+          "function": "claim",
+          "args": {
+            "unlock_time": "1700000000"
+          },
+          "expected": {
+            "ok": true,
+            "argsXdr": [
+              "AAAABQAAAABlU/EA"
+            ]
+          }
+        },
+        {
+          "name": "claim valid 1",
+          "function": "claim",
+          "args": {
+            "unlock_time": "18446744073709551615"
+          },
+          "expected": {
+            "ok": true,
+            "argsXdr": [
+              "AAAABf//////////"
+            ]
+          }
+        },
+        {
+          "name": "claim wrong unlock_time",
+          "function": "claim",
+          "args": {
+            "unlock_time": {
+              "not": "this"
+            }
+          },
+          "expected": {
+            "ok": false,
+            "reason": "Received object [object Object]  did not match the provided type [object Object]"
+          }
+        },
+        {
+          "name": "claim missing unlock_time",
+          "function": "claim",
+          "args": {},
+          "expected": {
+            "ok": false,
+            "reason": "Missing field unlock_time"
+          }
+        },
+        {
+          "name": "is_unlocked valid 0",
+          "function": "is_unlocked",
+          "args": {
+            "unlock_time": "1700000000"
+          },
+          "expected": {
+            "ok": true,
+            "argsXdr": [
+              "AAAABQAAAABlU/EA"
+            ]
+          }
+        },
+        {
+          "name": "is_unlocked valid 1",
+          "function": "is_unlocked",
+          "args": {
+            "unlock_time": "18446744073709551615"
+          },
+          "expected": {
+            "ok": true,
+            "argsXdr": [
+              "AAAABf//////////"
+            ]
+          }
+        },
+        {
+          "name": "is_unlocked wrong unlock_time",
+          "function": "is_unlocked",
+          "args": {
+            "unlock_time": {
+              "not": "this"
+            }
+          },
+          "expected": {
+            "ok": false,
+            "reason": "Received object [object Object]  did not match the provided type [object Object]"
+          }
+        },
+        {
+          "name": "is_unlocked missing unlock_time",
+          "function": "is_unlocked",
+          "args": {},
+          "expected": {
+            "ok": false,
+            "reason": "Missing field unlock_time"
+          }
+        }
+      ]
+    }
+  ]
+}

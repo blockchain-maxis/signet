@@ -41,6 +41,8 @@ jobs:
               - 'cli/internal/simulator/**'
               - 'cli/internal/fork/**'
               - 'cli/internal/rpc/**'
+              # The shared spec reader the host is held to (#547).
+              - 'packages/spec/**'
               - '.github/workflows/ci.yml'
 
   docs:
@@ -634,6 +636,15 @@ jobs:
       # in packages/spec produces. `cargo test` above built the binary.
       - name: Check spec_extract against SpecJson v1
         run: node protocol/check-spec-json.mjs
+
+      # The host reads specs as the shared TS reader does (#547): the corpus
+      # must be the reader's current output, and the host must agree with it
+      # on every SpecJson field and every argument encoding and verdict,
+      # except what sandbox/conformance/KNOWN_DIFFERENCES.md justifies.
+      - name: Spec reader conformance
+        run: |
+          node --experimental-strip-types conformance/generate.mts --check
+          cargo test --locked --test conformance
 
       # The CLI's sandbox commands against the real host (#555): the Go
       # tests that need a built signet-simulator skip in the cli job, which
