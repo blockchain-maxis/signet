@@ -13,9 +13,11 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/blockchain-maxis/signet/cli/internal/dev"
 	"github.com/blockchain-maxis/signet/cli/internal/devconfig"
 	"github.com/blockchain-maxis/signet/cli/internal/exitcode"
 	"github.com/blockchain-maxis/signet/cli/internal/fork"
+	"github.com/blockchain-maxis/signet/cli/internal/keys"
 	"github.com/blockchain-maxis/signet/cli/internal/rpc"
 	"github.com/blockchain-maxis/signet/cli/internal/simulator"
 )
@@ -24,24 +26,172 @@ func init() {
 	register(groupContracts, newDevCmd)
 }
 
-// newDevCmd is the parent of the local development loop's commands.
+// newDevCmd is `signet dev [contract]` (#563): the local development loop,
+// and the parent of dev init.
 func newDevCmd() *cobra.Command {
+	var path, pkg string
 	cmd := &cobra.Command{
-		Use:   "dev",
+		Use:   "dev [contract]",
 		Short: "Develop a contract against a fork of its deployment",
 		Long: `Develop a contract against a fork of its deployed version: build it, run
-its saved calls, and compare, every time the source changes.
+its saved calls on the deployed and the new code from the same forked state,
+and compare, every time the source changes.
 
-A contract's checks live in signet.dev.toml beside its source; signet dev init
-writes one to start from.`,
-		Args: cobra.NoArgs,
-		RunE: func(cmd *cobra.Command, _ []string) error {
-			return cmd.Help()
+The contract, --path and --package come from the flags or, for what the flags
+leave out, from the nearest signet.dev.toml (walking up from the working
+directory); signet dev init writes one. Before anything starts, signet dev
+checks, in order and each with its own message: the stellar CLI, cargo, the
+wasm32v1-none Rust target, a contract (cdylib) crate at --path, the
+signet-simulator, and that the simulator runs the network's protocol (exit 11
+when it does not; exit 3 for the others).`,
+		Example: `  signet dev CASFJHI5PQSRWS7JV25CF7FOMRKIVBP3RXRP3E2GH2CV4BCAG7FUJRCN --path ./contracts/registry
+  signet dev            # everything from signet.dev.toml
+  signet dev init CASF…RCN --path ./contracts/registry`,
+		Args: cobra.MaximumNArgs(1),
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return runDev(cmd, args, path, pkg)
 		},
 	}
 	addRPCFlags(cmd)
+	cmd.Flags().StringVar(&path, "path", "", "the contract's crate directory (default: path in signet.dev.toml)")
+	cmd.Flags().StringVar(&pkg, "package", "", "the contract crate, when --path is a workspace with several (default: package in signet.dev.toml)")
 	cmd.AddCommand(newDevInitCmd())
 	return cmd
+}
+
+// devSetup is what signet dev runs on, once flags and signet.dev.toml are
+// merged and preflight has passed.
+type devSetup struct {
+	contract string
+	crate    dev.Crate
+	file     *devconfig.File
+	fileDir  string
+}
+
+func runDev(cmd *cobra.Command, args []string, path, pkg string) error {
+	deps, err := depsFor(cmd)
+	if err != nil {
+		return err
+	}
+	cwd, err := os.Getwd()
+	if err != nil {
+		return err
+	}
+	setup := devSetup{}
+	if found := devconfig.Find(cwd); found != "" {
+		if setup.file, err = devconfig.Load(found); err != nil {
+			return &inputError{err.Error()}
+		}
+		setup.fileDir = filepath.Dir(found)
+	}
+	f := setup.file
+	if f == nil {
+		f = &devconfig.File{}
+	}
+	// Flags win; signet.dev.toml fills in the rest.
+	switch {
+	case len(args) == 1:
+		setup.contract = args[0]
+	case f.Address != "":
+		setup.contract = f.Address
+	default:
+		return &inputError{"signet dev needs a contract: pass its address, or set address in signet.dev.toml (signet dev init writes one)"}
+	}
+	if err := requireContract(setup.contract); err != nil {
+		return err
+	}
+	if path == "" && f.Path != "" {
+		path = f.Path
+		if !filepath.IsAbs(path) {
+			path = filepath.Join(setup.fileDir, path)
+		}
+	}
+	if path == "" {
+		return &inputError{"signet dev needs the contract's crate: --path ./contract, or path in signet.dev.toml"}
+	}
+	if pkg == "" {
+		pkg = f.Package
+	}
+	if f.Network.Name != "" && !cmd.Flag("network").Changed && os.Getenv("SIGNET_NETWORK") == "" {
+		deps.Config.Network = f.Network.Name
+	}
+	for flag, value := range map[string]string{"rpc-url": f.Network.RPCURL, "network-passphrase": f.Network.Passphrase} {
+		if value != "" && !cmd.Flags().Changed(flag) {
+			_ = cmd.Flags().Set(flag, value)
+		}
+	}
+	mode, err := driftMode(cmd)
+	if err != nil {
+		return err
+	}
+	ctx, stop := signal.NotifyContext(cmd.Context(), os.Interrupt)
+	defer stop()
+	printer := printerFor(cmd)
+
+	// Preflight, in order: each missing piece gets its own message.
+	binary := deps.KeysBinary
+	if binary == "" {
+		binary = keys.DefaultBinary
+	}
+	if err := keys.CheckStellarCLI(binary); err != nil {
+		return err
+	}
+	tools := dev.Tools{}
+	if err := dev.CheckCargo(tools); err != nil {
+		return err
+	}
+	if err := dev.CheckWasmTarget(tools); err != nil {
+		return err
+	}
+	if setup.crate, err = dev.FindCrate(tools, path, pkg); err != nil {
+		return err
+	}
+	locate := deps.LocateSimulator
+	if locate == nil {
+		locate = simulator.Find
+	}
+	if _, err := locate(ctx, deps.Version, printer.Progress); err != nil {
+		return err
+	}
+	network, err := sandboxNetwork(cmd, deps)
+	if err != nil {
+		return err
+	}
+	client, _, err := rpc.Connect(ctx, network, deps.RPCOptions...)
+	if err != nil {
+		return err
+	}
+	latest, err := client.GetLatestLedger(ctx)
+	if err != nil {
+		return err
+	}
+	sim, err := startSimulator(ctx, deps, printer.Progress)
+	if err != nil {
+		return err
+	}
+	lanes := sim.HelloAck()
+	_ = sim.Close()
+	if err := checkLanes(network.Name, latest.ProtocolVersion, lanes); err != nil {
+		return err
+	}
+
+	m, err := forkWithDrift(ctx, deps, network, setup.contract, mode, printer.Progress)
+	if err != nil {
+		return err
+	}
+	header := fmt.Sprintf("signet dev · %s @ %s ledger %d · lane p%d · crate %s",
+		shorten(setup.contract, 4, 3), m.Network, m.ForkLedger, m.Protocol, setup.crate.Name)
+	return printer.Result(struct {
+		Contract   string `json:"contract"`
+		Network    string `json:"network"`
+		ForkLedger uint32 `json:"forkLedger"`
+		Protocol   int    `json:"protocol"`
+		Crate      string `json:"crate"`
+		Manifest   string `json:"manifest"`
+	}{setup.contract, m.Network, m.ForkLedger, m.Protocol, setup.crate.Name, setup.crate.ManifestPath}, func(w io.Writer) error {
+		_, err := fmt.Fprintln(w, header)
+		return err
+	})
 }
 
 func newDevInitCmd() *cobra.Command {

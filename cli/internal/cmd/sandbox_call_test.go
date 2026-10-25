@@ -77,7 +77,12 @@ func (e *callEnv) cli(args ...string) (stdout, stderr string, err error) {
 		deps.KeysBinary = e.stellar
 	}
 	deps.ForkRoot = func() (string, error) { return e.root, nil }
-	deps.LocateSimulator = func(context.Context, string, func(string)) (string, error) { return e.sim, nil }
+	deps.LocateSimulator = func(context.Context, string, func(string)) (string, error) {
+		if e.sim == "" {
+			return "", simulator.ErrSimulatorNotFound
+		}
+		return e.sim, nil
+	}
 	deps.Now = func() time.Time { return time.Unix(1790458610, 0) }
 	cmd := newRootCmdWithDeps("0.0.0-test", "abc1234", deps)
 	out, errOut := &bytes.Buffer{}, &bytes.Buffer{}

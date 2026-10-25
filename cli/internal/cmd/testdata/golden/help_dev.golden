@@ -1,14 +1,25 @@
 $ signet dev --help
 -- stdout --
 Develop a contract against a fork of its deployed version: build it, run
-its saved calls, and compare, every time the source changes.
+its saved calls on the deployed and the new code from the same forked state,
+and compare, every time the source changes.
 
-A contract's checks live in signet.dev.toml beside its source; signet dev init
-writes one to start from.
+The contract, --path and --package come from the flags or, for what the flags
+leave out, from the nearest signet.dev.toml (walking up from the working
+directory); signet dev init writes one. Before anything starts, signet dev
+checks, in order and each with its own message: the stellar CLI, cargo, the
+wasm32v1-none Rust target, a contract (cdylib) crate at --path, the
+signet-simulator, and that the simulator runs the network's protocol (exit 11
+when it does not; exit 3 for the others).
 
 Usage:
-  signet dev [flags]
+  signet dev [contract] [flags]
   signet dev [command]
+
+Examples:
+  signet dev CASFJHI5PQSRWS7JV25CF7FOMRKIVBP3RXRP3E2GH2CV4BCAG7FUJRCN --path ./contracts/registry
+  signet dev            # everything from signet.dev.toml
+  signet dev init CASF…RCN --path ./contracts/registry
 
 Available Commands:
   init        Write a signet.dev.toml for a deployed contract
@@ -17,6 +28,8 @@ Flags:
       --drift string                when an entry fetched for the fork changed on-chain after the fork ledger: warn, fail (exit 6), or refork (pin the latest ledger and run once more) (default "warn")
   -h, --help                        help for dev
       --network-passphrase string   passphrase of a custom --network (checked against the RPC's getNetwork)
+      --package string              the contract crate, when --path is a workspace with several (default: package in signet.dev.toml)
+      --path string                 the contract's crate directory (default: path in signet.dev.toml)
       --rpc-url string              Stellar RPC to fork from (overrides the context's rpc-url; testnet defaults to https://soroban-testnet.stellar.org)
 
 Global Flags:

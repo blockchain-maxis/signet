@@ -80,6 +80,32 @@ Editors with [Taplo](https://taplo.tamasfe.dev) can validate the file against
 [`sandbox/protocol/schema/v1/signet-dev-toml.json`](../sandbox/protocol/schema/v1/signet-dev-toml.json);
 the CLI's tests hold this page's example to that schema.
 
+## `signet dev`
+
+`signet dev <contract> --path ./contract` is the development loop: it builds
+the local contract, runs its saved calls on the deployed and the new code from
+the same forked state, and compares them, every time the source changes. The
+contract, `--path` and `--package` come from the flags, or for what they leave
+out from the nearest `signet.dev.toml`.
+
+Before anything starts it checks the toolchain, in this order, and stops at the
+first missing piece with what to do about it:
+
+1. the `stellar` CLI, at least the version signet needs;
+2. `cargo`;
+3. the `wasm32v1-none` Rust target (`rustup target add wasm32v1-none`);
+4. a contract crate at `--path`: a `Cargo.toml` with a `cdylib` crate (and,
+   in a workspace with several, the one `--package` names);
+5. the `signet-simulator`;
+6. a simulator lane for the network's ledger protocol.
+
+The first five exit `3`; a protocol no lane runs exits `11`. Then it forks the
+contract and prints what it runs against:
+
+```text
+signet dev · CASF…RCN @ testnet ledger 4852095 · lane p28 · crate identity-registry
+```
+
 ## Archive forks
 
 A lazy fork knows only the keys something has read and can mix ledgers.
