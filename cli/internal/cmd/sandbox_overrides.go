@@ -6,6 +6,8 @@ import (
 	"strings"
 
 	"github.com/BurntSushi/toml"
+
+	"github.com/blockchain-maxis/signet/cli/internal/devconfig"
 )
 
 // storageOverride is one --set-storage, --unset-storage or [[override]]
@@ -109,6 +111,22 @@ type overridesFile struct {
 }
 
 func readOverridesFile(path string) ([]storageOverride, error) {
+	// A whole signet.dev.toml (it has a version) gives its [[override]]s.
+	var peek map[string]any
+	if _, err := toml.DecodeFile(path, &peek); err == nil && peek["version"] != nil {
+		dev, err := devconfig.Load(path)
+		if err != nil {
+			return nil, &inputError{fmt.Sprintf("--overrides %v", err)}
+		}
+		out := make([]storageOverride, 0, len(dev.Overrides))
+		for i, o := range dev.Overrides {
+			out = append(out, storageOverride{
+				durability: o.Durability, key: o.Key, value: o.Value, unset: o.Unset,
+				source: fmt.Sprintf("--overrides %s: override %d (%s:%s)", path, i+1, o.Durability, o.Key),
+			})
+		}
+		return out, nil
+	}
 	var f overridesFile
 	meta, err := toml.DecodeFile(path, &f)
 	if err != nil {

@@ -365,6 +365,10 @@ cache and the session log
   `simulate` result carries when asked
   ([#541](https://github.com/blockchain-maxis/signet/issues/541)), a document of
   its own that the visualiser's sandbox adapter pins by its `version`.
+- `signet-dev-toml` (`signet-dev-toml.json`) is not a message either: it is the
+  schema of `signet.dev.toml`
+  ([#560](https://github.com/blockchain-maxis/signet/issues/560),
+  [`SANDBOX.md`](SANDBOX.md#signetdevtoml)), kept here for editors.
 - `cli-call-result` (`cli-call-result.json`) is not a wire message: it is the object `signet sandbox call --json`
   writes ([#555](https://github.com/blockchain-maxis/signet/issues/555)), kept beside the
   messages it is built from.

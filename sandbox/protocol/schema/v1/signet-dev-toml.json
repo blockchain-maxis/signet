@@ -1,0 +1,150 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://signet.dev/schemas/sandbox/v1/signet-dev-toml.json",
+  "title": "signet.dev.toml",
+  "description": "A contract's saved calls, replay settings, diff rules and storage overrides (#560), as signet.dev.toml holds them. Not a wire message: for editors (Taplo) and the CLI's own checks. See docs/SANDBOX.md.",
+  "type": "object",
+  "properties": {
+    "version": {
+      "const": 1
+    },
+    "network": {
+      "oneOf": [
+        {
+          "type": "string",
+          "minLength": 1
+        },
+        {
+          "type": "object",
+          "properties": {
+            "name": {
+              "type": "string"
+            },
+            "rpc_url": {
+              "type": "string",
+              "minLength": 1
+            },
+            "passphrase": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
+    "address": {
+      "type": "string",
+      "pattern": "^C[A-Z2-7]{55}$"
+    },
+    "path": {
+      "type": "string",
+      "minLength": 1
+    },
+    "package": {
+      "type": "string",
+      "minLength": 1
+    },
+    "replay": {
+      "type": "object",
+      "properties": {
+        "saved": {
+          "type": "boolean"
+        },
+        "recent_transactions": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "include_failed": {
+          "type": "boolean"
+        }
+      },
+      "additionalProperties": false
+    },
+    "call": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "minLength": 1
+          },
+          "function": {
+            "type": "string",
+            "pattern": "^[A-Za-z_][A-Za-z0-9_]*$"
+          },
+          "args": {
+            "type": "object"
+          },
+          "expect": {
+            "type": "string",
+            "pattern": "^(unchanged|ok|any|error:[A-Za-z_][A-Za-z0-9_]*)$"
+          }
+        },
+        "required": ["name", "function", "expect"],
+        "additionalProperties": false
+      }
+    },
+    "override": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "durability": {
+            "enum": ["instance", "persistent", "temporary"]
+          },
+          "key": {
+            "type": "string",
+            "minLength": 1
+          },
+          "value": {
+            "type": "string",
+            "minLength": 1
+          },
+          "unset": {
+            "type": "boolean"
+          }
+        },
+        "required": ["durability", "key"],
+        "additionalProperties": false
+      }
+    },
+    "diff": {
+      "type": "object",
+      "properties": {
+        "ignore_events": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "resource_tolerance": {
+          "type": "object",
+          "properties": {
+            "instructions": {
+              "type": "string",
+              "pattern": "^[0-9]+(\\.[0-9]+)?%$"
+            },
+            "read_bytes": {
+              "type": "string",
+              "pattern": "^[0-9]+(\\.[0-9]+)?%$"
+            },
+            "write_bytes": {
+              "type": "string",
+              "pattern": "^[0-9]+(\\.[0-9]+)?%$"
+            },
+            "fee": {
+              "type": "string",
+              "pattern": "^[0-9]+(\\.[0-9]+)?%$"
+            }
+          },
+          "additionalProperties": false
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "required": ["version"],
+  "additionalProperties": false
+}

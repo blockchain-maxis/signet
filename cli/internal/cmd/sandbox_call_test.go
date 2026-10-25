@@ -563,4 +563,9 @@ func TestOverrideArgumentsAndFiles(t *testing.T) {
 	if _, err := readOverridesFile(write("[[override]]\ndurability = \"persistent\"\nkey = \"K\"\n")); err == nil {
 		t.Fatal("neither value nor unset")
 	}
+	// A whole signet.dev.toml gives its overrides.
+	got, err = readOverridesFile(write("version = 1\naddress = \"CASFJHI5PQSRWS7JV25CF7FOMRKIVBP3RXRP3E2GH2CV4BCAG7FUJRCN\"\n[[call]]\nname = \"c\"\nfunction = \"count\"\nexpect = \"ok\"\n[[override]]\ndurability = \"instance\"\nkey = \"Count\"\nvalue = \"u32:7\"\n"))
+	if err != nil || len(got) != 1 || got[0].value != "u32:7" {
+		t.Fatalf("signet.dev.toml: %+v %v", got, err)
+	}
 }

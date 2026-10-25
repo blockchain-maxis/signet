@@ -260,7 +260,8 @@ is none) in the local simulator. Nothing is submitted.
   and the footer counts it (`1 override`). `--unset-storage
 '<durability>:<key>'` removes one, and `--overrides overrides.toml` reads
   `[[override]]` tables (`durability`, `key`, `value`, or `unset = true`), the
-  format `signet.dev.toml` uses. A key or value is written `Owner("alice")`
+  format `signet.dev.toml` uses; given a whole
+  [`signet.dev.toml`](../docs/SANDBOX.md#signetdevtoml), it takes its overrides. A key or value is written `Owner("alice")`
   (a `#[contracttype]` enum case; with the contract's spec its arguments are
   typed by it, without one a strkey string is an address and any other a
   string), `u32:5` or `address:"G…"` (a typed value, primitive or a spec type),
