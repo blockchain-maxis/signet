@@ -664,6 +664,87 @@ jobs:
           go test -count=1 -run 'SandboxCall|SandboxForkArchive|SandboxState|TestDev' ./internal/cmd
           go test -count=1 ./internal/dev ./internal/bundle
 
+  # Repro bundles replay offline and identically everywhere (#573): each
+  # runner replays the committed bundles with fetching denied and writes the
+  # full result stream; the job after them asserts the streams are the same
+  # bytes on every platform.
+  replay:
+    name: bundle replay (${{ matrix.os }})
+    needs: changes
+    if: needs.changes.outputs.sandbox == 'true'
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 40
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, ubuntu-24.04-arm, macos-latest, windows-latest]
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo
+        uses: actions/cache@v6
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            sandbox/target
+          key: cargo-replay-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('sandbox/Cargo.lock') }}
+
+      - name: Build the simulator
+        working-directory: sandbox
+        run: cargo build --locked -p signet-simulator
+
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: cli/go.mod
+
+      - name: Replay the committed bundles
+        working-directory: cli
+        env:
+          SIGNET_SIMULATOR_PATH: ${{ github.workspace }}/sandbox/target/debug/signet-simulator${{ runner.os == 'Windows' && '.exe' || '' }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/streams"
+          for b in ../sandbox/fixtures/bundles/*.json; do
+            go run ./cmd/signet sandbox replay "$b" --stream "$RUNNER_TEMP/streams/$(basename "$b" .json).ndjson"
+          done
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: replay-${{ matrix.os }}
+          path: ${{ runner.temp }}/streams
+
+  replay-identical:
+    name: bundle replay is identical across platforms
+    needs: replay
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: replay-*
+          path: streams
+
+      - name: Compare every platform with ubuntu x64
+        run: |
+          status=0
+          for f in streams/replay-ubuntu-latest/*.ndjson; do
+            name=$(basename "$f")
+            for other in streams/replay-*/"$name"; do
+              if ! cmp -s "$f" "$other"; then
+                echo "::error::$other differs from $f"
+                diff <(head -c 4000 "$f") <(head -c 4000 "$other") || true
+                status=1
+              fi
+            done
+          done
+          ls -R streams
+          exit $status
+
   simulator-size:
     name: signet-simulator size budget
     needs: changes

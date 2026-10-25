@@ -6,6 +6,7 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"strconv"
 	"strings"
@@ -360,13 +361,29 @@ func (r *Reloader) begin(ctx context.Context, swap string) error {
 func (r *Reloader) simulate(ctx context.Context, params simulator.SimulateParams) (Run, error) {
 	var res simulator.SimulateResult
 	ce, err := r.host.Call(ctx, simulator.TypeSimulate, params, &res)
+	var refused *simulator.Error
 	switch {
+	case errors.As(err, &refused) && refusedCall(refused):
+		// The executable cannot take this call at all (a saved call's
+		// function was removed, or its arguments no longer encode): that
+		// side failed, and the diff and expect say so; the cycle goes on.
+		return Run{Error: &simulator.ContractError{Kind: "call", Code: "Refused", Message: refused.Message}}, nil
 	case err != nil:
 		return Run{}, err
 	case ce != nil:
 		return Run{Error: ce}, nil
 	}
 	return Run{Result: &res}, nil
+}
+
+// refusedCall is the simulator refusing a call for what the executable is
+// (its function or its arguments), not for how it was asked.
+func refusedCall(e *simulator.Error) bool {
+	if e.Code != "bad_request" {
+		return false
+	}
+	path, _ := e.Detail["path"].(string)
+	return path == "function" || path == "args" || strings.HasPrefix(path, "args.") || strings.HasPrefix(path, "args[")
 }
 
 // verdict checks B against expect: unchanged (no difference from A beyond

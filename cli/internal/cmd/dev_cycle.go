@@ -71,7 +71,7 @@ func (s *devSession) reset(ctx context.Context, overrides []devconfig.Override) 
 	protocol, sequence, timestamp := m.Protocol, m.ForkLedger, uint64(m.ForkTime.Unix())
 	if _, err := callSimulator(ctx, s.sim, simulator.TypeLedgerOpen, simulator.LedgerOpenParams{
 		NetworkPassphrase: m.Passphrase, LedgerProtocol: &protocol, Sequence: &sequence, Timestamp: &timestamp,
-		SessionID: "signet-dev",
+		SessionID: devSessionID,
 	}, nil); err != nil {
 		return err
 	}
@@ -92,6 +92,11 @@ func (s *devSession) reset(ctx context.Context, overrides []devconfig.Override) 
 	s.reloader, s.overrides = reloader, overrides
 	return nil
 }
+
+// devSessionID names signet dev's sessions: every call's PRNG seed derives
+// from it and the call's index (#537), so a replay of a bundle must use it
+// too.
+const devSessionID = "signet-dev"
 
 // fileOverrides are a file's [[override]]s; none without a file.
 func fileOverrides(f *devconfig.File) []devconfig.Override {
@@ -161,18 +166,20 @@ func (s *devSession) startLog(dir, cliVersion string) error {
 	return nil
 }
 
+// bundleSide is what one side returned, as a bundle keeps it.
+func bundleSide(r dev.Run) bundle.Side {
+	if r.Error != nil {
+		return bundle.Side{Outcome: "error", Error: r.Error.Code}
+	}
+	if r.Result == nil {
+		return bundle.Side{Outcome: "error"}
+	}
+	return bundle.Side{Outcome: "ok", ReturnValueXDR: r.Result.ReturnValueXDR}
+}
+
 // cycleRecord is a cycle as the session log keeps it: the calls, what each
 // side returned, and every key a footprint read.
 func cycleRecord(c dev.Cycle, replays []dev.Replay, overrides []devconfig.Override) bundle.Cycle {
-	side := func(r dev.Run) bundle.Side {
-		if r.Error != nil {
-			return bundle.Side{Outcome: "error", Error: r.Error.Code}
-		}
-		if r.Result == nil {
-			return bundle.Side{Outcome: "error"}
-		}
-		return bundle.Side{Outcome: "ok", ReturnValueXDR: r.Result.ReturnValueXDR}
-	}
 	keys := map[string]bool{}
 	read := func(r dev.Run) {
 		if r.Result != nil && r.Result.Resources != nil {
@@ -194,7 +201,7 @@ func cycleRecord(c dev.Cycle, replays []dev.Replay, overrides []devconfig.Overri
 		out.Calls = append(out.Calls, bundle.Call{Name: r.Name, Function: r.Params.Function, Args: args, Chain: r.Chain, Expect: string(expect), Source: "saved"})
 		if i < len(c.Outcomes) {
 			o := c.Outcomes[i]
-			out.Expected = append(out.Expected, bundle.Expected{Name: o.Name, A: side(o.A), B: side(o.B)})
+			out.Expected = append(out.Expected, bundle.Expected{Name: o.Name, A: bundleSide(o.A), B: bundleSide(o.B)})
 			read(o.A)
 			read(o.B)
 		}

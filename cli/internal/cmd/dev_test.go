@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/blockchain-maxis/signet/cli/internal/bundle"
 	"github.com/blockchain-maxis/signet/cli/internal/exitcode"
 	"github.com/blockchain-maxis/signet/cli/internal/jsonschema"
 )
@@ -221,5 +222,92 @@ func TestDevExportWritesAReproducibleBundle(t *testing.T) {
 	}
 	if _, err := os.Stat("big.json"); err == nil {
 		t.Fatal("an over-cap bundle was written")
+	}
+}
+
+// committedBundle is the registry repro bundle CI replays on every platform
+// (#573). SIGNET_UPDATE_BUNDLES=1 rewrites it from a fresh fixture session.
+var committedBundle = filepath.Join("..", "..", "..", "sandbox", "fixtures", "bundles", "registry-count.json")
+
+// exportRegistrySession runs signet dev --ci on the registry fixture fork
+// with one saved call and exports the session; it returns the bundle path.
+func exportRegistrySession(t *testing.T, e *callEnv) string {
+	t.Helper()
+	devTools(t)
+	e.stellar = "stellar"
+	crate := devCrate(t)
+	dir := t.TempDir()
+	toml := "version = 1\naddress = \"" + registryContract + "\"\npath = \"" + filepath.ToSlash(crate) + "\"\n" +
+		"\n[[call]]\nname = \"count\"\nfunction = \"count\"\nargs = {}\nexpect = \"unchanged\"\n"
+	if err := os.WriteFile(filepath.Join(dir, "signet.dev.toml"), []byte(toml), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	registryWasm, _ := filepath.Abs(filepath.Join("..", "..", "..", "packages", "spec", "fixtures", "identity-registry.wasm"))
+	t.Setenv("FAKESTELLAR_BUILD_WASM", registryWasm)
+	t.Chdir(dir)
+	if _, stderr, err := e.cli("dev", "--rpc-url", e.rpc.srv.URL, "--ci"); err != nil {
+		t.Fatalf("%v\n%s", err, stderr)
+	}
+	out := filepath.Join(dir, "repro.json")
+	if _, stderr, err := e.cli("sandbox", "export", "-o", out); err != nil {
+		t.Fatalf("export: %v\n%s", err, stderr)
+	}
+	return out
+}
+
+func TestDevReplayRunsABundleOfflineAndComparesIt(t *testing.T) {
+	e := newCallEnv(t)
+	committed, _ := filepath.Abs(committedBundle)
+	counter, _ := filepath.Abs(filepath.Join("..", "..", "..", "sandbox", "fixtures", "wasm", "counter_v1.wasm"))
+	fresh := exportRegistrySession(t, e)
+	if os.Getenv("SIGNET_UPDATE_BUNDLES") == "1" {
+		raw, err := os.ReadFile(fresh)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := os.MkdirAll(filepath.Dir(committed), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(committed, raw, 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	// No RPC: the replay must not fetch.
+	e.rpc.srv.Close()
+	for _, path := range []string{fresh, committed} {
+		stdout, stderr, err := e.cli("sandbox", "replay", path, "--stream", filepath.Join(t.TempDir(), "s.ndjson"))
+		if err != nil || !strings.Contains(stdout, "count  A AAAAAwAAAAI=  B AAAAAwAAAAI=  ✓") {
+			t.Fatalf("replay %s: %v\n%s%s", path, err, stdout, stderr)
+		}
+	}
+
+	// Another build is a mismatch: exit 10.
+	if _, _, err := e.cli("sandbox", "replay", fresh, "--wasm", counter); ExitCode(err) != exitcode.DiffFound || !strings.Contains(err.Error(), "do not match the bundle: count") {
+		t.Fatalf("--wasm: %v", err)
+	}
+
+	raw, _ := os.ReadFile(fresh)
+	var b bundle.Bundle
+	if err := json.Unmarshal(raw, &b); err != nil {
+		t.Fatal(err)
+	}
+	write := func(b bundle.Bundle, rehash bool) string {
+		if rehash {
+			b.BundleHash, _ = bundle.Hash(&b)
+		}
+		out, _ := json.Marshal(b)
+		path := filepath.Join(t.TempDir(), "b.json")
+		_ = os.WriteFile(path, out, 0o644)
+		return path
+	}
+	edited := b
+	edited.Expected = []bundle.Expected{{Name: "count", A: bundle.Side{Outcome: "ok", ReturnValueXDR: "AAAAAwAAAAk="}, B: b.Expected[0].B}}
+	if _, _, err := e.cli("sandbox", "replay", write(edited, false)); ExitCode(err) != exitcode.InvalidInput || !strings.Contains(err.Error(), "has been edited") {
+		t.Fatalf("edited: %v", err)
+	}
+	lane := b
+	lane.Simulator.Lane = 99
+	if _, _, err := e.cli("sandbox", "replay", write(lane, true)); ExitCode(err) != exitcode.HostUnsupported || !strings.Contains(err.Error(), "lane p99") {
+		t.Fatalf("lane: %v", err)
 	}
 }

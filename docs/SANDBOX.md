@@ -221,6 +221,17 @@ same file. A bundle over `--max-size` (25MB by default) is refused with the
 parts that take the room. The format is
 [`sandbox/protocol/schema/v1/bundle.json`](../sandbox/protocol/schema/v1/bundle.json).
 
+`signet sandbox replay repro.json` re-runs a bundle with no network access
+(#573): the host opens with fetching denied, loads the bundle's entries,
+network config and overrides, and runs its calls on both WASMs as `signet dev`
+did, with the same PRNG seeds. Every side must match the bundle's expected
+outcome and return value, or it exits `10`; `--wasm fix.wasm` runs another
+build against someone's repro. A bundle recorded on a lane this simulator does
+not run exits `11`, and an edited one (its `bundleHash` no longer matches)
+exits `2`. `--stream` writes every call's full results as NDJSON: CI replays
+the committed bundles in `sandbox/fixtures/bundles/` on Linux x64 and arm64,
+macOS arm64 and Windows x64 and checks the streams are byte-identical.
+
 Fork data is public chain state, but overrides and saved-call arguments are
 whatever you typed; export says so, and the bundle is worth reading before it
 is shared.

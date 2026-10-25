@@ -23,6 +23,7 @@ Available Commands:
   export      Write a signet dev session as a repro bundle
   fork        Pin a fork of a deployed contract at the network's latest ledger
   forks       List, remove and refresh cached forks
+  replay      Re-run a repro bundle offline and compare with what it recorded
   session     Manage named call sessions
   state       List a fork's storage entries for its contract
 

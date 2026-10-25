@@ -489,3 +489,29 @@ func TestTheCycleFindsStoredValuesTheBuildCannotRead(t *testing.T) {
 		}
 	}
 }
+
+// A build that drops a saved call's function fails that call on B; the
+// cycle goes on, and the diff says the outcome changed.
+func TestARefusedCallIsAFailedSide(t *testing.T) {
+	ctx := context.Background()
+	host, contract := session(t)
+	r, err := NewReloader(ctx, host, contract)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// counter_v2_write has no upgrade function; counter_v1 does.
+	cycle, err := r.Cycle(ctx, fixtureWasm(t, "counter_v2_write"), []Replay{
+		{Name: "upgrade", Params: simulator.SimulateParams{Function: "upgrade", Args: map[string]any{"hash": base64.StdEncoding.EncodeToString(make([]byte, 32))}}, Expect: expect(t, "unchanged")},
+		{Name: "get", Params: simulator.SimulateParams{Function: "get", Args: map[string]any{}}},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	o := cycle.Outcomes[0]
+	if o.B.Error == nil || o.B.Error.Kind != "call" || !strings.Contains(o.B.Error.Message, "upgrade") {
+		t.Fatalf("B: %+v", o.B)
+	}
+	if o.Diff.Outcome == nil || o.Verdict.Pass || len(cycle.Outcomes) != 2 {
+		t.Fatalf("diff %+v, verdict %+v", o.Diff.Outcome, o.Verdict)
+	}
+}
