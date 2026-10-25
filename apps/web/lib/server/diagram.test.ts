@@ -278,3 +278,156 @@ test('marks are cached for five minutes', async () => {
   await getMutabilityOverlay(address, 'testnet', deps);
   assert.equal(reads, 4);
 });
+
+// ── Instance storage (#514) ────────────────────────────────────────────
+
+import { xdr as X } from '@stellar/stellar-sdk';
+import {
+  getInstanceStorage,
+  INSTANCE_ARCHIVED,
+  __resetInstanceStorage,
+  type InstanceStorageServer,
+} from './diagram.ts';
+
+const admin = 'GAAZI4TCR3TY5OJHCTJC2A4QSY6CJWJH5IAJTGKIN2ER7LBNVKOCCWN7';
+
+/** The registry's instance entry, as `IdentityRegistry::init` and one `register` leave it. */
+function registryInstance(extra: X.ScMapEntry[] = []): X.LedgerEntryData {
+  return X.LedgerEntryData.contractData(
+    new X.ContractDataEntry({
+      ext: new X.ExtensionPoint(0),
+      contract: new Address(address).toScAddress(),
+      key: X.ScVal.scvLedgerKeyContractInstance(),
+      durability: X.ContractDataDurability.persistent(),
+      val: X.ScVal.scvContractInstance(
+        new X.ScContractInstance({
+          executable: X.ContractExecutable.contractExecutableWasm(Buffer.alloc(32, 0xab)),
+          storage: [
+            new X.ScMapEntry({ key: X.ScVal.scvVec([X.ScVal.scvSymbol('Admin')]), val: new Address(admin).toScVal() }),
+            new X.ScMapEntry({ key: X.ScVal.scvVec([X.ScVal.scvSymbol('Count')]), val: X.ScVal.scvU32(7) }),
+            ...extra,
+          ],
+        }),
+      ),
+    }),
+  );
+}
+
+const registrySpec: SpecJson = {
+  ...spec,
+  entriesXdr: [
+    ...spec.entriesXdr,
+    X.ScSpecEntry.scSpecEntryUdtUnionV0(
+      new X.ScSpecUdtUnionV0({
+        doc: '',
+        lib: '',
+        name: 'DataKey',
+        cases: ['Admin', 'Count'].map((name) =>
+          X.ScSpecUdtUnionCaseV0.scSpecUdtUnionCaseVoidV0(new X.ScSpecUdtUnionCaseVoidV0({ doc: '', name })),
+        ),
+      }),
+    ).toXDR('base64'),
+  ],
+  types: [
+    {
+      kind: 'union',
+      name: 'DataKey',
+      cases: ['Admin', 'Count'].map((name) => ({ name, fields: [] })),
+    },
+  ],
+};
+
+function stubServer(answer: () => Promise<Awaited<ReturnType<InstanceStorageServer['getLedgerEntries']>>>) {
+  let calls = 0;
+  const server: InstanceStorageServer = {
+    getLedgerEntries: () => {
+      calls++;
+      return answer();
+    },
+  };
+  return { server, calls: () => calls };
+}
+
+test('getInstanceStorage: decodes the registry instance entry at the ledger read', async () => {
+  __resetInstanceStorage();
+  const { server, calls } = stubServer(async () => ({
+    latestLedger: 5_200_000,
+    entries: [{ val: registryInstance(), liveUntilLedgerSeq: 5_300_000 }],
+  }));
+  const deps = {
+    server,
+    getContractSpec: async () => ({ ok: true as const, spec: registrySpec, source: 'memory' as const, wasmHash: hash }),
+    now: () => 1_000,
+  };
+  const storage = await getInstanceStorage(address, 'testnet', deps);
+  assert.equal(storage.status, 'ok');
+  assert.equal(storage.ledger, 5_200_000);
+  if (storage.status !== 'ok') return;
+  assert.equal(storage.liveUntilLedger, 5_300_000);
+  assert.deepEqual(storage.entries.map((e) => [e.key, e.shape, e.valueType, e.valuePreview]), [
+    ['[Admin]', 'Admin', 'Address', admin],
+    ['[Count]', 'Count', 'U32', '7'],
+  ]);
+  assert.ok(storage.entries.every((e) => e.specType === 'DataKey'));
+  // Read again within the TTL: no second RPC call.
+  await getInstanceStorage(address, 'testnet', deps);
+  assert.equal(calls(), 1);
+});
+
+test('getInstanceStorage: bytes are shown as a length and a prefix, long values cut', async () => {
+  __resetInstanceStorage();
+  const { server } = stubServer(async () => ({
+    latestLedger: 10,
+    entries: [
+      {
+        val: registryInstance([
+          new X.ScMapEntry({ key: X.ScVal.scvSymbol('Hash'), val: X.ScVal.scvBytes(Buffer.alloc(32, 0xcd)) }),
+          new X.ScMapEntry({ key: X.ScVal.scvSymbol('Note'), val: X.ScVal.scvString('x'.repeat(500)) }),
+        ]),
+      },
+    ],
+  }));
+  const storage = await getInstanceStorage(address, 'testnet', {
+    server,
+    getContractSpec: async () => ({ ok: false as const, failure: { reason: 'not-found' } }) as never,
+  });
+  assert.equal(storage.status, 'ok');
+  if (storage.status !== 'ok') return;
+  const hash = storage.entries.find((e) => e.shape === 'Hash')!;
+  assert.equal(hash.valuePreview, '32 bytes 0xcdcdcdcdcdcdcdcd…');
+  assert.equal(hash.specType, undefined);
+  const note = storage.entries.find((e) => e.shape === 'Note')!;
+  assert.equal(note.valuePreview.length, 120);
+  assert.ok(note.valuePreview.endsWith('…'));
+});
+
+test('getInstanceStorage: an archived or missing entry is reported, with the ledger, not thrown', async () => {
+  __resetInstanceStorage();
+  const archived = stubServer(async () => ({
+    latestLedger: 5_200_000,
+    entries: [{ val: registryInstance(), liveUntilLedgerSeq: 5_100_000 }],
+  }));
+  const a = await getInstanceStorage(address, 'testnet', { server: archived.server });
+  assert.deepEqual(a, { status: 'archived', ledger: 5_200_000, reason: INSTANCE_ARCHIVED });
+
+  const missing = stubServer(async () => ({ latestLedger: 5_200_001, entries: [] }));
+  const m = await getInstanceStorage(address, 'testnet', { server: missing.server });
+  assert.equal(m.status, 'missing');
+  assert.equal(m.ledger, 5_200_001);
+  assert.match((m as { reason: string }).reason, /restore needed to read/);
+  // Neither is cached: a restored entry shows on the next read.
+  await getInstanceStorage(address, 'testnet', { server: missing.server });
+  assert.equal(missing.calls(), 2);
+});
+
+test('getInstanceStorage: an RPC timeout is reported as unavailable', async () => {
+  __resetInstanceStorage();
+  const hung = stubServer(() => new Promise(() => {}));
+  const storage = await getInstanceStorage(address, 'testnet', { server: hung.server, timeoutMs: 20 });
+  assert.equal(storage.status, 'unavailable');
+  assert.equal(storage.ledger, null);
+  const failing = stubServer(async () => {
+    throw new Error('ECONNREFUSED');
+  });
+  assert.equal((await getInstanceStorage(address, 'testnet', { server: failing.server })).status, 'unavailable');
+});

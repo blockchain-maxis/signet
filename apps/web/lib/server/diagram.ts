@@ -20,6 +20,7 @@
 import {
   classifyFunctions,
   fromSpecJson,
+  keyShape,
   LruSpecCache,
   normaliseFootprint,
   type ContractSpec,
@@ -629,4 +630,197 @@ export async function getMutabilityOverlay(
     logger.warn({ address, network, error }, 'failed to compute mutability marks');
     return null;
   }
+}
+
+// ── Instance storage (#514) ────────────────────────────────────────────
+
+/** Why an instance entry cannot be read, in the words the page shows. */
+export const INSTANCE_ARCHIVED = 'instance entry archived; restore needed to read';
+
+/** How long an instance read is reused: about six ledgers. */
+export const INSTANCE_TTL_MS = 30 * 1000;
+
+/** An RPC that has not answered in this long is reported unavailable. */
+export const INSTANCE_TIMEOUT_MS = 5 * 1000;
+
+/** A value preview longer than this is cut, with an ellipsis. */
+const PREVIEW_CHARS = 120;
+/** Bytes are shown as their length and this many leading bytes, in hex. */
+const PREVIEW_BYTES = 8;
+
+/** One key of the instance storage map. */
+export interface InstanceStorageEntry {
+  /** The key itself, as a short preview. */
+  readonly key: string;
+  /** Its shape (#513): `Admin`, `Balance(Address)`. */
+  readonly shape: string;
+  /** The spec union or enum the key matched, when the spec has one. */
+  readonly specType?: string;
+  readonly valueType: string;
+  readonly valuePreview: string;
+}
+
+/**
+ * A contract's instance storage at a stated ledger (design §1.3): the one
+ * piece of state listable without knowing the keys. `ledger` is the RPC's
+ * latest ledger at the read, so the page can say "observed at ledger N".
+ */
+export type InstanceStorage =
+  | {
+      readonly status: 'ok';
+      readonly ledger: number;
+      readonly liveUntilLedger: number | null;
+      readonly entries: readonly InstanceStorageEntry[];
+    }
+  /** The entry is past its TTL: it has to be restored before it can be read. */
+  | { readonly status: 'archived'; readonly ledger: number; readonly reason: string }
+  /** No entry: archived out of the live state, or no such contract on this network. */
+  | { readonly status: 'missing'; readonly ledger: number; readonly reason: string }
+  | { readonly status: 'unavailable'; readonly ledger: null; readonly reason: string };
+
+/** Just the slice of `rpc.Server` an instance read needs, so tests can stub it. */
+export interface InstanceStorageServer {
+  getLedgerEntries(...keys: xdr.LedgerKey[]): Promise<{
+    latestLedger: number;
+    entries: readonly { val: xdr.LedgerEntryData; liveUntilLedgerSeq?: number }[];
+  }>;
+}
+
+export interface InstanceStorageDeps {
+  server?: InstanceStorageServer;
+  /** The spec, to match keys to its unions; the read goes on without it. */
+  getContractSpec?: DiagramDeps['getContractSpec'];
+  now?: () => number;
+  timeoutMs?: number;
+}
+
+const instanceCache = new Map<string, { at: number; storage: InstanceStorage }>();
+
+export function __resetInstanceStorage(): void {
+  instanceCache.clear();
+}
+
+function cut(text: string): string {
+  return text.length > PREVIEW_CHARS ? `${text.slice(0, PREVIEW_CHARS - 1)}…` : text;
+}
+
+/** An ScVal's type, by its arm: `Address`, `U32`, `Vec`, `Map`. */
+function valueTypeOf(val: xdr.ScVal): string {
+  return val.switch().name.replace(/^scv/, '');
+}
+
+/** A short, display-only preview of a value; nested containers stop at depth 2. */
+function previewOf(val: xdr.ScVal, depth = 0): string {
+  switch (val.switch().name) {
+    case 'scvBool':
+      return String(val.b());
+    case 'scvVoid':
+      return '()';
+    case 'scvSymbol':
+      return val.sym().toString();
+    case 'scvString':
+      return JSON.stringify(val.str().toString());
+    case 'scvAddress':
+      return Address.fromScAddress(val.address()).toString();
+    case 'scvBytes': {
+      const bytes = val.bytes();
+      const hex = bytes.subarray(0, PREVIEW_BYTES).toString('hex');
+      return `${bytes.length} bytes 0x${hex}${bytes.length > PREVIEW_BYTES ? '…' : ''}`;
+    }
+    case 'scvVec': {
+      const items = val.vec() ?? [];
+      if (depth >= 2) return `[${items.length} items]`;
+      return `[${items.map((item) => previewOf(item, depth + 1)).join(', ')}]`;
+    }
+    case 'scvMap': {
+      const entries = val.map() ?? [];
+      if (depth >= 2) return `{${entries.length} entries}`;
+      return `{${entries.map((e) => `${previewOf(e.key(), depth + 1)}: ${previewOf(e.val(), depth + 1)}`).join(', ')}}`;
+    }
+    case 'scvU32':
+    case 'scvI32':
+    case 'scvU64':
+    case 'scvI64':
+    case 'scvU128':
+    case 'scvI128':
+    case 'scvU256':
+    case 'scvI256':
+    case 'scvTimepoint':
+    case 'scvDuration':
+      return String(scValToNative(val));
+    default:
+      return valueTypeOf(val);
+  }
+}
+
+function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const timeout = new Promise<never>((_, reject) => {
+    timer = setTimeout(() => reject(new Error(`no answer in ${ms} ms`)), ms);
+  });
+  return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
+}
+
+/**
+ * Reads a contract's instance entry with one `getLedgerEntries` against the
+ * app's own RPC (never a visitor's), and decodes its storage map into short
+ * previews. A ledger read, not execution, so it is fine on the server. An
+ * archived or missing entry and an RPC that fails or times out are results,
+ * never throws; only readable entries are cached, for about six ledgers.
+ */
+export async function getInstanceStorage(
+  address: string,
+  network: string,
+  deps: InstanceStorageDeps = {},
+): Promise<InstanceStorage> {
+  const now = deps.now ?? Date.now;
+  const key = `${network}:${address}`;
+  const hit = instanceCache.get(key);
+  if (hit && now() - hit.at < INSTANCE_TTL_MS) return hit.storage;
+
+  let response: Awaited<ReturnType<InstanceStorageServer['getLedgerEntries']>>;
+  try {
+    const server = deps.server ?? new rpc.Server(SOROBAN_RPC_URL, { allowHttp: ALLOW_HTTP });
+    response = await withTimeout(server.getLedgerEntries(instanceKey(address)), deps.timeoutMs ?? INSTANCE_TIMEOUT_MS);
+  } catch (error) {
+    logger.warn({ address, network, error }, 'instance storage: ledger entries unavailable');
+    return { status: 'unavailable', ledger: null, reason: 'The RPC did not answer, so the instance storage could not be read.' };
+  }
+
+  const ledger = response.latestLedger;
+  const entry = response.entries[0];
+  if (!entry) {
+    return {
+      status: 'missing',
+      ledger,
+      reason: `No instance entry at ledger ${ledger}: either ${INSTANCE_ARCHIVED}, or there is no such contract on this network.`,
+    };
+  }
+  const liveUntil = entry.liveUntilLedgerSeq ?? null;
+  if (liveUntil !== null && liveUntil < ledger) {
+    return { status: 'archived', ledger, reason: INSTANCE_ARCHIVED };
+  }
+
+  let spec: ContractSpec | undefined;
+  try {
+    const resolved = await (deps.getContractSpec ?? loadContractSpec)({ address, network, wasmHash: null });
+    if (resolved.ok) spec = fromSpecJson(resolved.spec);
+  } catch {
+    // Keys are still listed, just not matched to a spec type.
+  }
+
+  const storage = entry.val.contractData().val().instance().storage() ?? [];
+  const entries = storage.map((item): InstanceStorageEntry => {
+    const shape = keyShape(item.key(), spec);
+    return {
+      key: cut(previewOf(item.key())),
+      shape: shape.shape,
+      ...(shape.specType && { specType: shape.specType }),
+      valueType: valueTypeOf(item.val()),
+      valuePreview: cut(previewOf(item.val())),
+    };
+  });
+  const result: InstanceStorage = { status: 'ok', ledger, liveUntilLedger: liveUntil, entries };
+  instanceCache.set(key, { at: now(), storage: result });
+  return result;
 }
