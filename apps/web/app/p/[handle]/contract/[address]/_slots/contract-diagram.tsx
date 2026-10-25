@@ -9,12 +9,16 @@ import {
   renderDiagramSvg,
   renderOutlineHtml,
   typeAnchor,
+  withMarks,
   MAX_NODES,
   type LayoutOverlays,
+  type MutabilityOverlayInput,
   type PositionedDiagramModel,
 } from '@signet/visualiser';
 import { logger } from '@/lib/logger';
+import { resolveNetwork, stellarExpertTxUrl } from '@/lib/network';
 import { loadContractCallGraph, type ContractCallGraph } from '@/lib/server/call-graph-source';
+import { getMutabilityOverlay, type MutabilityOverlay } from '@/lib/server/diagram';
 import { SectionLabel } from '../../../_components/section-label';
 import { SlotPlaceholder } from './slot-placeholder';
 import type { ContractSlotProps } from './slot-props';
@@ -43,7 +47,12 @@ function specForGraph(json: SpecJson, { address, network }: ContractSlotProps): 
  * Following #499 (E-19), the outline sits after the SVG in a `<details>` labelled
  * "Diagram as text", and the SVG gets `aria-describedby="diagram-outline"`.
  */
-function DiagramBody(props: ContractSlotProps & { calls: ContractCallGraph | null }) {
+function DiagramBody(
+  props: ContractSlotProps & {
+    calls: ContractCallGraph | null;
+    mutability: MutabilityOverlay | null;
+  },
+) {
   if (props.spec.kind !== 'spec') {
     return <SlotPlaceholder slot="diagram" props={props} />;
   }
@@ -84,7 +93,28 @@ function DiagramBody(props: ContractSlotProps & { calls: ContractCallGraph | nul
     return null;
   };
 
-  const outline = buildDiagramOutline(model);
+  // Read/write marks (#512): observed from indexed transactions, stated as such
+  // under the diagram, never taken from the interface.
+  const { mutability } = props;
+  const explorer = resolveNetwork(props.network).explorer;
+  const marks: MutabilityOverlayInput | undefined = mutability
+    ? {
+        marks: mutability.marks,
+        transactions: mutability.observations,
+        firstLedger: mutability.firstLedger,
+        lastLedger: mutability.lastLedger,
+        staleObservations: mutability.staleObservations,
+        txHref: (hash) => stellarExpertTxUrl(hash, explorer),
+      }
+    : undefined;
+  const hasWrites = mutability
+    ? Object.values(mutability.marks).some((m) => m.kind === 'writes')
+    : false;
+  const writesOnly = Boolean(props.writesOnly && hasWrites);
+
+  const outline = mutability
+    ? withMarks(buildDiagramOutline(model), mutability.marks)
+    : buildDiagramOutline(model);
   const outlineHtml = renderOutlineHtml(outline, hrefForNode);
 
   const outlineDetails = (
@@ -140,6 +170,8 @@ function DiagramBody(props: ContractSlotProps & { calls: ContractCallGraph | nul
     ariaDescribedBy: 'diagram-outline',
     query,
     focus: props.focus,
+    writesOnly,
+    ...(marks && { overlays: { mutability: marks } }),
   });
 
   const totalFunctions = model.nodes.filter((n) => n.id.startsWith('fn:')).length;
@@ -178,6 +210,30 @@ function DiagramBody(props: ContractSlotProps & { calls: ContractCallGraph | nul
             className="viz-filter-input bg-[#181614] border border-[#2b2721] rounded px-3 py-1.5 text-xs text-[#f5f4ee] placeholder-[#8a8779] focus:outline-none focus:border-[#e05252] w-64"
             aria-label="Filter functions and types"
           />
+          <label
+            className={`flex items-center gap-2 text-xs ${hasWrites ? 'text-[#f5f4ee]' : 'text-[#8a8779]'}`}
+            title={
+              hasWrites
+                ? undefined
+                : 'No function of this contract has been seen writing, so there is nothing to filter on.'
+            }
+          >
+            <input
+              type="checkbox"
+              name="writes"
+              value="1"
+              defaultChecked={writesOnly}
+              disabled={!hasWrites}
+              className="accent-[#e05a4b]"
+            />
+            Writes only
+          </label>
+          <button
+            type="submit"
+            className="rounded border border-[#2b2721] px-3 py-1.5 text-xs text-[#f5f4ee] hover:border-[#e05a4b] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#e05a4b]"
+          >
+            Apply
+          </button>
         </form>
         <div aria-live="polite" className="text-xs text-[#8a8779] sr-only">
           {announcement}
@@ -194,6 +250,11 @@ function DiagramBody(props: ContractSlotProps & { calls: ContractCallGraph | nul
         </p>
       )}
       <div className="overflow-x-auto" dangerouslySetInnerHTML={{ __html: svg }} />
+      {mutability?.reason && (
+        <p className="mt-2 text-xs text-[#8a8779]">
+          {mutability.reason} {mutability.retentionNote}
+        </p>
+      )}
       {outlineDetails}
     </section>
   );
@@ -204,8 +265,13 @@ function DiagramBody(props: ContractSlotProps & { calls: ContractCallGraph | nul
  * focusable `role="region"` so keyboard users can scroll a large diagram.
  */
 export async function ContractDiagram(props: ContractSlotProps) {
-  const calls =
-    props.spec.kind === 'spec' ? await loadContractCallGraph(props.address, props.network) : null;
+  const [calls, mutability] =
+    props.spec.kind === 'spec'
+      ? await Promise.all([
+          loadContractCallGraph(props.address, props.network),
+          getMutabilityOverlay(props.address, props.network),
+        ])
+      : [null, null];
   return (
     <div
       role="region"
@@ -213,7 +279,7 @@ export async function ContractDiagram(props: ContractSlotProps) {
       tabIndex={0}
       className="viz-viewport max-h-[70vh] max-w-full overflow-auto outline-none focus-visible:ring-2 focus-visible:ring-[#60a5fa]"
     >
-      <DiagramBody {...props} calls={calls} />
+      <DiagramBody {...props} calls={calls} mutability={mutability} />
     </div>
   );
 }

@@ -3,7 +3,7 @@
   role="figure"
   aria-labelledby="identity-registry-title identity-registry-desc"
   class="contract-diagram"
-  width="169" height="428" viewBox="0 0 169 428"
+  width="191" height="428" viewBox="0 0 191 428"
   font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="14"
 >
   <title id="identity-registry-title">identity-registry (testnet CASFJHI5PQSRWS7JV25CF7FOMRKIVBP3RXRP3E2GH2CV4BCAG7FUJRCN)</title>
@@ -11,7 +11,7 @@
   <defs>
   </defs>
   <a id="diagram-fn-claim" href="#fn-claim" data-node-id="fn:claim">
-    <rect id="identity-registry-node-fn:claim" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="52" width="62" height="28" rx="6" ry="6"/>
+    <rect id="identity-registry-node-fn:claim" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="52" width="84" height="28" rx="6" ry="6"/>
     <title>claim</title>
     <text
       class="diagram-node-label"
@@ -24,7 +24,7 @@
     </text>
   </a>
   <a id="diagram-fn-count" href="#fn-count" data-node-id="fn:count">
-    <rect id="identity-registry-node-fn:count" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="92" width="62" height="28" rx="6" ry="6"/>
+    <rect id="identity-registry-node-fn:count" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="92" width="84" height="28" rx="6" ry="6"/>
     <title>count</title>
     <text
       class="diagram-node-label"
@@ -37,7 +37,7 @@
     </text>
   </a>
   <a id="diagram-fn-lookup" href="#fn-lookup" data-node-id="fn:lookup">
-    <rect id="identity-registry-node-fn:lookup" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="132" width="71" height="28" rx="6" ry="6"/>
+    <rect id="identity-registry-node-fn:lookup" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="132" width="93" height="28" rx="6" ry="6"/>
     <title>lookup</title>
     <text
       class="diagram-node-label"
@@ -50,7 +50,7 @@
     </text>
   </a>
   <a id="diagram-fn-release" href="#fn-release" data-node-id="fn:release">
-    <rect id="identity-registry-node-fn:release" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="172" width="79" height="28" rx="6" ry="6"/>
+    <rect id="identity-registry-node-fn:release" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="172" width="101" height="28" rx="6" ry="6"/>
     <title>release</title>
     <text
       class="diagram-node-label"
@@ -63,7 +63,7 @@
     </text>
   </a>
   <a id="diagram-fn-resolve" href="#fn-resolve" data-node-id="fn:resolve">
-    <rect id="identity-registry-node-fn:resolve" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="212" width="79" height="28" rx="6" ry="6"/>
+    <rect id="identity-registry-node-fn:resolve" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="212" width="101" height="28" rx="6" ry="6"/>
     <title>resolve</title>
     <text
       class="diagram-node-label"
@@ -76,7 +76,7 @@
     </text>
   </a>
   <a id="diagram-fn-is_bound" href="#fn-is_bound" data-node-id="fn:is_bound">
-    <rect id="identity-registry-node-fn:is_bound" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="252" width="88" height="28" rx="6" ry="6"/>
+    <rect id="identity-registry-node-fn:is_bound" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="252" width="110" height="28" rx="6" ry="6"/>
     <title>is_bound</title>
     <text
       class="diagram-node-label"
@@ -89,7 +89,7 @@
     </text>
   </a>
   <a id="diagram-fn-admin_revoke" href="#fn-admin_revoke" data-node-id="fn:admin_revoke">
-    <rect id="identity-registry-node-fn:admin_revoke" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="292" width="121" height="28" rx="6" ry="6"/>
+    <rect id="identity-registry-node-fn:admin_revoke" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="292" width="143" height="28" rx="6" ry="6"/>
     <title>admin_revoke</title>
     <text
       class="diagram-node-label"
@@ -102,7 +102,7 @@
     </text>
   </a>
   <a id="diagram-fn-initialize" href="#fn-initialize" data-node-id="fn:initialize">
-    <rect id="identity-registry-node-fn:initialize" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="376" width="104" height="28" rx="6" ry="6"/>
+    <rect id="identity-registry-node-fn:initialize" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="376" width="126" height="28" rx="6" ry="6"/>
     <title>initialize</title>
     <text
       class="diagram-node-label"

@@ -80,7 +80,15 @@ export function calleeNodeId(address: string): string {
  * Bumped on any change to the algorithm or its defaults, so a cache keyed on
  * `wasmHash` (#497) can tell a stale layout from a current one.
  */
-export const LAYOUT_VERSION = 1;
+export const LAYOUT_VERSION = 2;
+
+/**
+ * The room every function node keeps at its right end for its read/write
+ * mark (#512): the reserved glyphs of #493, filled in by the overlay. Kept
+ * whether or not an overlay is drawn, so the cached layout never depends on
+ * the overlay (design §4.2). Version 2 of the layout added it.
+ */
+export const MARK_SLOT = 22;
 
 /**
  * Maximum number of raw nodes `layoutContractGraph` will lay out (#507).
@@ -536,15 +544,19 @@ export function layoutContractGraph(
     ...(calls.anchor ? [{ id: CALL_ANCHOR_ID, name: ANCHOR_NAME, call: true as const }] : []),
   ];
   for (const node of sizedNodes) {
+    const slot = node.id.startsWith('fn:') ? MARK_SLOT : 0;
     const cap = node.call ? callMaxWidth : geo.maxNodeWidth;
-    const fits = Math.ceil(textWidth(node.name, geo.fontSizePx)) + 2 * geo.nodePaddingX;
+    const fits = Math.ceil(textWidth(node.name, geo.fontSizePx)) + 2 * geo.nodePaddingX + slot;
     const truncated = fits > cap;
     const label = truncated
-      ? truncateLabel(node.name, node.call ? callMaxCells : maxCells)
+      ? truncateLabel(
+          node.name,
+          node.call ? callMaxCells : Math.max(1, maxCells - Math.ceil(slot / cell)),
+        )
       : node.name;
     size.set(node.id, {
       label,
-      width: Math.ceil(textWidth(label, geo.fontSizePx)) + 2 * geo.nodePaddingX,
+      width: Math.ceil(textWidth(label, geo.fontSizePx)) + 2 * geo.nodePaddingX + slot,
       truncated,
     });
   }

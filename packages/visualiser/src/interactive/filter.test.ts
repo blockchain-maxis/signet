@@ -39,6 +39,9 @@ class FakeNode {
   readonly children: FakeNode[] = [];
   focused = false;
   value = '';
+  checked = false;
+  disabled = false;
+  title = '';
   private ownText = '';
   private readonly listeners = new Map<string, Set<(event: unknown) => void>>();
 
@@ -68,6 +71,11 @@ class FakeNode {
 
   getAttribute(name: string): string | null {
     return this.attributes.get(name) ?? null;
+  }
+
+  removeAttribute(name: string): void {
+    this.attributes.delete(name);
+    if (name === 'title') this.title = '';
   }
 
   appendChild(child: FakeNode): FakeNode {
@@ -115,6 +123,18 @@ class FakeNode {
   }
 
   querySelector<T = FakeNode>(selector: string): T | null {
+    const attr = /^\[([a-z-]+)\]$/.exec(selector);
+    if (attr) {
+      const walk = (node: FakeNode): FakeNode | null => {
+        for (const child of node.children) {
+          if (child.attributes.has(attr[1]!)) return child;
+          const found = walk(child);
+          if (found) return found;
+        }
+        return null;
+      };
+      return walk(this) as unknown as T | null;
+    }
     if (selector === '[data-node-id]:not(.viz-dimmed)') {
       const walk = (node: FakeNode): FakeNode | null => {
         for (const child of node.children) {
@@ -220,4 +240,83 @@ test('renderDiagramSvg: server-side query applies viz-dimmed to non-matches and 
   assert.ok(svg.includes('data-node-id="fn:claim" class="viz-match"'));
   assert.ok(svg.includes('data-node-id="fn:swap" class="viz-dimmed"'));
   assert.ok(svg.includes('data-node-id="type:Address" class="viz-dimmed"'));
+});
+
+// Read/write marks (#512): "writes only" dims every function that does not write.
+function markedDiagram(marks: Record<string, string | null>) {
+  const container = new FakeNode('DIV');
+  const liveRegion = new FakeNode('DIV');
+  const toggle = new FakeNode('INPUT');
+  container.appendChild(liveRegion);
+  container.appendChild(toggle);
+  const nodes = new Map<string, FakeNode>();
+  for (const [name, mark] of Object.entries(marks)) {
+    const node = new FakeNode('G');
+    node.setAttribute('data-node-id', `fn:${name}`);
+    if (mark) node.setAttribute('data-mark', mark);
+    node.textContent = name;
+    container.appendChild(node);
+    nodes.set(name, node);
+  }
+  return { container, liveRegion, toggle, nodes };
+}
+
+test('enhanceFilter: writes only dims the functions that do not write, and combines with a query', () => {
+  const { container, liveRegion, toggle, nodes } = markedDiagram({
+    deposit: 'write',
+    withdraw: 'write',
+    balance: 'read',
+    unknown: null,
+  });
+  const controller = enhanceFilter({
+    container: container as unknown as HTMLElement,
+    liveRegion: liveRegion as unknown as HTMLElement,
+    writesOnly: toggle as unknown as HTMLInputElement,
+  });
+  assert.equal(toggle.disabled, false);
+
+  toggle.checked = true;
+  toggle.dispatchEvent({ type: 'change' });
+  assert.equal(liveRegion.textContent, '2 of 4 functions write');
+  for (const name of ['balance', 'unknown']) {
+    assert.ok(nodes.get(name)!.classList.contains(FILTER_CLASSES.dimmed), name);
+  }
+  for (const name of ['deposit', 'withdraw']) {
+    assert.equal(nodes.get(name)!.classList.contains(FILTER_CLASSES.dimmed), false, name);
+  }
+
+  const result = controller.setQuery('dep');
+  assert.equal(result.matchingFunctions, 1);
+  assert.equal(liveRegion.textContent, '1 of 4 functions match and write');
+  assert.ok(nodes.get('withdraw')!.classList.contains(FILTER_CLASSES.dimmed));
+
+  controller.setQuery('');
+  controller.setWritesOnly(false);
+  assert.equal(toggle.checked, false);
+  assert.equal(liveRegion.textContent, '');
+  for (const node of nodes.values()) {
+    assert.equal(node.classList.contains(FILTER_CLASSES.dimmed), false);
+  }
+  controller.destroy();
+});
+
+test('enhanceFilter: writes only is disabled, with the reason, on a diagram with no marks', () => {
+  const { container, liveRegion, toggle, nodes } = markedDiagram({ deposit: null, balance: null });
+  toggle.checked = true;
+  const controller = enhanceFilter({
+    container: container as unknown as HTMLElement,
+    liveRegion: liveRegion as unknown as HTMLElement,
+    writesOnly: toggle as unknown as HTMLInputElement,
+  });
+  assert.equal(toggle.disabled, true);
+  assert.equal(toggle.checked, false);
+  assert.match(toggle.title, /no calls to it have been observed/);
+  assert.equal(toggle.getAttribute('aria-description'), toggle.title);
+
+  controller.setWritesOnly(true);
+  assert.equal(toggle.checked, false);
+  for (const node of nodes.values()) {
+    assert.equal(node.classList.contains(FILTER_CLASSES.dimmed), false);
+  }
+  controller.destroy();
 });

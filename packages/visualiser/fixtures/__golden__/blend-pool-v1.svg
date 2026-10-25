@@ -3,7 +3,7 @@
   role="figure"
   aria-labelledby="blend-pool-v1-title blend-pool-v1-desc"
   class="contract-diagram"
-  width="806" height="924" viewBox="0 0 806 924"
+  width="828" height="924" viewBox="0 0 828 924"
   font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="14"
 >
   <title id="blend-pool-v1-title">blend-pool-v1 (mainnet CDVQVKOY2YSXS2IC7KN6MNASSHPAO7UN2UR2ON4OI2SKMFJNVAMDX6DP)</title>
@@ -18,7 +18,7 @@
     data-edge-from="fn:queue_set_reserve"
     data-edge-to="type:ReserveConfig"
     data-edge-kind="arg"
-    points="187,106 286,106 286,157.66666666666663 596,157.66666666666663 596,417.3333333333333 644,417.3333333333333"
+    points="209,106 308,106 308,157.66666666666663 618,157.66666666666663 618,417.3333333333333 666,417.3333333333333"
     fill="none" stroke="var(--viz-edge)" stroke-width="1.5"
     marker-end="url(#blend-pool-v1-filled-arrow)"
   />
@@ -28,7 +28,7 @@
     data-edge-from="fn:get_positions"
     data-edge-to="type:Positions"
     data-edge-kind="return"
-    points="154,186 286,186 286,217.33333333333334 334,217.33333333333334"
+    points="176,186 308,186 308,217.33333333333334 356,217.33333333333334"
     fill="none" stroke="var(--viz-edge)" stroke-width="1.5"
     marker-end="url(#blend-pool-v1-open-arrow)"
   />
@@ -38,7 +38,7 @@
     data-edge-from="fn:submit"
     data-edge-to="type:Request"
     data-edge-kind="arg"
-    points="95,230.66666666666666 286,230.66666666666666 286,302 334,302"
+    points="117,230.66666666666666 308,230.66666666666666 308,302 356,302"
     fill="none" stroke="var(--viz-edge)" stroke-width="1.5"
     marker-end="url(#blend-pool-v1-filled-arrow)"
   />
@@ -48,7 +48,7 @@
     data-edge-from="fn:submit"
     data-edge-to="type:Positions"
     data-edge-kind="return"
-    points="95,221.33333333333334 286,221.33333333333334 286,226.66666666666666 334,226.66666666666666"
+    points="117,221.33333333333334 308,221.33333333333334 308,226.66666666666666 356,226.66666666666666"
     fill="none" stroke="var(--viz-edge)" stroke-width="1.5"
     marker-end="url(#blend-pool-v1-open-arrow)"
   />
@@ -58,7 +58,7 @@
     data-edge-from="fn:set_emissions_config"
     data-edge-to="type:ReserveEmissionMetadata"
     data-edge-kind="arg"
-    points="212,630 286,630 286,582 334,582"
+    points="234,630 308,630 308,582 356,582"
     fill="none" stroke="var(--viz-edge)" stroke-width="1.5"
     marker-end="url(#blend-pool-v1-filled-arrow)"
   />
@@ -68,7 +68,7 @@
     data-edge-from="fn:new_liquidation_auction"
     data-edge-to="type:AuctionData"
     data-edge-kind="return"
-    points="238,714 286,714 286,659.2 334,659.2"
+    points="260,714 308,714 308,659.2 356,659.2"
     fill="none" stroke="var(--viz-edge)" stroke-width="1.5"
     marker-end="url(#blend-pool-v1-open-arrow)"
   />
@@ -78,7 +78,7 @@
     data-edge-from="fn:get_auction"
     data-edge-to="type:AuctionData"
     data-edge-kind="return"
-    points="137,426 286,426 286,653.6 334,653.6"
+    points="159,426 308,426 308,653.6 356,653.6"
     fill="none" stroke="var(--viz-edge)" stroke-width="1.5"
     marker-end="url(#blend-pool-v1-open-arrow)"
   />
@@ -88,7 +88,7 @@
     data-edge-from="fn:new_bad_debt_auction"
     data-edge-to="type:AuctionData"
     data-edge-kind="return"
-    points="212,754 286,754 286,664.8 334,664.8"
+    points="234,754 308,754 308,664.8 356,664.8"
     fill="none" stroke="var(--viz-edge)" stroke-width="1.5"
     marker-end="url(#blend-pool-v1-open-arrow)"
   />
@@ -98,7 +98,7 @@
     data-edge-from="fn:new_interest_auction"
     data-edge-to="type:AuctionData"
     data-edge-kind="return"
-    points="212,794 286,794 286,670.4 334,670.4"
+    points="234,794 308,794 308,670.4 356,670.4"
     fill="none" stroke="var(--viz-edge)" stroke-width="1.5"
     marker-end="url(#blend-pool-v1-open-arrow)"
   />
@@ -108,7 +108,7 @@
     data-edge-from="type:QueuedReserveInit"
     data-edge-to="type:ReserveConfig"
     data-edge-kind="field"
-    points="497,262 596,262 596,426.6666666666667 644,426.6666666666667"
+    points="519,262 618,262 618,426.6666666666667 666,426.6666666666667"
     fill="none" stroke="var(--viz-edge)" stroke-width="1"
   />
   <polyline
@@ -117,7 +117,7 @@
     data-edge-from="type:PoolDataKey"
     data-edge-to="type:UserReserveKey"
     data-edge-kind="field"
-    points="447,546.6666666666666 596,546.6666666666666 596,502 644,502"
+    points="469,546.6666666666666 618,546.6666666666666 618,502 666,502"
     fill="none" stroke="var(--viz-edge)" stroke-width="1"
   />
   <polyline
@@ -126,11 +126,11 @@
     data-edge-from="type:PoolDataKey"
     data-edge-to="type:AuctionKey"
     data-edge-kind="field"
-    points="447,537.3333333333334 596,537.3333333333334 596,462 644,462"
+    points="469,537.3333333333334 618,537.3333333333334 618,462 666,462"
     fill="none" stroke="var(--viz-edge)" stroke-width="1"
   />
   <a id="diagram-fn-initialize" href="#fn-initialize" data-node-id="fn:initialize">
-    <rect id="blend-pool-v1-node-fn:initialize" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="864" width="104" height="28" rx="6" ry="6"/>
+    <rect id="blend-pool-v1-node-fn:initialize" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="864" width="126" height="28" rx="6" ry="6"/>
     <title>initialize</title>
     <text
       class="diagram-node-label"
@@ -143,7 +143,7 @@
     </text>
   </a>
   <a id="diagram-fn-set_admin" href="#fn-set_admin" data-node-id="fn:set_admin">
-    <rect id="blend-pool-v1-node-fn:set_admin" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="496" width="96" height="28" rx="6" ry="6"/>
+    <rect id="blend-pool-v1-node-fn:set_admin" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="496" width="118" height="28" rx="6" ry="6"/>
     <title>set_admin</title>
     <text
       class="diagram-node-label"
@@ -156,7 +156,7 @@
     </text>
   </a>
   <a id="diagram-fn-update_pool" href="#fn-update_pool" data-node-id="fn:update_pool">
-    <rect id="blend-pool-v1-node-fn:update_pool" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="52" width="113" height="28" rx="6" ry="6"/>
+    <rect id="blend-pool-v1-node-fn:update_pool" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="52" width="135" height="28" rx="6" ry="6"/>
     <title>update_pool</title>
     <text
       class="diagram-node-label"
@@ -169,7 +169,7 @@
     </text>
   </a>
   <a id="diagram-fn-queue_set_reserve" href="#fn-queue_set_reserve" data-node-id="fn:queue_set_reserve">
-    <rect id="blend-pool-v1-node-fn:queue_set_reserve" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="92" width="163" height="28" rx="6" ry="6"/>
+    <rect id="blend-pool-v1-node-fn:queue_set_reserve" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="92" width="185" height="28" rx="6" ry="6"/>
     <title>queue_set_reserve</title>
     <text
       class="diagram-node-label"
@@ -182,7 +182,7 @@
     </text>
   </a>
   <a id="diagram-fn-cancel_set_reserve" href="#fn-cancel_set_reserve" data-node-id="fn:cancel_set_reserve">
-    <rect id="blend-pool-v1-node-fn:cancel_set_reserve" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="132" width="172" height="28" rx="6" ry="6"/>
+    <rect id="blend-pool-v1-node-fn:cancel_set_reserve" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="132" width="194" height="28" rx="6" ry="6"/>
     <title>cancel_set_reserve</title>
     <text
       class="diagram-node-label"
@@ -195,7 +195,7 @@
     </text>
   </a>
   <a id="diagram-fn-set_reserve" href="#fn-set_reserve" data-node-id="fn:set_reserve">
-    <rect id="blend-pool-v1-node-fn:set_reserve" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="536" width="113" height="28" rx="6" ry="6"/>
+    <rect id="blend-pool-v1-node-fn:set_reserve" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="536" width="135" height="28" rx="6" ry="6"/>
     <title>set_reserve</title>
     <text
       class="diagram-node-label"
@@ -208,7 +208,7 @@
     </text>
   </a>
   <a id="diagram-fn-get_positions" href="#fn-get_positions" data-node-id="fn:get_positions">
-    <rect id="blend-pool-v1-node-fn:get_positions" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="172" width="130" height="28" rx="6" ry="6"/>
+    <rect id="blend-pool-v1-node-fn:get_positions" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="172" width="152" height="28" rx="6" ry="6"/>
     <title>get_positions</title>
     <text
       class="diagram-node-label"
@@ -221,7 +221,7 @@
     </text>
   </a>
   <a id="diagram-fn-submit" href="#fn-submit" data-node-id="fn:submit">
-    <rect id="blend-pool-v1-node-fn:submit" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="212" width="71" height="28" rx="6" ry="6"/>
+    <rect id="blend-pool-v1-node-fn:submit" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="212" width="93" height="28" rx="6" ry="6"/>
     <title>submit</title>
     <text
       class="diagram-node-label"
@@ -234,7 +234,7 @@
     </text>
   </a>
   <a id="diagram-fn-bad_debt" href="#fn-bad_debt" data-node-id="fn:bad_debt">
-    <rect id="blend-pool-v1-node-fn:bad_debt" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="252" width="88" height="28" rx="6" ry="6"/>
+    <rect id="blend-pool-v1-node-fn:bad_debt" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="252" width="110" height="28" rx="6" ry="6"/>
     <title>bad_debt</title>
     <text
       class="diagram-node-label"
@@ -247,7 +247,7 @@
     </text>
   </a>
   <a id="diagram-fn-update_status" href="#fn-update_status" data-node-id="fn:update_status">
-    <rect id="blend-pool-v1-node-fn:update_status" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="292" width="130" height="28" rx="6" ry="6"/>
+    <rect id="blend-pool-v1-node-fn:update_status" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="292" width="152" height="28" rx="6" ry="6"/>
     <title>update_status</title>
     <text
       class="diagram-node-label"
@@ -260,7 +260,7 @@
     </text>
   </a>
   <a id="diagram-fn-set_status" href="#fn-set_status" data-node-id="fn:set_status">
-    <rect id="blend-pool-v1-node-fn:set_status" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="576" width="104" height="28" rx="6" ry="6"/>
+    <rect id="blend-pool-v1-node-fn:set_status" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="576" width="126" height="28" rx="6" ry="6"/>
     <title>set_status</title>
     <text
       class="diagram-node-label"
@@ -273,7 +273,7 @@
     </text>
   </a>
   <a id="diagram-fn-gulp_emissions" href="#fn-gulp_emissions" data-node-id="fn:gulp_emissions">
-    <rect id="blend-pool-v1-node-fn:gulp_emissions" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="332" width="138" height="28" rx="6" ry="6"/>
+    <rect id="blend-pool-v1-node-fn:gulp_emissions" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="332" width="160" height="28" rx="6" ry="6"/>
     <title>gulp_emissions</title>
     <text
       class="diagram-node-label"
@@ -286,7 +286,7 @@
     </text>
   </a>
   <a id="diagram-fn-set_emissions_config" href="#fn-set_emissions_config" data-node-id="fn:set_emissions_config">
-    <rect id="blend-pool-v1-node-fn:set_emissions_config" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="616" width="188" height="28" rx="6" ry="6"/>
+    <rect id="blend-pool-v1-node-fn:set_emissions_config" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="616" width="210" height="28" rx="6" ry="6"/>
     <title>set_emissions_config</title>
     <text
       class="diagram-node-label"
@@ -299,7 +299,7 @@
     </text>
   </a>
   <a id="diagram-fn-claim" href="#fn-claim" data-node-id="fn:claim">
-    <rect id="blend-pool-v1-node-fn:claim" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="372" width="62" height="28" rx="6" ry="6"/>
+    <rect id="blend-pool-v1-node-fn:claim" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="372" width="84" height="28" rx="6" ry="6"/>
     <title>claim</title>
     <text
       class="diagram-node-label"
@@ -312,7 +312,7 @@
     </text>
   </a>
   <a id="diagram-fn-new_liquidation_auction" href="#fn-new_liquidation_auction" data-node-id="fn:new_liquidation_auction">
-    <rect id="blend-pool-v1-node-fn:new_liquidation_auction" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="700" width="214" height="28" rx="6" ry="6"/>
+    <rect id="blend-pool-v1-node-fn:new_liquidation_auction" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="700" width="236" height="28" rx="6" ry="6"/>
     <title>new_liquidation_auction</title>
     <text
       class="diagram-node-label"
@@ -325,7 +325,7 @@
     </text>
   </a>
   <a id="diagram-fn-get_auction" href="#fn-get_auction" data-node-id="fn:get_auction">
-    <rect id="blend-pool-v1-node-fn:get_auction" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="412" width="113" height="28" rx="6" ry="6"/>
+    <rect id="blend-pool-v1-node-fn:get_auction" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="412" width="135" height="28" rx="6" ry="6"/>
     <title>get_auction</title>
     <text
       class="diagram-node-label"
@@ -338,7 +338,7 @@
     </text>
   </a>
   <a id="diagram-fn-new_bad_debt_auction" href="#fn-new_bad_debt_auction" data-node-id="fn:new_bad_debt_auction">
-    <rect id="blend-pool-v1-node-fn:new_bad_debt_auction" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="740" width="188" height="28" rx="6" ry="6"/>
+    <rect id="blend-pool-v1-node-fn:new_bad_debt_auction" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="740" width="210" height="28" rx="6" ry="6"/>
     <title>new_bad_debt_auction</title>
     <text
       class="diagram-node-label"
@@ -351,7 +351,7 @@
     </text>
   </a>
   <a id="diagram-fn-new_interest_auction" href="#fn-new_interest_auction" data-node-id="fn:new_interest_auction">
-    <rect id="blend-pool-v1-node-fn:new_interest_auction" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="780" width="188" height="28" rx="6" ry="6"/>
+    <rect id="blend-pool-v1-node-fn:new_interest_auction" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="780" width="210" height="28" rx="6" ry="6"/>
     <title>new_interest_auction</title>
     <text
       class="diagram-node-label"
@@ -364,11 +364,11 @@
     </text>
   </a>
   <a id="diagram-type-AuctionData" href="#type-AuctionData" data-node-id="type:AuctionData">
-    <rect id="blend-pool-v1-node-type:AuctionData" class="viz-shape viz-shape--rect diagram-node diagram-node--type" data-node-shape="rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="334" y="648" width="113" height="28" rx="0" ry="0"/>
+    <rect id="blend-pool-v1-node-type:AuctionData" class="viz-shape viz-shape--rect diagram-node diagram-node--type" data-node-shape="rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="356" y="648" width="113" height="28" rx="0" ry="0"/>
     <title>AuctionData</title>
     <text
       class="diagram-node-label"
-      x="344"
+      x="366"
       y="662"
       dominant-baseline="central"
       fill="var(--viz-node-text)"
@@ -377,11 +377,11 @@
     </text>
   </a>
   <a id="diagram-type-ReserveEmissionMetadata" href="#type-ReserveEmissionMetadata" data-node-id="type:ReserveEmissionMetadata">
-    <rect id="blend-pool-v1-node-type:ReserveEmissionMetadata" class="viz-shape viz-shape--rect diagram-node diagram-node--type" data-node-shape="rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="334" y="568" width="214" height="28" rx="0" ry="0"/>
+    <rect id="blend-pool-v1-node-type:ReserveEmissionMetadata" class="viz-shape viz-shape--rect diagram-node diagram-node--type" data-node-shape="rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="356" y="568" width="214" height="28" rx="0" ry="0"/>
     <title>ReserveEmissionMetadata</title>
     <text
       class="diagram-node-label"
-      x="344"
+      x="366"
       y="582"
       dominant-baseline="central"
       fill="var(--viz-node-text)"
@@ -390,11 +390,11 @@
     </text>
   </a>
   <a id="diagram-type-Request" href="#type-Request" data-node-id="type:Request">
-    <rect id="blend-pool-v1-node-type:Request" class="viz-shape viz-shape--rect diagram-node diagram-node--type" data-node-shape="rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="334" y="288" width="79" height="28" rx="0" ry="0"/>
+    <rect id="blend-pool-v1-node-type:Request" class="viz-shape viz-shape--rect diagram-node diagram-node--type" data-node-shape="rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="356" y="288" width="79" height="28" rx="0" ry="0"/>
     <title>Request</title>
     <text
       class="diagram-node-label"
-      x="344"
+      x="366"
       y="302"
       dominant-baseline="central"
       fill="var(--viz-node-text)"
@@ -403,11 +403,11 @@
     </text>
   </a>
   <a id="diagram-type-Reserve" href="#type-Reserve" data-node-id="type:Reserve">
-    <rect id="blend-pool-v1-node-type:Reserve" class="viz-shape viz-shape--rect diagram-node diagram-node--type" data-node-shape="rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="334" y="168" width="79" height="28" rx="0" ry="0"/>
+    <rect id="blend-pool-v1-node-type:Reserve" class="viz-shape viz-shape--rect diagram-node diagram-node--type" data-node-shape="rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="356" y="168" width="79" height="28" rx="0" ry="0"/>
     <title>Reserve</title>
     <text
       class="diagram-node-label"
-      x="344"
+      x="366"
       y="182"
       dominant-baseline="central"
       fill="var(--viz-node-text)"
@@ -416,11 +416,11 @@
     </text>
   </a>
   <a id="diagram-type-Positions" href="#type-Positions" data-node-id="type:Positions">
-    <rect id="blend-pool-v1-node-type:Positions" class="viz-shape viz-shape--rect diagram-node diagram-node--type" data-node-shape="rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="334" y="208" width="96" height="28" rx="0" ry="0"/>
+    <rect id="blend-pool-v1-node-type:Positions" class="viz-shape viz-shape--rect diagram-node diagram-node--type" data-node-shape="rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="356" y="208" width="96" height="28" rx="0" ry="0"/>
     <title>Positions</title>
     <text
       class="diagram-node-label"
-      x="344"
+      x="366"
       y="222"
       dominant-baseline="central"
       fill="var(--viz-node-text)"
@@ -429,11 +429,11 @@
     </text>
   </a>
   <a id="diagram-type-PoolConfig" href="#type-PoolConfig" data-node-id="type:PoolConfig">
-    <rect id="blend-pool-v1-node-type:PoolConfig" class="viz-shape viz-shape--rect diagram-node diagram-node--type" data-node-shape="rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="334" y="328" width="104" height="28" rx="0" ry="0"/>
+    <rect id="blend-pool-v1-node-type:PoolConfig" class="viz-shape viz-shape--rect diagram-node diagram-node--type" data-node-shape="rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="356" y="328" width="104" height="28" rx="0" ry="0"/>
     <title>PoolConfig</title>
     <text
       class="diagram-node-label"
-      x="344"
+      x="366"
       y="342"
       dominant-baseline="central"
       fill="var(--viz-node-text)"
@@ -442,11 +442,11 @@
     </text>
   </a>
   <a id="diagram-type-PoolEmissionConfig" href="#type-PoolEmissionConfig" data-node-id="type:PoolEmissionConfig">
-    <rect id="blend-pool-v1-node-type:PoolEmissionConfig" class="viz-shape viz-shape--rect diagram-node diagram-node--type" data-node-shape="rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="334" y="368" width="172" height="28" rx="0" ry="0"/>
+    <rect id="blend-pool-v1-node-type:PoolEmissionConfig" class="viz-shape viz-shape--rect diagram-node diagram-node--type" data-node-shape="rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="356" y="368" width="172" height="28" rx="0" ry="0"/>
     <title>PoolEmissionConfig</title>
     <text
       class="diagram-node-label"
-      x="344"
+      x="366"
       y="382"
       dominant-baseline="central"
       fill="var(--viz-node-text)"
@@ -455,11 +455,11 @@
     </text>
   </a>
   <a id="diagram-type-ReserveConfig" href="#type-ReserveConfig" data-node-id="type:ReserveConfig">
-    <rect id="blend-pool-v1-node-type:ReserveConfig" class="viz-shape viz-shape--rect diagram-node diagram-node--type" data-node-shape="rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="644" y="408" width="130" height="28" rx="0" ry="0"/>
+    <rect id="blend-pool-v1-node-type:ReserveConfig" class="viz-shape viz-shape--rect diagram-node diagram-node--type" data-node-shape="rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="666" y="408" width="130" height="28" rx="0" ry="0"/>
     <title>ReserveConfig</title>
     <text
       class="diagram-node-label"
-      x="654"
+      x="676"
       y="422"
       dominant-baseline="central"
       fill="var(--viz-node-text)"
@@ -468,11 +468,11 @@
     </text>
   </a>
   <a id="diagram-type-QueuedReserveInit" href="#type-QueuedReserveInit" data-node-id="type:QueuedReserveInit">
-    <rect id="blend-pool-v1-node-type:QueuedReserveInit" class="viz-shape viz-shape--rect diagram-node diagram-node--type" data-node-shape="rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="334" y="248" width="163" height="28" rx="0" ry="0"/>
+    <rect id="blend-pool-v1-node-type:QueuedReserveInit" class="viz-shape viz-shape--rect diagram-node diagram-node--type" data-node-shape="rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="356" y="248" width="163" height="28" rx="0" ry="0"/>
     <title>QueuedReserveInit</title>
     <text
       class="diagram-node-label"
-      x="344"
+      x="366"
       y="262"
       dominant-baseline="central"
       fill="var(--viz-node-text)"
@@ -481,11 +481,11 @@
     </text>
   </a>
   <a id="diagram-type-ReserveData" href="#type-ReserveData" data-node-id="type:ReserveData">
-    <rect id="blend-pool-v1-node-type:ReserveData" class="viz-shape viz-shape--rect diagram-node diagram-node--type" data-node-shape="rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="334" y="408" width="113" height="28" rx="0" ry="0"/>
+    <rect id="blend-pool-v1-node-type:ReserveData" class="viz-shape viz-shape--rect diagram-node diagram-node--type" data-node-shape="rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="356" y="408" width="113" height="28" rx="0" ry="0"/>
     <title>ReserveData</title>
     <text
       class="diagram-node-label"
-      x="344"
+      x="366"
       y="422"
       dominant-baseline="central"
       fill="var(--viz-node-text)"
@@ -494,11 +494,11 @@
     </text>
   </a>
   <a id="diagram-type-ReserveEmissionsConfig" href="#type-ReserveEmissionsConfig" data-node-id="type:ReserveEmissionsConfig">
-    <rect id="blend-pool-v1-node-type:ReserveEmissionsConfig" class="viz-shape viz-shape--rect diagram-node diagram-node--type" data-node-shape="rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="334" y="448" width="205" height="28" rx="0" ry="0"/>
+    <rect id="blend-pool-v1-node-type:ReserveEmissionsConfig" class="viz-shape viz-shape--rect diagram-node diagram-node--type" data-node-shape="rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="356" y="448" width="205" height="28" rx="0" ry="0"/>
     <title>ReserveEmissionsConfig</title>
     <text
       class="diagram-node-label"
-      x="344"
+      x="366"
       y="462"
       dominant-baseline="central"
       fill="var(--viz-node-text)"
@@ -507,11 +507,11 @@
     </text>
   </a>
   <a id="diagram-type-ReserveEmissionsData" href="#type-ReserveEmissionsData" data-node-id="type:ReserveEmissionsData">
-    <rect id="blend-pool-v1-node-type:ReserveEmissionsData" class="viz-shape viz-shape--rect diagram-node diagram-node--type" data-node-shape="rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="334" y="488" width="188" height="28" rx="0" ry="0"/>
+    <rect id="blend-pool-v1-node-type:ReserveEmissionsData" class="viz-shape viz-shape--rect diagram-node diagram-node--type" data-node-shape="rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="356" y="488" width="188" height="28" rx="0" ry="0"/>
     <title>ReserveEmissionsData</title>
     <text
       class="diagram-node-label"
-      x="344"
+      x="366"
       y="502"
       dominant-baseline="central"
       fill="var(--viz-node-text)"
@@ -520,11 +520,11 @@
     </text>
   </a>
   <a id="diagram-type-UserEmissionData" href="#type-UserEmissionData" data-node-id="type:UserEmissionData">
-    <rect id="blend-pool-v1-node-type:UserEmissionData" class="viz-shape viz-shape--rect diagram-node diagram-node--type" data-node-shape="rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="334" y="608" width="155" height="28" rx="0" ry="0"/>
+    <rect id="blend-pool-v1-node-type:UserEmissionData" class="viz-shape viz-shape--rect diagram-node diagram-node--type" data-node-shape="rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="356" y="608" width="155" height="28" rx="0" ry="0"/>
     <title>UserEmissionData</title>
     <text
       class="diagram-node-label"
-      x="344"
+      x="366"
       y="622"
       dominant-baseline="central"
       fill="var(--viz-node-text)"
@@ -533,11 +533,11 @@
     </text>
   </a>
   <a id="diagram-type-UserReserveKey" href="#type-UserReserveKey" data-node-id="type:UserReserveKey">
-    <rect id="blend-pool-v1-node-type:UserReserveKey" class="viz-shape viz-shape--rect diagram-node diagram-node--type" data-node-shape="rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="644" y="488" width="138" height="28" rx="0" ry="0"/>
+    <rect id="blend-pool-v1-node-type:UserReserveKey" class="viz-shape viz-shape--rect diagram-node diagram-node--type" data-node-shape="rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="666" y="488" width="138" height="28" rx="0" ry="0"/>
     <title>UserReserveKey</title>
     <text
       class="diagram-node-label"
-      x="654"
+      x="676"
       y="502"
       dominant-baseline="central"
       fill="var(--viz-node-text)"
@@ -546,11 +546,11 @@
     </text>
   </a>
   <a id="diagram-type-AuctionKey" href="#type-AuctionKey" data-node-id="type:AuctionKey">
-    <rect id="blend-pool-v1-node-type:AuctionKey" class="viz-shape viz-shape--rect diagram-node diagram-node--type" data-node-shape="rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="644" y="448" width="104" height="28" rx="0" ry="0"/>
+    <rect id="blend-pool-v1-node-type:AuctionKey" class="viz-shape viz-shape--rect diagram-node diagram-node--type" data-node-shape="rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="666" y="448" width="104" height="28" rx="0" ry="0"/>
     <title>AuctionKey</title>
     <text
       class="diagram-node-label"
-      x="654"
+      x="676"
       y="462"
       dominant-baseline="central"
       fill="var(--viz-node-text)"
@@ -559,11 +559,11 @@
     </text>
   </a>
   <a id="diagram-type-PoolDataKey" href="#type-PoolDataKey" data-node-id="type:PoolDataKey">
-    <path id="blend-pool-v1-node-type:PoolDataKey" class="viz-shape viz-shape--notched diagram-node diagram-node--type" data-node-shape="notched-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" d="M 334 528 H 440 L 447 535 V 556 H 334 Z"/>
+    <path id="blend-pool-v1-node-type:PoolDataKey" class="viz-shape viz-shape--notched diagram-node diagram-node--type" data-node-shape="notched-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" d="M 356 528 H 462 L 469 535 V 556 H 356 Z"/>
     <title>PoolDataKey</title>
     <text
       class="diagram-node-label"
-      x="344"
+      x="366"
       y="542"
       dominant-baseline="central"
       fill="var(--viz-node-text)"
@@ -572,11 +572,11 @@
     </text>
   </a>
   <a id="diagram-type-PriceData" href="#type-PriceData" data-node-id="type:PriceData">
-    <rect id="blend-pool-v1-node-type:PriceData" class="viz-shape viz-shape--rect diagram-node diagram-node--type" data-node-shape="rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="334" y="688" width="96" height="28" rx="0" ry="0"/>
+    <rect id="blend-pool-v1-node-type:PriceData" class="viz-shape viz-shape--rect diagram-node diagram-node--type" data-node-shape="rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="356" y="688" width="96" height="28" rx="0" ry="0"/>
     <title>PriceData</title>
     <text
       class="diagram-node-label"
-      x="344"
+      x="366"
       y="702"
       dominant-baseline="central"
       fill="var(--viz-node-text)"
@@ -585,11 +585,11 @@
     </text>
   </a>
   <a id="diagram-type-Asset" href="#type-Asset" data-node-id="type:Asset">
-    <path id="blend-pool-v1-node-type:Asset" class="viz-shape viz-shape--notched diagram-node diagram-node--type" data-node-shape="notched-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" d="M 334 728 H 389 L 396 735 V 756 H 334 Z"/>
+    <path id="blend-pool-v1-node-type:Asset" class="viz-shape viz-shape--notched diagram-node diagram-node--type" data-node-shape="notched-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" d="M 356 728 H 411 L 418 735 V 756 H 356 Z"/>
     <title>Asset</title>
     <text
       class="diagram-node-label"
-      x="344"
+      x="366"
       y="742"
       dominant-baseline="central"
       fill="var(--viz-node-text)"

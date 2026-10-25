@@ -19,4 +19,6 @@ export interface ContractSlotProps {
   focus?: string;
   /** Draw every callee instead of collapsing the rest (?callees=all, #543) */
   expandCallees?: boolean;
+  /** Dim every function not seen writing (?writes=1, #512) */
+  writesOnly?: boolean;
 }

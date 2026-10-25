@@ -1,0 +1,355 @@
+<svg
+  xmlns="http://www.w3.org/2000/svg"
+  role="figure"
+  aria-labelledby="marks-title marks-desc"
+  class="contract-diagram"
+  width="1114" height="1080" viewBox="0 0 1114 1080"
+  font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="14"
+>
+  <title id="marks-title">soroswap-router with read/write marks</title>
+  <desc id="marks-desc">20 functions in 9 groups, 4 types, 0 references</desc>
+  <defs>
+  </defs>
+  <a id="diagram-fn-initialize" href="#fn-initialize" data-node-id="fn:initialize" data-mark="unknown" data-mark-label="not observed">
+    <rect id="marks-node-fn:initialize" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="944" width="126" height="28" rx="6" ry="6"/>
+    <title>initialize</title>
+    <text
+      class="diagram-node-label"
+      x="34"
+      y="958"
+      dominant-baseline="central"
+      fill="var(--viz-node-text)"
+    >
+      initialize
+    </text>
+    <g class="diagram-mark diagram-mark--unknown"><title>not observed, observed, not from the interface</title><text x="137" y="958" text-anchor="middle" dominant-baseline="central" font-size="11" font-weight="700" fill="var(--viz-muted)">?</text></g>
+  </a>
+  <a id="diagram-fn-add_liquidity" href="#fn-add_liquidity" data-node-id="fn:add_liquidity" data-mark="write" data-mark-label="writes" data-mark-tx="ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff" data-mark-ledger="5101204" data-mark-href="https://stellar.expert/explorer/testnet/tx/ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff">
+    <rect id="marks-node-fn:add_liquidity" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="52" width="152" height="28" rx="6" ry="6"/>
+    <title>add_liquidity</title>
+    <text
+      class="diagram-node-label"
+      x="34"
+      y="66"
+      dominant-baseline="central"
+      fill="var(--viz-node-text)"
+    >
+      add_liquidity
+    </text>
+    <g class="diagram-mark diagram-mark--write"><title>writes, observed, not from the interface</title><rect x="156" y="59" width="14" height="14" rx="2" fill="var(--viz-write)" stroke="var(--viz-observed)" stroke-width="1.5" stroke-dasharray="5 3"/><text x="163" y="66" text-anchor="middle" dominant-baseline="central" font-size="11" font-weight="700" fill="var(--viz-ground)">W</text></g>
+  </a>
+  <a id="diagram-fn-remove_liquidity" href="#fn-remove_liquidity" data-node-id="fn:remove_liquidity" data-mark="write" data-mark-label="writes" data-mark-tx="ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff" data-mark-ledger="5101204" data-mark-href="https://stellar.expert/explorer/testnet/tx/ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff">
+    <rect id="marks-node-fn:remove_liquidity" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="92" width="177" height="28" rx="6" ry="6"/>
+    <title>remove_liquidity</title>
+    <text
+      class="diagram-node-label"
+      x="34"
+      y="106"
+      dominant-baseline="central"
+      fill="var(--viz-node-text)"
+    >
+      remove_liquidity
+    </text>
+    <g class="diagram-mark diagram-mark--write"><title>writes, observed, not from the interface</title><rect x="181" y="99" width="14" height="14" rx="2" fill="var(--viz-write)" stroke="var(--viz-observed)" stroke-width="1.5" stroke-dasharray="5 3"/><text x="188" y="106" text-anchor="middle" dominant-baseline="central" font-size="11" font-weight="700" fill="var(--viz-ground)">W</text></g>
+  </a>
+  <a id="diagram-fn-swap_exact_tokens_for_tokens" href="#fn-swap_exact_tokens_for_tokens" data-node-id="fn:swap_exact_tokens_for_tokens" data-mark="write" data-mark-label="writes" data-mark-tx="ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff" data-mark-ledger="5101204" data-mark-href="https://stellar.expert/explorer/testnet/tx/ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff">
+    <rect id="marks-node-fn:swap_exact_tokens_for_tokens" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="132" width="236" height="28" rx="6" ry="6"/>
+    <title>swap_exact_tokens_for_tokens</title>
+    <text
+      class="diagram-node-label"
+      x="34"
+      y="146"
+      dominant-baseline="central"
+      fill="var(--viz-node-text)"
+    >
+      swap_exact_tokens_for_…
+    </text>
+    <g class="diagram-mark diagram-mark--write"><title>writes, observed, not from the interface</title><rect x="240" y="139" width="14" height="14" rx="2" fill="var(--viz-write)" stroke="var(--viz-observed)" stroke-width="1.5" stroke-dasharray="5 3"/><text x="247" y="146" text-anchor="middle" dominant-baseline="central" font-size="11" font-weight="700" fill="var(--viz-ground)">W</text></g>
+  </a>
+  <a id="diagram-fn-swap_tokens_for_exact_tokens" href="#fn-swap_tokens_for_exact_tokens" data-node-id="fn:swap_tokens_for_exact_tokens" data-mark="write" data-mark-label="writes" data-mark-tx="ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff" data-mark-ledger="5101204" data-mark-href="https://stellar.expert/explorer/testnet/tx/ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff">
+    <rect id="marks-node-fn:swap_tokens_for_exact_tokens" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="172" width="236" height="28" rx="6" ry="6"/>
+    <title>swap_tokens_for_exact_tokens</title>
+    <text
+      class="diagram-node-label"
+      x="34"
+      y="186"
+      dominant-baseline="central"
+      fill="var(--viz-node-text)"
+    >
+      swap_tokens_for_exact_…
+    </text>
+    <g class="diagram-mark diagram-mark--write"><title>writes, observed, not from the interface</title><rect x="240" y="179" width="14" height="14" rx="2" fill="var(--viz-write)" stroke="var(--viz-observed)" stroke-width="1.5" stroke-dasharray="5 3"/><text x="247" y="186" text-anchor="middle" dominant-baseline="central" font-size="11" font-weight="700" fill="var(--viz-ground)">W</text></g>
+  </a>
+  <a id="diagram-fn-get_factory" href="#fn-get_factory" data-node-id="fn:get_factory" data-mark="read" data-mark-label="no writes seen">
+    <rect id="marks-node-fn:get_factory" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="376" width="135" height="28" rx="6" ry="6"/>
+    <title>get_factory</title>
+    <text
+      class="diagram-node-label"
+      x="34"
+      y="390"
+      dominant-baseline="central"
+      fill="var(--viz-node-text)"
+    >
+      get_factory
+    </text>
+    <g class="diagram-mark diagram-mark--read"><title>no writes seen, observed, not from the interface</title><rect x="139" y="383" width="14" height="14" rx="2" fill="none" stroke="var(--viz-observed)" stroke-width="1.5" stroke-dasharray="5 3"/><text x="146" y="390" text-anchor="middle" dominant-baseline="central" font-size="11" font-weight="700" fill="var(--viz-read)">R</text></g>
+  </a>
+  <a id="diagram-fn-router_pair_for" href="#fn-router_pair_for" data-node-id="fn:router_pair_for" data-mark="read" data-mark-label="no writes seen">
+    <rect id="marks-node-fn:router_pair_for" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="660" width="168" height="28" rx="6" ry="6"/>
+    <title>router_pair_for</title>
+    <text
+      class="diagram-node-label"
+      x="34"
+      y="674"
+      dominant-baseline="central"
+      fill="var(--viz-node-text)"
+    >
+      router_pair_for
+    </text>
+    <g class="diagram-mark diagram-mark--read"><title>no writes seen, observed, not from the interface</title><rect x="172" y="667" width="14" height="14" rx="2" fill="none" stroke="var(--viz-observed)" stroke-width="1.5" stroke-dasharray="5 3"/><text x="179" y="674" text-anchor="middle" dominant-baseline="central" font-size="11" font-weight="700" fill="var(--viz-read)">R</text></g>
+  </a>
+  <a id="diagram-fn-router_quote" href="#fn-router_quote" data-node-id="fn:router_quote" data-mark="read" data-mark-label="no writes seen">
+    <rect id="marks-node-fn:router_quote" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="700" width="143" height="28" rx="6" ry="6"/>
+    <title>router_quote</title>
+    <text
+      class="diagram-node-label"
+      x="34"
+      y="714"
+      dominant-baseline="central"
+      fill="var(--viz-node-text)"
+    >
+      router_quote
+    </text>
+    <g class="diagram-mark diagram-mark--read"><title>no writes seen, observed, not from the interface</title><rect x="147" y="707" width="14" height="14" rx="2" fill="none" stroke="var(--viz-observed)" stroke-width="1.5" stroke-dasharray="5 3"/><text x="154" y="714" text-anchor="middle" dominant-baseline="central" font-size="11" font-weight="700" fill="var(--viz-read)">R</text></g>
+  </a>
+  <a id="diagram-fn-router_get_amount_out" href="#fn-router_get_amount_out" data-node-id="fn:router_get_amount_out" data-mark="read" data-mark-label="no writes seen">
+    <rect id="marks-node-fn:router_get_amount_out" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="740" width="219" height="28" rx="6" ry="6"/>
+    <title>router_get_amount_out</title>
+    <text
+      class="diagram-node-label"
+      x="34"
+      y="754"
+      dominant-baseline="central"
+      fill="var(--viz-node-text)"
+    >
+      router_get_amount_out
+    </text>
+    <g class="diagram-mark diagram-mark--read"><title>no writes seen, observed, not from the interface</title><rect x="223" y="747" width="14" height="14" rx="2" fill="none" stroke="var(--viz-observed)" stroke-width="1.5" stroke-dasharray="5 3"/><text x="230" y="754" text-anchor="middle" dominant-baseline="central" font-size="11" font-weight="700" fill="var(--viz-read)">R</text></g>
+  </a>
+  <a id="diagram-fn-router_get_amount_in" href="#fn-router_get_amount_in" data-node-id="fn:router_get_amount_in" data-mark="read" data-mark-label="no writes seen">
+    <rect id="marks-node-fn:router_get_amount_in" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="780" width="210" height="28" rx="6" ry="6"/>
+    <title>router_get_amount_in</title>
+    <text
+      class="diagram-node-label"
+      x="34"
+      y="794"
+      dominant-baseline="central"
+      fill="var(--viz-node-text)"
+    >
+      router_get_amount_in
+    </text>
+    <g class="diagram-mark diagram-mark--read"><title>no writes seen, observed, not from the interface</title><rect x="214" y="787" width="14" height="14" rx="2" fill="none" stroke="var(--viz-observed)" stroke-width="1.5" stroke-dasharray="5 3"/><text x="221" y="794" text-anchor="middle" dominant-baseline="central" font-size="11" font-weight="700" fill="var(--viz-read)">R</text></g>
+  </a>
+  <a id="diagram-fn-router_get_amounts_out" href="#fn-router_get_amounts_out" data-node-id="fn:router_get_amounts_out" data-mark="read" data-mark-label="no writes seen">
+    <rect id="marks-node-fn:router_get_amounts_out" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="820" width="227" height="28" rx="6" ry="6"/>
+    <title>router_get_amounts_out</title>
+    <text
+      class="diagram-node-label"
+      x="34"
+      y="834"
+      dominant-baseline="central"
+      fill="var(--viz-node-text)"
+    >
+      router_get_amounts_out
+    </text>
+    <g class="diagram-mark diagram-mark--read"><title>no writes seen, observed, not from the interface</title><rect x="231" y="827" width="14" height="14" rx="2" fill="none" stroke="var(--viz-observed)" stroke-width="1.5" stroke-dasharray="5 3"/><text x="238" y="834" text-anchor="middle" dominant-baseline="central" font-size="11" font-weight="700" fill="var(--viz-read)">R</text></g>
+  </a>
+  <a id="diagram-fn-router_get_amounts_in" href="#fn-router_get_amounts_in" data-node-id="fn:router_get_amounts_in" data-mark="read" data-mark-label="no writes seen">
+    <rect id="marks-node-fn:router_get_amounts_in" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="860" width="219" height="28" rx="6" ry="6"/>
+    <title>router_get_amounts_in</title>
+    <text
+      class="diagram-node-label"
+      x="34"
+      y="874"
+      dominant-baseline="central"
+      fill="var(--viz-node-text)"
+    >
+      router_get_amounts_in
+    </text>
+    <g class="diagram-mark diagram-mark--read"><title>no writes seen, observed, not from the interface</title><rect x="223" y="867" width="14" height="14" rx="2" fill="none" stroke="var(--viz-observed)" stroke-width="1.5" stroke-dasharray="5 3"/><text x="230" y="874" text-anchor="middle" dominant-baseline="central" font-size="11" font-weight="700" fill="var(--viz-read)">R</text></g>
+  </a>
+  <a id="diagram-fn-sort_tokens" href="#fn-sort_tokens" data-node-id="fn:sort_tokens" data-mark="unknown" data-mark-label="not observed">
+    <rect id="marks-node-fn:sort_tokens" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="212" width="135" height="28" rx="6" ry="6"/>
+    <title>sort_tokens</title>
+    <text
+      class="diagram-node-label"
+      x="34"
+      y="226"
+      dominant-baseline="central"
+      fill="var(--viz-node-text)"
+    >
+      sort_tokens
+    </text>
+    <g class="diagram-mark diagram-mark--unknown"><title>not observed, observed, not from the interface</title><text x="146" y="226" text-anchor="middle" dominant-baseline="central" font-size="11" font-weight="700" fill="var(--viz-muted)">?</text></g>
+  </a>
+  <a id="diagram-fn-pair_for" href="#fn-pair_for" data-node-id="fn:pair_for" data-mark="unknown" data-mark-label="not observed">
+    <rect id="marks-node-fn:pair_for" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="252" width="110" height="28" rx="6" ry="6"/>
+    <title>pair_for</title>
+    <text
+      class="diagram-node-label"
+      x="34"
+      y="266"
+      dominant-baseline="central"
+      fill="var(--viz-node-text)"
+    >
+      pair_for
+    </text>
+    <g class="diagram-mark diagram-mark--unknown"><title>not observed, observed, not from the interface</title><text x="121" y="266" text-anchor="middle" dominant-baseline="central" font-size="11" font-weight="700" fill="var(--viz-muted)">?</text></g>
+  </a>
+  <a id="diagram-fn-get_reserves" href="#fn-get_reserves" data-node-id="fn:get_reserves" data-mark="read" data-mark-label="no writes seen">
+    <rect id="marks-node-fn:get_reserves" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="416" width="143" height="28" rx="6" ry="6"/>
+    <title>get_reserves</title>
+    <text
+      class="diagram-node-label"
+      x="34"
+      y="430"
+      dominant-baseline="central"
+      fill="var(--viz-node-text)"
+    >
+      get_reserves
+    </text>
+    <g class="diagram-mark diagram-mark--read"><title>no writes seen, observed, not from the interface</title><rect x="147" y="423" width="14" height="14" rx="2" fill="none" stroke="var(--viz-observed)" stroke-width="1.5" stroke-dasharray="5 3"/><text x="154" y="430" text-anchor="middle" dominant-baseline="central" font-size="11" font-weight="700" fill="var(--viz-read)">R</text></g>
+  </a>
+  <a id="diagram-fn-quote" href="#fn-quote" data-node-id="fn:quote" data-mark="read" data-mark-label="no writes seen">
+    <rect id="marks-node-fn:quote" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="292" width="84" height="28" rx="6" ry="6"/>
+    <title>quote</title>
+    <text
+      class="diagram-node-label"
+      x="34"
+      y="306"
+      dominant-baseline="central"
+      fill="var(--viz-node-text)"
+    >
+      quote
+    </text>
+    <g class="diagram-mark diagram-mark--read"><title>no writes seen, observed, not from the interface</title><rect x="88" y="299" width="14" height="14" rx="2" fill="none" stroke="var(--viz-observed)" stroke-width="1.5" stroke-dasharray="5 3"/><text x="95" y="306" text-anchor="middle" dominant-baseline="central" font-size="11" font-weight="700" fill="var(--viz-read)">R</text></g>
+  </a>
+  <a id="diagram-fn-get_amount_out" href="#fn-get_amount_out" data-node-id="fn:get_amount_out" data-mark="read" data-mark-label="no writes seen">
+    <rect id="marks-node-fn:get_amount_out" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="456" width="160" height="28" rx="6" ry="6"/>
+    <title>get_amount_out</title>
+    <text
+      class="diagram-node-label"
+      x="34"
+      y="470"
+      dominant-baseline="central"
+      fill="var(--viz-node-text)"
+    >
+      get_amount_out
+    </text>
+    <g class="diagram-mark diagram-mark--read"><title>no writes seen, observed, not from the interface</title><rect x="164" y="463" width="14" height="14" rx="2" fill="none" stroke="var(--viz-observed)" stroke-width="1.5" stroke-dasharray="5 3"/><text x="171" y="470" text-anchor="middle" dominant-baseline="central" font-size="11" font-weight="700" fill="var(--viz-read)">R</text></g>
+  </a>
+  <a id="diagram-fn-get_amount_in" href="#fn-get_amount_in" data-node-id="fn:get_amount_in" data-mark="read" data-mark-label="no writes seen">
+    <rect id="marks-node-fn:get_amount_in" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="496" width="152" height="28" rx="6" ry="6"/>
+    <title>get_amount_in</title>
+    <text
+      class="diagram-node-label"
+      x="34"
+      y="510"
+      dominant-baseline="central"
+      fill="var(--viz-node-text)"
+    >
+      get_amount_in
+    </text>
+    <g class="diagram-mark diagram-mark--read"><title>no writes seen, observed, not from the interface</title><rect x="156" y="503" width="14" height="14" rx="2" fill="none" stroke="var(--viz-observed)" stroke-width="1.5" stroke-dasharray="5 3"/><text x="163" y="510" text-anchor="middle" dominant-baseline="central" font-size="11" font-weight="700" fill="var(--viz-read)">R</text></g>
+  </a>
+  <a id="diagram-fn-get_amounts_out" href="#fn-get_amounts_out" data-node-id="fn:get_amounts_out" data-mark="read" data-mark-label="no writes seen">
+    <rect id="marks-node-fn:get_amounts_out" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="536" width="168" height="28" rx="6" ry="6"/>
+    <title>get_amounts_out</title>
+    <text
+      class="diagram-node-label"
+      x="34"
+      y="550"
+      dominant-baseline="central"
+      fill="var(--viz-node-text)"
+    >
+      get_amounts_out
+    </text>
+    <g class="diagram-mark diagram-mark--read"><title>no writes seen, observed, not from the interface</title><rect x="172" y="543" width="14" height="14" rx="2" fill="none" stroke="var(--viz-observed)" stroke-width="1.5" stroke-dasharray="5 3"/><text x="179" y="550" text-anchor="middle" dominant-baseline="central" font-size="11" font-weight="700" fill="var(--viz-read)">R</text></g>
+  </a>
+  <a id="diagram-fn-get_amounts_in" href="#fn-get_amounts_in" data-node-id="fn:get_amounts_in" data-mark="read" data-mark-label="no writes seen">
+    <rect id="marks-node-fn:get_amounts_in" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="576" width="160" height="28" rx="6" ry="6"/>
+    <title>get_amounts_in</title>
+    <text
+      class="diagram-node-label"
+      x="34"
+      y="590"
+      dominant-baseline="central"
+      fill="var(--viz-node-text)"
+    >
+      get_amounts_in
+    </text>
+    <g class="diagram-mark diagram-mark--read"><title>no writes seen, observed, not from the interface</title><rect x="164" y="583" width="14" height="14" rx="2" fill="none" stroke="var(--viz-observed)" stroke-width="1.5" stroke-dasharray="5 3"/><text x="171" y="590" text-anchor="middle" dominant-baseline="central" font-size="11" font-weight="700" fill="var(--viz-read)">R</text></g>
+  </a>
+  <g id="diagram-type-InitializedEvent" data-node-id="type:InitializedEvent">
+    <rect id="marks-node-type:InitializedEvent" class="viz-shape viz-shape--rect diagram-node diagram-node--type" data-node-shape="rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="356" y="428" width="155" height="28" rx="0" ry="0"/>
+    <title>InitializedEvent</title>
+    <text
+      class="diagram-node-label"
+      x="366"
+      y="442"
+      dominant-baseline="central"
+      fill="var(--viz-node-text)"
+    >
+      InitializedEvent
+    </text>
+  </g>
+  <g id="diagram-type-AddLiquidityEvent" data-node-id="type:AddLiquidityEvent">
+    <rect id="marks-node-type:AddLiquidityEvent" class="viz-shape viz-shape--rect diagram-node diagram-node--type" data-node-shape="rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="356" y="468" width="163" height="28" rx="0" ry="0"/>
+    <title>AddLiquidityEvent</title>
+    <text
+      class="diagram-node-label"
+      x="366"
+      y="482"
+      dominant-baseline="central"
+      fill="var(--viz-node-text)"
+    >
+      AddLiquidityEvent
+    </text>
+  </g>
+  <g id="diagram-type-RemoveLiquidityEvent" data-node-id="type:RemoveLiquidityEvent">
+    <rect id="marks-node-type:RemoveLiquidityEvent" class="viz-shape viz-shape--rect diagram-node diagram-node--type" data-node-shape="rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="356" y="508" width="188" height="28" rx="0" ry="0"/>
+    <title>RemoveLiquidityEvent</title>
+    <text
+      class="diagram-node-label"
+      x="366"
+      y="522"
+      dominant-baseline="central"
+      fill="var(--viz-node-text)"
+    >
+      RemoveLiquidityEvent
+    </text>
+  </g>
+  <g id="diagram-type-SwapEvent" data-node-id="type:SwapEvent">
+    <rect id="marks-node-type:SwapEvent" class="viz-shape viz-shape--rect diagram-node diagram-node--type" data-node-shape="rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="356" y="548" width="96" height="28" rx="0" ry="0"/>
+    <title>SwapEvent</title>
+    <text
+      class="diagram-node-label"
+      x="366"
+      y="562"
+      dominant-baseline="central"
+      fill="var(--viz-node-text)"
+    >
+      SwapEvent
+    </text>
+  </g>
+  <g class="diagram-mark-footer" transform="translate(16 1004)">
+    <rect x="8" y="4" width="14" height="14" rx="2" fill="var(--viz-write)" stroke="var(--viz-observed)" stroke-width="1.5" stroke-dasharray="5 3"/><text x="15" y="11" text-anchor="middle" dominant-baseline="central" font-size="11" font-weight="700" fill="var(--viz-ground)">W</text>
+    <text x="28" y="11" dominant-baseline="central" font-size="12" fill="var(--viz-muted)">writes</text>
+    <rect x="90" y="4" width="14" height="14" rx="2" fill="none" stroke="var(--viz-observed)" stroke-width="1.5" stroke-dasharray="5 3"/><text x="97" y="11" text-anchor="middle" dominant-baseline="central" font-size="11" font-weight="700" fill="var(--viz-read)">R</text>
+    <text x="110" y="11" dominant-baseline="central" font-size="12" fill="var(--viz-muted)">no writes seen</text>
+    <text x="236" y="11" text-anchor="middle" dominant-baseline="central" font-size="11" font-weight="700" fill="var(--viz-muted)">?</text>
+    <text x="249" y="11" dominant-baseline="central" font-size="12" fill="var(--viz-muted)">not observed</text>
+    <text class="diagram-mark-provenance" x="8" y="40" font-size="12" fill="var(--viz-muted)">Read/write marks observed from 11 transactions between ledger 5100870 and 5101204 (RPC keeps about 7 days). Not derived from the contract interface.</text>
+    <text class="diagram-mark-provenance" x="8" y="60" font-size="12" fill="var(--viz-muted)">2 calls to an earlier version of this contract not counted.</text>
+  </g>
+</svg>

@@ -18,11 +18,11 @@
     data-edge-to="callee:CAITA5YIDBY4WQU7C5DUOM2P6BWZDFCKFCGOSUVDHZH3O3T7XKOAYOZR"
     data-edge-kind="call-footprint"
     data-call-count="1"
-    points="263,73.33333333333333 311,73.33333333333333 311,56 359,56"
+    points="260,73.33333333333333 308,73.33333333333333 308,56 356,56"
     fill="none" stroke="var(--viz-observed)" stroke-width="1" stroke-dasharray="1.5 3"
     marker-end="url(#calls-filled-arrow)"
   />
-  <text class="diagram-edge-count" data-count-from="fn:borrow_obligation_liquidity" data-count-to="callee:CAITA5YIDBY4WQU7C5DUOM2P6BWZDFCKFCGOSUVDHZH3O3T7XKOAYOZR" x="347" y="53" text-anchor="end" font-size="12" fill="var(--viz-muted)" stroke="var(--viz-ground)" stroke-width="3" paint-order="stroke"><title>1 call</title>×1</text>
+  <text class="diagram-edge-count" data-count-from="fn:borrow_obligation_liquidity" data-count-to="callee:CAITA5YIDBY4WQU7C5DUOM2P6BWZDFCKFCGOSUVDHZH3O3T7XKOAYOZR" x="344" y="53" text-anchor="end" font-size="12" fill="var(--viz-muted)" stroke="var(--viz-ground)" stroke-width="3" paint-order="stroke"><title>1 call</title>×1</text>
   <polyline
     id="calls-edge-fn:repay_obligation_liquidity-callee:CAITA5YIDBY4WQU7C5DUOM2P6BWZDFCKFCGOSUVDHZH3O3T7XKOAYOZR"
     class="diagram-edge diagram-edge--call diagram-edge--call-footprint diagram-edge--w1"
@@ -30,11 +30,11 @@
     data-edge-to="callee:CAITA5YIDBY4WQU7C5DUOM2P6BWZDFCKFCGOSUVDHZH3O3T7XKOAYOZR"
     data-edge-kind="call-footprint"
     data-call-count="1"
-    points="263,33.333333333333336 311,33.333333333333336 311,40 359,40"
+    points="260,33.333333333333336 308,33.333333333333336 308,40 356,40"
     fill="none" stroke="var(--viz-observed)" stroke-width="1" stroke-dasharray="1.5 3"
     marker-end="url(#calls-filled-arrow)"
   />
-  <text class="diagram-edge-count" data-count-from="fn:repay_obligation_liquidity" data-count-to="callee:CAITA5YIDBY4WQU7C5DUOM2P6BWZDFCKFCGOSUVDHZH3O3T7XKOAYOZR" x="347" y="37" text-anchor="end" font-size="12" fill="var(--viz-muted)" stroke="var(--viz-ground)" stroke-width="3" paint-order="stroke"><title>1 call</title>×1</text>
+  <text class="diagram-edge-count" data-count-from="fn:repay_obligation_liquidity" data-count-to="callee:CAITA5YIDBY4WQU7C5DUOM2P6BWZDFCKFCGOSUVDHZH3O3T7XKOAYOZR" x="344" y="37" text-anchor="end" font-size="12" fill="var(--viz-muted)" stroke="var(--viz-ground)" stroke-width="3" paint-order="stroke"><title>1 call</title>×1</text>
   <polyline
     id="calls-edge-fn:borrow_obligation_liquidity-callee:CBM44TNMCPYIFJO4PSMDZA7IXKJRRNHA6EOWNWI3X4V47DDC7WQXXD3E"
     class="diagram-edge diagram-edge--call diagram-edge--call-event diagram-edge--w1"
@@ -42,11 +42,11 @@
     data-edge-to="callee:CBM44TNMCPYIFJO4PSMDZA7IXKJRRNHA6EOWNWI3X4V47DDC7WQXXD3E"
     data-edge-kind="call-event"
     data-call-count="1"
-    points="263,82.66666666666667 311,82.66666666666667 311,116 359,116"
+    points="260,82.66666666666667 308,82.66666666666667 308,116 356,116"
     fill="none" stroke="var(--viz-observed)" stroke-width="1" stroke-dasharray="8 3 1.5 3"
     marker-end="url(#calls-filled-arrow)"
   />
-  <text class="diagram-edge-count" data-count-from="fn:borrow_obligation_liquidity" data-count-to="callee:CBM44TNMCPYIFJO4PSMDZA7IXKJRRNHA6EOWNWI3X4V47DDC7WQXXD3E" x="347" y="113" text-anchor="end" font-size="12" fill="var(--viz-muted)" stroke="var(--viz-ground)" stroke-width="3" paint-order="stroke"><title>1 call</title>×1</text>
+  <text class="diagram-edge-count" data-count-from="fn:borrow_obligation_liquidity" data-count-to="callee:CBM44TNMCPYIFJO4PSMDZA7IXKJRRNHA6EOWNWI3X4V47DDC7WQXXD3E" x="344" y="113" text-anchor="end" font-size="12" fill="var(--viz-muted)" stroke="var(--viz-ground)" stroke-width="3" paint-order="stroke"><title>1 call</title>×1</text>
   <polyline
     id="calls-edge-fn:repay_obligation_liquidity-callee:CBM44TNMCPYIFJO4PSMDZA7IXKJRRNHA6EOWNWI3X4V47DDC7WQXXD3E"
     class="diagram-edge diagram-edge--call diagram-edge--call-auth-tree diagram-edge--w1"
@@ -54,13 +54,13 @@
     data-edge-to="callee:CBM44TNMCPYIFJO4PSMDZA7IXKJRRNHA6EOWNWI3X4V47DDC7WQXXD3E"
     data-edge-kind="call-auth-tree"
     data-call-count="1"
-    points="263,42.66666666666667 311,42.66666666666667 311,100 359,100"
+    points="260,42.66666666666667 308,42.66666666666667 308,100 356,100"
     fill="none" stroke="var(--viz-observed)" stroke-width="1" stroke-dasharray="10 4"
     marker-end="url(#calls-filled-arrow)"
   />
-  <text class="diagram-edge-count" data-count-from="fn:repay_obligation_liquidity" data-count-to="callee:CBM44TNMCPYIFJO4PSMDZA7IXKJRRNHA6EOWNWI3X4V47DDC7WQXXD3E" x="347" y="97" text-anchor="end" font-size="12" fill="var(--viz-muted)" stroke="var(--viz-ground)" stroke-width="3" paint-order="stroke"><title>1 call</title>×1</text>
+  <text class="diagram-edge-count" data-count-from="fn:repay_obligation_liquidity" data-count-to="callee:CBM44TNMCPYIFJO4PSMDZA7IXKJRRNHA6EOWNWI3X4V47DDC7WQXXD3E" x="344" y="97" text-anchor="end" font-size="12" fill="var(--viz-muted)" stroke="var(--viz-ground)" stroke-width="3" paint-order="stroke"><title>1 call</title>×1</text>
   <a id="diagram-fn-repay_obligation_liquidity" href="#fn-repay_obligation_liquidity" data-node-id="fn:repay_obligation_liquidity">
-    <rect id="calls-node-fn:repay_obligation_liquidity" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="24" width="239" height="28" rx="6" ry="6"/>
+    <rect id="calls-node-fn:repay_obligation_liquidity" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="24" width="236" height="28" rx="6" ry="6"/>
     <title>repay_obligation_liquidity</title>
     <text
       class="diagram-node-label"
@@ -69,11 +69,11 @@
       dominant-baseline="central"
       fill="var(--viz-node-text)"
     >
-      repay_obligation_liquidity
+      repay_obligation_liqui…
     </text>
   </a>
   <a id="diagram-fn-borrow_obligation_liquidity" href="#fn-borrow_obligation_liquidity" data-node-id="fn:borrow_obligation_liquidity">
-    <rect id="calls-node-fn:borrow_obligation_liquidity" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="64" width="239" height="28" rx="6" ry="6"/>
+    <rect id="calls-node-fn:borrow_obligation_liquidity" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="64" width="236" height="28" rx="6" ry="6"/>
     <title>borrow_obligation_liquidity</title>
     <text
       class="diagram-node-label"
@@ -82,15 +82,15 @@
       dominant-baseline="central"
       fill="var(--viz-node-text)"
     >
-      borrow_obligation_liquidi…
+      borrow_obligation_liqu…
     </text>
   </a>
   <a id="diagram-callee-CAITA5YIDBY4WQU7C5DUOM2P6BWZDFCKFCGOSUVDHZH3O3T7XKOAYOZR" href="https://stellar.expert/explorer/testnet/contract/CAITA5YIDBY4WQU7C5DUOM2P6BWZDFCKFCGOSUVDHZH3O3T7XKOAYOZR" data-node-id="callee:CAITA5YIDBY4WQU7C5DUOM2P6BWZDFCKFCGOSUVDHZH3O3T7XKOAYOZR">
-    <rect id="calls-node-callee:CAITA5YIDBY4WQU7C5DUOM2P6BWZDFCKFCGOSUVDHZH3O3T7XKOAYOZR" class="viz-shape viz-shape--rect diagram-node diagram-node--callee" data-node-shape="rect" fill="var(--viz-node)" stroke="var(--viz-observed)" stroke-width="1.5" x="359" y="24" width="96" height="48" rx="0" ry="0"/>
+    <rect id="calls-node-callee:CAITA5YIDBY4WQU7C5DUOM2P6BWZDFCKFCGOSUVDHZH3O3T7XKOAYOZR" class="viz-shape viz-shape--rect diagram-node diagram-node--callee" data-node-shape="rect" fill="var(--viz-node)" stroke="var(--viz-observed)" stroke-width="1.5" x="356" y="24" width="96" height="48" rx="0" ry="0"/>
     <title>CAIT…YOZR</title>
     <text
       class="diagram-node-label"
-      x="369"
+      x="366"
       y="48"
       dominant-baseline="central"
       fill="var(--viz-node-text)"
@@ -99,11 +99,11 @@
     </text>
   </a>
   <a id="diagram-callee-CBM44TNMCPYIFJO4PSMDZA7IXKJRRNHA6EOWNWI3X4V47DDC7WQXXD3E" href="https://stellar.expert/explorer/testnet/contract/CBM44TNMCPYIFJO4PSMDZA7IXKJRRNHA6EOWNWI3X4V47DDC7WQXXD3E" data-node-id="callee:CBM44TNMCPYIFJO4PSMDZA7IXKJRRNHA6EOWNWI3X4V47DDC7WQXXD3E">
-    <rect id="calls-node-callee:CBM44TNMCPYIFJO4PSMDZA7IXKJRRNHA6EOWNWI3X4V47DDC7WQXXD3E" class="viz-shape viz-shape--rect diagram-node diagram-node--callee" data-node-shape="rect" fill="var(--viz-node)" stroke="var(--viz-observed)" stroke-width="1.5" x="359" y="84" width="323" height="48" rx="0" ry="0"/>
+    <rect id="calls-node-callee:CBM44TNMCPYIFJO4PSMDZA7IXKJRRNHA6EOWNWI3X4V47DDC7WQXXD3E" class="viz-shape viz-shape--rect diagram-node diagram-node--callee" data-node-shape="rect" fill="var(--viz-node)" stroke="var(--viz-observed)" stroke-width="1.5" x="356" y="84" width="323" height="48" rx="0" ry="0"/>
     <title>USDC (asset contract, issuer G…LQQX)</title>
     <text
       class="diagram-node-label"
-      x="369"
+      x="366"
       y="108"
       dominant-baseline="central"
       fill="var(--viz-node-text)"

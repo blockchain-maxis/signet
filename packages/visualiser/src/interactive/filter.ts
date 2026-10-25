@@ -17,6 +17,12 @@ export interface EnhanceFilterOptions {
   initialQuery?: string;
   /** Callback fired after each filter run. */
   onFilter?: (query: string, result: FilterResult) => void;
+  /**
+   * A checkbox that keeps only the functions marked as writing (#512). It is
+   * disabled, with the reason as its description, on a diagram without
+   * read/write marks.
+   */
+  writesOnly?: HTMLInputElement;
 }
 
 export interface FilterResult {
@@ -30,6 +36,8 @@ export interface FilterResult {
 
 export interface FilterController {
   setQuery(query: string): FilterResult;
+  /** Keep only functions marked as writing (with the query, when there is one). */
+  setWritesOnly(on: boolean): FilterResult;
   getQuery(): string;
   destroy(): void;
 }
@@ -77,6 +85,23 @@ export function enhanceFilter(options: EnhanceFilterOptions): FilterController {
   }
 
   let currentQuery = '';
+  let writesOnly = false;
+
+  // "Writes only" needs marks to filter on.
+  const toggle = options.writesOnly;
+  const hasMarks = container.querySelector('[data-mark]') !== null;
+  if (toggle) {
+    toggle.disabled = !hasMarks;
+    if (!hasMarks) {
+      toggle.checked = false;
+      toggle.title = 'No read/write marks on this diagram: no calls to it have been observed.';
+      toggle.setAttribute('aria-description', toggle.title);
+    } else {
+      toggle.removeAttribute('title');
+      toggle.removeAttribute('aria-description');
+      writesOnly = toggle.checked;
+    }
+  }
 
   function applyFilter(query: string): FilterResult {
     currentQuery = query;
@@ -91,6 +116,13 @@ export function enhanceFilter(options: EnhanceFilterOptions): FilterController {
       const id = node.getAttribute('data-node-id') || '';
       const isFunction = id.startsWith('fn:');
       if (isFunction) totalFunctions++;
+
+      const writes = node.getAttribute('data-mark') === 'write';
+      if (writesOnly && !writes) {
+        node.classList.add(FILTER_CLASSES.dimmed);
+        node.classList.remove(FILTER_CLASSES.match);
+        continue;
+      }
 
       if (cleanQuery.length === 0) {
         node.classList.remove(FILTER_CLASSES.dimmed);
@@ -115,14 +147,15 @@ export function enhanceFilter(options: EnhanceFilterOptions): FilterController {
       }
     }
 
-    const message = cleanQuery.length === 0
+    const filtering = cleanQuery.length > 0 || writesOnly;
+    const message = !filtering
       ? ''
-      : formatFilterAnnouncement(matchingFunctions, totalFunctions, matchingNodes);
+      : writesOnly && matchingFunctions > 0
+        ? `${matchingFunctions} of ${totalFunctions} functions ${cleanQuery ? 'match and ' : ''}write`
+        : formatFilterAnnouncement(matchingFunctions, totalFunctions, matchingNodes);
 
-    if (liveRegion && cleanQuery.length > 0) {
+    if (liveRegion) {
       liveRegion.textContent = message;
-    } else if (liveRegion && cleanQuery.length === 0) {
-      liveRegion.textContent = '';
     }
 
     const result: FilterResult = {
@@ -156,10 +189,16 @@ export function enhanceFilter(options: EnhanceFilterOptions): FilterController {
     }
   }
 
+  function handleToggle() {
+    writesOnly = Boolean(toggle?.checked) && hasMarks;
+    applyFilter(currentQuery);
+  }
+
   if (input) {
     input.addEventListener('input', handleInput);
     input.addEventListener('keydown', handleKeyDown);
   }
+  toggle?.addEventListener('change', handleToggle);
 
   if (options.initialQuery !== undefined) {
     applyFilter(options.initialQuery);
@@ -175,10 +214,16 @@ export function enhanceFilter(options: EnhanceFilterOptions): FilterController {
       }
       return applyFilter(q);
     },
+    setWritesOnly(on: boolean) {
+      writesOnly = on && hasMarks;
+      if (toggle) toggle.checked = writesOnly;
+      return applyFilter(currentQuery);
+    },
     getQuery() {
       return currentQuery;
     },
     destroy() {
+      toggle?.removeEventListener('change', handleToggle);
       if (input) {
         input.removeEventListener('input', handleInput);
         input.removeEventListener('keydown', handleKeyDown);

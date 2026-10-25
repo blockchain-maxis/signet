@@ -20,45 +20,45 @@
 .arrow { fill: #736e62; } }</style>
 <rect class="canvas" width="588" height="1120"/>
 <defs><marker id="export-arrow" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><path class="arrow" d="M0,0 L8,3 L0,6 Z"/></marker></defs>
-<g><title>initialize</title><rect class="node" x="24" y="944" width="104" height="28" rx="4"/>
+<g><title>initialize</title><rect class="node" x="24" y="944" width="126" height="28" rx="4"/>
 <text class="label" x="34" y="963">initialize</text></g>
-<g><title>add_liquidity</title><rect class="node" x="24" y="52" width="130" height="28" rx="4"/>
+<g><title>add_liquidity</title><rect class="node" x="24" y="52" width="152" height="28" rx="4"/>
 <text class="label" x="34" y="71">add_liquidity</text></g>
-<g><title>remove_liquidity</title><rect class="node" x="24" y="92" width="155" height="28" rx="4"/>
+<g><title>remove_liquidity</title><rect class="node" x="24" y="92" width="177" height="28" rx="4"/>
 <text class="label" x="34" y="111">remove_liquidity</text></g>
-<g><title>swap_exact_tokens_for_tokens</title><rect class="node" x="24" y="132" width="239" height="28" rx="4"/>
-<text class="label" x="34" y="151">swap_exact_tokens_for_tok…</text></g>
-<g><title>swap_tokens_for_exact_tokens</title><rect class="node" x="24" y="172" width="239" height="28" rx="4"/>
-<text class="label" x="34" y="191">swap_tokens_for_exact_tok…</text></g>
-<g><title>get_factory</title><rect class="node" x="24" y="376" width="113" height="28" rx="4"/>
+<g><title>swap_exact_tokens_for_tokens</title><rect class="node" x="24" y="132" width="236" height="28" rx="4"/>
+<text class="label" x="34" y="151">swap_exact_tokens_for_…</text></g>
+<g><title>swap_tokens_for_exact_tokens</title><rect class="node" x="24" y="172" width="236" height="28" rx="4"/>
+<text class="label" x="34" y="191">swap_tokens_for_exact_…</text></g>
+<g><title>get_factory</title><rect class="node" x="24" y="376" width="135" height="28" rx="4"/>
 <text class="label" x="34" y="395">get_factory</text></g>
-<g><title>router_pair_for</title><rect class="node" x="24" y="660" width="146" height="28" rx="4"/>
+<g><title>router_pair_for</title><rect class="node" x="24" y="660" width="168" height="28" rx="4"/>
 <text class="label" x="34" y="679">router_pair_for</text></g>
-<g><title>router_quote</title><rect class="node" x="24" y="700" width="121" height="28" rx="4"/>
+<g><title>router_quote</title><rect class="node" x="24" y="700" width="143" height="28" rx="4"/>
 <text class="label" x="34" y="719">router_quote</text></g>
-<g><title>router_get_amount_out</title><rect class="node" x="24" y="740" width="197" height="28" rx="4"/>
+<g><title>router_get_amount_out</title><rect class="node" x="24" y="740" width="219" height="28" rx="4"/>
 <text class="label" x="34" y="759">router_get_amount_out</text></g>
-<g><title>router_get_amount_in</title><rect class="node" x="24" y="780" width="188" height="28" rx="4"/>
+<g><title>router_get_amount_in</title><rect class="node" x="24" y="780" width="210" height="28" rx="4"/>
 <text class="label" x="34" y="799">router_get_amount_in</text></g>
-<g><title>router_get_amounts_out</title><rect class="node" x="24" y="820" width="205" height="28" rx="4"/>
+<g><title>router_get_amounts_out</title><rect class="node" x="24" y="820" width="227" height="28" rx="4"/>
 <text class="label" x="34" y="839">router_get_amounts_out</text></g>
-<g><title>router_get_amounts_in</title><rect class="node" x="24" y="860" width="197" height="28" rx="4"/>
+<g><title>router_get_amounts_in</title><rect class="node" x="24" y="860" width="219" height="28" rx="4"/>
 <text class="label" x="34" y="879">router_get_amounts_in</text></g>
-<g><title>sort_tokens</title><rect class="node" x="24" y="212" width="113" height="28" rx="4"/>
+<g><title>sort_tokens</title><rect class="node" x="24" y="212" width="135" height="28" rx="4"/>
 <text class="label" x="34" y="231">sort_tokens</text></g>
-<g><title>pair_for</title><rect class="node" x="24" y="252" width="88" height="28" rx="4"/>
+<g><title>pair_for</title><rect class="node" x="24" y="252" width="110" height="28" rx="4"/>
 <text class="label" x="34" y="271">pair_for</text></g>
-<g><title>get_reserves</title><rect class="node" x="24" y="416" width="121" height="28" rx="4"/>
+<g><title>get_reserves</title><rect class="node" x="24" y="416" width="143" height="28" rx="4"/>
 <text class="label" x="34" y="435">get_reserves</text></g>
-<g><title>quote</title><rect class="node" x="24" y="292" width="62" height="28" rx="4"/>
+<g><title>quote</title><rect class="node" x="24" y="292" width="84" height="28" rx="4"/>
 <text class="label" x="34" y="311">quote</text></g>
-<g><title>get_amount_out</title><rect class="node" x="24" y="456" width="138" height="28" rx="4"/>
+<g><title>get_amount_out</title><rect class="node" x="24" y="456" width="160" height="28" rx="4"/>
 <text class="label" x="34" y="475">get_amount_out</text></g>
-<g><title>get_amount_in</title><rect class="node" x="24" y="496" width="130" height="28" rx="4"/>
+<g><title>get_amount_in</title><rect class="node" x="24" y="496" width="152" height="28" rx="4"/>
 <text class="label" x="34" y="515">get_amount_in</text></g>
-<g><title>get_amounts_out</title><rect class="node" x="24" y="536" width="146" height="28" rx="4"/>
+<g><title>get_amounts_out</title><rect class="node" x="24" y="536" width="168" height="28" rx="4"/>
 <text class="label" x="34" y="555">get_amounts_out</text></g>
-<g><title>get_amounts_in</title><rect class="node" x="24" y="576" width="138" height="28" rx="4"/>
+<g><title>get_amounts_in</title><rect class="node" x="24" y="576" width="160" height="28" rx="4"/>
 <text class="label" x="34" y="595">get_amounts_in</text></g>
 <text class="footer" x="24" y="1032">Address: CAG5LRYQ5JVEUI5TEID72EYOVX44TTUJT5BQR2J6J77FH65PCCFAJDDH</text>
 <text class="footer" x="24" y="1052">Network: mainnet</text>

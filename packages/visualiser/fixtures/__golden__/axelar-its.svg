@@ -3,7 +3,7 @@
   role="figure"
   aria-labelledby="axelar-its-title axelar-its-desc"
   class="contract-diagram"
-  width="287" height="2332" viewBox="0 0 287 2332"
+  width="284" height="2332" viewBox="0 0 284 2332"
   font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="14"
 >
   <title id="axelar-its-title">axelar-its (mainnet CBDBMIOFHGWUFRYH3D3STI2DHBOWGDDBCRKQEUB4RGQEBVG74SEED6C6)</title>
@@ -11,7 +11,7 @@
   <defs>
   </defs>
   <a id="diagram-fn-gas_service" href="#fn-gas_service" data-node-id="fn:gas_service">
-    <rect id="axelar-its-node-fn:gas_service" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="52" width="113" height="28" rx="6" ry="6"/>
+    <rect id="axelar-its-node-fn:gas_service" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="52" width="135" height="28" rx="6" ry="6"/>
     <title>gas_service</title>
     <text
       class="diagram-node-label"
@@ -24,7 +24,7 @@
     </text>
   </a>
   <a id="diagram-fn-chain_name" href="#fn-chain_name" data-node-id="fn:chain_name">
-    <rect id="axelar-its-node-fn:chain_name" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="92" width="104" height="28" rx="6" ry="6"/>
+    <rect id="axelar-its-node-fn:chain_name" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="92" width="126" height="28" rx="6" ry="6"/>
     <title>chain_name</title>
     <text
       class="diagram-node-label"
@@ -37,7 +37,7 @@
     </text>
   </a>
   <a id="diagram-fn-its_hub_chain_name" href="#fn-its_hub_chain_name" data-node-id="fn:its_hub_chain_name">
-    <rect id="axelar-its-node-fn:its_hub_chain_name" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="132" width="172" height="28" rx="6" ry="6"/>
+    <rect id="axelar-its-node-fn:its_hub_chain_name" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="132" width="194" height="28" rx="6" ry="6"/>
     <title>its_hub_chain_name</title>
     <text
       class="diagram-node-label"
@@ -50,7 +50,7 @@
     </text>
   </a>
   <a id="diagram-fn-its_hub_address" href="#fn-its_hub_address" data-node-id="fn:its_hub_address">
-    <rect id="axelar-its-node-fn:its_hub_address" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="172" width="146" height="28" rx="6" ry="6"/>
+    <rect id="axelar-its-node-fn:its_hub_address" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="172" width="168" height="28" rx="6" ry="6"/>
     <title>its_hub_address</title>
     <text
       class="diagram-node-label"
@@ -63,7 +63,7 @@
     </text>
   </a>
   <a id="diagram-fn-native_token_address" href="#fn-native_token_address" data-node-id="fn:native_token_address">
-    <rect id="axelar-its-node-fn:native_token_address" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="212" width="188" height="28" rx="6" ry="6"/>
+    <rect id="axelar-its-node-fn:native_token_address" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="212" width="210" height="28" rx="6" ry="6"/>
     <title>native_token_address</title>
     <text
       class="diagram-node-label"
@@ -76,7 +76,7 @@
     </text>
   </a>
   <a id="diagram-fn-is_trusted_chain" href="#fn-is_trusted_chain" data-node-id="fn:is_trusted_chain">
-    <rect id="axelar-its-node-fn:is_trusted_chain" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="252" width="155" height="28" rx="6" ry="6"/>
+    <rect id="axelar-its-node-fn:is_trusted_chain" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="252" width="177" height="28" rx="6" ry="6"/>
     <title>is_trusted_chain</title>
     <text
       class="diagram-node-label"
@@ -89,7 +89,7 @@
     </text>
   </a>
   <a id="diagram-fn-set_trusted_chain" href="#fn-set_trusted_chain" data-node-id="fn:set_trusted_chain">
-    <rect id="axelar-its-node-fn:set_trusted_chain" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="292" width="163" height="28" rx="6" ry="6"/>
+    <rect id="axelar-its-node-fn:set_trusted_chain" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="292" width="185" height="28" rx="6" ry="6"/>
     <title>set_trusted_chain</title>
     <text
       class="diagram-node-label"
@@ -102,7 +102,7 @@
     </text>
   </a>
   <a id="diagram-fn-remove_trusted_chain" href="#fn-remove_trusted_chain" data-node-id="fn:remove_trusted_chain">
-    <rect id="axelar-its-node-fn:remove_trusted_chain" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="332" width="188" height="28" rx="6" ry="6"/>
+    <rect id="axelar-its-node-fn:remove_trusted_chain" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="332" width="210" height="28" rx="6" ry="6"/>
     <title>remove_trusted_chain</title>
     <text
       class="diagram-node-label"
@@ -115,7 +115,7 @@
     </text>
   </a>
   <a id="diagram-fn-canonical_interchain_token_id" href="#fn-canonical_interchain_token_id" data-node-id="fn:canonical_interchain_token_id">
-    <rect id="axelar-its-node-fn:canonical_interchain_token_id" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="372" width="239" height="28" rx="6" ry="6"/>
+    <rect id="axelar-its-node-fn:canonical_interchain_token_id" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="372" width="236" height="28" rx="6" ry="6"/>
     <title>canonical_interchain_token_id</title>
     <text
       class="diagram-node-label"
@@ -124,11 +124,11 @@
       dominant-baseline="central"
       fill="var(--viz-node-text)"
     >
-      canonical_interchain_toke…
+      canonical_interchain_t…
     </text>
   </a>
   <a id="diagram-fn-linked_token_id" href="#fn-linked_token_id" data-node-id="fn:linked_token_id">
-    <rect id="axelar-its-node-fn:linked_token_id" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="412" width="146" height="28" rx="6" ry="6"/>
+    <rect id="axelar-its-node-fn:linked_token_id" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="412" width="168" height="28" rx="6" ry="6"/>
     <title>linked_token_id</title>
     <text
       class="diagram-node-label"
@@ -141,7 +141,7 @@
     </text>
   </a>
   <a id="diagram-fn-registered_token_address" href="#fn-registered_token_address" data-node-id="fn:registered_token_address">
-    <rect id="axelar-its-node-fn:registered_token_address" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="452" width="222" height="28" rx="6" ry="6"/>
+    <rect id="axelar-its-node-fn:registered_token_address" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="452" width="236" height="28" rx="6" ry="6"/>
     <title>registered_token_address</title>
     <text
       class="diagram-node-label"
@@ -150,11 +150,11 @@
       dominant-baseline="central"
       fill="var(--viz-node-text)"
     >
-      registered_token_address
+      registered_token_addre…
     </text>
   </a>
   <a id="diagram-fn-deployed_token_manager" href="#fn-deployed_token_manager" data-node-id="fn:deployed_token_manager">
-    <rect id="axelar-its-node-fn:deployed_token_manager" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="492" width="205" height="28" rx="6" ry="6"/>
+    <rect id="axelar-its-node-fn:deployed_token_manager" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="492" width="227" height="28" rx="6" ry="6"/>
     <title>deployed_token_manager</title>
     <text
       class="diagram-node-label"
@@ -167,7 +167,7 @@
     </text>
   </a>
   <a id="diagram-fn-is_flow_limiter" href="#fn-is_flow_limiter" data-node-id="fn:is_flow_limiter">
-    <rect id="axelar-its-node-fn:is_flow_limiter" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="532" width="146" height="28" rx="6" ry="6"/>
+    <rect id="axelar-its-node-fn:is_flow_limiter" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="532" width="168" height="28" rx="6" ry="6"/>
     <title>is_flow_limiter</title>
     <text
       class="diagram-node-label"
@@ -180,7 +180,7 @@
     </text>
   </a>
   <a id="diagram-fn-set_flow_limit" href="#fn-set_flow_limit" data-node-id="fn:set_flow_limit">
-    <rect id="axelar-its-node-fn:set_flow_limit" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="572" width="138" height="28" rx="6" ry="6"/>
+    <rect id="axelar-its-node-fn:set_flow_limit" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="572" width="160" height="28" rx="6" ry="6"/>
     <title>set_flow_limit</title>
     <text
       class="diagram-node-label"
@@ -193,7 +193,7 @@
     </text>
   </a>
   <a id="diagram-fn-add_flow_limiter" href="#fn-add_flow_limiter" data-node-id="fn:add_flow_limiter">
-    <rect id="axelar-its-node-fn:add_flow_limiter" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="612" width="155" height="28" rx="6" ry="6"/>
+    <rect id="axelar-its-node-fn:add_flow_limiter" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="612" width="177" height="28" rx="6" ry="6"/>
     <title>add_flow_limiter</title>
     <text
       class="diagram-node-label"
@@ -206,7 +206,7 @@
     </text>
   </a>
   <a id="diagram-fn-remove_flow_limiter" href="#fn-remove_flow_limiter" data-node-id="fn:remove_flow_limiter">
-    <rect id="axelar-its-node-fn:remove_flow_limiter" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="652" width="180" height="28" rx="6" ry="6"/>
+    <rect id="axelar-its-node-fn:remove_flow_limiter" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="652" width="202" height="28" rx="6" ry="6"/>
     <title>remove_flow_limiter</title>
     <text
       class="diagram-node-label"
@@ -219,7 +219,7 @@
     </text>
   </a>
   <a id="diagram-fn-link_token" href="#fn-link_token" data-node-id="fn:link_token">
-    <rect id="axelar-its-node-fn:link_token" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="692" width="104" height="28" rx="6" ry="6"/>
+    <rect id="axelar-its-node-fn:link_token" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="692" width="126" height="28" rx="6" ry="6"/>
     <title>link_token</title>
     <text
       class="diagram-node-label"
@@ -232,7 +232,7 @@
     </text>
   </a>
   <a id="diagram-fn-operator" href="#fn-operator" data-node-id="fn:operator">
-    <rect id="axelar-its-node-fn:operator" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="732" width="88" height="28" rx="6" ry="6"/>
+    <rect id="axelar-its-node-fn:operator" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="732" width="110" height="28" rx="6" ry="6"/>
     <title>operator</title>
     <text
       class="diagram-node-label"
@@ -245,7 +245,7 @@
     </text>
   </a>
   <a id="diagram-fn-owner" href="#fn-owner" data-node-id="fn:owner">
-    <rect id="axelar-its-node-fn:owner" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="772" width="62" height="28" rx="6" ry="6"/>
+    <rect id="axelar-its-node-fn:owner" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="772" width="84" height="28" rx="6" ry="6"/>
     <title>owner</title>
     <text
       class="diagram-node-label"
@@ -258,7 +258,7 @@
     </text>
   </a>
   <a id="diagram-fn-paused" href="#fn-paused" data-node-id="fn:paused">
-    <rect id="axelar-its-node-fn:paused" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="812" width="71" height="28" rx="6" ry="6"/>
+    <rect id="axelar-its-node-fn:paused" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="812" width="93" height="28" rx="6" ry="6"/>
     <title>paused</title>
     <text
       class="diagram-node-label"
@@ -271,7 +271,7 @@
     </text>
   </a>
   <a id="diagram-fn-pause" href="#fn-pause" data-node-id="fn:pause">
-    <rect id="axelar-its-node-fn:pause" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="852" width="62" height="28" rx="6" ry="6"/>
+    <rect id="axelar-its-node-fn:pause" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="852" width="84" height="28" rx="6" ry="6"/>
     <title>pause</title>
     <text
       class="diagram-node-label"
@@ -284,7 +284,7 @@
     </text>
   </a>
   <a id="diagram-fn-unpause" href="#fn-unpause" data-node-id="fn:unpause">
-    <rect id="axelar-its-node-fn:unpause" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="892" width="79" height="28" rx="6" ry="6"/>
+    <rect id="axelar-its-node-fn:unpause" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="892" width="101" height="28" rx="6" ry="6"/>
     <title>unpause</title>
     <text
       class="diagram-node-label"
@@ -297,7 +297,7 @@
     </text>
   </a>
   <a id="diagram-fn-required_auths" href="#fn-required_auths" data-node-id="fn:required_auths">
-    <rect id="axelar-its-node-fn:required_auths" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="932" width="138" height="28" rx="6" ry="6"/>
+    <rect id="axelar-its-node-fn:required_auths" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="932" width="160" height="28" rx="6" ry="6"/>
     <title>required_auths</title>
     <text
       class="diagram-node-label"
@@ -310,7 +310,7 @@
     </text>
   </a>
   <a id="diagram-fn-migrate" href="#fn-migrate" data-node-id="fn:migrate">
-    <rect id="axelar-its-node-fn:migrate" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="972" width="79" height="28" rx="6" ry="6"/>
+    <rect id="axelar-its-node-fn:migrate" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="972" width="101" height="28" rx="6" ry="6"/>
     <title>migrate</title>
     <text
       class="diagram-node-label"
@@ -323,7 +323,7 @@
     </text>
   </a>
   <a id="diagram-fn-gateway" href="#fn-gateway" data-node-id="fn:gateway">
-    <rect id="axelar-its-node-fn:gateway" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="1012" width="79" height="28" rx="6" ry="6"/>
+    <rect id="axelar-its-node-fn:gateway" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="1012" width="101" height="28" rx="6" ry="6"/>
     <title>gateway</title>
     <text
       class="diagram-node-label"
@@ -336,7 +336,7 @@
     </text>
   </a>
   <a id="diagram-fn-execute" href="#fn-execute" data-node-id="fn:execute">
-    <rect id="axelar-its-node-fn:execute" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="1052" width="79" height="28" rx="6" ry="6"/>
+    <rect id="axelar-its-node-fn:execute" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="1052" width="101" height="28" rx="6" ry="6"/>
     <title>execute</title>
     <text
       class="diagram-node-label"
@@ -349,7 +349,7 @@
     </text>
   </a>
   <a id="diagram-fn-interchain_token_wasm_hash" href="#fn-interchain_token_wasm_hash" data-node-id="fn:interchain_token_wasm_hash">
-    <rect id="axelar-its-node-fn:interchain_token_wasm_hash" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="1136" width="239" height="28" rx="6" ry="6"/>
+    <rect id="axelar-its-node-fn:interchain_token_wasm_hash" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="1136" width="236" height="28" rx="6" ry="6"/>
     <title>interchain_token_wasm_hash</title>
     <text
       class="diagram-node-label"
@@ -358,11 +358,11 @@
       dominant-baseline="central"
       fill="var(--viz-node-text)"
     >
-      interchain_token_wasm_hash
+      interchain_token_wasm_…
     </text>
   </a>
   <a id="diagram-fn-interchain_token_id" href="#fn-interchain_token_id" data-node-id="fn:interchain_token_id">
-    <rect id="axelar-its-node-fn:interchain_token_id" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="1176" width="180" height="28" rx="6" ry="6"/>
+    <rect id="axelar-its-node-fn:interchain_token_id" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="1176" width="202" height="28" rx="6" ry="6"/>
     <title>interchain_token_id</title>
     <text
       class="diagram-node-label"
@@ -375,7 +375,7 @@
     </text>
   </a>
   <a id="diagram-fn-interchain_token_address" href="#fn-interchain_token_address" data-node-id="fn:interchain_token_address">
-    <rect id="axelar-its-node-fn:interchain_token_address" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="1216" width="222" height="28" rx="6" ry="6"/>
+    <rect id="axelar-its-node-fn:interchain_token_address" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="1216" width="236" height="28" rx="6" ry="6"/>
     <title>interchain_token_address</title>
     <text
       class="diagram-node-label"
@@ -384,11 +384,11 @@
       dominant-baseline="central"
       fill="var(--viz-node-text)"
     >
-      interchain_token_address
+      interchain_token_addre…
     </text>
   </a>
   <a id="diagram-fn-interchain_transfer" href="#fn-interchain_transfer" data-node-id="fn:interchain_transfer">
-    <rect id="axelar-its-node-fn:interchain_transfer" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="1256" width="180" height="28" rx="6" ry="6"/>
+    <rect id="axelar-its-node-fn:interchain_transfer" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="1256" width="202" height="28" rx="6" ry="6"/>
     <title>interchain_transfer</title>
     <text
       class="diagram-node-label"
@@ -401,7 +401,7 @@
     </text>
   </a>
   <a id="diagram-fn-transfer_flow_limiter" href="#fn-transfer_flow_limiter" data-node-id="fn:transfer_flow_limiter">
-    <rect id="axelar-its-node-fn:transfer_flow_limiter" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="1340" width="197" height="28" rx="6" ry="6"/>
+    <rect id="axelar-its-node-fn:transfer_flow_limiter" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="1340" width="219" height="28" rx="6" ry="6"/>
     <title>transfer_flow_limiter</title>
     <text
       class="diagram-node-label"
@@ -414,7 +414,7 @@
     </text>
   </a>
   <a id="diagram-fn-transfer_token_admin" href="#fn-transfer_token_admin" data-node-id="fn:transfer_token_admin">
-    <rect id="axelar-its-node-fn:transfer_token_admin" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="1380" width="188" height="28" rx="6" ry="6"/>
+    <rect id="axelar-its-node-fn:transfer_token_admin" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="1380" width="210" height="28" rx="6" ry="6"/>
     <title>transfer_token_admin</title>
     <text
       class="diagram-node-label"
@@ -427,7 +427,7 @@
     </text>
   </a>
   <a id="diagram-fn-transfer_operatorship" href="#fn-transfer_operatorship" data-node-id="fn:transfer_operatorship">
-    <rect id="axelar-its-node-fn:transfer_operatorship" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="1420" width="197" height="28" rx="6" ry="6"/>
+    <rect id="axelar-its-node-fn:transfer_operatorship" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="1420" width="219" height="28" rx="6" ry="6"/>
     <title>transfer_operatorship</title>
     <text
       class="diagram-node-label"
@@ -440,7 +440,7 @@
     </text>
   </a>
   <a id="diagram-fn-transfer_ownership" href="#fn-transfer_ownership" data-node-id="fn:transfer_ownership">
-    <rect id="axelar-its-node-fn:transfer_ownership" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="1460" width="172" height="28" rx="6" ry="6"/>
+    <rect id="axelar-its-node-fn:transfer_ownership" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="1460" width="194" height="28" rx="6" ry="6"/>
     <title>transfer_ownership</title>
     <text
       class="diagram-node-label"
@@ -453,7 +453,7 @@
     </text>
   </a>
   <a id="diagram-fn-deploy_interchain_token" href="#fn-deploy_interchain_token" data-node-id="fn:deploy_interchain_token">
-    <rect id="axelar-its-node-fn:deploy_interchain_token" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="1544" width="214" height="28" rx="6" ry="6"/>
+    <rect id="axelar-its-node-fn:deploy_interchain_token" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="1544" width="236" height="28" rx="6" ry="6"/>
     <title>deploy_interchain_token</title>
     <text
       class="diagram-node-label"
@@ -466,7 +466,7 @@
     </text>
   </a>
   <a id="diagram-fn-deploy_remote_interchain_token" href="#fn-deploy_remote_interchain_token" data-node-id="fn:deploy_remote_interchain_token">
-    <rect id="axelar-its-node-fn:deploy_remote_interchain_token" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="1584" width="239" height="28" rx="6" ry="6"/>
+    <rect id="axelar-its-node-fn:deploy_remote_interchain_token" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="1584" width="236" height="28" rx="6" ry="6"/>
     <title>deploy_remote_interchain_token</title>
     <text
       class="diagram-node-label"
@@ -475,11 +475,11 @@
       dominant-baseline="central"
       fill="var(--viz-node-text)"
     >
-      deploy_remote_interchain_…
+      deploy_remote_intercha…
     </text>
   </a>
   <a id="diagram-fn-deploy_remote_canonical_token" href="#fn-deploy_remote_canonical_token" data-node-id="fn:deploy_remote_canonical_token">
-    <rect id="axelar-its-node-fn:deploy_remote_canonical_token" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="1624" width="239" height="28" rx="6" ry="6"/>
+    <rect id="axelar-its-node-fn:deploy_remote_canonical_token" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="1624" width="236" height="28" rx="6" ry="6"/>
     <title>deploy_remote_canonical_token</title>
     <text
       class="diagram-node-label"
@@ -488,11 +488,11 @@
       dominant-baseline="central"
       fill="var(--viz-node-text)"
     >
-      deploy_remote_canonical_t…
+      deploy_remote_canonica…
     </text>
   </a>
   <a id="diagram-fn-flow_limit" href="#fn-flow_limit" data-node-id="fn:flow_limit">
-    <rect id="axelar-its-node-fn:flow_limit" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="1708" width="104" height="28" rx="6" ry="6"/>
+    <rect id="axelar-its-node-fn:flow_limit" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="1708" width="126" height="28" rx="6" ry="6"/>
     <title>flow_limit</title>
     <text
       class="diagram-node-label"
@@ -505,7 +505,7 @@
     </text>
   </a>
   <a id="diagram-fn-flow_out_amount" href="#fn-flow_out_amount" data-node-id="fn:flow_out_amount">
-    <rect id="axelar-its-node-fn:flow_out_amount" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="1748" width="146" height="28" rx="6" ry="6"/>
+    <rect id="axelar-its-node-fn:flow_out_amount" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="1748" width="168" height="28" rx="6" ry="6"/>
     <title>flow_out_amount</title>
     <text
       class="diagram-node-label"
@@ -518,7 +518,7 @@
     </text>
   </a>
   <a id="diagram-fn-flow_in_amount" href="#fn-flow_in_amount" data-node-id="fn:flow_in_amount">
-    <rect id="axelar-its-node-fn:flow_in_amount" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="1788" width="138" height="28" rx="6" ry="6"/>
+    <rect id="axelar-its-node-fn:flow_in_amount" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="1788" width="160" height="28" rx="6" ry="6"/>
     <title>flow_in_amount</title>
     <text
       class="diagram-node-label"
@@ -531,7 +531,7 @@
     </text>
   </a>
   <a id="diagram-fn-__constructor" href="#fn-__constructor" data-node-id="fn:__constructor">
-    <rect id="axelar-its-node-fn:__constructor" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="1872" width="130" height="28" rx="6" ry="6"/>
+    <rect id="axelar-its-node-fn:__constructor" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="1872" width="152" height="28" rx="6" ry="6"/>
     <title>__constructor</title>
     <text
       class="diagram-node-label"
@@ -544,7 +544,7 @@
     </text>
   </a>
   <a id="diagram-fn-version" href="#fn-version" data-node-id="fn:version">
-    <rect id="axelar-its-node-fn:version" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="1912" width="79" height="28" rx="6" ry="6"/>
+    <rect id="axelar-its-node-fn:version" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="1912" width="101" height="28" rx="6" ry="6"/>
     <title>version</title>
     <text
       class="diagram-node-label"
@@ -557,7 +557,7 @@
     </text>
   </a>
   <a id="diagram-fn-upgrade" href="#fn-upgrade" data-node-id="fn:upgrade">
-    <rect id="axelar-its-node-fn:upgrade" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="1952" width="79" height="28" rx="6" ry="6"/>
+    <rect id="axelar-its-node-fn:upgrade" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="1952" width="101" height="28" rx="6" ry="6"/>
     <title>upgrade</title>
     <text
       class="diagram-node-label"
@@ -570,7 +570,7 @@
     </text>
   </a>
   <a id="diagram-fn-register_canonical_token" href="#fn-register_canonical_token" data-node-id="fn:register_canonical_token">
-    <rect id="axelar-its-node-fn:register_canonical_token" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="2036" width="222" height="28" rx="6" ry="6"/>
+    <rect id="axelar-its-node-fn:register_canonical_token" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="2036" width="236" height="28" rx="6" ry="6"/>
     <title>register_canonical_token</title>
     <text
       class="diagram-node-label"
@@ -579,11 +579,11 @@
       dominant-baseline="central"
       fill="var(--viz-node-text)"
     >
-      register_canonical_token
+      register_canonical_tok…
     </text>
   </a>
   <a id="diagram-fn-register_token_metadata" href="#fn-register_token_metadata" data-node-id="fn:register_token_metadata">
-    <rect id="axelar-its-node-fn:register_token_metadata" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="2076" width="214" height="28" rx="6" ry="6"/>
+    <rect id="axelar-its-node-fn:register_token_metadata" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="2076" width="236" height="28" rx="6" ry="6"/>
     <title>register_token_metadata</title>
     <text
       class="diagram-node-label"
@@ -596,7 +596,7 @@
     </text>
   </a>
   <a id="diagram-fn-register_custom_token" href="#fn-register_custom_token" data-node-id="fn:register_custom_token">
-    <rect id="axelar-its-node-fn:register_custom_token" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="2116" width="197" height="28" rx="6" ry="6"/>
+    <rect id="axelar-its-node-fn:register_custom_token" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="2116" width="219" height="28" rx="6" ry="6"/>
     <title>register_custom_token</title>
     <text
       class="diagram-node-label"
@@ -609,7 +609,7 @@
     </text>
   </a>
   <a id="diagram-fn-token_manager_wasm_hash" href="#fn-token_manager_wasm_hash" data-node-id="fn:token_manager_wasm_hash">
-    <rect id="axelar-its-node-fn:token_manager_wasm_hash" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="2200" width="214" height="28" rx="6" ry="6"/>
+    <rect id="axelar-its-node-fn:token_manager_wasm_hash" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="2200" width="236" height="28" rx="6" ry="6"/>
     <title>token_manager_wasm_hash</title>
     <text
       class="diagram-node-label"
@@ -622,7 +622,7 @@
     </text>
   </a>
   <a id="diagram-fn-token_manager_address" href="#fn-token_manager_address" data-node-id="fn:token_manager_address">
-    <rect id="axelar-its-node-fn:token_manager_address" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="2240" width="197" height="28" rx="6" ry="6"/>
+    <rect id="axelar-its-node-fn:token_manager_address" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="2240" width="219" height="28" rx="6" ry="6"/>
     <title>token_manager_address</title>
     <text
       class="diagram-node-label"
@@ -635,7 +635,7 @@
     </text>
   </a>
   <a id="diagram-fn-token_manager_type" href="#fn-token_manager_type" data-node-id="fn:token_manager_type">
-    <rect id="axelar-its-node-fn:token_manager_type" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="2280" width="172" height="28" rx="6" ry="6"/>
+    <rect id="axelar-its-node-fn:token_manager_type" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="2280" width="194" height="28" rx="6" ry="6"/>
     <title>token_manager_type</title>
     <text
       class="diagram-node-label"

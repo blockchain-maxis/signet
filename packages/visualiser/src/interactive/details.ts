@@ -282,6 +282,35 @@ export function enhanceDetails(
       card.appendChild(row);
     }
 
+    // The read/write mark's example evidence (#512), from the node itself:
+    // the transaction that showed the write, linked when the page gave a
+    // link, and only to http(s).
+    const tx = nodeEl.getAttribute('data-mark-tx');
+    if (tx) {
+      const row = doc.createElement('div');
+      row.className = 'viz-details-card__row';
+      const label = doc.createElement('span');
+      label.className = 'viz-details-card__label';
+      label.textContent = 'Evidence';
+      const value = doc.createElement('span');
+      value.className = 'viz-details-card__value';
+      const ledger = nodeEl.getAttribute('data-mark-ledger');
+      const text = `write in tx ${tx.slice(0, 8)}…${ledger ? ` at ledger ${ledger}` : ''}`;
+      const href = nodeEl.getAttribute('data-mark-href');
+      if (href && /^https?:\/\//.test(href)) {
+        const link = doc.createElement('a');
+        link.href = href;
+        link.rel = 'noopener noreferrer';
+        link.target = '_blank';
+        link.textContent = text;
+        value.appendChild(link);
+      } else {
+        value.textContent = text;
+      }
+      row.append(label, value);
+      card.appendChild(row);
+    }
+
     if (options.renderFooter && nodeId) {
       options.renderFooter(card, nodeId);
     }

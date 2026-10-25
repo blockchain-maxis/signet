@@ -18,9 +18,12 @@ import {
   nodeShapeSvg,
   renderLegend,
   sandboxBadge,
+  WRITE_MARK_VOCABULARY,
   type EdgeKind,
   type NodeKind,
+  type WriteMark,
 } from './vocabulary.ts';
+import type { MutabilityMark } from '@signet/spec';
 
 import type { DiagramModel, DiagramNode, DiagramEdge } from './index.ts';
 
@@ -35,8 +38,76 @@ export interface RenderOptions {
   ariaDescribedBy?: string;
   /** Optional search query for server-side filtering (?q=, issue 503). */
   query?: string;
+  /** Dim every function the read/write overlay does not mark as writing (?writes=1, issue 512). */
+  writesOnly?: boolean;
   /** Optional focused node ID for permalinks (?focus=, issue 505). */
   focus?: string;
+  /** Overlays drawn over the layout, which stays as it is (design §4.2). */
+  overlays?: {
+    /** Read/write marks on the functions (issue 512). */
+    mutability?: MutabilityOverlayInput;
+  };
+}
+
+/**
+ * The read/write overlay (issue 512): one mark per function by name, and what the
+ * marks were observed from, which the diagram states under itself.
+ */
+export interface MutabilityOverlayInput {
+  readonly marks: Readonly<Record<string, MutabilityMark>>;
+  /** Transactions that decided marks, and their ledger range. */
+  readonly transactions: number;
+  readonly firstLedger: number | null;
+  readonly lastLedger: number | null;
+  /** Local sandbox runs that decided marks (issue 580). */
+  readonly sandboxRuns?: number;
+  /** Calls to an earlier code version, not counted. */
+  readonly staleObservations?: number;
+  /** Days of transactions the RPC keeps. Default 7. */
+  readonly retentionDays?: number;
+  /** A transaction's page, for the detail card's evidence (issue 500). */
+  readonly txHref?: (txHash: string) => string;
+}
+
+/** A mark's write-mark vocabulary entry. */
+export function writeMarkOf(mark: MutabilityMark | undefined): WriteMark {
+  if (mark?.kind === 'writes') return 'write';
+  if (mark?.kind === 'no-writes-seen') return 'read';
+  return 'unknown';
+}
+
+/** A mark in words: what the function was seen doing, and how it is known. */
+export function markText(mark: MutabilityMark | undefined): string {
+  const kind = writeMarkOf(mark);
+  const base = kind === 'write' ? 'writes' : kind === 'read' ? 'no writes seen' : 'not observed';
+  if (mark && mark.kind !== 'unknown' && mark.seededOnly) return `${base} (seeded state)`;
+  return base;
+}
+
+const MARK_SIZE = 14;
+
+/** The mark glyph in its square, at (x, y): greyscale-legible by glyph and fill. */
+function markBadge(kind: WriteMark, x: number, y: number): string {
+  const vocab = WRITE_MARK_VOCABULARY[kind];
+  const square =
+    vocab.square === 'none'
+      ? ''
+      : `<rect x="${x}" y="${y}" width="${MARK_SIZE}" height="${MARK_SIZE}" rx="2" fill="${vocab.square === 'filled' ? cssVar(vocab.token) : 'none'}" stroke="${cssVar('observed')}" stroke-width="1.5" stroke-dasharray="${dashArray(EDGE_VOCABULARY.observed.dash) ?? ''}"/>`;
+  const glyphFill = vocab.square === 'filled' ? cssVar('ground') : cssVar(vocab.token);
+  return `${square}<text x="${x + MARK_SIZE / 2}" y="${y + MARK_SIZE / 2}" text-anchor="middle" dominant-baseline="central" font-size="11" font-weight="700" fill="${glyphFill}">${vocab.glyph}</text>`;
+}
+
+/** The provenance line under a marked diagram (issue 512). */
+export function describeMarks(m: MutabilityOverlayInput): string {
+  const range =
+    m.firstLedger !== null && m.lastLedger !== null
+      ? m.firstLedger === m.lastLedger
+        ? ` at ledger ${m.firstLedger}`
+        : ` between ledger ${m.firstLedger} and ${m.lastLedger}`
+      : '';
+  const txs = `${m.transactions} transaction${m.transactions === 1 ? '' : 's'}${range} (RPC keeps about ${m.retentionDays ?? 7} days)`;
+  const runs = m.sandboxRuns ? `, plus ${m.sandboxRuns} local sandbox run${m.sandboxRuns === 1 ? '' : 's'}` : '';
+  return `Read/write marks observed from ${txs}${runs}. Not derived from the contract interface.`;
 }
 
 /**
@@ -224,7 +295,25 @@ export function renderDiagramSvg(model: DiagramModel, opts: RenderOptions): stri
     ? Math.max(textWidth(WEIGHT_NOTE, 12), textWidth(provenance, 12), ...legendTextWidth) +
       2 * MARGIN
     : 0;
-  const width = Math.ceil(Math.max(positioned.width ?? 0, extentX, footerTextWidth));
+  // The read/write overlay's key and provenance lines (issue 512).
+  const mutability = opts.overlays?.mutability;
+  const markLines = mutability
+    ? [
+        describeMarks(mutability),
+        ...(mutability.staleObservations
+          ? [
+              `${mutability.staleObservations} call${mutability.staleObservations === 1 ? '' : 's'} to an earlier version of this contract not counted.`,
+            ]
+          : []),
+      ]
+    : [];
+  const markFooter = mutability ? 28 + markLines.length * 20 + 8 : 0;
+  const markWidth = mutability
+    ? Math.max(...markLines.map((l) => textWidth(l, 12))) + 2 * MARGIN
+    : 0;
+  const width = Math.ceil(
+    Math.max(positioned.width ?? 0, extentX, footerTextWidth, markWidth),
+  );
 
   const legend = calls
     ? renderLegend(legendKinds, {
@@ -233,8 +322,8 @@ export function renderDiagramSvg(model: DiagramModel, opts: RenderOptions): stri
       })
     : '';
   const legendHeight = legend ? Number(/data-legend-height="(\d+)"/.exec(legend)![1]) : 0;
-  const footer = calls ? legendHeight + 3 * 20 + 8 : 0;
-  const height = bodyHeight + footer;
+  const callFooter = calls ? legendHeight + 3 * 20 + 8 : 0;
+  const height = bodyHeight + callFooter + markFooter;
 
   const describedByAttr = opts.ariaDescribedBy
     ? ` aria-describedby="${escapeXml(opts.ariaDescribedBy)}"`
@@ -360,18 +449,31 @@ export function renderDiagramSvg(model: DiagramModel, opts: RenderOptions): stri
     const isMatch = cleanQuery
       ? node.id.toLowerCase().includes(cleanQuery) || node.label.toLowerCase().includes(cleanQuery)
       : true;
-    const filterClass =
-      cleanQuery && !isMatch ? ' viz-dimmed' : cleanQuery && isMatch ? ' viz-match' : '';
+    // The function's read/write mark (issue 512), for the badge and the detail card.
+    const markOf =
+      mutability && kind === 'function' ? mutability.marks[node.name ?? node.label] : undefined;
+    const markKind = mutability && kind === 'function' ? writeMarkOf(markOf) : null;
+    const hidden = (cleanQuery && !isMatch) || (opts.writesOnly && mutability && markKind !== 'write');
+    const filterClass = hidden ? ' viz-dimmed' : cleanQuery ? ' viz-match' : '';
     const stateClass = focusClass + filterClass;
     const containerClass = stateClass ? ` class="${stateClass.trim()}"` : '';
+    let markAttrs = '';
+    if (markKind) {
+      markAttrs += ` data-mark="${markKind}" data-mark-label="${escapeXml(markText(markOf))}"`;
+      const example = markOf?.kind === 'writes' ? markOf.example : undefined;
+      if (example?.txHash) {
+        markAttrs += ` data-mark-tx="${escapeXml(example.txHash)}" data-mark-ledger="${example.ledger}"`;
+        if (mutability!.txHref) markAttrs += ` data-mark-href="${escapeXml(mutability!.txHref(example.txHash))}"`;
+      }
+    }
 
     if (href) {
       svgParts.push(
-        `  <a id="${anchorId}" href="${escapeXml(href)}" data-node-id="${escapeXml(node.id)}"${containerClass}${autofocusAttr}>`,
+        `  <a id="${anchorId}" href="${escapeXml(href)}" data-node-id="${escapeXml(node.id)}"${markAttrs}${containerClass}${autofocusAttr}>`,
       );
     } else {
       svgParts.push(
-        `  <g id="${anchorId}" data-node-id="${escapeXml(node.id)}"${containerClass}${autofocusAttr}>`,
+        `  <g id="${anchorId}" data-node-id="${escapeXml(node.id)}"${markAttrs}${containerClass}${autofocusAttr}>`,
       );
     }
 
@@ -415,6 +517,14 @@ export function renderDiagramSvg(model: DiagramModel, opts: RenderOptions): stri
     svgParts.push(`      ${label}`);
     svgParts.push(`    </text>`);
 
+    if (markKind) {
+      const bx = node.x + node.width - 6 - MARK_SIZE;
+      const by = node.y + (node.height - MARK_SIZE) / 2;
+      svgParts.push(
+        `    <g class="diagram-mark diagram-mark--${markKind}"><title>${escapeXml(markText(markOf))}, observed, not from the interface</title>${markBadge(markKind, bx, by)}</g>`,
+      );
+    }
+
     if (href) {
       svgParts.push(`  </a>`);
     } else {
@@ -433,6 +543,27 @@ export function renderDiagramSvg(model: DiagramModel, opts: RenderOptions): stri
     svgParts.push(
       `    <text class="diagram-call-provenance" x="8" y="${legendHeight + 32}" font-size="12" fill="${cssVar('muted')}">${escapeXml(provenance)}</text>`,
     );
+    svgParts.push('  </g>');
+  }
+
+  if (mutability) {
+    // The key and where the marks came from, under everything else.
+    const top = bodyHeight + callFooter;
+    svgParts.push(`  <g class="diagram-mark-footer" transform="translate(${MARGIN - 8} ${top})">`);
+    let x = 8;
+    for (const kind of ['write', 'read', 'unknown'] as const) {
+      svgParts.push(`    ${markBadge(kind, x, 4)}`);
+      const text = kind === 'write' ? 'writes' : kind === 'read' ? 'no writes seen' : 'not observed';
+      svgParts.push(
+        `    <text x="${x + MARK_SIZE + 6}" y="${4 + MARK_SIZE / 2}" dominant-baseline="central" font-size="12" fill="${cssVar('muted')}">${text}</text>`,
+      );
+      x += MARK_SIZE + 6 + Math.ceil(textWidth(text, 12)) + 18;
+    }
+    markLines.forEach((line, i) => {
+      svgParts.push(
+        `    <text class="diagram-mark-provenance" x="8" y="${28 + 12 + i * 20}" font-size="12" fill="${cssVar('muted')}">${escapeXml(line)}</text>`,
+      );
+    });
     svgParts.push('  </g>');
   }
 

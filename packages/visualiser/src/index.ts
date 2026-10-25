@@ -95,6 +95,7 @@ export {
   CALL_ANCHOR_ID,
   CALLEES_MORE_ID,
   LAYOUT_VERSION,
+  MARK_SLOT,
   MAX_CALLEES,
   MAX_RAW_NODES,
   calleeNodeId,
@@ -117,6 +118,10 @@ export { MIN_TEXT_PX, textCells, textWidth, truncateLabel } from './metrics.ts';
 export {
   renderDiagramSvg,
   renderStandaloneSvg,
+  describeMarks,
+  markText,
+  writeMarkOf,
+  type MutabilityOverlayInput,
   type RenderOptions,
   type StandaloneSvgOptions,
 } from './render.ts';
@@ -196,6 +201,7 @@ export {
 // Text-equivalent diagram outline (E-19, #499)
 export {
   buildDiagramOutline,
+  withMarks,
   collectOutlineEdgeIds,
   renderOutlineHtml,
   type OutlineNode,

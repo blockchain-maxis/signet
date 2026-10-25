@@ -20,21 +20,21 @@
 .arrow { fill: #736e62; } }</style>
 <rect class="canvas" width="588" height="552"/>
 <defs><marker id="export-arrow" markerWidth="8" markerHeight="6" refX="8" refY="3" orient="auto"><path class="arrow" d="M0,0 L8,3 L0,6 Z"/></marker></defs>
-<g><title>claim</title><rect class="node" x="24" y="52" width="62" height="28" rx="4"/>
+<g><title>claim</title><rect class="node" x="24" y="52" width="84" height="28" rx="4"/>
 <text class="label" x="34" y="71">claim</text></g>
-<g><title>count</title><rect class="node" x="24" y="92" width="62" height="28" rx="4"/>
+<g><title>count</title><rect class="node" x="24" y="92" width="84" height="28" rx="4"/>
 <text class="label" x="34" y="111">count</text></g>
-<g><title>lookup</title><rect class="node" x="24" y="132" width="71" height="28" rx="4"/>
+<g><title>lookup</title><rect class="node" x="24" y="132" width="93" height="28" rx="4"/>
 <text class="label" x="34" y="151">lookup</text></g>
-<g><title>release</title><rect class="node" x="24" y="172" width="79" height="28" rx="4"/>
+<g><title>release</title><rect class="node" x="24" y="172" width="101" height="28" rx="4"/>
 <text class="label" x="34" y="191">release</text></g>
-<g><title>resolve</title><rect class="node" x="24" y="212" width="79" height="28" rx="4"/>
+<g><title>resolve</title><rect class="node" x="24" y="212" width="101" height="28" rx="4"/>
 <text class="label" x="34" y="231">resolve</text></g>
-<g><title>is_bound</title><rect class="node" x="24" y="252" width="88" height="28" rx="4"/>
+<g><title>is_bound</title><rect class="node" x="24" y="252" width="110" height="28" rx="4"/>
 <text class="label" x="34" y="271">is_bound</text></g>
-<g><title>initialize</title><rect class="node" x="24" y="376" width="104" height="28" rx="4"/>
+<g><title>initialize</title><rect class="node" x="24" y="376" width="126" height="28" rx="4"/>
 <text class="label" x="34" y="395">initialize</text></g>
-<g><title>admin_revoke</title><rect class="node" x="24" y="292" width="121" height="28" rx="4"/>
+<g><title>admin_revoke</title><rect class="node" x="24" y="292" width="143" height="28" rx="4"/>
 <text class="label" x="34" y="311">admin_revoke</text></g>
 <text class="footer" x="24" y="464">Address: CASFJHI5PQSRWS7JV25CF7FOMRKIVBP3RXRP3E2GH2CV4BCAG7FUJRCN</text>
 <text class="footer" x="24" y="484">Network: testnet</text>

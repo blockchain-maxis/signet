@@ -16,6 +16,8 @@ import type {
 } from './layout.ts';
 import type { DiagramModel, DiagramNode, DiagramEdge } from './index.ts';
 import { describeCallWindow } from './observe/call-graph.ts';
+import { markText, writeMarkOf } from './render.ts';
+import type { MutabilityMark } from '@signet/spec';
 
 /** A node in the text-equivalent diagram outline hierarchy. */
 export interface OutlineNode {
@@ -40,6 +42,8 @@ export interface OutlineNode {
   readonly overlay?: {
     readonly readWrite?: 'read' | 'write' | 'readWrite';
     readonly provenance?: string;
+    /** The read/write mark in words (#512): "writes", "no writes seen", "not observed". */
+    readonly mark?: string;
   };
   /** Child items nested under this outline item. */
   readonly children?: OutlineNode[];
@@ -107,6 +111,31 @@ export function collectOutlineEdgeIds(outline: readonly OutlineNode[]): string[]
  * Structure: groups -> functions -> "uses: Pool (argument), Position (return)" -> nested field types.
  * Guarantees that every edge in the graph appears exactly once in the outline.
  */
+/**
+ * The outline with each function's read/write mark as text (#512), so the
+ * text alternative says what the badges show.
+ */
+export function withMarks(
+  outline: readonly OutlineNode[],
+  marks: Readonly<Record<string, MutabilityMark>>,
+): OutlineNode[] {
+  return outline.map((item) => {
+    const children = item.children ? withMarks(item.children, marks) : undefined;
+    if (item.kind !== 'function') return children ? { ...item, children } : item;
+    const mark = marks[item.name];
+    const kind = writeMarkOf(mark);
+    return {
+      ...item,
+      ...(children && { children }),
+      overlay: {
+        ...item.overlay,
+        ...(kind !== 'unknown' && { readWrite: kind }),
+        mark: markText(mark),
+      },
+    };
+  });
+}
+
 export function buildDiagramOutline(model: PositionedDiagramModel | DiagramModel): OutlineNode[] {
   const nodesById = new Map<string, PositionedNode | DiagramNode>();
   for (const node of model.nodes) {
@@ -459,7 +488,11 @@ export function renderOutlineHtml(
 
   function renderFunction(fn: OutlineNode): string {
     const link = renderLink(fn.nodeId ?? fn.id, fn.name);
-    const overlayText = fn.overlay?.readWrite ? ` [${escapeHtml(fn.overlay.readWrite)}]` : '';
+    const overlayText = fn.overlay?.mark
+      ? ` [${escapeHtml(fn.overlay.mark)}]`
+      : fn.overlay?.readWrite
+        ? ` [${escapeHtml(fn.overlay.readWrite)}]`
+        : '';
     const provenanceText = fn.overlay?.provenance ? ` (${escapeHtml(fn.overlay.provenance)})` : '';
     const overlayHtml =
       overlayText || provenanceText
