@@ -241,7 +241,7 @@ export function StateView({
   }
 
   if (failure) return <p role="alert" className="mt-3 text-sm text-bad">The state could not be read: {failure}</p>;
-  if (!entries) return <div className="mt-4 h-48 animate-pulse rounded bg-raised" aria-label="loading the state" />;
+  if (!entries) return <div className="mt-4 h-48 animate-pulse rounded bg-raised" role="status" aria-label="loading the state" />;
 
   const uiOverrides = overrides.filter(isUiOverride);
   return (

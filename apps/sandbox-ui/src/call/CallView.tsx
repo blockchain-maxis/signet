@@ -40,7 +40,7 @@ export function CallView({ api, refresh }: { api: Api; refresh: number }) {
   }, [api, refresh]);
 
   if (!specs) {
-    return <div className="mt-4 h-64 animate-pulse rounded bg-raised" aria-label="loading the interface" />;
+    return <div className="mt-4 h-64 animate-pulse rounded bg-raised" role="status" aria-label="loading the interface" />;
   }
   return (
     <>

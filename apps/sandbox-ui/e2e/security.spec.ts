@@ -22,8 +22,9 @@ let token = '';
 
 test.describe.configure({ mode: 'serial' });
 
-test.beforeAll(async ({}, info) => {
-  info.setTimeout(240_000);
+test.beforeAll(async () => {
+  // go run compiles the harness first.
+  test.setTimeout(240_000);
   harness = spawn('go', ['run', './internal/devui/harness'], { cwd: cli, stdio: ['pipe', 'pipe', 'inherit'] });
   const url = await new Promise<string>((resolve, reject) => {
     let out = '';

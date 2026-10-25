@@ -165,6 +165,7 @@ export function App() {
         ) : (
           <span
             className="h-3 w-64 animate-pulse rounded bg-raised"
+            role="status"
             aria-label="loading the session"
           />
         )}
@@ -262,7 +263,7 @@ export function App() {
             session.state === 'ok' ? (
               <Suspense
                 fallback={
-                  <div className="mt-4 h-48 animate-pulse rounded bg-raised" aria-label="loading the diagram" />
+                  <div className="mt-4 h-48 animate-pulse rounded bg-raised" role="status" aria-label="loading the diagram" />
                 }
               >
                 <DiagramView
@@ -275,7 +276,7 @@ export function App() {
             ) : null
           ) : view === 'state' ? (
             session.state === 'ok' ? (
-              <Suspense fallback={<div className="mt-4 h-48 animate-pulse rounded bg-raised" aria-label="loading the state" />}>
+              <Suspense fallback={<div className="mt-4 h-48 animate-pulse rounded bg-raised" role="status" aria-label="loading the state" />}>
                 <StateView
                   api={api}
                   ledger={session.value.fork.ledger}
@@ -286,7 +287,7 @@ export function App() {
             ) : null
           ) : view === 'call' ? (
             <Suspense
-              fallback={<div className="mt-4 h-64 animate-pulse rounded bg-raised" aria-label="loading the form" />}
+              fallback={<div className="mt-4 h-64 animate-pulse rounded bg-raised" role="status" aria-label="loading the form" />}
             >
               <CallView api={api} refresh={cycleRefresh} />
             </Suspense>
@@ -330,7 +331,7 @@ const NO_OUTCOMES: Outcome[] = [];
 function CycleTable({ cycle }: { cycle: Load<Cycle> }) {
   if (cycle.state === 'loading') {
     return (
-      <div className="mt-4 space-y-2" aria-label="loading the latest cycle">
+      <div className="mt-4 space-y-2" role="status" aria-label="loading the latest cycle">
         {[0, 1, 2].map((i) => (
           <div key={i} className="h-7 animate-pulse rounded bg-raised" />
         ))}

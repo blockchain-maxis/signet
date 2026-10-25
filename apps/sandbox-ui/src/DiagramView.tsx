@@ -79,7 +79,7 @@ export function DiagramView({
 
   if (specs.state === 'loading') {
     return (
-      <div className="mt-4 space-y-2" aria-label="loading the build's interface">
+      <div className="mt-4 space-y-2" role="status" aria-label="loading the build's interface">
         <div className="h-48 animate-pulse rounded bg-raised" />
       </div>
     );
