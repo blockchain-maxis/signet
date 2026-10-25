@@ -181,6 +181,12 @@ impl Dispatcher {
             "xdr_keys" => Step::reply(xdr_keys(&self.ledger, &id, &object)),
             "tx_decode" => Step::reply(tx_decode(&self.ledger, &id, &object)),
             "snapshot_read" => Step::reply(crate::snapshot::snapshot_read(&id, &object)),
+            "storage_override" => Step::reply(crate::simulate::storage_override(
+                &mut self.ledger,
+                fork.as_ref(),
+                &id,
+                &object,
+            )),
             "entries_describe" => Step::reply(entries_describe(&self.ledger, &id, &object)),
             "wasm_inspect" => Step::reply(wasm_inspect(&self.ledger, &id, &object)),
             "spec_extract" => {

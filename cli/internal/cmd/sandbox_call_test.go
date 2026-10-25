@@ -485,3 +485,82 @@ func TestSandboxCallPullsInWhatItCallsAndPrefetchesItNextTime(t *testing.T) {
 		t.Fatalf("--no-related: exit %d, %v", ExitCode(err), err)
 	}
 }
+
+func TestSandboxCallStorageOverrides(t *testing.T) {
+	e := newCallEnv(t)
+	other := "GC6YINA5FD5MLUI4LKC4JYI5AKAW7BRFJRKNEU3TVRZWYNYN3KKZJR3G"
+	set := `persistent:Owner("alice")="` + other + `"`
+
+	res := e.json(registryContract, "resolve", "--arg", "handle=alice", "--set-storage", set)
+	if string(res.ReturnValue) != `"`+other+`"` || len(res.StorageOverrides) != 1 {
+		t.Fatalf("resolve = %s, overrides %v", res.ReturnValue, res.StorageOverrides)
+	}
+	stdout, stderr, err := e.run(registryContract, "claim", "--arg", "handle=alice", "--arg", "wallet="+testWallet, "--set-storage", set)
+	if err != nil {
+		t.Fatalf("%v\n%s", err, stderr)
+	}
+	if !strings.Contains(stdout, "HandleTaken") || !strings.Contains(stdout, "· 1 override ·") {
+		t.Fatalf("stdout:\n%s", stdout)
+	}
+	// Without the override the handle is free: overrides last one call.
+	if res := e.json(registryContract, "resolve", "--arg", "handle=alice"); string(res.ReturnValue) != "null" {
+		t.Fatalf("leaked into the next call: %s", res.ReturnValue)
+	}
+
+	file := filepath.Join(t.TempDir(), "overrides.toml")
+	_ = os.WriteFile(file, []byte("[[override]]\ndurability = \"persistent\"\nkey = 'Owner(\"bob\")'\nvalue = '\""+other+"\"'\n\n[[override]]\ndurability = \"instance\"\nkey = \"Count\"\nvalue = \"u32:41\"\n"), 0o600)
+	if res := e.json(registryContract, "count", "--overrides", file); string(res.ReturnValue) != "41" || len(res.StorageOverrides) != 2 {
+		t.Fatalf("count = %s, overrides %v", res.ReturnValue, res.StorageOverrides)
+	}
+
+	for _, args := range [][]string{
+		{"--set-storage", `persistent:Owner(=1`},
+		{"--set-storage", `persistent:Owner("a")=5`},
+		{"--set-storage", `forever:Owner("a")="x"`},
+		{"--unset-storage", `persistent`},
+	} {
+		_, _, err := e.run(append([]string{registryContract, "count"}, args...)...)
+		if ExitCode(err) != exitcode.InvalidInput {
+			t.Errorf("%v: exit %d (%v), want 2", args, ExitCode(err), err)
+		}
+	}
+	_, _, err = e.run(registryContract, "count", "--set-storage", `persistent:Own-er="x"`)
+	if ExitCode(err) != exitcode.InvalidInput || !strings.Contains(err.Error(), "Variant(arg, …)") {
+		t.Fatalf("the message names the shape: %v", err)
+	}
+}
+
+func TestOverrideArgumentsAndFiles(t *testing.T) {
+	for in, want := range map[string][2]string{
+		`Owner("a=b")="x"`:     {`Owner("a=b")`, `"x"`},
+		`{"symbol":"k"}=u32:5`: {`{"symbol":"k"}`, `u32:5`},
+	} {
+		key, value, ok := splitAssignment(in)
+		if !ok || key != want[0] || value != want[1] {
+			t.Errorf("splitAssignment(%q) = %q, %q, %v", in, key, value, ok)
+		}
+	}
+	if _, _, ok := splitAssignment(`Owner("a")`); ok {
+		t.Error("no = outside quotes is no assignment")
+	}
+
+	dir := t.TempDir()
+	write := func(text string) string {
+		p := filepath.Join(dir, "o.toml")
+		_ = os.WriteFile(p, []byte(text), 0o600)
+		return p
+	}
+	got, err := readOverridesFile(write("[[override]]\ndurability = \"temporary\"\nkey = \"Nonce\"\nunset = true\n"))
+	if err != nil || len(got) != 1 || !got[0].unset || got[0].durability != "temporary" {
+		t.Fatalf("unset: %+v %v", got, err)
+	}
+	if _, err := readOverridesFile(write("[[override]]\ndurability = \"persistent\"\nkey = \"K\"\nvalue = \"true\"\nttl = 5\n")); err == nil || !strings.Contains(err.Error(), "unknown keys override.ttl") {
+		t.Fatalf("unknown key: %v", err)
+	}
+	if _, err := readOverridesFile(write("[[override]\n")); err == nil || !strings.Contains(err.Error(), "line ") {
+		t.Fatalf("syntax error with a line: %v", err)
+	}
+	if _, err := readOverridesFile(write("[[override]]\ndurability = \"persistent\"\nkey = \"K\"\n")); err == nil {
+		t.Fatal("neither value nor unset")
+	}
+}

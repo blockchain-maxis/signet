@@ -254,6 +254,26 @@ is none) in the local simulator. Nothing is submitted.
   fetches everything earlier runs needed in one batch before it starts, even
   on a new fork of the contract. `--no-related` keeps a run to this contract:
   reaching any other is an error that names it.
+- `--set-storage '<durability>:<key>=<value>'` (`instance`, `persistent` or
+  `temporary`) asks what a call does in state nobody constructed: for one call
+  the entry is set in its own override layer, never mistaken for fork data,
+  and the footer counts it (`1 override`). `--unset-storage
+'<durability>:<key>'` removes one, and `--overrides overrides.toml` reads
+  `[[override]]` tables (`durability`, `key`, `value`, or `unset = true`), the
+  format `signet.dev.toml` uses. A key or value is written `Owner("alice")`
+  (a `#[contracttype]` enum case; with the contract's spec its arguments are
+  typed by it, without one a strkey string is an address and any other a
+  string), `u32:5` or `address:"G…"` (a typed value, primitive or a spec type),
+  or typed ScVal JSON such as `{"symbol":"Admin"}`. A bare number needs a type.
+  A persistent or temporary entry is the contract's own and lives the
+  network's minimum TTL. A malformed key or value exits `2`, naming the shapes.
+
+  ```sh
+  signet sandbox call CASF…RCN claim --arg handle=alice --arg wallet=GA5Z… \
+    --set-storage 'persistent:Owner("alice")="GC6Y…"'
+  # ✗ HandleTaken (#3): …
+  ```
+
 - A Stellar Asset Contract's code is built into the host, so nothing is
   fetched for it; its instance, balances and trustlines are fetched when read.
   Like `stellar snapshot create`, a fork holds only the holders' entries the

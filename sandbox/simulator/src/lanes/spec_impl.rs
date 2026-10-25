@@ -1577,6 +1577,229 @@ pub fn generic(val: &ScVal) -> Result<Value, LaneError> {
     })
 }
 
+// ── Storage expressions (#559) ─────────────────────────────────────────
+
+fn primitive(name: &str) -> Option<ScSpecTypeDef> {
+    Some(match name {
+        "bool" => ScSpecTypeDef::Bool,
+        "void" => ScSpecTypeDef::Void,
+        "u32" => ScSpecTypeDef::U32,
+        "i32" => ScSpecTypeDef::I32,
+        "u64" => ScSpecTypeDef::U64,
+        "i64" => ScSpecTypeDef::I64,
+        "u128" => ScSpecTypeDef::U128,
+        "i128" => ScSpecTypeDef::I128,
+        "u256" => ScSpecTypeDef::U256,
+        "i256" => ScSpecTypeDef::I256,
+        "timepoint" => ScSpecTypeDef::Timepoint,
+        "duration" => ScSpecTypeDef::Duration,
+        "string" => ScSpecTypeDef::String,
+        "symbol" => ScSpecTypeDef::Symbol,
+        "bytes" => ScSpecTypeDef::Bytes,
+        "address" => ScSpecTypeDef::Address,
+        _ => return None,
+    })
+}
+
+/// Split `a, b(c, d), "e,f"` at its top-level commas.
+fn split_args(text: &str) -> Vec<String> {
+    let (mut parts, mut current, mut depth, mut quoted, mut escaped) =
+        (Vec::new(), String::new(), 0i32, false, false);
+    for ch in text.chars() {
+        if quoted {
+            current.push(ch);
+            match (escaped, ch) {
+                (true, _) => escaped = false,
+                (false, '\\') => escaped = true,
+                (false, '"') => quoted = false,
+                _ => {}
+            }
+            continue;
+        }
+        match ch {
+            '"' => quoted = true,
+            '(' | '[' | '{' => depth += 1,
+            ')' | ']' | '}' => depth -= 1,
+            ',' if depth == 0 => {
+                parts.push(std::mem::take(&mut current));
+                continue;
+            }
+            _ => {}
+        }
+        current.push(ch);
+    }
+    if !current.trim().is_empty() || !parts.is_empty() {
+        parts.push(current);
+    }
+    parts.into_iter().map(|p| p.trim().to_string()).collect()
+}
+
+impl Spec {
+    /// A storage key or value written for `--set-storage` (#559):
+    ///
+    /// - `Owner("alice")`, `Admin`: a `#[contracttype]` enum case. With a
+    ///   spec union holding the case, its arguments are JSON encoded against
+    ///   the case's types (#545); without one, as the SDK lays such a case
+    ///   out: a vec of the case's symbol and its arguments, each read as its
+    ///   own expression.
+    /// - `u32:5`, `address:"G…"`, `Profile:{…}`: JSON encoded as that type,
+    ///   a primitive or a spec type.
+    /// - `{"symbol":"Admin"}`: typed ScVal JSON, always accepted.
+    /// - `"alice"`, `true`: a strkey string is an address, any other a
+    ///   string. A bare number has no type and is refused.
+    pub fn storage_val(&self, text: &str, path: &str) -> Result<ScVal, LaneError> {
+        let t = text.trim();
+        let shape = |got: &str| arg_error(path, crate::lanes::STORAGE_SHAPES, got.to_string());
+        let json = |s: &str| serde_json::from_str::<Value>(s).map_err(|_| shape(&format!("`{s}`")));
+        match t.chars().next() {
+            None => Err(shape("nothing")),
+            Some('{') => self.typed_json(&json(t)?, path, 0),
+            Some('"' | '[') => self.untyped(&json(t)?, path),
+            Some(c) if c == '-' || c.is_ascii_digit() => Err(arg_error(
+                path,
+                "a typed number, like u32:5 or i128:\"-5\"",
+                format!("`{t}`"),
+            )),
+            Some(_) if t == "true" || t == "false" => Ok(ScVal::Bool(t == "true")),
+            Some(_) => {
+                let ident_len = t
+                    .find(|c: char| !(c.is_ascii_alphanumeric() || c == '_'))
+                    .unwrap_or(t.len());
+                let (ident, rest) = t.split_at(ident_len);
+                if ident.is_empty() {
+                    return Err(shape(&format!("`{t}`")));
+                }
+                if let Some(value) = rest.strip_prefix(':') {
+                    let ty = match primitive(ident) {
+                        Some(ty) => ty,
+                        None if self.udt(ident).is_some() => ScSpecTypeDef::Udt(ScSpecTypeUdt {
+                            name: ident.try_into().map_err(|_| shape(ident))?,
+                        }),
+                        None => {
+                            return Err(arg_error(
+                                path,
+                                "a primitive type (u32, i128, address, string, …) or a type in the contract's spec",
+                                format!("`{ident}`"),
+                            ))
+                        }
+                    };
+                    return self.encode(&ty, &json(value)?, path, 0);
+                }
+                let args = match rest {
+                    "" => Vec::new(),
+                    r if r.starts_with('(') && r.ends_with(')') => split_args(&r[1..r.len() - 1]),
+                    _ => return Err(shape(&format!("`{t}`"))),
+                };
+                if let Some(union_name) = self.union_with_case(ident) {
+                    let values = args
+                        .iter()
+                        .map(|a| json(a))
+                        .collect::<Result<Vec<_>, _>>()?;
+                    let v = if values.is_empty() {
+                        json!({ "tag": ident })
+                    } else {
+                        json!({ "tag": ident, "values": values })
+                    };
+                    let ty = ScSpecTypeDef::Udt(ScSpecTypeUdt {
+                        name: union_name.as_str().try_into().map_err(|_| shape(ident))?,
+                    });
+                    return self.encode(&ty, &v, path, 0);
+                }
+                let mut items = vec![ScVal::Symbol(symbol(ident, path)?)];
+                for (i, a) in args.iter().enumerate() {
+                    items.push(self.storage_val(a, &index(path, i))?);
+                }
+                vec_of(items, path)
+            }
+        }
+    }
+
+    /// The spec union that has a case named `case`, if any.
+    fn union_with_case(&self, case: &str) -> Option<String> {
+        self.entries.iter().find_map(|e| match e {
+            ScSpecEntry::UdtUnionV0(u) if u.cases.iter().any(|c| case_name(c) == case) => {
+                Some(u.name.to_utf8_string_lossy())
+            }
+            _ => None,
+        })
+    }
+
+    fn untyped(&self, v: &Value, path: &str) -> Result<ScVal, LaneError> {
+        match v {
+            Value::String(s) if ScAddress::from_str(s).is_ok() => {
+                self.encode(&ScSpecTypeDef::Address, v, path, 0)
+            }
+            Value::String(_) => self.encode(&ScSpecTypeDef::String, v, path, 0),
+            Value::Bool(b) => Ok(ScVal::Bool(*b)),
+            Value::Null => Ok(ScVal::Void),
+            Value::Array(items) => {
+                let vals = items
+                    .iter()
+                    .enumerate()
+                    .map(|(i, item)| self.untyped(item, &index(path, i)))
+                    .collect::<Result<Vec<_>, _>>()?;
+                vec_of(vals, path)
+            }
+            Value::Object(_) => self.typed_json(v, path, 0),
+            Value::Number(_) => Err(arg_error(
+                path,
+                "a typed number, like u32:5 or i128:\"-5\"",
+                v.to_string(),
+            )),
+        }
+    }
+
+    /// Typed ScVal JSON: one key naming the type, `{"u32": 5}`,
+    /// `{"vec": [...]}`, `{"map": [[k, v], ...]}`.
+    fn typed_json(&self, v: &Value, path: &str, depth: usize) -> Result<ScVal, LaneError> {
+        let typed = "typed ScVal JSON with one key naming the type, like {\"u32\":5}, {\"vec\":[…]} or {\"map\":[[k,v],…]}";
+        if depth > MAX_TYPE_DEPTH {
+            return Err(arg_error(
+                path,
+                "a value nested at most 32 deep",
+                "a deeper value",
+            ));
+        }
+        let Some((kind, inner)) = v
+            .as_object()
+            .filter(|o| o.len() == 1)
+            .and_then(|o| o.iter().next())
+        else {
+            return Err(arg_error(path, typed, v.to_string()));
+        };
+        if let Some(ty) = primitive(kind) {
+            return self.encode(&ty, inner, &child(path, kind), depth + 1);
+        }
+        match (kind.as_str(), inner) {
+            ("vec", Value::Array(items)) => {
+                let vals = items
+                    .iter()
+                    .enumerate()
+                    .map(|(i, item)| self.typed_json(item, &index(path, i), depth + 1))
+                    .collect::<Result<Vec<_>, _>>()?;
+                vec_of(vals, path)
+            }
+            ("map", Value::Array(pairs)) => {
+                let mut entries = Vec::with_capacity(pairs.len());
+                for (i, pair) in pairs.iter().enumerate() {
+                    let at = index(path, i);
+                    let Some([k, val]) = pair.as_array().map(Vec::as_slice) else {
+                        return Err(arg_error(&at, "a [key, value] pair", pair.to_string()));
+                    };
+                    entries.push(ScMapEntry {
+                        key: self.typed_json(k, &at, depth + 1)?,
+                        val: self.typed_json(val, &at, depth + 1)?,
+                    });
+                }
+                Ok(ScVal::Map(Some(ScMap::sorted_from(entries).map_err(
+                    |_| arg_error(path, "a map without duplicate keys", "duplicates"),
+                )?)))
+            }
+            _ => Err(arg_error(path, typed, v.to_string())),
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

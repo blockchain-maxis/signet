@@ -1,0 +1,95 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://signet.dev/schemas/sandbox/v1/storage_override.json",
+  "title": "storage_override (request)",
+  "description": "Set or remove one storage entry of a contract in the override layer (#559): instance storage, or the contract's own persistent or temporary data. Keys and values are storage expressions, read against the contract's spec when it has one.",
+  "type": "object",
+  "properties": {
+    "version": {
+      "const": 1,
+      "description": "Wire protocol version; checked on every message"
+    },
+    "id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "Caller-assigned; echoed on the response"
+    },
+    "type": {
+      "const": "storage_override"
+    },
+    "contract_id": {
+      "type": "string",
+      "pattern": "^C[A-Z2-7]{55}$"
+    },
+    "durability": {
+      "enum": ["instance", "persistent", "temporary"]
+    },
+    "key": {
+      "type": "string",
+      "minLength": 1,
+      "description": "A storage expression: Variant or Variant(arg, …), a typed value like u32:5, typed ScVal JSON like {\"symbol\":\"Admin\"}, or a JSON string or bool"
+    },
+    "value": {
+      "type": "string",
+      "minLength": 1,
+      "description": "A storage expression, as for key; leave out with unset"
+    },
+    "unset": {
+      "const": true,
+      "description": "Remove the key instead of setting it"
+    },
+    "live_until": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "TTL for a persistent or temporary entry; default the network's minimum from the current ledger"
+    }
+  },
+  "required": ["version", "id", "type", "contract_id", "durability", "key"],
+  "additionalProperties": false,
+  "definitions": {
+    "result": {
+      "title": "storage_override (result)",
+      "type": "object",
+      "properties": {
+        "version": {
+          "const": 1,
+          "description": "Wire protocol version; checked on every message"
+        },
+        "id": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Echoes the request's id"
+        },
+        "type": {
+          "const": "result"
+        },
+        "key_xdr": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[A-Za-z0-9+/]+={0,2}$",
+          "description": "The LedgerKey written"
+        },
+        "key": {
+          "type": "string",
+          "description": "The overridden key in words"
+        },
+        "removed": {
+          "type": "boolean"
+        },
+        "live_until_ledger": {
+          "oneOf": [
+            {
+              "type": "integer",
+              "minimum": 0
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": ["version", "id", "type", "key_xdr", "key", "removed", "live_until_ledger"],
+      "additionalProperties": false
+    }
+  }
+}

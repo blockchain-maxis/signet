@@ -232,6 +232,14 @@
         "required": ["contract_id"],
         "additionalProperties": false
       }
+    },
+    "storageOverrides": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "description": "The storage entries --set-storage, --unset-storage and --overrides changed for this call (#559), in words"
     }
   },
   "required": [

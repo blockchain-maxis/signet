@@ -67,6 +67,9 @@ type CallResult struct {
 	Archived []simulator.Archived `json:"archived,omitempty"`
 	// Contracts are the other contracts the call reached (#552).
 	Contracts []simulator.RelatedContract `json:"contracts"`
+	// StorageOverrides are the keys --set-storage, --unset-storage and
+	// --overrides changed for this call (#559), in words.
+	StorageOverrides []string `json:"storageOverrides,omitempty"`
 }
 
 func newSandboxCallCmd() *cobra.Command {
@@ -84,6 +87,9 @@ func newSandboxCallCmd() *cobra.Command {
 		unlimited     bool
 		instructions  uint64
 		noRelated     bool
+		setStorage    []string
+		unsetStorage  []string
+		overridesFile string
 	)
 	cmd := &cobra.Command{
 		Use:   "call <contract> <function>",
@@ -183,6 +189,9 @@ result's footer.`,
 			req.contract, req.function, req.args = contract, function, callArgs
 			req.sourceAccount, req.wasm, req.session = sourceAccount, wasm, session
 			req.noRelated = noRelated
+			if req.overrides, err = parseStorageOverrides(setStorage, unsetStorage, overridesFile); err != nil {
+				return err
+			}
 			res, drift, err := runCall(ctx, deps, network, req, printer.Progress)
 			if err != nil {
 				return err
@@ -225,6 +234,9 @@ result's footer.`,
 	cmd.Flags().BoolVar(&unlimited, "unlimited", false, "run under the sandbox's budget ceiling (10x the network's limits)")
 	cmd.Flags().Uint64Var(&instructions, "budget-instructions", 0, "run under this CPU instruction limit (up to 10x the network's)")
 	cmd.Flags().BoolVar(&noRelated, "no-related", false, "keep the run to this contract: reaching any other contract is an error")
+	cmd.Flags().StringArrayVar(&setStorage, "set-storage", nil, "override a storage entry for this call: <instance|persistent|temporary>:<key>=<value>; repeat for each")
+	cmd.Flags().StringArrayVar(&unsetStorage, "unset-storage", nil, "remove a storage entry for this call: <instance|persistent|temporary>:<key>; repeat for each")
+	cmd.Flags().StringVar(&overridesFile, "overrides", "", "a TOML file of [[override]] tables (durability, key, value or unset = true), as in signet.dev.toml")
 	return cmd
 }
 
@@ -380,6 +392,7 @@ type callRequest struct {
 	move               ledgerMove
 	budget             *simulator.Budget
 	noRelated          bool
+	overrides          []storageOverride
 }
 
 // latestFork returns the newest fork of contract on network, if any.
@@ -478,6 +491,19 @@ func runCall(ctx context.Context, deps Deps, network rpc.Network, req callReques
 		Contract: req.contract, Function: req.function, Args: req.args, SourceAccount: req.sourceAccount,
 		Network: m.Network, ForkID: info.ID, ForkLedger: m.ForkLedger, Protocol: m.Protocol, Session: req.session,
 		ForkTime: m.ForkTime, AuthMode: req.authMode, Unlimited: req.budget != nil && req.budget.Unlimited,
+	}
+	for _, o := range req.overrides {
+		var written simulator.StorageOverrideResult
+		if _, err := callSimulator(ctx, sim, simulator.TypeStorageOverride, simulator.StorageOverrideParams{
+			ContractID: req.contract, Durability: o.durability, Key: o.key, Value: o.value, Unset: o.unset,
+		}, &written); err != nil {
+			return CallResult{}, fork.Drift{}, asInputError(err, o.source)
+		}
+		verb := "set"
+		if written.Removed {
+			verb = "removed"
+		}
+		res.StorageOverrides = append(res.StorageOverrides, fmt.Sprintf("%s %s (%s)", o.durability, written.Key, verb))
 	}
 	if len(req.wasm) > 0 {
 		var installed simulator.ContractInstallResult
@@ -772,6 +798,13 @@ func callProvenance(res CallResult) render.Provenance {
 	}
 	if res.SwappedWasm != "" {
 		p.Overrides = append(p.Overrides, "wasm "+shorten(res.SwappedWasm, 4, 2)+" swapped in")
+	}
+	if n := len(res.StorageOverrides); n > 0 {
+		noun := "overrides"
+		if n == 1 {
+			noun = "override"
+		}
+		p.Overrides = append(p.Overrides, fmt.Sprintf("%d %s", n, noun))
 	}
 	if l := res.Ledger; l != nil && l.Overridden {
 		if l.Sequence != res.ForkLedger {

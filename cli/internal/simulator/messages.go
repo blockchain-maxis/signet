@@ -38,6 +38,7 @@ const (
 	TypeWasmInspect      = "wasm_inspect"
 	TypeSnapshotRead     = "snapshot_read"
 	TypeEntriesDescribe  = "entries_describe"
+	TypeStorageOverride  = "storage_override"
 	TypeStatus           = "status"
 	TypeShutdown         = "shutdown"
 )
@@ -763,4 +764,23 @@ type DescribedEntry struct {
 	} `json:"storage,omitempty"`
 	Hash  string `json:"hash,omitempty"`
 	Bytes int    `json:"bytes,omitempty"`
+}
+
+// StorageOverrideParams sets or removes one storage entry of a contract in
+// the override layer (#559). Key and Value are storage expressions.
+type StorageOverrideParams struct {
+	ContractID string  `json:"contract_id"`
+	Durability string  `json:"durability"`
+	Key        string  `json:"key"`
+	Value      string  `json:"value,omitempty"`
+	Unset      bool    `json:"unset,omitempty"`
+	LiveUntil  *uint32 `json:"live_until,omitempty"`
+}
+
+// StorageOverrideResult is what an override wrote.
+type StorageOverrideResult struct {
+	KeyXDR          string  `json:"key_xdr"`
+	Key             string  `json:"key"`
+	Removed         bool    `json:"removed"`
+	LiveUntilLedger *uint32 `json:"live_until_ledger"`
 }

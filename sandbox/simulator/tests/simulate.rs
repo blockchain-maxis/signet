@@ -1246,6 +1246,71 @@ fn a_call_reports_the_contracts_it_reached_and_can_be_kept_to_its_own(lane: u32)
     assert_eq!(own["return_value"], 2, "{own}");
 }
 
+fn storage_overrides_change_what_a_call_sees(lane: u32) {
+    let mut sim = forked(lane);
+    let other = "GC6YINA5FD5MLUI4LKC4JYI5AKAW7BRFJRKNEU3TVRZWYNYN3KKZJR3G";
+    let wallet = "GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN";
+    let set = |sim: &mut Sim, durability: &str, key: &str, value: Option<&str>| {
+        let mut request = json!({
+            "type": "storage_override", "contract_id": REGISTRY, "durability": durability, "key": key,
+        });
+        match value {
+            Some(v) => request["value"] = json!(v),
+            None => request["unset"] = json!(true),
+        }
+        sim.send(request)
+    };
+
+    // The registry keys an owner by `DataKey::Owner(handle)`; it does not
+    // export that type, so the key is read as the SDK lays the case out.
+    let owner = set(
+        &mut sim,
+        "persistent",
+        r#"Owner("alice")"#,
+        Some(&format!("\"{other}\"")),
+    );
+    assert_eq!(owner["type"], "result", "{owner}");
+    assert_eq!(owner["removed"], false);
+    assert_eq!(
+        sim.call(REGISTRY, "resolve", json!({ "handle": "alice" }))["return_value"],
+        other
+    );
+    let claim = sim.call(
+        REGISTRY,
+        "claim",
+        json!({ "handle": "alice", "wallet": wallet }),
+    );
+    assert_eq!(claim["type"], "contract_error", "{claim}");
+    assert_eq!(claim["decoded"]["error_name"], "HandleTaken", "{claim}");
+
+    // Instance storage, typed: the count the contract reports.
+    let count = set(&mut sim, "instance", "Count", Some("u32:41"));
+    assert_eq!(count["type"], "result", "{count}");
+    assert_eq!(sim.call(REGISTRY, "count", json!({}))["return_value"], 41);
+
+    // Removed again: the handle is free.
+    let unset = set(&mut sim, "persistent", r#"Owner("alice")"#, None);
+    assert_eq!(unset["removed"], true, "{unset}");
+    assert_eq!(
+        sim.call(REGISTRY, "resolve", json!({ "handle": "alice" }))["return_value"],
+        Value::Null
+    );
+
+    // A key that is no expression says what one looks like.
+    let bad = set(&mut sim, "persistent", "Owner(", Some("true"));
+    assert_eq!(bad["code"], "bad_request", "{bad}");
+    assert_eq!(bad["detail"]["path"], "key");
+    assert!(
+        bad["message"].as_str().unwrap().contains("Variant(arg, …)"),
+        "{bad}"
+    );
+    let untyped = set(&mut sim, "persistent", "Count", Some("5"));
+    assert!(
+        untyped["message"].as_str().unwrap().contains("u32:5"),
+        "{untyped}"
+    );
+}
+
 /// The same suite on every lane (#538): each test above runs once per
 /// ledger protocol the binary carries.
 macro_rules! on_lane {
@@ -1344,6 +1409,10 @@ macro_rules! on_lane {
             #[test]
             fn a_call_reports_the_contracts_it_reached_and_can_be_kept_to_its_own() {
                 super::a_call_reports_the_contracts_it_reached_and_can_be_kept_to_its_own($protocol)
+            }
+            #[test]
+            fn storage_overrides_change_what_a_call_sees() {
+                super::storage_overrides_change_what_a_call_sees($protocol)
             }
             #[test]
             fn a_trace_shows_the_two_level_call_tree() {

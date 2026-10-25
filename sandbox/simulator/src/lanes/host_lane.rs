@@ -21,7 +21,7 @@ use soroban_env_host::xdr::{
     ExtensionPoint, FeeBumpTransactionInnerTx, Hash, HostFunction, InvokeContractArgs, LedgerEntry,
     LedgerEntryData, LedgerEntryExt, LedgerKey, LedgerKeyAccount, LedgerKeyConfigSetting,
     LedgerKeyContractCode, LedgerKeyContractData, Limited, Limits, MuxedAccount, OperationBody,
-    ReadXdr, ScAddress, ScContractInstance, ScEnvMetaEntry, ScError, ScErrorCode, ScErrorType,
+    ReadXdr, ScAddress, ScContractInstance, ScEnvMetaEntry, ScError, ScErrorCode, ScErrorType, ScMap, ScMapEntry,
     ScSpecEntry, ScSymbol, ScVal, SorobanAuthorizationEntry, SorobanAuthorizedFunction,
     SorobanCredentials, SorobanTransactionData, StringM, TransactionEnvelope, TransactionMeta,
     WriteXdr,
@@ -35,7 +35,7 @@ use soroban_simulation::NetworkConfig;
 use super::{
     AuthMode, BudgetOverride, ByteSnapshotSource, EffectiveBudget, BUDGET_CEILING_FACTOR, DecodeTarget, DerivedKey, EntryChangeBytes, ErrorCase, ExternalRef,
     Installed, InstanceInfo, InterfaceVersion, InvocationFailure, KeyRequest, Lane, LaneError,
-    SimulateBytes, SimulateResultBytes, SwapResultBytes, TraceCall, TransactionResources, WasmInspection,
+    SimulateBytes, SimulateResultBytes, StorageOverride, StorageWrite, Durability, SwapResultBytes, TraceCall, TransactionResources, WasmInspection,
 };
 
 
@@ -782,6 +782,83 @@ impl Lane for HostLane {
                 "bytes": code.code.len(),
             }),
             other => json!({ "kind": other.name() }),
+        })
+    }
+
+    fn override_storage(&self, req: &StorageOverride) -> Result<StorageWrite, LaneError> {
+        let spec = match req.wasm {
+            Some(wasm) => spec::Spec::from_wasm(wasm)?,
+            None => spec::Spec { entries: Vec::new() },
+        };
+        let key = spec.storage_val(req.key, "key")?;
+        let value = req.value.map(|v| spec.storage_val(v, "value")).transpose()?;
+        let contract = contract_address(req.contract_id)?;
+        let plain = |val: &ScVal| spec::generic(val).map_or_else(|_| val.name().to_string(), |v| v.to_string());
+        let durability = match req.durability {
+            Durability::Persistent => ContractDataDurability::Persistent,
+            Durability::Temporary => ContractDataDurability::Temporary,
+            Durability::Instance => {
+                let Some(raw) = req.instance_entry else {
+                    return Err(LaneError::InvalidInput {
+                        what: "contract_id",
+                        detail: "the contract has no instance in this ledger".into(),
+                    });
+                };
+                let mut entry: LedgerEntry = decode(raw, "LedgerEntry")?;
+                let LedgerEntryData::ContractData(data) = &mut entry.data else {
+                    return Err(LaneError::NotAContractInstance);
+                };
+                let ScVal::ContractInstance(instance) = &mut data.val else {
+                    return Err(LaneError::NotAContractInstance);
+                };
+                let mut items: Vec<ScMapEntry> = instance
+                    .storage
+                    .take()
+                    .map(|m| m.0.into_vec())
+                    .unwrap_or_default()
+                    .into_iter()
+                    .filter(|item| item.key != key)
+                    .collect();
+                if let Some(val) = value {
+                    items.push(ScMapEntry { key: key.clone(), val });
+                }
+                instance.storage = Some(ScMap::sorted_from(items).map_err(|_| invalid("instance storage"))?);
+                let key_xdr = encode(&entry.to_key(), "LedgerKey")?;
+                return Ok(StorageWrite {
+                    key_xdr,
+                    entry_xdr: Some(encode(&entry, "LedgerEntry")?),
+                    describe: format!("instance storage {}", plain(&key)),
+                });
+            }
+        };
+        let ledger_key = LedgerKey::ContractData(LedgerKeyContractData {
+            contract: contract.clone(),
+            key: key.clone(),
+            durability,
+        });
+        let entry_xdr = value
+            .map(|val| {
+                encode(
+                    &LedgerEntry {
+                        last_modified_ledger_seq: 0,
+                        data: LedgerEntryData::ContractData(ContractDataEntry {
+                            ext: ExtensionPoint::V0,
+                            contract,
+                            key: key.clone(),
+                            durability,
+                            val,
+                        }),
+                        ext: LedgerEntryExt::V0,
+                    },
+                    "LedgerEntry",
+                )
+            })
+            .transpose()?;
+        let key_xdr = encode(&ledger_key, "LedgerKey")?;
+        Ok(StorageWrite {
+            describe: self.describe_key(&key_xdr),
+            key_xdr,
+            entry_xdr,
         })
     }
 

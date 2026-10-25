@@ -211,6 +211,21 @@ impl LayeredStore {
         }
     }
 
+    /// Remove a key in the override layer (`--unset-storage`, #559): a
+    /// tombstone that hides the fork's entry without touching it.
+    pub fn remove_override(&mut self, key: &[u8]) {
+        let slot = Slot::Tombstone {
+            provenance: Provenance {
+                source: Source::Override,
+                fetched_at_ledger: None,
+                last_modified_ledger_seq: self.sequence,
+            },
+        };
+        if self.overrides.insert(key.to_vec(), slot).is_none() {
+            self.stored += 1;
+        }
+    }
+
     /// Apply a `simulate` result's `modified_entries` to the session layer:
     /// creations, updates, TTL extensions (same entry, higher `live_until`)
     /// and deletions (tombstones) all land here, so call 2 sees call 1's

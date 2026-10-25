@@ -21,8 +21,8 @@ use serde_json::{json, Map, Value};
 
 use crate::dispatch::error_message;
 use crate::lanes::{
-    AuthMode, BudgetOverride, ByteSnapshotSource, DecodeTarget, KeyRequest, Lane, LaneError,
-    SimulateBytes, SimulateResultBytes,
+    AuthMode, BudgetOverride, ByteSnapshotSource, DecodeTarget, Durability, KeyRequest, Lane,
+    LaneError, SimulateBytes, SimulateResultBytes, StorageOverride,
 };
 use crate::ledger::fetch::FetchingSource;
 use crate::ledger::store::{LayeredStore, Write};
@@ -1216,4 +1216,121 @@ pub fn status(ledger: &Option<OpenLedger>, started: Instant, id: &Value) -> Valu
             )
         }
     }
+}
+
+/// `storage_override` (#559): set or remove one storage entry of a contract
+/// in the override layer, so a call runs against state the network never
+/// had, and every result says it was overridden.
+///
+/// `durability` is `instance`, `persistent` or `temporary`; `key` and `value`
+/// are storage expressions (`Owner("alice")`, `u32:5`, typed ScVal JSON),
+/// read against the contract's spec when it has one. A persistent or
+/// temporary entry is the contract's own (it is keyed by `contract_id`) and
+/// lives until `live_until`, or the network's minimum TTL from the current
+/// ledger; an instance override rewrites the instance's storage map.
+pub fn storage_override(
+    ledger: &mut Option<OpenLedger>,
+    fork: Option<&Rc<FetchingSource>>,
+    id: &Value,
+    object: &Map<String, Value>,
+) -> Value {
+    let (Some(open), Some(fork)) = (ledger.as_mut(), fork) else {
+        return no_open_ledger(id);
+    };
+    let lane = open.lane;
+    let Some(contract_id) = object.get("contract_id").and_then(Value::as_str) else {
+        return invalid_field(id, "contract_id", "a contract id (C...)");
+    };
+    let durability = match object.get("durability").and_then(Value::as_str) {
+        Some("instance") => Durability::Instance,
+        Some("persistent") => Durability::Persistent,
+        Some("temporary") => Durability::Temporary,
+        _ => return invalid_field(id, "durability", "instance, persistent or temporary"),
+    };
+    let Some(key) = object.get("key").and_then(Value::as_str) else {
+        return invalid_field(id, "key", crate::lanes::STORAGE_SHAPES);
+    };
+    let unset = matches!(object.get("unset"), Some(Value::Bool(true)));
+    let value = object.get("value").and_then(Value::as_str);
+    if unset == value.is_some() {
+        return invalid_field(id, "value", "a value to set, or `unset: true`, not both");
+    }
+    let live_until = match object.get("live_until") {
+        None => None,
+        Some(v) => match v.as_u64().and_then(|n| u32::try_from(n).ok()) {
+            Some(n) => Some(n),
+            None => return invalid_field(id, "live_until", "a ledger sequence"),
+        },
+    };
+
+    // The spec, for typed keys and values; a contract without one (or one
+    // the fork cannot read) still takes untyped expressions.
+    let wasm = wasm_of_contract(&**fork, lane, contract_id).ok();
+    let instance_key = lane
+        .ledger_keys(&KeyRequest::ContractInstance {
+            contract_id: contract_id.to_string(),
+        })
+        .ok()
+        .and_then(|keys| keys.into_iter().next());
+    let instance = instance_key
+        .as_ref()
+        .and_then(|k| fork.get(&k.key_xdr).ok().flatten());
+    if let Some(failure) = fork.failure() {
+        return fetch_failed(id, lane, &failure);
+    }
+    let write = match lane.override_storage(&StorageOverride {
+        wasm: wasm.as_deref(),
+        contract_id,
+        durability,
+        key,
+        value,
+        instance_entry: instance.as_ref().map(|(entry, _)| &**entry),
+    }) {
+        Ok(write) => write,
+        Err(LaneError::Argument {
+            path,
+            expected,
+            got,
+        }) => {
+            return error_message(
+                id,
+                "bad_request",
+                format!("{path}: expected {expected}, got {got}"),
+                json!({ "kind": "invalid_field", "path": path, "expected": expected, "got": got }),
+            )
+        }
+        Err(LaneError::InvalidInput { what, detail }) => return invalid_field(id, what, &detail),
+        Err(e) => return invalid_field(id, "key", &e.to_string()),
+    };
+
+    let mut store = open.store.borrow_mut();
+    let sequence = store.sequence();
+    let ttl = |field: &str| {
+        open.network_config[field]
+            .as_u64()
+            .and_then(|n| u32::try_from(n).ok())
+            .unwrap_or(1)
+    };
+    let live_until = match durability {
+        Durability::Instance => instance.as_ref().and_then(|(_, live)| *live),
+        Durability::Persistent => {
+            Some(live_until.unwrap_or(sequence.saturating_add(ttl("min_persistent_ttl"))))
+        }
+        Durability::Temporary => {
+            Some(live_until.unwrap_or(sequence.saturating_add(ttl("min_temporary_ttl"))))
+        }
+    };
+    match &write.entry_xdr {
+        Some(entry) => store.insert_override(&write.key_xdr, entry.clone(), live_until),
+        None => store.remove_override(&write.key_xdr),
+    }
+    result(
+        id,
+        json!({
+            "key_xdr": BASE64.encode(&write.key_xdr),
+            "key": write.describe,
+            "removed": write.entry_xdr.is_none(),
+            "live_until_ledger": live_until,
+        }),
+    )
 }

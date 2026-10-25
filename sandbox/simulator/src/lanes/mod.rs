@@ -254,6 +254,39 @@ pub struct TraceCall {
     pub error: Option<String>,
 }
 
+/// What a storage key or value may be written as (#559), for messages.
+pub const STORAGE_SHAPES: &str = "Variant or Variant(arg, …) (a #[contracttype] enum case), a typed value like u32:5 or address:\"G…\", typed ScVal JSON like {\"symbol\":\"Admin\"}, or a JSON string or bool";
+
+/// Where a contract keeps a value (#559).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Durability {
+    Instance,
+    Persistent,
+    Temporary,
+}
+
+/// One `--set-storage` / `--unset-storage` (#559).
+pub struct StorageOverride<'a> {
+    /// The contract's executable, for its spec; overrides without one read
+    /// keys and values without types from a spec.
+    pub wasm: Option<&'a [u8]>,
+    pub contract_id: &'a str,
+    pub durability: Durability,
+    pub key: &'a str,
+    /// `None` removes the key.
+    pub value: Option<&'a str>,
+    /// The contract's instance entry, which an instance override rewrites.
+    pub instance_entry: Option<&'a [u8]>,
+}
+
+/// The write an override makes: the entry at `key_xdr`, or its removal.
+pub struct StorageWrite {
+    pub key_xdr: Vec<u8>,
+    pub entry_xdr: Option<Vec<u8>>,
+    /// The overridden key in words.
+    pub describe: String,
+}
+
 /// The outcome of pointing a contract instance at another executable.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SwapResultBytes {
@@ -502,6 +535,12 @@ pub trait Lane: Sync {
     /// The code and instance entries that install `wasm` at `contract_id`,
     /// or at an id derived from the executable's hash.
     fn install(&self, wasm: &[u8], contract_id: Option<&str>) -> Result<Installed, LaneError>;
+
+    /// The ledger write one storage override makes (#559): an entry of the
+    /// contract's instance storage, or a persistent or temporary entry,
+    /// set or removed. Keys and values are storage expressions, read
+    /// against the contract's spec when there is one.
+    fn override_storage(&self, req: &StorageOverride) -> Result<StorageWrite, LaneError>;
 
     /// What a contract instance `LedgerEntry` holds (`contract_info`, #550).
     fn instance_info(&self, entry_xdr: &[u8]) -> Result<InstanceInfo, LaneError>;
