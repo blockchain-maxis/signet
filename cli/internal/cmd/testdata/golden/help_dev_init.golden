@@ -1,0 +1,36 @@
+$ signet dev init --help
+-- stdout --
+Write a commented signet.dev.toml in the current directory for a deployed
+contract, with one saved call per read-only function: a function that takes
+no arguments and that, run on a fork, wrote nothing (no read-write entry in
+its footprint). Arguments for any other function are never guessed: add those
+calls with signet sandbox call … --save.
+
+An existing signet.dev.toml is kept unless --force.
+
+Usage:
+  signet dev init <contract> [flags]
+
+Examples:
+  signet dev init CASFJHI5PQSRWS7JV25CF7FOMRKIVBP3RXRP3E2GH2CV4BCAG7FUJRCN --path ./contracts/registry
+  signet dev init CC… --network mainnet --force
+
+Flags:
+      --force         replace an existing signet.dev.toml
+  -h, --help          help for init
+      --path string   the contract's crate directory, recorded as path
+
+Global Flags:
+      --context string              deployment context to use (overrides SIGNET_CONTEXT and the config file's current context)
+      --drift string                when an entry fetched for the fork changed on-chain after the fork ledger: warn, fail (exit 6), or refork (pin the latest ledger and run once more) (default "warn")
+      --insecure                    allow a plain-http deployment URL on a non-local host (signed challenges travel in cleartext; use only against a deployment you control)
+      --json                        write a single JSON result to stdout instead of human-readable output (diagnostics go to stderr)
+      --network string              Stellar network to talk to (overrides SIGNET_NETWORK, the context, and default "testnet")
+      --network-passphrase string   passphrase of a custom --network (checked against the RPC's getNetwork)
+      --rpc-url string              Stellar RPC to fork from (overrides the context's rpc-url; testnet defaults to https://soroban-testnet.stellar.org)
+      --sign-with-key string        identity to sign with, for non-interactive use (same value as STELLAR_SIGN_WITH_KEY; not remembered)
+      --source string               identity to sign as (remembered in the config file for next time)
+      --url string                  Signet deployment URL (overrides SIGNET_URL, the config file, and the default)
+-- stderr --
+(empty)
+-- exit 0 --

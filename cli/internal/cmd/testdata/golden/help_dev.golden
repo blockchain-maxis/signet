@@ -1,0 +1,34 @@
+$ signet dev --help
+-- stdout --
+Develop a contract against a fork of its deployed version: build it, run
+its saved calls, and compare, every time the source changes.
+
+A contract's checks live in signet.dev.toml beside its source; signet dev init
+writes one to start from.
+
+Usage:
+  signet dev [flags]
+  signet dev [command]
+
+Available Commands:
+  init        Write a signet.dev.toml for a deployed contract
+
+Flags:
+      --drift string                when an entry fetched for the fork changed on-chain after the fork ledger: warn, fail (exit 6), or refork (pin the latest ledger and run once more) (default "warn")
+  -h, --help                        help for dev
+      --network-passphrase string   passphrase of a custom --network (checked against the RPC's getNetwork)
+      --rpc-url string              Stellar RPC to fork from (overrides the context's rpc-url; testnet defaults to https://soroban-testnet.stellar.org)
+
+Global Flags:
+      --context string         deployment context to use (overrides SIGNET_CONTEXT and the config file's current context)
+      --insecure               allow a plain-http deployment URL on a non-local host (signed challenges travel in cleartext; use only against a deployment you control)
+      --json                   write a single JSON result to stdout instead of human-readable output (diagnostics go to stderr)
+      --network string         Stellar network to talk to (overrides SIGNET_NETWORK, the context, and default "testnet")
+      --sign-with-key string   identity to sign with, for non-interactive use (same value as STELLAR_SIGN_WITH_KEY; not remembered)
+      --source string          identity to sign as (remembered in the config file for next time)
+      --url string             Signet deployment URL (overrides SIGNET_URL, the config file, and the default)
+
+Use "signet dev [command] --help" for more information about a command.
+-- stderr --
+(empty)
+-- exit 0 --

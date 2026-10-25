@@ -65,6 +65,12 @@ func (e *callEnv) run(args ...string) (stdout, stderr string, err error) {
 // sandbox runs `signet sandbox <args>` in this environment.
 func (e *callEnv) sandbox(args ...string) (stdout, stderr string, err error) {
 	e.t.Helper()
+	return e.cli(append([]string{"sandbox"}, args...)...)
+}
+
+// cli runs `signet <args>` in this environment.
+func (e *callEnv) cli(args ...string) (stdout, stderr string, err error) {
+	e.t.Helper()
 	deps := defaultDeps()
 	deps.KeysBinary = "/nonexistent/signet-test-stellar"
 	if e.stellar != "" {
@@ -78,7 +84,7 @@ func (e *callEnv) sandbox(args ...string) (stdout, stderr string, err error) {
 	cmd.SetOut(out)
 	cmd.SetErr(errOut)
 	cmd.SetIn(strings.NewReader(""))
-	cmd.SetArgs(append([]string{"sandbox"}, args...))
+	cmd.SetArgs(args)
 	err = cmd.Execute()
 	return out.String(), errOut.String(), err
 }
@@ -601,5 +607,36 @@ func TestSandboxCallSaveAppendsToSignetDevToml(t *testing.T) {
 	}
 	if _, _, err := e.run(registryContract, "count", "--save=count is stable"); ExitCode(err) != exitcode.InvalidInput {
 		t.Fatalf("duplicate name: %v", err)
+	}
+}
+
+func TestDevInitSavesTheReadOnlyFunctions(t *testing.T) {
+	e := newCallEnv(t)
+	t.Chdir(t.TempDir())
+	stdout, stderr, err := e.cli("dev", "init", registryContract, "--rpc-url", e.rpc.srv.URL, "--path", "./contracts/registry")
+	if err != nil {
+		t.Fatalf("%v\n%s", err, stderr)
+	}
+	if !strings.Contains(stdout, "with 1 saved call: count") {
+		t.Fatalf("stdout:\n%s", stdout)
+	}
+	f, err := devconfig.Load("signet.dev.toml")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(f.Calls) != 1 || f.Calls[0].Function != "count" || f.Calls[0].Expect.Kind != "unchanged" ||
+		f.Address != registryContract || f.Network.Name != "testnet" || f.Path != "./contracts/registry" {
+		t.Fatalf("file = %+v", f)
+	}
+	raw, _ := os.ReadFile("signet.dev.toml")
+	if !strings.Contains(string(raw), "# [[override]]") || !strings.Contains(string(raw), "docs/SANDBOX.md") {
+		t.Fatalf("the template is commented:\n%s", raw)
+	}
+
+	if _, _, err := e.cli("dev", "init", registryContract, "--rpc-url", e.rpc.srv.URL); ExitCode(err) != exitcode.InvalidInput || !strings.Contains(err.Error(), "--force") {
+		t.Fatalf("overwrite: %v", err)
+	}
+	if _, stderr, err := e.cli("dev", "init", registryContract, "--rpc-url", e.rpc.srv.URL, "--force"); err != nil {
+		t.Fatalf("--force: %v\n%s", err, stderr)
 	}
 }

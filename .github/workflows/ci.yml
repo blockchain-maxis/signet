@@ -657,7 +657,7 @@ jobs:
         working-directory: cli
         env:
           SIGNET_SIMULATOR_PATH: ${{ github.workspace }}/sandbox/target/debug/signet-simulator
-        run: go test -count=1 -run 'SandboxCall|SandboxForkArchive|SandboxState' ./internal/cmd
+        run: go test -count=1 -run 'SandboxCall|SandboxForkArchive|SandboxState|DevInit' ./internal/cmd
 
   simulator-size:
     name: signet-simulator size budget

@@ -63,6 +63,12 @@ resource_tolerance = { instructions = "10%", fee = "10%" }
 - `[diff]` leaves out events by topic prefix and tolerates resource changes up
   to a percentage, for `instructions`, `read_bytes`, `write_bytes` and `fee`.
 
+`signet dev init <contract> [--path ./contract]` writes a commented
+`signet.dev.toml` in the current directory to start from, with one saved call
+per read-only function: a function that takes no arguments and, run on a fork,
+wrote nothing. It never guesses arguments for the others, and keeps an
+existing file unless `--force`.
+
 The quickest way to build the suite is to explore with `signet sandbox call`
 and keep what is worth keeping: `--save` appends the call as a `[[call]]`
 (named after its function, or `--save="a name"`), with its arguments as they

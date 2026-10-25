@@ -22,6 +22,7 @@ Deployments:
   context     Manage named deployment contexts
 
 Contracts:
+  dev         Develop a contract against a fork of its deployment
   sandbox     Run a deployed contract's functions locally against forked state
 
 Other:

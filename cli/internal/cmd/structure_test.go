@@ -187,6 +187,7 @@ var failing = map[string][]string{
 	"identity": append([]string{"identity", "--json"}, runtimeFailure...),
 	"context":  {"context", "use", "nonexistent-context-xyz", "--json"},
 	"config":   {"config", "get", "nonexistent-key-xyz", "--json"},
+	"dev":      {"dev", "init", "GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN", "--json"},
 }
 
 var cannotFail = map[string]bool{
