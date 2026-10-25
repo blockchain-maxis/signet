@@ -122,6 +122,17 @@
     "seed": {
       "type": "string",
       "pattern": "^[0-9a-f]{64}$"
+    },
+    "authEntries": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      },
+      "description": "The recorded auth in plain terms (simulate's auth_entries)"
+    },
+    "forkTime": {
+      "type": "string",
+      "description": "When the fork ledger closed (RFC 3339)"
     }
   },
   "required": [
@@ -138,7 +149,9 @@
     "modifiedEntries",
     "misses",
     "drift",
-    "seed"
+    "seed",
+    "authEntries",
+    "forkTime"
   ],
   "additionalProperties": false,
   "allOf": [

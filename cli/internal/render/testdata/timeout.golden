@@ -1,0 +1,3 @@
+timed out: simulate did not answer within 10s
+The call may be looping. Raise --timeout if it is only slow.
+ran against testnet · fork ledger 4887004 (1m ago) · protocol 29 lane · no drift

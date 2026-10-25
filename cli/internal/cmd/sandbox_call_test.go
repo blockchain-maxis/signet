@@ -14,6 +14,7 @@ import (
 	"github.com/blockchain-maxis/signet/cli/internal/config"
 	"github.com/blockchain-maxis/signet/cli/internal/exitcode"
 	"github.com/blockchain-maxis/signet/cli/internal/jsonschema"
+	"github.com/blockchain-maxis/signet/cli/internal/simulator"
 )
 
 // realSimulator is a built signet-simulator: $SIGNET_SIMULATOR_PATH, or the
@@ -89,9 +90,19 @@ func TestSandboxCallCountOnTheRegistry(t *testing.T) {
 	if err != nil {
 		t.Fatalf("%v\nstderr: %s", err, stderr)
 	}
-	if !strings.Contains(stdout, "→ ") || !strings.Contains(stdout, "testnet · fork ledger 4887004 · protocol 28") ||
-		!strings.Contains(stdout, "local sandbox: nothing was submitted") {
+	// count is a read: the value, the auth warning, and what it ran against.
+	if !strings.Contains(stdout, "→ ") || !strings.Contains(stdout, "ran against testnet · fork ledger 4887004") ||
+		!strings.Contains(stdout, "protocol 28 lane") || strings.Contains(stdout, "Would write") {
 		t.Fatalf("stdout:\n%s", stdout)
+	}
+	claim, _, err := e.run(registryContract, "claim", "--arg", "handle=render-check", "--arg", "wallet="+testWallet)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{"Would write", "requires auth from GA5Z…ZVN (claim)", "Local sandbox: nothing was submitted to testnet", "⚠ auth mocked"} {
+		if !strings.Contains(claim, want) {
+			t.Errorf("claim rendering lacks %q:\n%s", want, claim)
+		}
 	}
 	res := e.json(registryContract, "count")
 	if res.Outcome != "result" || res.ForkLedger != registryLedger || len(res.ReturnValue) == 0 {
@@ -200,5 +211,36 @@ func TestSandboxCallSourceAccountLeavesTheConfiguredSourceAlone(t *testing.T) {
 	}
 	if got, _ := after.GetConfig("source"); got != "alice" {
 		t.Fatalf("config source = %q, want alice", got)
+	}
+}
+
+func TestFailuresRenderWithTheirOwnWordsAndKeepTheirExitCodes(t *testing.T) {
+	res := CallResult{Function: "run", Network: "testnet", ForkLedger: 9, Protocol: 29, ForkTime: time.Unix(1790458600, 0)}
+	deps := Deps{Now: func() time.Time { return time.Unix(1790458610, 0) }}
+
+	timeout := renderedFailure(&simulator.TimeoutError{Type: "simulate", Timeout: 10 * time.Second}, res, deps)
+	if code := ExitCode(timeout); code != exitcode.Timeout {
+		t.Fatalf("timeout exit %d", code)
+	}
+	for _, want := range []string{"timed out: simulate did not answer within 10s", "may be looping", "ran against testnet · fork ledger 9"} {
+		if !strings.Contains(timeout.Error(), want) {
+			t.Errorf("timeout lacks %q:\n%s", want, timeout)
+		}
+	}
+
+	failed := renderedFailure(&simulator.Error{Message: "the simulator exited with status 101"}, res, deps)
+	if code := ExitCode(failed); code != exitcode.SimulatorFailure {
+		t.Fatalf("simulator failure exit %d", code)
+	}
+	if !strings.HasPrefix(failed.Error(), "simulator error: ") || !strings.Contains(failed.Error(), "says nothing about the contract") {
+		t.Fatalf("simulator failure:\n%s", failed)
+	}
+	if strings.Contains(failed.Error(), "✗") {
+		t.Fatal("a simulator failure must not read as the contract failing")
+	}
+
+	plain := &inputError{"bad"}
+	if renderedFailure(plain, res, deps) != error(plain) {
+		t.Fatal("other errors pass through untouched")
 	}
 }

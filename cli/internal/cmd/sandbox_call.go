@@ -10,12 +10,15 @@ import (
 	"os"
 	"os/signal"
 	"sort"
+	"strconv"
 	"strings"
+	"time"
 
 	"github.com/spf13/cobra"
 
 	"github.com/blockchain-maxis/signet/cli/internal/exitcode"
 	"github.com/blockchain-maxis/signet/cli/internal/fork"
+	"github.com/blockchain-maxis/signet/cli/internal/render"
 	"github.com/blockchain-maxis/signet/cli/internal/rpc"
 	"github.com/blockchain-maxis/signet/cli/internal/simulator"
 )
@@ -41,6 +44,7 @@ type CallResult struct {
 	Error          *simulator.ContractError  `json:"error,omitempty"`
 	Events         []simulator.Event         `json:"events"`
 	Auth           []string                  `json:"auth"`
+	AuthEntries    []simulator.AuthEntry     `json:"authEntries"`
 	Modified       []simulator.ModifiedEntry `json:"modifiedEntries"`
 	Resources      *simulator.Resources      `json:"resources,omitempty"`
 	Fee            *simulator.Fee            `json:"fee,omitempty"`
@@ -48,6 +52,8 @@ type CallResult struct {
 	Misses         []string                  `json:"misses"`
 	Drift          fork.Drift                `json:"drift"`
 	Seed           string                    `json:"seed"`
+	// ForkTime is when the fork ledger closed.
+	ForkTime time.Time `json:"forkTime"`
 }
 
 func newSandboxCallCmd() *cobra.Command {
@@ -140,7 +146,9 @@ The account a call runs as is --source-account (a G… address), not the root's
 					printer.Progress(drift.Warning())
 				}
 			}
-			return printer.Result(res, func(w io.Writer) error { return renderCall(w, res) })
+			return printer.Result(res, func(w io.Writer) error {
+				return render.Render(w, callView(res), callProvenance(res), now(deps), render.StyleFor(cmd.OutOrStdout()))
+			})
 		},
 	}
 	cmd.Flags().StringArrayVar(&rawArgs, "arg", nil, "a named argument, name=value (JSON, or a plain string); repeat for each")
@@ -280,6 +288,7 @@ func runCall(ctx context.Context, deps Deps, network rpc.Network, req callReques
 	res := CallResult{
 		Contract: req.contract, Function: req.function, Args: req.args, SourceAccount: req.sourceAccount,
 		Network: m.Network, ForkID: info.ID, ForkLedger: m.ForkLedger, Protocol: m.Protocol, Session: req.session,
+		ForkTime: m.ForkTime,
 	}
 	if len(req.wasm) > 0 {
 		var installed simulator.ContractInstallResult
@@ -301,17 +310,23 @@ func runCall(ctx context.Context, deps Deps, network rpc.Network, req callReques
 		ContractID: req.contract, Function: req.function, Args: req.args, SourceAccount: req.sourceAccount,
 	}, &out)
 	if err != nil {
-		return CallResult{}, fork.Drift{}, callError(ctx, sim, req, err)
+		res.ForkTime = m.ForkTime
+		return CallResult{}, fork.Drift{}, renderedFailure(callError(ctx, sim, req, err), res, deps)
 	}
 	if ce != nil {
 		res.Outcome = "contract_error"
 		res.Error = ce
 		res.Cost, res.Misses, res.Seed = ce.Cost, ce.Misses, ce.Seed
 		res.Events, res.Auth, res.Modified = []simulator.Event{}, []string{}, []simulator.ModifiedEntry{}
+		res.AuthEntries = []simulator.AuthEntry{}
 	} else {
 		res.Outcome = "result"
 		res.ReturnValue, res.ReturnValueXDR = out.ReturnValue, out.ReturnValueXDR
 		res.Events, res.Auth, res.Modified = out.Events, out.Auth, out.ModifiedEntries
+		res.AuthEntries = out.AuthEntries
+		if res.AuthEntries == nil {
+			res.AuthEntries = []simulator.AuthEntry{}
+		}
 		res.Resources, res.Fee, res.Cost, res.Misses, res.Seed = out.Resources, out.Fee, &out.Cost, out.Misses, out.Seed
 		if res.Auth == nil {
 			res.Auth = []string{}
@@ -428,52 +443,112 @@ func asInputError(err error, flag string) error {
 	return err
 }
 
-// renderCall is the human rendering until the full one (#556): the value
-// or the refusal, then where it ran.
-func renderCall(w io.Writer, res CallResult) error {
-	switch res.Outcome {
-	case "contract_error":
+// callView maps a call's result onto the three meanings (#556).
+func callView(res CallResult) render.Call {
+	c := render.Call{Function: res.Function, Value: string(res.ReturnValue), Writes: len(res.Modified)}
+	if res.Outcome == "contract_error" {
 		e := res.Error
-		if e.Kind == "contract" && e.Decoded != nil && e.Decoded.ErrorName != "" {
-			line := fmt.Sprintf("✗ %s (#%d)", e.Decoded.ErrorName, valueOr(e.Decoded.ErrorValue))
-			if e.Decoded.ErrorDoc != "" {
-				line += ": " + e.Decoded.ErrorDoc
+		if e.Kind == "contract" {
+			c.Kind = render.ContractError
+			c.Error = &render.Refusal{Name: "contract error", Code: contractCode(e.Code)}
+			if e.Decoded != nil && e.Decoded.ErrorName != "" {
+				c.Error.Name, c.Error.Doc = e.Decoded.ErrorName, e.Decoded.ErrorDoc
+				if e.Decoded.ErrorValue != nil {
+					c.Error.Code = *e.Decoded.ErrorValue
+				}
 			}
-			if _, err := fmt.Fprintln(w, line); err != nil {
-				return err
-			}
-		} else if _, err := fmt.Fprintf(w, "✗ %s error %s: %s\n", e.Kind, e.Code, e.Message); err != nil {
-			return err
+			return c
 		}
-	default:
-		value := "(nothing)"
-		if len(res.ReturnValue) > 0 && string(res.ReturnValue) != "null" {
-			value = string(res.ReturnValue)
-		}
-		if _, err := fmt.Fprintf(w, "→ %s\n", value); err != nil {
-			return err
-		}
-		if len(res.Modified) > 0 {
-			if _, err := fmt.Fprintf(w, "Would write %d entries\n", len(res.Modified)); err != nil {
-				return err
-			}
+		c.Kind = render.HostError
+		typ, code := hostParts(e.Code)
+		c.Error = &render.Refusal{HostType: typ, HostCode: code}
+		return c
+	}
+	for _, a := range res.AuthEntries {
+		if a.Address != "" {
+			c.Signers = append(c.Signers, a.Address)
 		}
 	}
-	session := ""
-	if res.Session != "" {
-		session = " · session " + res.Session
+	readWrite := 0
+	if res.Resources != nil {
+		readWrite = len(res.Resources.Footprint.ReadWrite)
 	}
-	_, err := fmt.Fprintf(w, "%s · fork ledger %d · protocol %d%s · local sandbox: nothing was submitted\n",
-		res.Network, res.ForkLedger, res.Protocol, session)
-	return err
+	c.Kind = render.Classify(c.Writes, readWrite, c.Signers)
+	return c
 }
 
-func valueOr(p *int) int {
-	if p == nil {
-		return 0
+// hostParts reads "Error(Budget, ExceededLimit)".
+func hostParts(code string) (string, string) {
+	inner := strings.TrimSuffix(strings.TrimPrefix(code, "Error("), ")")
+	typ, rest, ok := strings.Cut(inner, ", ")
+	if !ok {
+		return "Host", code
 	}
-	return *p
+	return typ, rest
 }
+
+// contractCode reads the n of "Error(Contract, #n)".
+func contractCode(code string) int {
+	_, rest, _ := strings.Cut(code, "#")
+	n, _ := strconv.Atoi(strings.TrimSuffix(rest, ")"))
+	return n
+}
+
+// callProvenance is the footer's facts. Auth always runs in recording mode
+// for now, so it is always mocked (#557 adds strict and enforce).
+func callProvenance(res CallResult) render.Provenance {
+	p := render.Provenance{
+		Network: res.Network, ForkLedger: res.ForkLedger, ForkTime: res.ForkTime,
+		Protocol: res.Protocol, Drift: res.Drift.Count(), AuthMocked: true,
+	}
+	if res.Session != "" {
+		p.Overrides = append(p.Overrides, "session "+res.Session)
+	}
+	if res.SwappedWasm != "" {
+		p.Overrides = append(p.Overrides, "wasm "+shorten(res.SwappedWasm, 4, 2)+" swapped in")
+	}
+	return p
+}
+
+// renderedFailure gives a simulator failure or a timeout its own wording and
+// the provenance footer, keeping the error (and so the exit code) intact.
+func renderedFailure(err error, res CallResult, deps Deps) error {
+	var te *simulator.TimeoutError
+	var se *simulator.Error
+	kind := render.SimulatorError
+	switch {
+	case errors.As(err, &te):
+		kind = render.Timeout
+	case errors.As(err, &se):
+	default:
+		return err
+	}
+	var buf strings.Builder
+	_ = render.Render(&buf, render.Call{Kind: kind, Function: res.Function, Failure: failureText(err)},
+		callProvenance(res), now(deps), render.Style{})
+	return &renderedError{err: err, text: strings.TrimRight(buf.String(), "\n")}
+}
+
+func failureText(err error) string {
+	var te *simulator.TimeoutError
+	if errors.As(err, &te) {
+		return fmt.Sprintf("%s did not answer within %s", te.Type, te.Timeout)
+	}
+	var se *simulator.Error
+	if errors.As(err, &se) {
+		return strings.TrimPrefix(se.Error(), "simulator error: ")
+	}
+	return err.Error()
+}
+
+// renderedError prints as its rendering and unwraps to the cause.
+type renderedError struct {
+	err  error
+	text string
+}
+
+func (e *renderedError) Error() string { return e.text }
+func (e *renderedError) Unwrap() error { return e.err }
 
 func newSandboxSessionCmd() *cobra.Command {
 	cmd := &cobra.Command{

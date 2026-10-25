@@ -342,6 +342,7 @@ type SimulateResult struct {
 
 	DiagnosticEvents []string        `json:"diagnostic_events,omitempty"`
 	Auth             []string        `json:"auth,omitempty"`
+	AuthEntries      []AuthEntry     `json:"auth_entries,omitempty"`
 	ModifiedEntries  []ModifiedEntry `json:"modified_entries,omitempty"`
 	Resources        *Resources      `json:"resources,omitempty"`
 	Fee              *Fee            `json:"fee,omitempty"`
@@ -360,6 +361,18 @@ type Event struct {
 	Type     string          `json:"type"`
 	EventXDR string          `json:"event_xdr"`
 	Decoded  json.RawMessage `json:"decoded,omitempty"`
+}
+
+// AuthEntry is a recorded auth entry in plain terms.
+type AuthEntry struct {
+	Credentials  string `json:"credentials"`
+	Address      string `json:"address,omitempty"`
+	RootFunction struct {
+		Kind       string `json:"kind"`
+		ContractID string `json:"contract_id,omitempty"`
+		Function   string `json:"function,omitempty"`
+	} `json:"root_function"`
+	SubInvocations int `json:"sub_invocations"`
 }
 
 // ModifiedEntry is one entry a call wrote: nil BeforeXDR is a creation, nil

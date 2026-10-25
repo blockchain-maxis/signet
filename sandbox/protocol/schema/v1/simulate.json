@@ -322,6 +322,32 @@
           },
           "required": ["instructions", "mem_bytes"],
           "additionalProperties": false
+        },
+        "auth_entries": {
+          "type": "array",
+          "description": "The recorded auth entries in plain terms, in the order of `auth`",
+          "items": {
+            "type": "object",
+            "properties": {
+              "credentials": {
+                "enum": ["source_account", "address", "address_v2", "address_with_delegates"]
+              },
+              "address": {
+                "type": "string",
+                "description": "Whose signature the entry needs"
+              },
+              "root_function": {
+                "type": "object",
+                "description": "What it authorizes: {kind: contract_fn, contract_id, function} or a create-contract kind"
+              },
+              "sub_invocations": {
+                "type": "integer",
+                "minimum": 0
+              }
+            },
+            "required": ["credentials", "root_function", "sub_invocations"],
+            "additionalProperties": false
+          }
         }
       },
       "required": ["version", "id", "type", "return_value_xdr", "events", "cost", "logs"],

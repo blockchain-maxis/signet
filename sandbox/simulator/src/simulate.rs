@@ -345,6 +345,11 @@ fn success_body(
         "events": events,
         "diagnostic_events": b64_all(&run.diagnostic_events_xdr),
         "auth": b64_all(&run.auth_xdr),
+        "auth_entries": run
+            .auth_xdr
+            .iter()
+            .filter_map(|a| lane.decode_auth(a).ok())
+            .collect::<Vec<_>>(),
         "modified_entries": sorted_changes(run).iter().map(|m| json!({
             "key_xdr": BASE64.encode(&m.key_xdr),
             "before_xdr": m.before_xdr.as_ref().map(|b| BASE64.encode(b)),

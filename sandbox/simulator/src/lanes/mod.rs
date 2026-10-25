@@ -396,6 +396,11 @@ pub trait Lane: Sync {
     /// The `AccountId` XDR for a `G...` strkey.
     fn account_id(&self, strkey: &str) -> Result<Vec<u8>, LaneError>;
 
+    /// A `SorobanAuthorizationEntry` in plain terms: its credentials, the
+    /// address that must sign, the root function it authorizes and how many
+    /// sub-invocations it covers (#556, #557).
+    fn decode_auth(&self, auth_xdr: &[u8]) -> Result<serde_json::Value, LaneError>;
+
     /// What a `SorobanTransactionData` says about resources and fee.
     fn transaction_resources(&self, data_xdr: &[u8]) -> Result<TransactionResources, LaneError>;
 

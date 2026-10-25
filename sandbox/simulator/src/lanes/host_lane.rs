@@ -682,6 +682,15 @@ impl Lane for HostLane {
         encode(&account, "AccountId")
     }
 
+    fn decode_auth(&self, auth_xdr: &[u8]) -> Result<Value, LaneError> {
+        let entry: SorobanAuthorizationEntry = decode(auth_xdr, "SorobanAuthorizationEntry")?;
+        let mut out = auth_json(&entry)?;
+        if let Some(object) = out.as_object_mut() {
+            object.remove("entry_xdr");
+        }
+        Ok(out)
+    }
+
     fn transaction_resources(&self, data_xdr: &[u8]) -> Result<TransactionResources, LaneError> {
         let data: SorobanTransactionData = decode(data_xdr, "SorobanTransactionData")?;
         let keys = |keys: &[LedgerKey]| -> Result<Vec<Vec<u8>>, LaneError> {

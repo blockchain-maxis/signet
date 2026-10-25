@@ -168,7 +168,11 @@ manifest records `driftedEntries`.
 ```sh
 signet sandbox call CASF…RCN count
 # → 41
-# testnet · fork ledger 4887004 · protocol 28 · local sandbox: nothing was submitted
+# ⚠ auth mocked: signatures were not checked
+# ran against testnet · fork ledger 4887004 (3s ago) · protocol 29 lane · no drift · auth mocked
+signet sandbox call CASF…RCN claim --arg handle=alice --arg wallet=GA5Z…
+# Would write 3 entries · requires auth from GA5Z…ZVN (claim)
+# Local sandbox: nothing was submitted to testnet
 signet sandbox call CASF…RCN claim --arg handle=alice --arg wallet=GA5Z… --session demo
 signet sandbox call CASF…RCN resolve --arg handle=alice --session demo
 signet sandbox session reset demo
@@ -188,6 +192,13 @@ is none) in the local simulator. Nothing is submitted.
   fork. `signet sandbox session reset <name>` forgets them.
 - `--wasm ./x.wasm` swaps a local build in first, as an upgrade would, keeping
   storage.
+- A result reads as one of three things: a read (`→ value`: nothing written,
+  no auth), a write preview (what it would write and who would have to sign,
+  and that nothing was submitted), or the contract refusing, by name. Host
+  errors (budget, traps), simulator failures and timeouts each have their own
+  wording, and every result ends with what it ran against: network, fork
+  ledger and age, lane, drift, overrides, and that auth was mocked. Colour only
+  on a terminal, never with `NO_COLOR`.
 - A contract that refuses the call (`✗ HandleTaken (#3): …`) is an answer, not a
   failure: exit `0`. An unknown function or a bad argument exits `2`, naming the
   functions or the argument; a simulator failure exits `13`.

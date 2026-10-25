@@ -238,6 +238,9 @@ fn a_session_claims_resolves_and_refuses_a_taken_handle(lane: u32) {
     assert_eq!(claim["type"], "result", "{claim}");
     // Recording-mode auth: one entry, for the wallet that must sign.
     assert_eq!(claim["auth"].as_array().unwrap().len(), 1, "{claim}");
+    assert_eq!(claim["auth_entries"][0]["address"], WALLET, "{claim}");
+    assert_eq!(claim["auth_entries"][0]["root_function"]["function"], "claim");
+    assert_eq!(claim["auth_entries"][0]["credentials"], "address");
     assert!(
         claim["fee"]["resource_fee"].as_i64().unwrap() > 0,
         "{claim}"
