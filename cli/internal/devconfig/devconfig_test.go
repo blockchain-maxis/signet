@@ -22,7 +22,8 @@ func docsExample(t *testing.T) []byte {
 	if err != nil {
 		t.Fatal(err)
 	}
-	_, after, ok := strings.Cut(string(raw), "```toml\n")
+	// A Windows checkout with core.autocrlf has CRLF line ends.
+	_, after, ok := strings.Cut(strings.ReplaceAll(string(raw), "\r\n", "\n"), "```toml\n")
 	if !ok {
 		t.Fatal("docs/SANDBOX.md has no ```toml example")
 	}

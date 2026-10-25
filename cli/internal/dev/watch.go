@@ -134,8 +134,13 @@ func Watch(ctx context.Context, opts WatchOptions) (<-chan Trigger, error) {
 				case !inCrate, underIgnoredDir(crateDir, path), ignoredFile(filepath.Base(path)):
 					continue
 				}
-				if ev.Has(fsnotify.Create) {
-					if info, err := os.Stat(path); err == nil && info.IsDir() && inCrate {
+				if info, err := os.Stat(path); err == nil && info.IsDir() {
+					// Windows reports a write to a file as a write to its
+					// directory too; only a new directory is a change.
+					if !ev.Has(fsnotify.Create) {
+						continue
+					}
+					if inCrate {
 						_ = addTree(path)
 					}
 				}
