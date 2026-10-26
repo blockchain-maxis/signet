@@ -9,6 +9,7 @@ const links = [
   { href: '/', label: 'Home' },
   { href: '/how-it-works', label: 'How it works' },
   { href: '/handles', label: 'Handles' },
+  { href: '/docs/api', label: 'API' },
 ];
 
 /**

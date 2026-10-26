@@ -266,10 +266,14 @@ export default function DocsPage() {
           the full sequence is specified in <code>docs/CLI.md</code>.
         </p>
 
-        <H>SDK</H>
+        <H id="api">API and SDK</H>
         <p className="mt-4 text-[14px] leading-[1.7] text-[#b8b5a8]">
-          Integrators read profiles through <code>@signet/sdk</code>, which talks
-          to the public API:
+          The public, read-only API is documented in the{' '}
+          <Link href="/docs/api" className="text-[var(--text-accent)] underline-offset-4 hover:underline">
+            API reference
+          </Link>
+          : every endpoint, its parameters and responses, with examples.
+          Integrators can also read it through <code>@signet/sdk</code>:
         </p>
         <pre
           className="mt-4 overflow-x-auto border border-[#1f1d19] bg-[#0e0d0b] px-5 py-4 text-[12px] leading-[1.7] text-[#b8b5a8]"
@@ -279,7 +283,7 @@ export default function DocsPage() {
 
 const signet = new SignetClient({ baseUrl: 'https://your-deployment.example' });
 const profile = await signet.getProfile('yourhandle');
-// → { handle, profile, stats: { invocations, uniqueFunctions } }`}
+// → { handle, displayName, primaryWallet, wallets, counts, … }`}
         </pre>
 
         <H>Phases</H>
