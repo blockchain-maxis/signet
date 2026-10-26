@@ -270,6 +270,38 @@ and the cost, since a cached module is charged less than recording mode
 charges the A side. Caching A instead halves every later cycle's host runs
 without either.
 
+### Performance
+
+Fast feedback is the point of signet dev, and `cargo` build time is outside
+it, so the targets cover everything else (#638), for a warm fork of a
+registry-sized contract with 20 replays:
+
+| Step | Target | Measured (laptop) |
+| --- | --- | --- |
+| swap: back to `base`, build swapped in | ≤ 20 ms | 0.22 ms |
+| A and B: 20 replays on each side, each from `base` | ≤ 300 ms | 109 ms |
+| diff of one call | ≤ 20 ms | 0.95 ms |
+| cold start from a cached fork: spawn, handshake, `ledger_open` | ≤ 500 ms | 5.3 ms |
+| one `claim`, without a trace / with one (#541) | | 3.27 ms / 4.16 ms |
+
+Measured with `cargo bench -p signet-simulator --bench cycle
+--no-default-features --features lane-p28` (medians, through the real binary
+over stdio, on the registry at p28) on an Intel Core i5-6300U with 4 threads
+and 16 GB, rustc 1.97.1. The replays mix `count`, `resolve` and `claim`.
+Capturing a trace adds about 27% to a call, which is why the reloader asks
+for one only when the local UI's Diagram view needs it.
+
+`signet dev --timings=json` writes the same breakdown for a real session to
+stderr, one JSON object per line: `{"event":"start","spawn_ms":…,"open_ms":…}`
+once, then per cycle `build_ms`, `install_ms`, `swap_ms`, `a_ms`, `b_ms`,
+`diff_ms`, and how many replays and simulations ran.
+
+The `sandbox benchmarks` CI job runs the benches and fails when a median is
+more than 30% slower than `sandbox/simulator/benches/baseline.json`
+(`node scripts/check-bench.mjs`). Shared runners vary 10-20% between runs, so
+rerun a failure once before believing it; when a change is meant to be
+slower, the job's last step prints the medians to commit as the new baseline.
+
 ### Real transactions
 
 With `[replay] recent_transactions` set (signet dev init writes 20; a file

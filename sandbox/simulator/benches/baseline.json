@@ -1,0 +1,12 @@
+{
+  "runner": "Intel Core i5-6300U laptop (until the CI runner's medians replace it)",
+  "unit": "ns, median",
+  "benchmarks": {
+    "cold_start": 5253857,
+    "swap": 216367,
+    "simulate_claim": 3265926,
+    "simulate_claim_traced": 4163398,
+    "replays_20": 108702600,
+    "diff": 946075
+  }
+}

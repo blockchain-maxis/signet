@@ -155,6 +155,24 @@ func TestDevTakesWhatTheFlagsLeaveOutFromSignetDevToml(t *testing.T) {
 		!strings.Contains(stdout, "0 breaking · 0 cost · 0 ignored") || !strings.Contains(stdout, "  no differences") {
 		t.Fatalf("stdout:\n%s", stdout)
 	}
+	// --timings=json (#638): the start, then each cycle by phase, on stderr.
+	_, stderr, err = e.cli("dev", "--rpc-url", e.rpc.srv.URL, "--ci", "--timings", "json")
+	if err != nil {
+		t.Fatalf("%v\n%s", err, stderr)
+	}
+	var timed []map[string]any
+	for _, line := range strings.Split(stderr, "\n") {
+		var v map[string]any
+		if json.Unmarshal([]byte(line), &v) == nil {
+			timed = append(timed, v)
+		}
+	}
+	if len(timed) != 2 || timed[0]["event"] != "start" || timed[1]["event"] != "cycle" || timed[1]["replays"] != 1.0 || timed[1]["swap_ms"] == nil {
+		t.Fatalf("timings: %v\n%s", timed, stderr)
+	}
+	if _, _, err := e.cli("dev", "--rpc-url", e.rpc.srv.URL, "--ci", "--timings", "yaml"); ExitCode(err) != exitcode.InvalidInput {
+		t.Fatalf("--timings yaml: %v", err)
+	}
 	t.Chdir(t.TempDir())
 	if _, _, err := e.cli("dev", "--rpc-url", e.rpc.srv.URL, "--ci"); ExitCode(err) != exitcode.InvalidInput {
 		t.Fatalf("no contract anywhere: %v", err)

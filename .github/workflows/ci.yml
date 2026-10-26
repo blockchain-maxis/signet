@@ -46,6 +46,8 @@ jobs:
               - 'cli/internal/simulator/**'
               - 'cli/internal/fork/**'
               - 'cli/internal/rpc/**'
+              - 'cli/internal/realtx/**'
+              - 'scripts/check-bench.mjs'
               # The shared spec reader the host is held to (#547).
               - 'packages/spec/**'
               - '.github/workflows/ci.yml'
@@ -691,6 +693,48 @@ jobs:
         run: |
           go test -count=1 -run 'SandboxCall|SandboxForkArchive|SandboxState|SandboxFidelity|TestDev|TestVisualise' ./internal/cmd
           go test -count=1 ./internal/dev ./internal/bundle
+
+  # The reload cycle's benchmarks (#638), through the real binary: swap,
+  # simulate (with and without a trace), 20 replays on each side, diff, and a
+  # cold start. A median more than 30% slower than the committed baseline
+  # (sandbox/simulator/benches/baseline.json, this runner's numbers) fails.
+  # Shared runners are noisy, 10-20% between runs is normal: rerun a failure
+  # once before believing it, and refresh the baseline from the medians the
+  # last step prints when a change is meant to be slower.
+  sandbox-bench:
+    name: sandbox benchmarks
+    needs: changes
+    if: needs.changes.outputs.sandbox == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache cargo
+        uses: actions/cache@v6
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            sandbox/target
+          key: cargo-sandbox-bench-${{ hashFiles('sandbox/Cargo.lock') }}
+
+      - name: Benchmarks
+        working-directory: sandbox
+        run: cargo bench --locked -p signet-simulator --bench cycle --no-default-features --features lane-p28
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+
+      - name: Compare with the baseline
+        run: node scripts/check-bench.mjs
+
+      - name: Medians for a new baseline
+        if: always()
+        run: BENCH_RUNNER="GitHub ubuntu-latest" node scripts/check-bench.mjs --write && cat sandbox/simulator/benches/baseline.json
 
   # Repro bundles replay offline and identically everywhere (#573): each
   # runner replays the committed bundles with fetching denied and writes the

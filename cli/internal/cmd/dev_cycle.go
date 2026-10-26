@@ -4,7 +4,9 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"reflect"
 	"sort"
@@ -47,6 +49,8 @@ type devSession struct {
 	real []dev.Replay
 	// view is how cycles print (#637).
 	view dev.RenderOptions
+	// timings receives --timings=json's lines (#638); nil without it.
+	timings io.Writer
 }
 
 // storedCycle is a cycle as the UI fetches it.
@@ -208,6 +212,11 @@ func (s *devSession) runCycle(ctx context.Context, wasmPath string, build time.D
 		s.publish("drift", map[string]int{"count": n})
 	}
 	progress(strings.TrimSuffix(dev.Render(dev.Frame{Build: build, Cycle: &cycle}, s.view), "\n"))
+	t := cycle.Timing
+	s.writeTiming(cycleTiming{
+		Event: "cycle", Cycle: id, BuildMS: ms(build), InstallMS: ms(t.Install), SwapMS: ms(t.Swap),
+		AMS: ms(t.A), BMS: ms(t.B), DiffMS: ms(t.Diff), Replays: len(cycle.Outcomes), Simulations: cycle.Simulations,
+	})
 	if s.log != nil {
 		if err := s.log.Cycle(wasm, cycleRecord(cycle, replays, s.overrides), time.Now()); err != nil {
 			progress("warning: the session log could not be written: " + err.Error())
@@ -215,6 +224,41 @@ func (s *devSession) runCycle(ctx context.Context, wasmPath string, build time.D
 	}
 	return cycle, nil
 }
+
+// startTiming is --timings=json's line for the session's start: the
+// simulator's spawn and handshake, and opening the fork in it.
+type startTiming struct {
+	Event   string  `json:"event"`
+	SpawnMS float64 `json:"spawn_ms"`
+	OpenMS  float64 `json:"open_ms"`
+}
+
+// cycleTiming is --timings=json's line for a cycle, by phase.
+type cycleTiming struct {
+	Event       string  `json:"event"`
+	Cycle       int     `json:"cycle"`
+	BuildMS     float64 `json:"build_ms"`
+	InstallMS   float64 `json:"install_ms"`
+	SwapMS      float64 `json:"swap_ms"`
+	AMS         float64 `json:"a_ms"`
+	BMS         float64 `json:"b_ms"`
+	DiffMS      float64 `json:"diff_ms"`
+	Replays     int     `json:"replays"`
+	Simulations int     `json:"simulations"`
+}
+
+// writeTiming writes one --timings=json line, if asked for.
+func (s *devSession) writeTiming(v any) {
+	if s.timings == nil {
+		return
+	}
+	if raw, err := json.Marshal(v); err == nil {
+		_, _ = s.timings.Write(append(raw, '\n'))
+	}
+}
+
+// ms is d in milliseconds, to the microsecond.
+func ms(d time.Duration) float64 { return float64(d.Microseconds()) / 1000 }
 
 // buildFailed says a build failed and which build is still active: the
 // one at wasmPath, or none yet.

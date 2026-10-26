@@ -39,6 +39,7 @@ func newDevCmd() *cobra.Command {
 		ui        uiFlags
 		scan      uint32
 		view      dev.RenderOptions
+		timings   string
 	)
 	cmd := &cobra.Command{
 		Use:   "dev [contract]",
@@ -59,7 +60,10 @@ when it does not; exit 3 for the others).`,
   signet dev init CASF…RCN --path ./contracts/registry`,
 		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runDev(cmd, args, path, pkg, ci, debounce, ui, scan, view)
+			if timings != "" && timings != "json" {
+				return &inputError{fmt.Sprintf("--timings takes json, not %q", timings)}
+			}
+			return runDev(cmd, args, path, pkg, ci, debounce, ui, scan, view, timings == "json")
 		},
 	}
 	addRPCFlags(cmd)
@@ -71,6 +75,7 @@ when it does not; exit 3 for the others).`,
 	cmd.Flags().BoolVar(&ui.noBrowser, "no-browser", false, "with --ui, print the UI's URL instead of opening a browser")
 	cmd.Flags().BoolVar(&view.Verbose, "verbose", false, "print every difference of every replay (storage, events, the auth tree, resources) and the time by phase")
 	cmd.Flags().BoolVar(&view.Clear, "clear", false, "clear the screen before each cycle (on a terminal)")
+	cmd.Flags().StringVar(&timings, "timings", "", "json: also write each cycle's time by phase (and the start's) to stderr, one JSON object per line")
 	cmd.Flags().Uint32Var(&scan, "scan-ledgers", 0, "also scan the newest N ledgers for the contract's transactions that emitted no event (slow: every transaction in them is decoded)")
 	cmd.AddCommand(newDevInitCmd())
 	return cmd
@@ -88,7 +93,7 @@ type devSetup struct {
 // uiFlags are signet dev's --ui and --no-browser.
 type uiFlags struct{ on, noBrowser bool }
 
-func runDev(cmd *cobra.Command, args []string, path, pkg string, ci bool, debounce time.Duration, ui uiFlags, scan uint32, view dev.RenderOptions) error {
+func runDev(cmd *cobra.Command, args []string, path, pkg string, ci bool, debounce time.Duration, ui uiFlags, scan uint32, view dev.RenderOptions, timings bool) error {
 	deps, err := depsFor(cmd)
 	if err != nil {
 		return err
@@ -185,10 +190,12 @@ func runDev(cmd *cobra.Command, args []string, path, pkg string, ci bool, deboun
 	if err != nil {
 		return err
 	}
+	spawned := time.Now()
 	sim, err := startSimulator(ctx, deps, printer.Progress)
 	if err != nil {
 		return err
 	}
+	spawn := time.Since(spawned)
 	// The same process, kept warm, runs every cycle (#566).
 	defer func() { _ = sim.Close() }()
 	if err := checkLanes(network.Name, latest.ProtocolVersion, sim.HelloAck()); err != nil {
@@ -202,9 +209,14 @@ func runDev(cmd *cobra.Command, args []string, path, pkg string, ci bool, deboun
 	header := fmt.Sprintf("signet dev · %s @ %s ledger %d · lane p%d · crate %s",
 		shorten(setup.contract, 4, 3), m.Network, m.ForkLedger, m.Protocol, setup.crate.Name)
 	printer.Progress(header)
+	opened := time.Now()
 	session, err := openDevSession(ctx, deps, network, client, sim, m, fileOverrides(setup.file))
 	if err != nil {
 		return err
+	}
+	if timings {
+		session.timings = cmd.ErrOrStderr()
+		session.writeTiming(startTiming{Event: "start", SpawnMS: ms(spawn), OpenMS: ms(time.Since(opened))})
 	}
 	defer session.Close()
 	if err := session.applyRules(setup.file, setup.contract, printer.Progress); err != nil {
