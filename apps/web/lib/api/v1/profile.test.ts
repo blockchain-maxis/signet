@@ -51,6 +51,7 @@ const contracts = (n: number, truncated = false): ProfileContractsResult => ({
     deployerPubkey: WALLET,
     source: 'database' as const,
     wasmHash: null,
+    executableType: null,
   })),
   source: 'database',
   truncated,

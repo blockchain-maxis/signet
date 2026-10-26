@@ -196,6 +196,24 @@ not "this is everything that exists".
 - When the database answered, `meta.total` is an exact count integer.
 - On the Horizon fallback, `meta.total` is `null` (never a lower bound presented as an exact total), and the cursor never promises pages beyond the cap.
 
+### Contracts a handle deployed
+
+`GET /api/v1/profiles/{handle}/contracts` (#631) lists the contracts any of the
+handle's wallets deployed on this deployment's network, with the attribution
+the profile page uses, so the two never disagree:
+
+- `data`: `[{ address, deployer, deployedAt, deployTxHash, network, wasmHash, contractType }]`,
+  newest deploy first; `wasmHash` and `contractType` (`wasm` or
+  `stellar_asset`) are null until the indexer has checked them.
+- The cursor is a keyset over `deployedAt` and `address` (the tiebreak), so a
+  contract deployed while a client pages never shifts or repeats a page.
+- `meta.source` is `database`, or `horizon` when there is no indexer and the
+  bound wallet's history was walked (capped: `truncated` and `cap` say so, and
+  `total` is then null).
+- A deployment that can ask neither cannot enumerate contracts. It answers
+  `data: []` with `meta.source: "none"` and `truncated: true`, never a list
+  that reads as "no contracts".
+
 ## Completeness
 
 `meta.source` says which layer answered, on every read whose answer depends on

@@ -42,6 +42,8 @@ export interface ProfileContract {
   source: 'database' | 'horizon';
   /** Indexed WASM hash from the DB, null on the Horizon path. */
   wasmHash: string | null;
+  /** 'wasm' or 'stellar_asset' from the DB; null on the Horizon path or before the indexer checked. */
+  executableType: string | null;
 }
 
 export interface ProfileContractsResult {
@@ -65,6 +67,8 @@ export interface ProfileContractsDbRow {
   deployTxHash: string;
   deployedAt: Date | string;
   wasmHash: string | null;
+  /** Optional: absent from rows written before the column existed. */
+  executableType?: string | null;
   walletId: string;
   walletPubkey: string;
 }
@@ -154,6 +158,7 @@ const defaultDb: ProfileContractsDb = {
           deployTxHash: string;
           deployedAt: Date;
           wasmHash: string | null;
+          executableType: string | null;
           walletId: string;
         }>;
       };
@@ -277,6 +282,7 @@ async function listFromHorizon(
       deployerPubkey: wallet,
       source: 'horizon',
       wasmHash: null,
+      executableType: null,
     });
   }
   contracts.sort((a, b) =>
@@ -334,6 +340,7 @@ export async function getProfileContractsWithDeps(
         deployerPubkey: row.deployerPubkey,
         source: 'database' as const,
         wasmHash: row.wasmHash,
+        executableType: row.executableType ?? null,
       }));
     return {
       contracts,

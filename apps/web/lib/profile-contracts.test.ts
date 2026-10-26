@@ -204,6 +204,7 @@ test('without a DB, create-contract ops resolve through salt derivation', async 
     deployerPubkey: DEPLOYER,
     source: 'horizon',
     wasmHash: null,
+    executableType: null,
   });
   // The non-create op never reaches result-meta decoding.
   assert.equal(calls.meta, 0);

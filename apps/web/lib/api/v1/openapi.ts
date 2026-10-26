@@ -291,6 +291,45 @@ export const schemas: Record<string, OpenApiSchema> = {
     additionalProperties: false,
   },
 
+  ProfileContract: {
+    type: 'object',
+    required: [
+      'address',
+      'deployer',
+      'deployedAt',
+      'deployTxHash',
+      'network',
+      'wasmHash',
+      'contractType',
+    ],
+    properties: {
+      address: {
+        type: 'string',
+        pattern: '^C[A-Z2-7]{55}$',
+        description: 'Soroban contract ID (C...).',
+      },
+      deployer: {
+        type: 'string',
+        pattern: '^[GC][A-Z2-7]{55}$',
+        description: "The handle's wallet that deployed it.",
+      },
+      deployedAt: { type: 'string', format: 'date-time', description: 'ISO-8601 UTC deploy time.' },
+      deployTxHash: { type: 'string', description: 'Hash of the deploying transaction.' },
+      network: { type: 'string', enum: ['testnet', 'mainnet', 'futurenet', 'local'] },
+      wasmHash: {
+        type: ['string', 'null'],
+        pattern: '^[a-f0-9]{64}$',
+        description: 'Indexed SHA-256 of the executable; null without the indexer.',
+      },
+      contractType: {
+        type: ['string', 'null'],
+        enum: ['wasm', 'stellar_asset', null],
+        description: 'Executable type, once the indexer has checked it; null otherwise.',
+      },
+    },
+    additionalProperties: false,
+  },
+
   Operation: {
     type: 'object',
     required: ['id', 'type', 'createdAt', 'txHash', 'successful'],
@@ -615,15 +654,18 @@ export const paths: Record<string, OpenApiPathItem> = {
                       },
                       boundHandles: {
                         type: ['integer', 'null'],
-                        description: 'Total handles currently bound in the registry, or null if unreadable.',
+                        description:
+                          'Total handles currently bound in the registry, or null if unreadable.',
                       },
                       indexedWallets: {
                         type: ['integer', 'null'],
-                        description: 'Total wallets indexed in the database, or null if unavailable.',
+                        description:
+                          'Total wallets indexed in the database, or null if unavailable.',
                       },
                       indexedContracts: {
                         type: ['integer', 'null'],
-                        description: 'Total contracts indexed in the database, or null if unavailable.',
+                        description:
+                          'Total contracts indexed in the database, or null if unavailable.',
                       },
                     },
                     additionalProperties: false,
@@ -734,7 +776,8 @@ export const paths: Record<string, OpenApiPathItem> = {
                       },
                       wallet: {
                         type: 'string',
-                        description: 'Stellar address (G… or C…) bound to the handle, or empty if archived.',
+                        description:
+                          'Stellar address (G… or C…) bound to the handle, or empty if archived.',
                       },
                       network: {
                         type: 'string',
@@ -871,6 +914,98 @@ export const paths: Record<string, OpenApiPathItem> = {
             'application/json': {
               schema: { $ref: '#/components/schemas/ErrorEnvelope' },
             },
+          },
+        },
+      },
+    },
+  },
+  '/profiles/{handle}/contracts': {
+    get: {
+      operationId: 'getProfileContracts',
+      summary: 'Contracts a handle deployed',
+      description:
+        "The contracts any of the handle's wallets deployed on this deployment's network, newest first (address breaks a tie), with the same attribution as the profile page. Keyset-paginated: a page boundary never repeats or skips a contract. Without an indexer the deployment walks the bound wallet's Horizon history, capped; when neither is available it cannot enumerate contracts and says so with source 'none' and truncated true, never an empty answer that reads as 'no contracts'.",
+      tags: ['Profiles'],
+      parameters: [
+        {
+          name: 'handle',
+          in: 'path',
+          required: true,
+          description: 'Handle to look up (case-insensitive).',
+          schema: { type: 'string', pattern: '^[a-z0-9_-]{1,32}$' },
+        },
+        {
+          name: 'cursor',
+          in: 'query',
+          required: false,
+          description: 'Opaque pagination cursor from meta.nextCursor.',
+          schema: { type: 'string' },
+        },
+        {
+          name: 'limit',
+          in: 'query',
+          required: false,
+          description: 'Number of contracts to return (default 25, max 100).',
+          schema: { type: 'integer', minimum: 1, maximum: 100, default: 25 },
+        },
+      ],
+      responses: {
+        '200': {
+          description: 'A page of contracts.',
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                required: ['data', 'meta'],
+                properties: {
+                  data: { type: 'array', items: { $ref: '#/components/schemas/ProfileContract' } },
+                  meta: {
+                    type: 'object',
+                    required: ['nextCursor', 'total', 'truncated', 'cap', 'source'],
+                    properties: {
+                      nextCursor: { type: ['string', 'null'] },
+                      total: {
+                        type: ['integer', 'null'],
+                        description: 'Contracts in the whole list; null when it is partial.',
+                      },
+                      truncated: {
+                        type: 'boolean',
+                        description:
+                          'True when the list may be incomplete (capped, or no layer answered).',
+                      },
+                      cap: { type: ['integer', 'null'] },
+                      source: { type: 'string', enum: ['database', 'horizon', 'none'] },
+                    },
+                    additionalProperties: false,
+                  },
+                },
+                additionalProperties: false,
+              },
+            },
+          },
+        },
+        '400': {
+          description: 'Invalid handle, cursor or limit.',
+          content: {
+            'application/json': { schema: { $ref: '#/components/schemas/ErrorEnvelope' } },
+          },
+        },
+        '404': {
+          description: 'No profile for this handle.',
+          content: {
+            'application/json': { schema: { $ref: '#/components/schemas/ErrorEnvelope' } },
+          },
+        },
+        '429': {
+          description: 'Rate limit exceeded.',
+          content: {
+            'application/json': { schema: { $ref: '#/components/schemas/ErrorEnvelope' } },
+          },
+        },
+        '500': {
+          description: 'Internal server error.',
+          content: {
+            'application/json': { schema: { $ref: '#/components/schemas/ErrorEnvelope' } },
           },
         },
       },
