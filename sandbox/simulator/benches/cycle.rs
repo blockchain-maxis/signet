@@ -18,6 +18,7 @@ use base64::engine::general_purpose::STANDARD as BASE64;
 use base64::Engine;
 use criterion::{criterion_group, criterion_main, Criterion};
 use serde_json::{json, Value};
+use sha2::{Digest, Sha256};
 
 const TESTNET: &str = "Test SDF Network ; September 2015";
 const ADMIN: &str = "GAAZI4TCR3TY5OJHCTJC2A4QSY6CJWJH5IAJTGKIN2ER7LBNVKOCCWN7";
@@ -193,6 +194,20 @@ fn cycle(c: &mut Criterion) {
     group
         .sample_size(20)
         .measurement_time(Duration::from_secs(8));
+
+    // Fixed CPU work, no simulator: how fast this machine is today. The
+    // regression check compares each benchmark relative to it, so a slower
+    // shared runner does not read as a slower simulator.
+    let block = vec![7u8; 1 << 16];
+    group.bench_function("calibration", |b| {
+        b.iter(|| {
+            let mut digest = Sha256::digest(&block);
+            for _ in 0..63 {
+                digest = Sha256::digest(digest);
+            }
+            digest
+        })
+    });
 
     // Host spawn, handshake and ledger_open from a cached fork's entries.
     group.bench_function("cold_start", |b| {

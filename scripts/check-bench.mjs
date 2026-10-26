@@ -6,9 +6,11 @@
 //   node scripts/check-bench.mjs            # compare
 //   node scripts/check-bench.mjs --write    # make these numbers the baseline
 //
-// The baseline is a CI runner's numbers, not a laptop's: compare like with
-// like. Shared runners are noisy (a run 10-20% off is normal), which is why
-// the threshold is 30% and the median is compared, not the mean.
+// Shared runners differ in speed from run to run, often by more than 30%
+// across the board. So each median is compared relative to `calibration`, a
+// fixed piece of CPU work with no simulator in it, measured in the same run:
+// a machine 30% slower makes calibration 30% slower too, and cancels out.
+// What is left is noise of about 10%, hence the 30% threshold, on medians.
 import { readFileSync, writeFileSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
 
@@ -44,20 +46,36 @@ if (write) {
   process.exit(0);
 }
 
+if (!baseline.benchmarks.calibration) {
+  console.log(
+    'check-bench: the baseline has no calibration yet; commit the medians the next step prints',
+  );
+  process.exit(0);
+}
+
+// scale is how much slower this machine is than the baseline's.
+const baseCalibration = baseline.benchmarks.calibration;
+const nowCalibration = median('calibration');
+const scale = baseCalibration && nowCalibration ? nowCalibration / baseCalibration : 1;
+console.log(
+  `  this machine runs calibration at ${(scale * 100).toFixed(0)}% of the baseline's time`,
+);
+
 let failed = 0;
 for (const [name, base] of Object.entries(baseline.benchmarks)) {
+  if (name === 'calibration') continue;
   const now = median(name);
   if (now === null) {
     console.log(`  ${name}: no result`);
     failed++;
     continue;
   }
-  const change = now / base - 1;
+  const change = now / scale / base - 1;
   const bad = change > threshold;
   if (bad) failed++;
   const sign = change >= 0 ? '+' : '';
   console.log(
-    `  ${bad ? '✗' : '✓'} ${name}: ${fmt(now)} (baseline ${fmt(base)}, ${sign}${(change * 100).toFixed(1)}%)`,
+    `  ${bad ? '✗' : '✓'} ${name}: ${fmt(now)} (baseline ${fmt(base)}; ${sign}${(change * 100).toFixed(1)}% relative to calibration)`,
   );
 }
 if (failed) {
