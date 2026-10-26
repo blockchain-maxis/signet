@@ -1,12 +1,12 @@
 {
-  "runner": "Intel Core i5-6300U laptop (until the CI runner's medians replace it)",
+  "runner": "GitHub ubuntu-latest",
   "unit": "ns, median",
   "benchmarks": {
-    "cold_start": 5253857,
-    "swap": 216367,
-    "simulate_claim": 3265926,
-    "simulate_claim_traced": 4163398,
-    "replays_20": 108702600,
-    "diff": 946075
+    "cold_start": 729610,
+    "swap": 43153,
+    "simulate_claim": 395261,
+    "simulate_claim_traced": 514554,
+    "replays_20": 13465504,
+    "diff": 84434
   }
 }

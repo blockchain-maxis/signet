@@ -276,19 +276,20 @@ Fast feedback is the point of signet dev, and `cargo` build time is outside
 it, so the targets cover everything else (#638), for a warm fork of a
 registry-sized contract with 20 replays:
 
-| Step | Target | Measured (laptop) |
-| --- | --- | --- |
-| swap: back to `base`, build swapped in | ≤ 20 ms | 0.22 ms |
-| A and B: 20 replays on each side, each from `base` | ≤ 300 ms | 109 ms |
-| diff of one call | ≤ 20 ms | 0.95 ms |
-| cold start from a cached fork: spawn, handshake, `ledger_open` | ≤ 500 ms | 5.3 ms |
-| one `claim`, without a trace / with one (#541) | | 3.27 ms / 4.16 ms |
+| Step | Target | Laptop | CI runner |
+| --- | --- | --- | --- |
+| swap: back to `base`, build swapped in | ≤ 20 ms | 0.22 ms | 0.04 ms |
+| A and B: 20 replays on each side, each from `base` | ≤ 300 ms | 109 ms | 13.5 ms |
+| diff of one call | ≤ 20 ms | 0.95 ms | 0.08 ms |
+| cold start from a cached fork: spawn, handshake, `ledger_open` | ≤ 500 ms | 5.3 ms | 0.73 ms |
+| one `claim`, without a trace / with one (#541) | | 3.27 / 4.16 ms | 0.40 / 0.51 ms |
 
 Measured with `cargo bench -p signet-simulator --bench cycle
 --no-default-features --features lane-p28` (medians, through the real binary
-over stdio, on the registry at p28) on an Intel Core i5-6300U with 4 threads
-and 16 GB, rustc 1.97.1. The replays mix `count`, `resolve` and `claim`.
-Capturing a trace adds about 27% to a call, which is why the reloader asks
+over stdio, on the registry at p28): the laptop is an Intel Core i5-6300U with
+4 threads and 16 GB, rustc 1.97.1; the CI runner is GitHub's `ubuntu-latest`
+(the `sandbox benchmarks` job). The replays mix `count`, `resolve` and
+`claim`. Capturing a trace adds about 27% to a call on both, which is why the reloader asks
 for one only when the local UI's Diagram view needs it.
 
 `signet dev --timings=json` writes the same breakdown for a real session to
