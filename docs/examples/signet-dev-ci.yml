@@ -1,0 +1,65 @@
+# signet dev --ci as a pull request check (#640): copy this file into your
+# contract's repository as .github/workflows/signet-dev-ci.yml.
+#
+# It builds the contract and replays the calls of a repro bundle on the
+# deployed code and on the new build, offline: the same result on every run.
+# Record the bundle once from a signet dev session and commit it:
+#
+#   signet dev            # with your saved calls in signet.dev.toml
+#   signet sandbox export -o .signet/regression.json
+#
+# See docs/SANDBOX.md, "signet dev --ci", for exit codes and --fail-on.
+name: signet dev
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+  checks: write # the JUnit report's check run
+
+jobs:
+  regression:
+    name: contract regression check
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      STELLAR_CLI_VERSION: 25.2.0
+      SIGNET_CLI_VERSION: latest # pin a version for runs you can reproduce
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32v1-none
+
+      - name: Install stellar
+        run: |
+          curl -sSfL "https://github.com/stellar/stellar-cli/releases/download/v${STELLAR_CLI_VERSION}/stellar-cli-${STELLAR_CLI_VERSION}-x86_64-unknown-linux-gnu.tar.gz" \
+            | tar -xz -C "$RUNNER_TEMP" stellar
+          echo "$RUNNER_TEMP" >> "$GITHUB_PATH"
+
+      # @signet/cli carries signet-simulator for this platform.
+      - name: Install signet
+        run: npm install --global "@signet/cli@${SIGNET_CLI_VERSION}"
+
+      - name: Cache the build and signet's forks
+        uses: actions/cache@v6
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cache/signet
+            target
+          key: signet-dev-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: signet dev --ci
+        run: signet dev --ci --bundle .signet/regression.json --junit junit.xml
+
+      - name: Publish the JUnit report
+        if: always()
+        uses: mikepenz/action-junit-report@v5
+        with:
+          report_paths: junit.xml
+          check_name: signet dev
