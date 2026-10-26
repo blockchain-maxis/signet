@@ -4,3 +4,5 @@ packages/visualiser/fixtures/__golden__/*.svg text eol=lf
 # CLI golden files (#609) are compared as text; keep them LF on every checkout
 # so a Windows clone with core.autocrlf sees the same bytes CI does.
 cli/internal/cmd/testdata/golden/*.golden text eol=lf
+# signet dev's terminal goldens (#637), the same.
+cli/internal/dev/testdata/render/*.golden text eol=lf
