@@ -8,10 +8,10 @@ Signet is a verifiable developer career record built on Stellar/Soroban. Develop
 |-----------|----------------|-------|
 | **Identity Registry** contract | Stellar **testnet** | **Deployed 2026-07-09** — `CASFJHI5PQSRWS7JV25CF7FOMRKIVBP3RXRP3E2GH2CV4BCAG7FUJRCN`, wasm executable, `initialize`d |
 | **Identity Registry** contract | Stellar **mainnet** | Not deployed |
-| **Web app** (`apps/web`) | Vercel | Deployed — landing, `/how-it-works`, `/handles`, `/p/{handle}` profiles, tRPC API, SIWS auth |
+| **Web app** (`apps/web`) | Vercel | Deployed — landing, `/how-it-works`, `/handles`, `/p/{handle}` profiles and contract pages, `/docs` and `/docs/api`, the public `/api/v1`, SIWS auth |
 | **Indexer** (`apps/indexer`) | GHCR image, opt-in [`deploy.yml`](.github/workflows/deploy.yml) | Code-complete, not provisioned — needs a Postgres to point at |
 | **PostgreSQL** (`packages/db`) | — | Prisma schema + migrations committed; no hosted instance |
-| **CLI** (`npx @signet/cli link`) | npm | Not shipped — terminal deploy-wallet linking is in progress; see [`docs/CLI.md`](docs/CLI.md) |
+| **CLI** (`signet`, `cli/`) | npm (not yet) | Built: `link`, `status`, `whoami`, and `signet dev`, the local contract sandbox ([`docs/SANDBOX.md`](docs/SANDBOX.md)). Not published to npm yet; build it from source per [`docs/CLI.md`](docs/CLI.md) |
 
 Point the app at the deployed registry with:
 
@@ -36,9 +36,33 @@ call before listing it, and takes its headline number from the contract's own
 | `/` | Landing page |
 | `/handles` | Handle directory — bindings confirmed against the registry via `resolve`, counted by its own `count()` |
 | `/p/{handle}` | Profile for any handle bound on the registry (404 otherwise) |
+| `/p/{handle}/contract/{address}` | A contract one of the handle's wallets deployed (404 otherwise): interface, generated docs, diagram, activity |
+| `/docs/api` | The public API reference, generated from the OpenAPI document |
 | `/how-it-works` | How Signet works + what's coming |
 | [`docs/CLI.md`](docs/CLI.md) | Terminal linking: install, the link flow and what each step proves, CI usage, exit codes, troubleshooting |
 | [`docs/SANDBOX.md`](docs/SANDBOX.md) | The contract sandbox: run a deployed contract locally on a fork, and `signet dev` to compare a new build with it before shipping |
+
+## Contract pages
+
+Each contract a profile's wallets deployed gets a page at `/p/{handle}/contract/{address}`:
+its interface read from the deployed WASM, generated reference docs, a diagram of its
+functions and types, its upgrade history and its activity. The page exists only under the
+handle that deployed the contract, by the indexer's record of deployments (or, on a
+deployment without one, a walk of the wallet's Horizon history). For any other handle it is
+a 404, so nobody can put your contract under their name. It does **not** attribute contracts
+created by a factory contract, without an indexer it searches only the most recent 400
+operations of each wallet, and upgrade history starts when indexing began. Contract code is
+never executed by Signet's servers: running a contract is `signet dev`, on your machine.
+
+## API
+
+`/api/v1` is the public, read-only API: profiles, wallets, contracts and their attribution,
+operations, the reverse wallet lookup, contract specs, registry stats, health and a
+"Verified by Signet" badge. The machine-readable document is served at
+`/api/v1/openapi.json` and committed as [`docs/api/openapi-v1.json`](docs/api/openapi-v1.json);
+the rules are [`docs/API_V1.md`](docs/API_V1.md), the reference pages are `/docs/api`, and
+[`@signet/sdk`](packages/sdk) is a typed client for it (not on npm yet).
+[`examples/grant-portal`](examples/grant-portal) shows an integration end to end.
 
 ## What's working in this build
 
@@ -59,16 +83,14 @@ call before listing it, and takes its headline number from the contract's own
 ## What's coming next (Phase 2)
 
 - **Mainnet deploy** of the Identity Registry (testnet is live — see [Status](#status)), plus a contract audit before it.
-- **Terminal deploy-wallet linking** — `npx @signet/cli link` binds the wallet you run `stellar contract deploy` from to your claimed handle, proving control of the key from your terminal. This is the step that turns a claimed handle into an indexed profile: a handle claimed with a browser wallet points at an address that has usually deployed nothing, so the profile renders empty until a deploy wallet is linked. Not shipped yet — the full flow is documented in [`docs/CLI.md`](docs/CLI.md).
+- **Terminal deploy-wallet linking, published** — `signet link` binds the wallet you run `stellar contract deploy` from to your claimed handle, proving control of the key from your terminal. This is the step that turns a claimed handle into an indexed profile: a handle claimed with a browser wallet points at an address that has usually deployed nothing, so the profile renders empty until a deploy wallet is linked. The command is built (documented in [`docs/CLI.md`](docs/CLI.md)); `npx @signet/cli link` works once the package is published.
 - **Run the indexer** against a Postgres instance to populate full deployment/activity history; `/p` already reads the database first (`safeDbProfile`). Once a deploy wallet is linked, the indexer attributes every contract it has deployed and invoked to that profile.
 - **Developer dashboard** (`/app/*`) — currently an honest read-only preview pending wallet auth.
 - **Reputation scoring** — attestations, TVL tracking, incident records.
-- **Developer CLI** — a Go binary that pairs a deploy account to a profile
-  (`POST /api/cli/pair/*`) and, later, a contract sandbox for testing a
-  deployed contract's functions. The sandbox needs `soroban-env-host`
-  (Rust-only), bridged from the Go CLI as a subprocess — see
-  [`docs/CLI_RUST_BRIDGE.md`](docs/CLI_RUST_BRIDGE.md) for that design ahead
-  of any Rust code landing.
+- **Publishing the CLI and SDK** — the `signet` CLI (pairing, status and the
+  `signet dev` sandbox, which bridges to the Rust `signet-simulator` as a
+  subprocess, see [`docs/CLI_RUST_BRIDGE.md`](docs/CLI_RUST_BRIDGE.md)) and
+  `@signet/sdk` are built and tested in this repository but not yet on npm.
 
 ## Run locally
 

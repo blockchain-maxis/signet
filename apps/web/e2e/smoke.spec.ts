@@ -102,3 +102,13 @@ test('the legacy contract route redirects to the contract view, or the profile i
   expect(malformed.status()).toBe(308);
   expect(malformed.headers()['location']).toBe('/p/alice');
 });
+
+test('/how-it-works states the limits of contract attribution', async ({ page }) => {
+  // The limits are part of the claim: later edits must not quietly drop them (#668).
+  await page.goto('/how-it-works');
+  const body = page.locator('main, body').first();
+  await expect(body).toContainText('not contracts created by a factory contract');
+  await expect(body).toContainText('only the most recent 400 operations');
+  await expect(body).toContainText('Upgrade history starts when indexing began');
+  await expect(body).toContainText("Nothing executes on Signet's servers");
+});

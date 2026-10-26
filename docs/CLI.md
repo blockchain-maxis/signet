@@ -5,7 +5,14 @@ the contracts that wallet has deployed are attributed to you.
 
 The contract sandbox, which runs deployed contracts locally and checks a new
 build against them (`signet sandbox`, `signet dev`), is documented separately
-in [`SANDBOX.md`](SANDBOX.md).
+in [`SANDBOX.md`](SANDBOX.md). In short:
+
+```bash
+signet dev init <contract> --path ./contract   # writes signet.dev.toml
+signet dev <contract> --path ./contract        # rebuild, replay, diff on every save
+```
+
+It runs entirely on your machine; no Signet server executes contract code.
 
 That binding is the thing the whole product rests on, so the CLI is deliberately
 careful about what it proves and what it never touches. Two facts to hold onto

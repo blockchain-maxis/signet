@@ -266,6 +266,31 @@ export default function DocsPage() {
           the full sequence is specified in <code>docs/CLI.md</code>.
         </p>
 
+        <H id="run-locally">Run a contract locally</H>
+        <p className="mt-4 text-[14px] leading-[1.7] text-[#b8b5a8]">
+          <code>signet dev</code> runs a deployed contract on your machine. It forks the
+          contract&apos;s ledger state from a Soroban RPC, builds your crate, and on every
+          change replays saved and real calls against the deployed code and your build,
+          then reports what differs. Nothing runs on Signet&apos;s servers.
+        </p>
+        <pre
+          className="mt-4 overflow-x-auto border border-[#1f1d19] bg-[#0e0d0b] px-5 py-4 text-[12px] leading-[1.7] text-[#b8b5a8]"
+          style={{ fontFamily: 'var(--font-mono)' }}
+        >
+{`# once: write signet.dev.toml for the contract you deployed
+signet dev init CASFJHI5PQSRWS7JV25CF7FOMRKIVBP3RXRP3E2GH2CV4BCAG7FUJRCN --path ./contract
+
+# the loop: rebuild, replay on both versions, diff, on every save
+signet dev CASFJHI5PQSRWS7JV25CF7FOMRKIVBP3RXRP3E2GH2CV4BCAG7FUJRCN --path ./contract`}
+        </pre>
+        <p className="mt-4 text-[14px] leading-[1.7] text-[#b8b5a8]">
+          It needs the <code>stellar</code> CLI, Rust with the <code>wasm32v1-none</code>{' '}
+          target, and the <code>signet-simulator</code> next to <code>signet</code>. The CLI
+          is not on npm yet; <code>docs/CLI.md</code> covers building it, and{' '}
+          <code>docs/SANDBOX.md</code> is the full guide, including <code>--ci</code> for
+          pull requests.
+        </p>
+
         <H id="api">API and SDK</H>
         <p className="mt-4 text-[14px] leading-[1.7] text-[#b8b5a8]">
           The public, read-only API is documented in the{' '}
@@ -273,6 +298,17 @@ export default function DocsPage() {
             API reference
           </Link>
           : every endpoint, its parameters and responses, with examples.
+          Every endpoint is a plain GET; no key is needed:
+        </p>
+        <pre
+          className="mt-4 overflow-x-auto border border-[#1f1d19] bg-[#0e0d0b] px-5 py-4 text-[12px] leading-[1.7] text-[#b8b5a8]"
+          style={{ fontFamily: 'var(--font-mono)' }}
+        >
+{`curl -s https://your-deployment.example/api/v1/profiles/yourhandle/contracts?limit=10
+# → { "data": [{ "address": "C…", "deployer": "G…", "deployedAt": "…", … }],
+#     "meta": { "nextCursor": null, "total": 3, "truncated": false, … } }`}
+        </pre>
+        <p className="mt-4 text-[14px] leading-[1.7] text-[#b8b5a8]">
           Integrators can also read it through <code>@signet/sdk</code>:
         </p>
         <pre

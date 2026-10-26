@@ -92,26 +92,61 @@ export default function HowItWorksPage() {
           curated or seeded: a handle appears only once it is actually bound on-chain.
         </Section>
 
+        <Section title="How a contract gets attributed to you">
+          <span className="block mb-3">
+            Every contract a wallet deploys is recorded on-chain with the account that signed the
+            deploy. When one of your linked wallets deployed a contract, Signet gives it a page under
+            your handle, <Code>/p/{'{handle}'}/contract/{'{address}'}</Code>, with its interface,
+            generated docs, a diagram and its activity. Asking for a contract under a handle that did
+            not deploy it is a 404, so nobody can put your work under their name, or theirs under
+            yours.
+          </span>
+          <span className="block mb-3">
+            Signet checks its indexer&apos;s record of deployments first. A deployment without an
+            indexer walks the wallet&apos;s history on Horizon instead.
+          </span>
+          <span className="block mb-2 text-[#b8b5a8]">What it does not do:</span>
+          <span className="block mb-1">
+            It attributes direct deployments only, not contracts created by a factory contract on
+            your behalf.
+          </span>
+          <span className="block mb-1">
+            Without an indexer, only the most recent 400 operations of a wallet are searched, so an
+            older deployment is not found.
+          </span>
+          <span className="block">
+            Upgrade history starts when indexing began: an upgrade made before Signet saw the contract
+            does not appear.
+          </span>
+        </Section>
+
+        <Section title="Run it locally">
+          <span className="block mb-3">
+            <Code>signet dev</Code> runs a deployed contract on your own machine: it forks the
+            contract&apos;s ledger state from a Soroban RPC, builds your changed source, and replays
+            saved and real transactions against both versions, then shows what changed: return
+            values, events, storage, authorisation and cost.
+          </span>
+          <span className="block">
+            Nothing executes on Signet&apos;s servers. The CLI and the simulator run where you run
+            them, and your source never leaves your machine. The guide is{' '}
+            <Code>docs/SANDBOX.md</Code>.
+          </span>
+        </Section>
+
         <Section title="What's coming">
           <span className="block mb-3">
-            <strong className="text-[#f5f4ee]">Terminal wallet linking.</strong>{' '}
-            <code
-              className="px-1.5 py-0.5 bg-[#1f1d19] border border-[#3d3a33] text-[#b8b5a8] text-[13px]"
-              style={{ fontFamily: 'var(--font-mono)' }}
-            >npx @signet/cli link</code>{' '}
-            binds the deploy wallet you ship contracts from to your claimed handle, proving control
-            of the key from your terminal. It is the step that turns a claimed handle into an indexed
-            profile — a handle claimed with a browser wallet points at an address that has usually
-            deployed nothing, so the profile stays empty until a deploy wallet is linked. The full
-            flow will be documented in <code
-              className="px-1.5 py-0.5 bg-[#1f1d19] border border-[#3d3a33] text-[#b8b5a8] text-[13px]"
-              style={{ fontFamily: 'var(--font-mono)' }}
-            >docs/CLI.md</code>.
+            <strong className="text-[#f5f4ee]">Published CLI.</strong>{' '}
+            The <Code>signet</Code> CLI is built and documented in <Code>docs/CLI.md</Code>:
+            linking the deploy wallet you ship contracts from to your claimed handle, and{' '}
+            <Code>signet dev</Code>. It is not on npm yet, so for now it is built from source.
+            Linking is the step that turns a claimed handle into an indexed profile: a handle
+            claimed with a browser wallet points at an address that has usually deployed nothing.
           </span>
           <span className="block mb-3">
             <strong className="text-[#f5f4ee]">Indexer service.</strong>{' '}
-            Continuous monitoring of registered wallets, capturing deployments and invocations in
-            near real-time with full historical coverage.
+            The indexer is built but not yet running against this deployment&apos;s database.
+            Running it keeps profiles current with deployments and invocations as they happen.
           </span>
           <span className="block mb-3">
             <strong className="text-[#f5f4ee]">Reputation primitives.</strong>{' '}
@@ -119,9 +154,10 @@ export default function HowItWorksPage() {
             integrations with audit firms, grant programs, and hiring tools.
           </span>
           <span className="block">
-            <strong className="text-[#f5f4ee]">Public SDK.</strong>{' '}
-            Lets any external tool — a wallet, a grant application form, an insurance protocol —
-            query a developer&apos;s Signet record and use it as input.
+            <strong className="text-[#f5f4ee]">The SDK on npm.</strong>{' '}
+            The public API (<Code>/api/v1</Code>, documented at <Code>/docs/api</Code>) and{' '}
+            <Code>@signet/sdk</Code> exist today, so a wallet, a grant application form or an
+            insurance protocol can query a developer&apos;s record. Publishing the SDK to npm is next.
           </span>
         </Section>
 
@@ -194,5 +230,16 @@ function Section({ title, children }: { title: string; children: React.ReactNode
         {children}
       </p>
     </section>
+  );
+}
+
+function Code({ children }: { children: React.ReactNode }) {
+  return (
+    <code
+      className="px-1.5 py-0.5 bg-[#1f1d19] border border-[#3d3a33] text-[#b8b5a8] text-[13px]"
+      style={{ fontFamily: 'var(--font-mono)' }}
+    >
+      {children}
+    </code>
   );
 }
