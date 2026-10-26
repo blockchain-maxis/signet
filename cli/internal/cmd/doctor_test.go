@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -91,7 +92,7 @@ func TestDoctorChecksEachThingInIsolation(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			if err := os.MkdirAll(strings.TrimSuffix(path, "/config.json"), 0o700); err != nil {
+			if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
 				t.Fatal(err)
 			}
 			if err := os.WriteFile(path, []byte(raw), 0o600); err != nil {
@@ -155,7 +156,7 @@ func TestDoctorChecksEachThingInIsolation(t *testing.T) {
 func TestDoctorNeverPrintsTheHomeDirectory(t *testing.T) {
 	checks, _ := runDoctorCmd(t, "alice", healthy, func(t *testing.T) {
 		path, _ := config.Path()
-		_ = os.MkdirAll(strings.TrimSuffix(path, "/config.json"), 0o700)
+		_ = os.MkdirAll(filepath.Dir(path), 0o700)
 		_ = os.WriteFile(path, []byte("{oops"), 0o600)
 	})
 	home, _ := os.UserHomeDir()
