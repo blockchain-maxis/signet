@@ -12,6 +12,12 @@ import { verifySession, SESSION_COOKIE } from '../auth.ts';
 import { clientIp, isSameOriginHeaders } from '../security.ts';
 import { getAccount, unlinkWallet, updateAccount, normalizeAccountUpdate } from './account.ts';
 import { boundCount, lookupWallet, resolveHandle } from './registry-read.ts';
+import {
+  ApiKeyAccountError,
+  createAccountApiKey,
+  listAccountApiKeys,
+  revokeAccountApiKey,
+} from './account-api-keys.ts';
 import { STELLAR_ADDR_RE } from '../stellar-address.ts';
 
 /**
@@ -136,8 +142,37 @@ const profileRouter = router({
   }),
 });
 
+/** An API-key refusal as the tRPC error the dashboard shows. */
+async function apiKeyCall<T>(run: () => Promise<T>): Promise<T> {
+  try {
+    return await run();
+  } catch (err) {
+    if (!(err instanceof ApiKeyAccountError)) throw err;
+    const code = {
+      'no-profile': 'PRECONDITION_FAILED',
+      limit: 'BAD_REQUEST',
+      'invalid-name': 'BAD_REQUEST',
+      'not-found': 'NOT_FOUND',
+    } as const;
+    throw new TRPCError({ code: code[err.reason], message: err.message });
+  }
+}
+
+/** The signed-in account's API keys (#652). */
+const apiKeysRouter = router({
+  list: protectedProcedure.query(({ ctx }) => apiKeyCall(() => listAccountApiKeys(ctx.address))),
+  create: protectedProcedure
+    .input((raw: unknown) => ({ name: (raw as { name?: unknown })?.name }))
+    .mutation(({ ctx, input }) => apiKeyCall(() => createAccountApiKey(ctx.address, input.name))),
+  revoke: protectedProcedure
+    .input((raw: unknown) => ({ id: String((raw as { id?: unknown })?.id ?? '') }))
+    .mutation(({ ctx, input }) => apiKeyCall(() => revokeAccountApiKey(ctx.address, input.id))),
+});
+
 /** Authenticated account surface backing the dashboard. */
 const accountRouter = router({
+  apiKeys: apiKeysRouter,
+
   me: protectedProcedure.query(({ ctx }) => getAccount(ctx.address)),
 
   update: protectedProcedure

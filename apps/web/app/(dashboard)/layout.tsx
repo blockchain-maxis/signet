@@ -14,6 +14,7 @@ const NAV = [
   { href: '/app', label: 'Overview' },
   { href: '/app/profile', label: 'Profile' },
   { href: '/app/wallets', label: 'Wallets' },
+  { href: '/app/api-keys', label: 'API keys' },
   { href: '/app/settings', label: 'Settings' },
 ];
 
