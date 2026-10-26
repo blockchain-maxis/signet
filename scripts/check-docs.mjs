@@ -180,6 +180,9 @@ const NOT_ENV_IDENTIFIERS = new Set([
   'MAX_HANDLE_LEN', // identity-registry contract constant
   'DB_OPERATIONS_PER_WALLET', // apps/web/lib/profiles.ts — bounded read, not config
   'HORIZON_MAX_RECORDS', // apps/web/lib/server/horizon.ts — bounded read, not config
+  'MAX_WASM_BYTES', // packages/spec — parser limit, not config
+  'MAX_WASM_SECTIONS', // packages/spec — parser limit, not config
+  'MAX_SPEC_ENTRIES', // packages/spec — parser limit, not config
   'NETWORK_PASSPHRASE', // stellar.toml key the CLI reads, not env
   'SIGNING_KEY', // stellar.toml key the CLI reads, not env
   'WEB_AUTH_ENDPOINT', // stellar.toml key the CLI reads, not env
