@@ -447,7 +447,8 @@ func TestTheNotSeededReportIsQuotedInTheGuide(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	guide := string(raw)
+	// A Windows checkout may have CRLF line endings.
+	guide := strings.ReplaceAll(string(raw), "\r\n", "\n")
 	for _, line := range NotSeededLines {
 		if !strings.Contains(guide, "  - "+line+"\n") {
 			t.Fatalf("docs/SANDBOX.md does not quote %q", line)
