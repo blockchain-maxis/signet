@@ -1011,6 +1011,86 @@ export const paths: Record<string, OpenApiPathItem> = {
       },
     },
   },
+  '/profiles/{handle}/contracts/{address}': {
+    get: {
+      operationId: 'getProfileContract',
+      summary: 'Whether a handle deployed a contract',
+      description:
+        "200 with the contract when one of the handle's wallets deployed it on this deployment's network, by the contract page's attribution: the indexer's records (method 'indexer'), or, with no database, a check of the wallets' Horizon history for the deploy (method 'deployer-check'). Otherwise 404. A contract another handle deployed and one that does not exist give the same 404 body, byte for byte, so the endpoint cannot be used to learn who deployed what.",
+      tags: ['Profiles'],
+      parameters: [
+        {
+          name: 'handle',
+          in: 'path',
+          required: true,
+          description: 'Handle to look up (case-insensitive).',
+          schema: { type: 'string', pattern: '^[a-z0-9_-]{1,32}$' },
+        },
+        {
+          name: 'address',
+          in: 'path',
+          required: true,
+          description: 'Soroban contract ID (C...).',
+          schema: { type: 'string', pattern: '^C[A-Z2-7]{55}$' },
+        },
+      ],
+      responses: {
+        '200': {
+          description: 'The handle deployed this contract.',
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                required: ['data'],
+                properties: {
+                  data: {
+                    allOf: [
+                      { $ref: '#/components/schemas/Contract' },
+                      {
+                        type: 'object',
+                        required: ['handle', 'deployer', 'deployedAt', 'wasmHash', 'attribution'],
+                      },
+                    ],
+                  },
+                },
+                additionalProperties: false,
+              },
+            },
+          },
+        },
+        '400': {
+          description: 'Invalid handle or contract ID.',
+          content: {
+            'application/json': { schema: { $ref: '#/components/schemas/ErrorEnvelope' } },
+          },
+        },
+        '404': {
+          description: 'No contract with this address is attributed to this handle.',
+          content: {
+            'application/json': { schema: { $ref: '#/components/schemas/ErrorEnvelope' } },
+          },
+        },
+        '429': {
+          description: 'Rate limit exceeded.',
+          content: {
+            'application/json': { schema: { $ref: '#/components/schemas/ErrorEnvelope' } },
+          },
+        },
+        '500': {
+          description: 'Internal server error.',
+          content: {
+            'application/json': { schema: { $ref: '#/components/schemas/ErrorEnvelope' } },
+          },
+        },
+        '503': {
+          description: 'Attribution is unavailable (neither the database nor Horizon answered).',
+          content: {
+            'application/json': { schema: { $ref: '#/components/schemas/ErrorEnvelope' } },
+          },
+        },
+      },
+    },
+  },
   '/profiles/{handle}/operations': {
     get: {
       operationId: 'getProfileOperations',

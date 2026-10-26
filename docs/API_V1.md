@@ -214,6 +214,23 @@ the profile page uses, so the two never disagree:
   `data: []` with `meta.source: "none"` and `truncated: true`, never a list
   that reads as "no contracts".
 
+### Did a handle deploy this contract?
+
+`GET /api/v1/profiles/{handle}/contracts/{address}` (#632) answers yes (200) or
+no (404), by the same rule as the contract page `/p/{handle}/contract/{address}`:
+
+- `data`: `{ address, handle, deployer, deployedAt, network, wasmHash, attribution: { method, wallet } }`.
+  `method` is `indexer` when the database answered, or `deployer-check` when
+  there is no database and the handle's wallets' Horizon history was walked for
+  the deploy (`wasmHash` is then null). `wallet` is the handle's wallet that
+  matched.
+- A contract another handle deployed and a contract that does not exist get the
+  same 404, byte for byte, whatever the handle: the endpoint cannot be used to
+  learn who deployed what by trying handles.
+- An address that is not a valid `C…` contract ID is a 400; a lookup neither
+  layer could answer is a 503.
+- `Cache-Control: public, s-maxage=300` on a 200.
+
 ## Completeness
 
 `meta.source` says which layer answered, on every read whose answer depends on

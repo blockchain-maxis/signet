@@ -172,6 +172,7 @@ test('DB row owned by the primary wallet attributes with source database', async
       deployedAt: '2026-09-20T12:00:00.000Z',
       wasmHash: 'abc123',
       walletId: 'w1',
+      wallet: DEPLOYER,
     },
   });
   assert.equal(calls.operations, 0);
@@ -217,6 +218,7 @@ test('DB row owned by a non-primary wallet attributes too', async () => {
       deployedAt: '2026-09-21T12:00:00.000Z',
       wasmHash: null,
       walletId: 'w2',
+      wallet: `G${'B'.repeat(55)}`,
     },
   });
 });
@@ -327,6 +329,7 @@ test('no DB plus a Horizon create op deriving to the address attributes via hori
       deployTxHash: 'tx1',
       deployedAt: '2026-09-20T12:00:00.000Z',
       wasmHash: null,
+      wallet: DEPLOYER,
     },
   });
   // Derived straight from the record's address/salt: no tx fetch needed.
@@ -412,6 +415,7 @@ test('a v4 result-meta fixture decodes the same as a v3 one through the tx path'
         deployTxHash: 'txv',
         deployedAt: '2026-09-20T12:00:00.000Z',
         wasmHash: null,
+        wallet: DEPLOYER,
       },
     });
     assert.equal(calls.meta, 1);

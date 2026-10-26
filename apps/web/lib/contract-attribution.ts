@@ -62,6 +62,8 @@ export interface AttributedContract {
   wasmHash: string | null;
   /** Database wallet row that owns the contract; absent on the Horizon path. */
   walletId?: string;
+  /** The handle's wallet the attribution matched: the owning wallet, or the walked deployer. */
+  wallet?: string;
 }
 
 /**
@@ -329,6 +331,7 @@ function toAttributedContract(row: AttributionDbRow, network: string): Attribute
     deployedAt: row.deployedAt instanceof Date ? row.deployedAt.toISOString() : row.deployedAt,
     wasmHash: row.wasmHash,
     walletId: row.walletId,
+    wallet: row.walletPubkey,
   };
 }
 
@@ -399,6 +402,7 @@ async function attributeFromHorizon(
             deployTxHash: op.transactionHash ?? '',
             deployedAt: op.createdAt,
             wasmHash: null,
+            wallet,
           },
         };
       }
