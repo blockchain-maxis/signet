@@ -204,6 +204,9 @@ type LedgerOpenParams struct {
 	BaseReserve *uint32 `json:"base_reserve,omitempty"`
 	// Entries seed the fork layer before the network config is loaded.
 	Entries []PutEntry `json:"entries,omitempty"`
+	// AbsentKeys are keys known to have no entry: read as absent, not
+	// fetched (a repro bundle's reads that found nothing).
+	AbsentKeys []string `json:"absent_keys,omitempty"`
 	// SessionID names the session or bundle; each call's PRNG seed derives
 	// from it and the call index (#537).
 	SessionID string `json:"session_id,omitempty"`

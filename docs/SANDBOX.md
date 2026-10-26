@@ -405,6 +405,13 @@ There are two ways to run it:
   whose state has moved on is only low-fidelity. Run it on a schedule, or as
   a non-required check, beside the bundle-based one.
 
+This repository runs the example on itself (the `sandbox-e2e` CI job, #641):
+signet and signet-simulator built from source, the registry built from
+`packages/contracts/identity-registry`, `signet dev --ci` on
+`sandbox/testdata/registry.bundle.json` with the RPC pointed at a closed
+port, then again after a patch to `count`'s return, which must exit 10 with
+`count` failing in the JUnit file.
+
 ## Protocol support
 
 A Soroban host only runs at its own ledger protocol, so `signet-simulator`

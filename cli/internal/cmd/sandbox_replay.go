@@ -175,7 +175,7 @@ func replayBundle(ctx context.Context, sim *simulator.Client, b *bundle.Bundle, 
 	protocol, sequence, timestamp := b.Simulator.Lane, b.LedgerInfo.Sequence, b.LedgerInfo.Timestamp
 	if _, err := callSimulator(ctx, sim, simulator.TypeLedgerOpen, simulator.LedgerOpenParams{
 		NetworkPassphrase: b.Network.Passphrase, LedgerProtocol: &protocol, Sequence: &sequence, Timestamp: &timestamp,
-		Fetch: "deny", Entries: entries, SessionID: devSessionID,
+		Fetch: "deny", Entries: entries, AbsentKeys: b.Absent, SessionID: devSessionID,
 	}, nil); err != nil {
 		return dev.Cycle{}, err
 	}

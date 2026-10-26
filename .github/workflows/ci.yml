@@ -48,6 +48,9 @@ jobs:
               - 'cli/internal/rpc/**'
               - 'cli/internal/realtx/**'
               - 'scripts/check-bench.mjs'
+              # The e2e job builds the registry from source (#641).
+              - 'packages/contracts/**'
+              - 'docs/examples/signet-dev-ci.yml'
               # The shared spec reader the host is held to (#547).
               - 'packages/spec/**'
               - '.github/workflows/ci.yml'
@@ -742,6 +745,100 @@ jobs:
       - name: Medians for a new baseline
         if: always()
         run: BENCH_RUNNER="GitHub ubuntu-latest" node scripts/check-bench.mjs --write && cat sandbox/simulator/benches/baseline.json
+
+  # The whole pipeline from source with no network (#641): signet and
+  # signet-simulator built here, the registry built from
+  # packages/contracts/identity-registry, and signet dev --ci run on the
+  # committed bundle (sandbox/testdata/registry.bundle.json). The working
+  # directory's signet.dev.toml points the RPC at a closed port, so any
+  # network use fails loudly. The steps are docs/examples/signet-dev-ci.yml's,
+  # verbatim, but for installing signet, which builds from source here. Then
+  # count's return is patched, and the same run must exit 10 naming it.
+  sandbox-e2e:
+    name: signet dev --ci from source (offline)
+    needs: changes
+    if: needs.changes.outputs.sandbox == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      checks: write
+    defaults:
+      run:
+        working-directory: sandbox/testdata/e2e
+    env:
+      STELLAR_CLI_VERSION: 25.2.0
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32v1-none
+
+      - name: Install stellar
+        run: |
+          curl -sSfL "https://github.com/stellar/stellar-cli/releases/download/v${STELLAR_CLI_VERSION}/stellar-cli-${STELLAR_CLI_VERSION}-x86_64-unknown-linux-gnu.tar.gz" \
+            | tar -xz -C "$RUNNER_TEMP" stellar
+          echo "$RUNNER_TEMP" >> "$GITHUB_PATH"
+
+      # In place of the example's npm install: both binaries from source.
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: cli/go.mod
+
+      - name: Cache the simulator build
+        uses: actions/cache@v6
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            sandbox/target
+          key: cargo-sandbox-${{ hashFiles('sandbox/Cargo.lock') }}
+
+      - name: Install signet
+        working-directory: .
+        run: |
+          (cd sandbox && cargo build --locked -p signet-simulator)
+          (cd cli && go build -o "$RUNNER_TEMP/signet" ./cmd/signet)
+          echo "SIGNET_SIMULATOR_PATH=$GITHUB_WORKSPACE/sandbox/target/debug/signet-simulator" >> "$GITHUB_ENV"
+
+      - name: Cache the build and signet's forks
+        uses: actions/cache@v6
+        with:
+          path: |
+            ~/.cargo/registry
+            ~/.cache/signet
+            target
+          key: signet-dev-${{ runner.os }}-${{ hashFiles('**/Cargo.lock') }}
+
+      - name: Put the bundle where the example expects it
+        run: mkdir -p .signet && cp ../registry.bundle.json .signet/regression.json
+
+      - name: signet dev --ci
+        run: signet dev --ci --bundle .signet/regression.json --junit junit.xml
+
+      # A fork's pull request gets a read-only token: no check run then.
+      - name: Publish the JUnit report
+        if: always()
+        continue-on-error: true
+        uses: mikepenz/action-junit-report@v5
+        with:
+          report_paths: sandbox/testdata/e2e/junit.xml
+          check_name: signet dev
+
+      - name: A changed count's return fails the check
+        run: |
+          ./patch-count.sh
+          set +e
+          signet dev --ci --bundle .signet/regression.json --junit junit-patched.xml
+          code=$?
+          set -e
+          if [ "$code" != 10 ]; then
+            echo "expected exit 10 for a changed return, got $code"
+            exit 1
+          fi
+          grep -A1 '<testcase classname="replay.saved" name="count">' junit-patched.xml \
+            | grep -q '<failure message="return: 2 → 3" type="breaking"'
 
   # Repro bundles replay offline and identically everywhere (#573): each
   # runner replays the committed bundles with fetching denied and writes the

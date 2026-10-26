@@ -256,12 +256,17 @@ var committedBundle = filepath.Join("..", "..", "..", "sandbox", "fixtures", "bu
 // with one saved call and exports the session; it returns the bundle path.
 func exportRegistrySession(t *testing.T, e *callEnv) string {
 	t.Helper()
+	return exportRegistrySessionWith(t, e, "\n[[call]]\nname = \"count\"\nfunction = \"count\"\nargs = {}\nexpect = \"unchanged\"\n")
+}
+
+// exportRegistrySessionWith is exportRegistrySession with these [[call]]s.
+func exportRegistrySessionWith(t *testing.T, e *callEnv, calls string) string {
+	t.Helper()
 	devTools(t)
 	e.stellar = "stellar"
 	crate := devCrate(t)
 	dir := t.TempDir()
-	toml := "version = 1\naddress = \"" + registryContract + "\"\npath = \"" + filepath.ToSlash(crate) + "\"\n" +
-		"\n[[call]]\nname = \"count\"\nfunction = \"count\"\nargs = {}\nexpect = \"unchanged\"\n"
+	toml := "version = 1\naddress = \"" + registryContract + "\"\npath = \"" + filepath.ToSlash(crate) + "\"\n" + calls
 	if err := os.WriteFile(filepath.Join(dir, "signet.dev.toml"), []byte(toml), 0o644); err != nil {
 		t.Fatal(err)
 	}

@@ -177,3 +177,50 @@ func TestDevCIRunsABundleOffline(t *testing.T) {
 		t.Fatalf("an offline run fetched %v", e.rpc.asked)
 	}
 }
+
+// e2eBundle is the registry bundle the sandbox e2e job (#641) runs signet
+// dev --ci on, built from packages/contracts/identity-registry, with no
+// network: a p29 fork, as the source builds for protocol 29. SIGNET_UPDATE_BUNDLES=1 rewrites it from a fresh fixture session.
+var e2eBundle = filepath.Join("..", "..", "..", "sandbox", "testdata", "registry.bundle.json")
+
+func TestTheE2EBundleRunsOfflineOnTheRegistry(t *testing.T) {
+	e := newCallEnv(t)
+	committed, _ := filepath.Abs(e2eBundle)
+	if os.Getenv("SIGNET_UPDATE_BUNDLES") == "1" {
+		// The registry's source builds for protocol 29 (soroban-sdk 29), so
+		// the fork is a p29 ledger; and a source build costs more than the
+		// deployed one, so the calls expect ok rather than unchanged.
+		e.rpc.mu.Lock()
+		e.rpc.override["getLatestLedger"] = map[string]any{"id": "x", "protocolVersion": 29, "sequence": 4887004, "closeTime": "1790458607"}
+		e.rpc.mu.Unlock()
+		fresh := exportRegistrySessionWith(t, e, ""+
+			"\n[[call]]\nname = \"count\"\nfunction = \"count\"\nargs = {}\nexpect = \"ok\"\n"+
+			"\n[[call]]\nname = \"is_bound nobody\"\nfunction = \"is_bound\"\nargs = { handle = \"nobody\" }\nexpect = \"ok\"\n"+
+			"\n[[call]]\nname = \"resolve nobody\"\nfunction = \"resolve\"\nargs = { handle = \"nobody\" }\nexpect = \"ok\"\n"+
+			"\n[[call]]\nname = \"claim e2e-ci\"\nfunction = \"claim\"\nargs = { handle = \"e2e-ci\", wallet = \""+testWallet+"\" }\nexpect = \"ok\"\n")
+		raw, err := os.ReadFile(fresh)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := os.MkdirAll(filepath.Dir(committed), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(committed, raw, 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	devTools(t)
+	e.stellar = "stellar"
+	registryWasm, _ := filepath.Abs(filepath.Join("..", "..", "..", "packages", "spec", "fixtures", "identity-registry.wasm"))
+	t.Setenv("FAKESTELLAR_BUILD_WASM", registryWasm)
+	junit := filepath.Join(t.TempDir(), "junit.xml")
+	stdout, stderr, err := e.cli("dev", registryContract, "--path", devCrate(t), "--rpc-url", "http://127.0.0.1:9", "--ci", "--bundle", committed, "--junit", junit)
+	if err != nil {
+		t.Fatalf("%v\n%s%s", err, stdout, stderr)
+	}
+	raw, _ := os.ReadFile(junit)
+	var got junitSuites
+	if err := xml.Unmarshal(raw, &got); err != nil || got.Tests != 4 || got.Failures != 0 {
+		t.Fatalf("junit (%v):\n%s", err, raw)
+	}
+}

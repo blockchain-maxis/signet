@@ -247,6 +247,24 @@ pub fn ledger_open(
             store.insert_base(&key, entry, live_until, sequence);
         }
     }
+    // Keys known to have no entry (what a repro bundle's session read and
+    // found nothing at): absent, not misses, so a run with fetching denied
+    // reads them as the session did.
+    if let Some(keys) = object.get("absent_keys") {
+        let Some(keys) = keys.as_array() else {
+            return invalid_field(id, "absent_keys", "an array");
+        };
+        for (index, key) in keys.iter().enumerate() {
+            let at = format!("absent_keys[{index}]");
+            let Some(key) = key.as_str() else {
+                return invalid_field(id, &at, "a string");
+            };
+            match decode_key(lane, id, &at, key) {
+                Ok(key) => store.insert_absent(&key),
+                Err(error) => return error,
+            }
+        }
+    }
 
     *ledger = Some(OpenLedger {
         store: Rc::new(RefCell::new(store)),
@@ -598,6 +616,33 @@ mod tests {
         );
         assert_eq!(reply["ledger_protocol"], 28);
         assert_eq!(ledger.unwrap().lane.ledger_protocol(), 28);
+    }
+
+    #[test]
+    fn keys_opened_as_absent_are_known_not_fetched() {
+        let mut ledger = None;
+        let reply = ledger_open(
+            &mut ledger,
+            &id(),
+            &obj(json!({
+                "network_passphrase": "Test SDF Network ; September 2015",
+                "fetch": "deny",
+                "absent_keys": [key_b64(1)],
+            })),
+        );
+        assert_eq!(reply["type"], "result", "{reply}");
+        let store = ledger.as_ref().unwrap().store.borrow();
+        assert!(store.knows(&fixtures::data_key_xdr(1)));
+        assert!(!store.knows(&fixtures::data_key_xdr(2)));
+        drop(store);
+        let bad = ledger_open(
+            &mut ledger,
+            &id(),
+            &obj(
+                json!({ "network_passphrase": "Test SDF Network ; September 2015", "absent_keys": ["AAAA"] }),
+            ),
+        );
+        assert_eq!(bad["detail"]["path"], "absent_keys[0]", "{bad}");
     }
 
     #[test]

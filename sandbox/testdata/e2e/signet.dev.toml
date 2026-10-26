@@ -1,0 +1,10 @@
+# The sandbox e2e job (#641): signet dev --ci on the registry, built from
+# source, against ../registry.bundle.json, with no network. The RPC is
+# unreachable on purpose, so any network use fails loudly.
+version = 1
+address = "CASFJHI5PQSRWS7JV25CF7FOMRKIVBP3RXRP3E2GH2CV4BCAG7FUJRCN"
+path = "../../../packages/contracts/identity-registry"
+
+[network]
+rpc_url = "http://127.0.0.1:9"
+passphrase = "Test SDF Network ; September 2015"

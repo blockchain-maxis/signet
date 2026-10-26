@@ -38,16 +38,23 @@
       "minimum": 0
     },
     "fetch": {
-      "enum": [
-        "allow",
-        "deny"
-      ],
+      "enum": ["allow", "deny"],
       "description": "Whether a read the ledger cannot answer is fetched from Go with ledger_fetch (default allow). deny is for offline runs and bundle replay (#573): a miss is a fetch_failed error naming the key."
     },
     "base_reserve": {
       "type": "integer",
       "minimum": 0,
       "description": "The network's base reserve in stroops (default 5000000, every public network's)"
+    },
+    "absent_keys": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "pattern": "^[A-Za-z0-9+/]+={0,2}$",
+        "description": "LedgerKey, base64 XDR"
+      },
+      "description": "Keys known to have no entry, read as absent rather than fetched: a repro bundle's reads that found nothing (#641)"
     },
     "entries": {
       "type": "array",
@@ -74,10 +81,7 @@
                 "minimum": 0
               }
             },
-            "required": [
-              "key_xdr",
-              "entry_xdr"
-            ],
+            "required": ["key_xdr", "entry_xdr"],
             "additionalProperties": false
           },
           {
@@ -125,11 +129,7 @@
                 ]
               }
             },
-            "required": [
-              "key_xdr",
-              "data_xdr",
-              "last_modified_ledger_seq"
-            ],
+            "required": ["key_xdr", "data_xdr", "last_modified_ledger_seq"],
             "additionalProperties": false,
             "description": "An entry in the pieces RPC returns; the simulator assembles the LedgerEntry, so Go never builds XDR"
           }
@@ -147,12 +147,7 @@
       "description": "The index of the session's next call, for a session resumed in a new process: its seeds continue rather than repeat (#537, #555). Default 0."
     }
   },
-  "required": [
-    "version",
-    "id",
-    "type",
-    "network_passphrase"
-  ],
+  "required": ["version", "id", "type", "network_passphrase"],
   "additionalProperties": false,
   "definitions": {
     "result": {
@@ -186,13 +181,7 @@
           "description": "The effective network configuration loaded from the ledger's ConfigSetting entries (#535): limits, fee rates and TTLs"
         }
       },
-      "required": [
-        "version",
-        "id",
-        "type",
-        "ledger_protocol",
-        "sequence"
-      ],
+      "required": ["version", "id", "type", "ledger_protocol", "sequence"],
       "additionalProperties": false
     }
   }

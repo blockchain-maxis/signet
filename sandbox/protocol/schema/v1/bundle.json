@@ -104,6 +104,11 @@
       },
       "description": "The network config the host loads"
     },
+    "absent": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Keys the session read and found no entry at (LedgerKey, base64 XDR): absent on replay, not fetched"
+    },
     "entries": {
       "type": "array",
       "items": {

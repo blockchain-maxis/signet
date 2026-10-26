@@ -299,7 +299,10 @@ type Bundle struct {
 	} `json:"ledgerInfo"`
 	ConfigSettings []Entry `json:"configSettings"`
 	Entries        []Entry `json:"entries"`
-	Wasm           struct {
+	// Absent are keys the session read and found no entry at, so a replay
+	// with fetching denied reads them as absent too.
+	Absent []string `json:"absent,omitempty"`
+	Wasm   struct {
 		Deployed Wasm `json:"deployed"`
 		Local    Wasm `json:"local"`
 	} `json:"wasm"`
@@ -344,7 +347,9 @@ func Build(s Session, builds map[string]Wasm, cycles []Cycle, cached []fork.Entr
 	b.Fork.Drifted = []string{}
 	b.LedgerInfo.Sequence, b.LedgerInfo.Timestamp = s.Fork.Ledger, s.Fork.Timestamp
 	b.ConfigSettings, b.Entries = []Entry{}, []Entry{}
+	have := map[string]bool{}
 	for _, e := range cached {
+		have[e.Key] = true
 		switch {
 		case configSetting(e.Key):
 			b.ConfigSettings = append(b.ConfigSettings, entryOf(e))
@@ -358,6 +363,12 @@ func Build(s Session, builds map[string]Wasm, cycles []Cycle, cached []fork.Entr
 	byKey := func(es []Entry) {
 		sort.Slice(es, func(i, j int) bool { return es[i].Key < es[j].Key })
 	}
+	for k := range read {
+		if !have[k] {
+			b.Absent = append(b.Absent, k)
+		}
+	}
+	sort.Strings(b.Absent)
 	byKey(b.ConfigSettings)
 	byKey(b.Entries)
 	sort.Strings(b.Fork.Drifted)
