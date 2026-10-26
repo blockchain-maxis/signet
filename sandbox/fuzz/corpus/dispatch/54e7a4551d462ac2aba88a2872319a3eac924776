@@ -1,0 +1,2 @@
+{"version":1,"id":"hello","type":"hello","client_protocol_version":1}
+{"version":1,"id":"bye","type":"shutdown"}

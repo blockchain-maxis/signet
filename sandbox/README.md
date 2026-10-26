@@ -14,9 +14,9 @@ killing the process.
 
 | Path         | What                                                                                                                                                              |
 | ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `simulator/` | The `signet-simulator` binary                                                                                                                                     |
+| `simulator/` | The `signet-simulator` binary, over a library (`src/lib.rs`) the fuzz targets also drive                                                                          |
 | `protocol/`  | JSON Schemas (`schema/v1/`) and golden NDJSON transcripts for every message in `docs/CLI_RUST_BRIDGE.md`; `check-transcripts.mjs` validates one against the other |
-| `fuzz/`      | Fuzz target stub; excluded from default members, so plain `cargo` skips it                                                                                        |
+| `fuzz/`      | cargo-fuzz targets and their seed corpus ([Fuzzing](#fuzzing)); excluded from default members, so plain `cargo` skips it                                         |
 
 ## Message loop
 
@@ -58,6 +58,48 @@ missing: `make sandbox-build`, `make sandbox-test`, `make sandbox-lint`,
 `make check-fmt-sandbox` (also folded into `make build`/`test`/`lint`/`check-fmt`).
 
 The first build compiles `soroban-env-host` and takes several minutes.
+
+## Fuzzing
+
+The simulator parses what the CLI relays from RPC nodes and from bundles other
+people wrote, so its parsers are fuzzed (#525). Three
+[cargo-fuzz](https://rust-fuzz.github.io/book/cargo-fuzz.html) targets in
+`fuzz/`, whose bodies live in `simulator/src/fuzzing.rs`:
+
+| Target | Input |
+| --- | --- |
+| `framing` | arbitrary bytes into the NDJSON line reader |
+| `dispatch` | arbitrary lines into the envelope dispatcher, after the handshake, with a stub ledger (every fetch finds the stream closed) |
+| `xdr_params` | arbitrary bytes as every request parameter that decodes XDR, in both lanes |
+
+cargo-fuzz needs a nightly toolchain:
+
+```bash
+rustup toolchain install nightly
+cargo install cargo-fuzz
+cd sandbox
+cargo +nightly fuzz run framing -- -max_total_time=60
+cargo +nightly fuzz run dispatch -- -max_total_time=60
+cargo +nightly fuzz run xdr_params -- -max_total_time=60
+```
+
+A crash lands in `fuzz/artifacts/<target>/`; replay it with
+`cargo +nightly fuzz run <target> fuzz/artifacts/<target>/<file>`, fix it, and add
+the input as a regression in `simulator/tests/fuzz_smoke.rs`. The seed corpus
+(`fuzz/corpus/`) is built from the protocol transcripts by
+`node fuzz/build-corpus.mjs`.
+
+On stable, `cargo test` runs every target over the corpus plus a few thousand
+mutations (`simulator/tests/fuzz_smoke.rs`). CI runs each target for 60 s on
+pull requests that touch `sandbox/`, and 10 minutes each weekly, keeping the
+crashes as an artifact (`.github/workflows/fuzz.yml`).
+
+All XDR the simulator decodes goes through one helper per lane, `decode_xdr` and
+`xdr_reader` in `simulator/src/lanes/host_lane.rs`, under `DECODE_LIMITS`: depth
+500 (the host's own) and the protocol's largest line in length.
+`simulator/tests/xdr_decode_sites.rs` fails on any other decode. The first
+finding was this: decoding with no depth limit, an `ScVal` nested 100,000 deep
+overflowed the stack and killed the process.
 
 ## Version output
 

@@ -1,0 +1,4 @@
+# cargo-fuzz output: findings and the working corpus it grows.
+artifacts/
+coverage/
+/target/

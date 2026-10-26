@@ -4,7 +4,8 @@
 [workspace]
 resolver = "2"
 members = ["simulator", "fuzz"]
-# `fuzz` is a stub for the fuzz targets; plain `cargo build/test` skips it.
+# `fuzz` holds the cargo-fuzz targets (#525, nightly); plain `cargo build/test`
+# skips it.
 default-members = ["simulator"]
 
 [workspace.package]

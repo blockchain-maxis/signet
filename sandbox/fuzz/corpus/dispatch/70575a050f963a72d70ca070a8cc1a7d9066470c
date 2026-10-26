@@ -1,0 +1,5 @@
+{"version":1,"id":"hello","type":"hello","client_protocol_version":1}
+{"version":1,"id":"req-1","type":"ledger_open","network_passphrase":"Test SDF Network ; September 2015"}
+{"version":1,"id":"req-2","type":"contract_install","wasm_base64":"AGFzbQEAAAA=","contract_id":"CASFJHI5PQSRWS7JV25CF7FOMRKIVBP3RXRP3E2GH2CV4BCAG7FUJRCN"}
+{"version":1,"id":"req-3","type":"simulate","contract_id":"CASFJHI5PQSRWS7JV25CF7FOMRKIVBP3RXRP3E2GH2CV4BCAG7FUJRCN","function":"count","args":[]}
+{"version":1,"id":"bye","type":"shutdown"}

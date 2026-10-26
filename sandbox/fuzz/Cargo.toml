@@ -1,7 +1,35 @@
 [package]
 name = "signet-simulator-fuzz"
-description = "Fuzz targets for signet-simulator (stub; excluded from default-members)."
+description = "cargo-fuzz targets for signet-simulator (#525): framing, dispatch, xdr_params."
 version.workspace = true
 edition.workspace = true
 license.workspace = true
 publish.workspace = true
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+signet-simulator = { path = "../simulator" }
+
+[[bin]]
+name = "framing"
+path = "fuzz_targets/framing.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "dispatch"
+path = "fuzz_targets/dispatch.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "xdr_params"
+path = "fuzz_targets/xdr_params.rs"
+test = false
+doc = false
+bench = false

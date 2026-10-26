@@ -1,0 +1,64 @@
+# Fuzzing the simulator's input parsers (#525): the NDJSON framing, the
+# envelope dispatcher and every request parameter that decodes XDR
+# (sandbox/fuzz, targets in signet_simulator::fuzzing). Pull requests that
+# touch sandbox/ run each target for 60 s; a weekly run gives them 10 minutes
+# each and keeps whatever crashes it finds as an artifact.
+name: Fuzz
+
+on:
+  pull_request:
+    paths:
+      - "sandbox/**"
+      - ".github/workflows/fuzz.yml"
+  schedule:
+    - cron: "17 3 * * 1"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  fuzz:
+    name: fuzz (${{ matrix.target }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [framing, dispatch, xdr_params]
+    defaults:
+      run:
+        working-directory: sandbox
+    steps:
+      - uses: actions/checkout@v7
+
+      # sandbox/rust-toolchain.toml pins stable; `+nightly` overrides it for
+      # cargo-fuzz, which needs -Z sanitizer flags.
+      - uses: dtolnay/rust-toolchain@nightly
+
+      - name: Cache cargo-fuzz and the build
+        uses: actions/cache@v6
+        with:
+          path: |
+            ~/.cargo/bin/cargo-fuzz
+            ~/.cargo/registry
+            sandbox/target
+          key: fuzz-${{ matrix.target }}-${{ hashFiles('sandbox/Cargo.lock') }}
+
+      - name: Install cargo-fuzz
+        run: command -v cargo-fuzz || cargo install cargo-fuzz --locked
+
+      - name: Fuzz
+        env:
+          SECONDS_PER_TARGET: ${{ github.event_name == 'pull_request' && '60' || '600' }}
+        run: |
+          cargo +nightly fuzz run ${{ matrix.target }} -- \
+            -max_total_time="$SECONDS_PER_TARGET" -rss_limit_mb=4096 -timeout=30
+
+      - name: Keep the crashes
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: fuzz-crashes-${{ matrix.target }}
+          path: sandbox/fuzz/artifacts/${{ matrix.target }}
+          if-no-files-found: ignore

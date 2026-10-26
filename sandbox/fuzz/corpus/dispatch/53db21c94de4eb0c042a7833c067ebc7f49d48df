@@ -1,0 +1,4 @@
+{"version":1,"id":"hello","type":"hello","client_protocol_version":1}
+{"version":1,"id":"req-1","type":"simulate","contract_id":"CASFJHI5PQSRWS7JV25CF7FOMRKIVBP3RXRP3E2GH2CV4BCAG7FUJRCN","function":"claim","args":["alice","GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN"]}
+{"version":1,"id":"req-2","type":"simulate","contract_id":"CASFJHI5PQSRWS7JV25CF7FOMRKIVBP3RXRP3E2GH2CV4BCAG7FUJRCN","function":"loop_forever","args":[]}
+{"version":1,"id":"bye","type":"shutdown"}

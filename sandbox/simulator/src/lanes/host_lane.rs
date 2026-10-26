@@ -53,8 +53,32 @@ fn invalid(what: &'static str) -> LaneError {
     }
 }
 
+/// The limits every XDR value this lane decodes is read under (#525). XDR
+/// comes from RPC nodes and from bundles other people wrote, so an unbounded
+/// read is a crash waiting: depth caps nesting (an `ScVal` vector inside a
+/// vector, ten thousand deep, would otherwise overflow the stack), and length
+/// caps the bytes read, at the largest line the protocol carries
+/// (`framing::MAX_LINE_BYTES`). The depth is the host's own default.
+pub(crate) const DECODE_LIMITS: Limits = Limits {
+    depth: 500,
+    len: 64 * 1024 * 1024,
+};
+
+/// The one place this lane turns bytes into an XDR value. Everything decodes
+/// here, or through [`xdr_reader`] for values packed back to back; a test
+/// (`tests/xdr_decode_sites.rs`) holds every other file to that.
+fn decode_xdr<T: ReadXdr>(bytes: &[u8]) -> Result<T, soroban_env_host::xdr::Error> {
+    T::from_xdr(bytes, DECODE_LIMITS)
+}
+
+/// A reader over XDR values written back to back (a WASM custom section),
+/// under [`DECODE_LIMITS`].
+fn xdr_reader(bytes: &[u8]) -> Limited<Cursor<&[u8]>> {
+    Limited::new(Cursor::new(bytes), DECODE_LIMITS)
+}
+
 fn decode<T: ReadXdr>(bytes: &[u8], what: &'static str) -> Result<T, LaneError> {
-    T::from_xdr(bytes, Limits::none()).map_err(|_| invalid(what))
+    decode_xdr(bytes).map_err(|_| invalid(what))
 }
 
 fn encode<T: WriteXdr>(value: &T, what: &'static str) -> Result<Vec<u8>, LaneError> {
@@ -85,8 +109,7 @@ impl SnapshotSource for BytesSnapshot {
         let Some((entry_xdr, live_until)) = found else {
             return Ok(None);
         };
-        let entry =
-            LedgerEntry::from_xdr(&*entry_xdr, Limits::none()).map_err(|_| input_error())?;
+        let entry = decode_xdr::<LedgerEntry>(&entry_xdr).map_err(|_| input_error())?;
         Ok(Some((Rc::new(entry), live_until)))
     }
 }
@@ -466,7 +489,7 @@ impl Lane for HostLane {
     fn spec_entries(&self, wasm: &[u8]) -> Result<Vec<Vec<u8>>, LaneError> {
         let mut entries = Vec::new();
         for payload in custom_sections(wasm, SPEC_SECTION)? {
-            let mut reader = Limited::new(Cursor::new(payload), Limits::none());
+            let mut reader = xdr_reader(payload);
             for entry in ScSpecEntry::read_xdr_iter(&mut reader) {
                 let entry =
                     entry.map_err(|e| LaneError::InvalidWasm(format!("{SPEC_SECTION}: {e}")))?;
@@ -625,7 +648,7 @@ impl Lane for HostLane {
 
         let mut interface_version = None;
         for payload in env_meta {
-            let mut reader = Limited::new(Cursor::new(payload), Limits::none());
+            let mut reader = xdr_reader(payload);
             for entry in ScEnvMetaEntry::read_xdr_iter(&mut reader) {
                 let entry = entry
                     .map_err(|e| LaneError::InvalidWasm(format!("{ENV_META_SECTION}: {e}")))?;

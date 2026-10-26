@@ -31,14 +31,14 @@ use sha2::{Digest, Sha256};
 
 use super::soroban_env_host;
 use soroban_env_host::xdr::{
-    BytesM, ContractEvent, ContractEventBody, Duration, Int128Parts, Int256Parts, Limited, Limits,
-    ReadXdr, ScAddress, ScBytes, ScEnvMetaEntry, ScError, ScMap, ScMapEntry, ScMetaEntry,
-    ScSpecEntry, ScSpecEventDataFormat, ScSpecEventParamLocationV0, ScSpecFunctionV0,
-    ScSpecTypeDef, ScSpecTypeUdt, ScSpecUdtUnionCaseV0, ScString, ScSymbol, ScVal, ScVec, StringM,
-    TimePoint, UInt128Parts, UInt256Parts, VecM,
+    BytesM, ContractEvent, ContractEventBody, Duration, Int128Parts, Int256Parts, ReadXdr,
+    ScAddress, ScBytes, ScEnvMetaEntry, ScError, ScMap, ScMapEntry, ScMetaEntry, ScSpecEntry,
+    ScSpecEventDataFormat, ScSpecEventParamLocationV0, ScSpecFunctionV0, ScSpecTypeDef,
+    ScSpecTypeUdt, ScSpecUdtUnionCaseV0, ScString, ScSymbol, ScVal, ScVec, StringM, TimePoint,
+    UInt128Parts, UInt256Parts, VecM,
 };
 
-use super::{custom_sections, encode, hex, LaneError, SPEC_SECTION};
+use super::{custom_sections, encode, hex, xdr_reader, LaneError, SPEC_SECTION};
 
 /// The same bounds `@signet/spec`'s `parseContractSpec` applies.
 pub const MAX_WASM_BYTES: usize = 256 * 1024;
@@ -70,7 +70,7 @@ impl Spec {
         }
         let mut entries = Vec::new();
         for payload in custom_sections(wasm, SPEC_SECTION)?.into_iter().take(1) {
-            let mut reader = Limited::new(std::io::Cursor::new(payload), Limits::none());
+            let mut reader = xdr_reader(payload);
             for entry in ScSpecEntry::read_xdr_iter(&mut reader) {
                 if entries.len() >= MAX_SPEC_ENTRIES {
                     return Err(LaneError::InvalidWasm(format!(
@@ -244,7 +244,7 @@ pub fn spec_json(wasm: &[u8]) -> Result<Value, LaneError> {
 }
 
 fn build_meta(section: &[u8]) -> Result<Value, String> {
-    let mut reader = Limited::new(std::io::Cursor::new(section), Limits::none());
+    let mut reader = xdr_reader(section);
     let mut pairs = Map::new();
     for (n, entry) in ScMetaEntry::read_xdr_iter(&mut reader).enumerate() {
         if n >= MAX_META_ENTRIES {
@@ -269,7 +269,7 @@ fn build_meta(section: &[u8]) -> Result<Value, String> {
 }
 
 fn env_meta(section: &[u8]) -> Result<Option<Value>, String> {
-    let mut reader = Limited::new(std::io::Cursor::new(section), Limits::none());
+    let mut reader = xdr_reader(section);
     if let Some(entry) = ScEnvMetaEntry::read_xdr_iter(&mut reader).next() {
         let ScEnvMetaEntry::ScEnvMetaKindInterfaceVersion(v) = entry.map_err(|e| e.to_string())?;
         return Ok(Some(

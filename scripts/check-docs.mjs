@@ -183,6 +183,7 @@ const NOT_ENV_IDENTIFIERS = new Set([
   'MAX_WASM_BYTES', // packages/spec — parser limit, not config
   'MAX_WASM_SECTIONS', // packages/spec — parser limit, not config
   'MAX_SPEC_ENTRIES', // packages/spec — parser limit, not config
+  'DECODE_LIMITS', // sandbox/simulator — the XDR decode limits, a constant, not config
   'NETWORK_PASSPHRASE', // stellar.toml key the CLI reads, not env
   'SIGNING_KEY', // stellar.toml key the CLI reads, not env
   'WEB_AUTH_ENDPOINT', // stellar.toml key the CLI reads, not env
