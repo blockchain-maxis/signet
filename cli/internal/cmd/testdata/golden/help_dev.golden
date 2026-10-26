@@ -12,6 +12,15 @@ wasm32v1-none Rust target, a contract (cdylib) crate at --path, the
 signet-simulator, and that the simulator runs the network's protocol (exit 11
 when it does not; exit 3 for the others).
 
+--ci builds once, runs every check and exits with a code a pipeline can
+branch on: 0 clean, 10 a difference in a --fail-on class (or a missed
+expect), 12 a build failure, 6 or 7 a network problem or timeout, 11 an
+unsupported protocol, 13 a simulator failure. --report writes a JSON report
+(sandbox/protocol/schema/v1/ci-report.json) and --junit a JUnit file with
+one testcase per replay, interface change and layout finding. With --bundle
+the checks run offline, on a repro bundle's state and calls (signet sandbox
+export), instead of a live fork.
+
 Usage:
   signet dev [contract] [flags]
   signet dev [command]
@@ -20,22 +29,28 @@ Examples:
   signet dev CASFJHI5PQSRWS7JV25CF7FOMRKIVBP3RXRP3E2GH2CV4BCAG7FUJRCN --path ./contracts/registry
   signet dev            # everything from signet.dev.toml
   signet dev init CASF…RCN --path ./contracts/registry
+  signet dev --ci --report report.json --junit junit.xml --fail-on breaking,spec
 
 Available Commands:
   init        Write a signet.dev.toml for a deployed contract
 
 Flags:
-      --ci                          run once, non-interactively: a failed build exits 12
+      --bundle string               with --ci, run offline on this repro bundle's state and calls instead of a live fork
+      --ci                          run once, non-interactively, and exit 0 (clean), 10 (a --fail-on difference) or 12 (a failed build)
       --clear                       clear the screen before each cycle (on a terminal)
       --debounce duration           how long a burst of file changes must settle before one rebuild (default 150ms)
       --drift string                when an entry fetched for the fork changed on-chain after the fork ledger: warn, fail (exit 6), or refork (pin the latest ledger and run once more) (default "warn")
+      --fail-on string              with --ci, what exits 10: breaking, behavioural, cost (replay differences), spec, layout (default "breaking,spec,layout")
   -h, --help                        help for dev
+      --junit string                with --ci, write a JUnit XML file here
       --network-passphrase string   passphrase of a custom --network (checked against the RPC's getNetwork)
       --no-browser                  with --ui, print the UI's URL instead of opening a browser
       --package string              the contract crate, when --path is a workspace with several (default: package in signet.dev.toml)
       --path string                 the contract's crate directory (default: path in signet.dev.toml)
+      --report string               with --ci, write a JSON report here
       --rpc-url string              Stellar RPC to fork from (overrides the context's rpc-url; testnet defaults to https://soroban-testnet.stellar.org)
       --scan-ledgers uint32         also scan the newest N ledgers for the contract's transactions that emitted no event (slow: every transaction in them is decoded)
+      --timings string              json: also write each cycle's time by phase (and the start's) to stderr, one JSON object per line
       --ui                          also serve the local UI on 127.0.0.1 and open it
       --verbose                     print every difference of every replay (storage, events, the auth tree, resources) and the time by phase
 

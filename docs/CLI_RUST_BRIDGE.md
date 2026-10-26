@@ -422,6 +422,10 @@ cache and the session log
   file `signet sandbox export` writes from a `signet dev` session
   ([#572](https://github.com/blockchain-maxis/signet/issues/572),
   [`SANDBOX.md`](SANDBOX.md#repro-bundles)).
+- `ci-report` (`ci-report.json`) is not a message either: it is the report
+  `signet dev --ci --report` writes
+  ([#639](https://github.com/blockchain-maxis/signet/issues/639),
+  [`SANDBOX.md`](SANDBOX.md#signet-dev---ci)).
 - `cli-call-result` (`cli-call-result.json`) is not a wire message: it is the object `signet sandbox call --json`
   writes ([#555](https://github.com/blockchain-maxis/signet/issues/555)), kept beside the
   messages it is built from.

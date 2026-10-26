@@ -55,17 +55,17 @@ const (
 // they did on-chain.
 var groups = []string{"expected", simulator.ClassBreaking, simulator.ClassBehavioural, simulator.ClassCost, simulator.ClassIgnored, "low-fidelity"}
 
-// difference is one line of an item's diff.
-type difference struct {
-	class string
-	text  string
+// Difference is one line of a replay's diff, and its class.
+type Difference struct {
+	Class string `json:"class"`
+	Text  string `json:"text"`
 }
 
 // item is one replay as the terminal shows it.
 type item struct {
 	outcome Outcome
 	group   string
-	diffs   []difference
+	diffs   []Difference
 }
 
 // Render prints a frame: a summary line that answers "did I break
@@ -100,20 +100,13 @@ func Render(f Frame, o RenderOptions) string {
 	counts := map[string]int{}
 	saved, real := 0, 0
 	for i, out := range c.Outcomes {
-		it := item{outcome: out, diffs: differences(out)}
+		it := item{outcome: out, diffs: Differences(out)}
 		if out.Real != nil {
 			real++
 		} else {
 			saved++
 		}
-		switch {
-		case out.Real != nil && !out.Real.Fidelity.High && !o.FailOnLowFidelity:
-			it.group = "low-fidelity"
-		case out.Verdict != nil && !out.Verdict.Pass:
-			it.group = "expected"
-		case len(it.diffs) > 0:
-			it.group = it.diffs[0].class
-		}
+		it.group = Group(out, it.diffs, o.FailOnLowFidelity)
 		if it.group != "" {
 			counts[it.group]++
 		}
@@ -212,6 +205,22 @@ func Render(f Frame, o RenderOptions) string {
 	return b.String()
 }
 
+// Group is where a replay is listed and counted: "expected" when it missed
+// its expect, "low-fidelity" for a real transaction that did not behave as
+// on-chain (unless failOnLow), else its worst difference's class; "" when
+// it has none.
+func Group(o Outcome, diffs []Difference, failOnLow bool) string {
+	switch {
+	case o.Real != nil && !o.Real.Fidelity.High && !failOnLow:
+		return "low-fidelity"
+	case o.Verdict != nil && !o.Verdict.Pass:
+		return "expected"
+	case len(diffs) > 0:
+		return diffs[0].Class
+	}
+	return ""
+}
+
 // itemLine is an item's line, and with verbose every difference under it.
 func itemLine(it item, width int, verbose bool) string {
 	var b strings.Builder
@@ -222,7 +231,7 @@ func itemLine(it item, width int, verbose bool) string {
 		first = append(first, fmt.Sprintf("✗ expected %s: %s", v.Expect, v.Reason))
 	}
 	if len(it.diffs) > 0 && !verbose {
-		first = append(first, it.diffs[0].text)
+		first = append(first, it.diffs[0].Text)
 		if n := len(it.diffs) - 1; n > 0 {
 			first = append(first, fmt.Sprintf("(+%d more)", n))
 		}
@@ -241,7 +250,7 @@ func itemLine(it item, width int, verbose bool) string {
 		fmt.Fprintf(&b, "      %s\n", r.Link)
 	}
 	for _, d := range it.diffs {
-		fmt.Fprintf(&b, "      %-11s %s\n", d.class, d.text)
+		fmt.Fprintf(&b, "      %-11s %s\n", d.Class, d.Text)
 	}
 	if o.Diff != nil {
 		b.WriteString(storageTable(o.Diff.Storage))
@@ -256,16 +265,16 @@ func itemLine(it item, width int, verbose bool) string {
 	return b.String()
 }
 
-// differences are a diff's differences, worst class first, in the order
+// Differences are a replay's differences, worst class first, in the order
 // outcome, return value, events, storage, auth, resources within a class.
-func differences(o Outcome) []difference {
+func Differences(o Outcome) []Difference {
 	d := o.Diff
 	if d == nil || d.Empty {
 		return nil
 	}
-	var out []difference
+	var out []Difference
 	add := func(class, format string, args ...any) {
-		out = append(out, difference{class, fmt.Sprintf(format, args...)})
+		out = append(out, Difference{class, fmt.Sprintf(format, args...)})
 	}
 	if x := d.Outcome; x != nil {
 		add(x.Class, "return: %s → %s", side(o.A), side(o.B))
@@ -321,7 +330,7 @@ func differences(o Outcome) []difference {
 		}
 		return len(groups)
 	}
-	slices.SortStableFunc(out, func(a, b difference) int { return rank(a.class) - rank(b.class) })
+	slices.SortStableFunc(out, func(a, b Difference) int { return rank(a.Class) - rank(b.Class) })
 	return out
 }
 

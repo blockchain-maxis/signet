@@ -227,6 +227,7 @@ func TestEveryRequestSchemaHasAGoStruct(t *testing.T) {
 	known["trace"] = true           // a document inside results: the Trace struct
 	known["signet-dev-toml"] = true // signet.dev.toml's schema: internal/devconfig
 	known["bundle"] = true          // a repro bundle file: internal/bundle
+	known["ci-report"] = true       // signet dev --ci --report: internal/cmd
 	var missing []string
 	for _, e := range entries {
 		typ := strings.TrimSuffix(e.Name(), ".json")

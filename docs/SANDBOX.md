@@ -344,6 +344,43 @@ transaction (`include_failed`) is high-fidelity when A fails too. A
 low-fidelity replay's diff is shown but does not fail `--ci` unless
 `fail_on_low_fidelity = true`.
 
+## `signet dev --ci`
+
+The checks that run on save also gate a pull request (#639). `--ci` builds
+once, runs every replay, prints the cycle without colour, and exits with a
+code a pipeline can branch on:
+
+| Exit | Meaning |
+| --- | --- |
+| 0 | clean |
+| 10 | a difference in a `--fail-on` class, or a replay that missed its `expect` |
+| 12 | the build failed |
+| 6, 7 | a network problem, a timeout |
+| 11 | the network runs a protocol this simulator has no lane for |
+| 13 | the simulator failed |
+
+```bash
+signet dev --ci --report report.json --junit junit.xml --fail-on breaking,spec,layout
+```
+
+- `--fail-on` takes `breaking`, `behavioural` and `cost` (a replay with a
+  difference of that class fails), `spec` (a breaking interface change) and
+  `layout` (a stored value the build cannot read). The default is
+  `breaking,spec,layout`. A low-fidelity real replay fails only with
+  `fail_on_low_fidelity = true`.
+- `--report` writes JSON, schema
+  [`ci-report.json`](../sandbox/protocol/schema/v1/ci-report.json): the build,
+  each replay with its differences, verdict and fidelity, the interface and
+  layout findings, which failed, and the exit code.
+- `--junit` writes JUnit XML: one testcase per replay, per interface change
+  and per layout finding, or one for the build when it failed. A failure's
+  message is the first difference, as the terminal shows it.
+- Without `--bundle` the run forks the live network, so real-transaction
+  replays and the fetched state depend on it, and the report says so. With
+  `--bundle repro.json` it runs offline on the bundle's state and calls
+  (`signet sandbox export`, [Repro bundles](#repro-bundles)), with fetching
+  denied.
+
 ## Protocol support
 
 A Soroban host only runs at its own ledger protocol, so `signet-simulator`

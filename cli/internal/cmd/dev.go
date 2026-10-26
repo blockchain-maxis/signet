@@ -21,6 +21,7 @@ import (
 	"github.com/blockchain-maxis/signet/cli/internal/exitcode"
 	"github.com/blockchain-maxis/signet/cli/internal/fork"
 	"github.com/blockchain-maxis/signet/cli/internal/keys"
+	"github.com/blockchain-maxis/signet/cli/internal/output"
 	"github.com/blockchain-maxis/signet/cli/internal/rpc"
 	"github.com/blockchain-maxis/signet/cli/internal/simulator"
 )
@@ -40,6 +41,7 @@ func newDevCmd() *cobra.Command {
 		scan      uint32
 		view      dev.RenderOptions
 		timings   string
+		ciOpts    ciFlags
 	)
 	cmd := &cobra.Command{
 		Use:   "dev [contract]",
@@ -54,22 +56,43 @@ directory); signet dev init writes one. Before anything starts, signet dev
 checks, in order and each with its own message: the stellar CLI, cargo, the
 wasm32v1-none Rust target, a contract (cdylib) crate at --path, the
 signet-simulator, and that the simulator runs the network's protocol (exit 11
-when it does not; exit 3 for the others).`,
+when it does not; exit 3 for the others).
+
+--ci builds once, runs every check and exits with a code a pipeline can
+branch on: 0 clean, 10 a difference in a --fail-on class (or a missed
+expect), 12 a build failure, 6 or 7 a network problem or timeout, 11 an
+unsupported protocol, 13 a simulator failure. --report writes a JSON report
+(sandbox/protocol/schema/v1/ci-report.json) and --junit a JUnit file with
+one testcase per replay, interface change and layout finding. With --bundle
+the checks run offline, on a repro bundle's state and calls (signet sandbox
+export), instead of a live fork.`,
 		Example: `  signet dev CASFJHI5PQSRWS7JV25CF7FOMRKIVBP3RXRP3E2GH2CV4BCAG7FUJRCN --path ./contracts/registry
   signet dev            # everything from signet.dev.toml
-  signet dev init CASF…RCN --path ./contracts/registry`,
+  signet dev init CASF…RCN --path ./contracts/registry
+  signet dev --ci --report report.json --junit junit.xml --fail-on breaking,spec`,
 		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if timings != "" && timings != "json" {
 				return &inputError{fmt.Sprintf("--timings takes json, not %q", timings)}
 			}
-			return runDev(cmd, args, path, pkg, ci, debounce, ui, scan, view, timings == "json")
+			if !ci && (ciOpts.bundle != "" || ciOpts.report != "" || ciOpts.junit != "" || cmd.Flags().Changed("fail-on")) {
+				return &inputError{"--bundle, --report, --junit and --fail-on go with --ci"}
+			}
+			var err error
+			if ciOpts.classes, err = parseFailOn(ciOpts.failOn); err != nil {
+				return err
+			}
+			return runDev(cmd, args, path, pkg, ci, debounce, ui, scan, view, timings == "json", ciOpts)
 		},
 	}
 	addRPCFlags(cmd)
 	cmd.Flags().StringVar(&path, "path", "", "the contract's crate directory (default: path in signet.dev.toml)")
 	cmd.Flags().StringVar(&pkg, "package", "", "the contract crate, when --path is a workspace with several (default: package in signet.dev.toml)")
-	cmd.Flags().BoolVar(&ci, "ci", false, "run once, non-interactively: a failed build exits 12")
+	cmd.Flags().BoolVar(&ci, "ci", false, "run once, non-interactively, and exit 0 (clean), 10 (a --fail-on difference) or 12 (a failed build)")
+	cmd.Flags().StringVar(&ciOpts.bundle, "bundle", "", "with --ci, run offline on this repro bundle's state and calls instead of a live fork")
+	cmd.Flags().StringVar(&ciOpts.report, "report", "", "with --ci, write a JSON report here")
+	cmd.Flags().StringVar(&ciOpts.junit, "junit", "", "with --ci, write a JUnit XML file here")
+	cmd.Flags().StringVar(&ciOpts.failOn, "fail-on", ciDefaultFailOn, "with --ci, what exits 10: breaking, behavioural, cost (replay differences), spec, layout")
 	cmd.Flags().DurationVar(&debounce, "debounce", dev.DefaultDebounce, "how long a burst of file changes must settle before one rebuild")
 	cmd.Flags().BoolVar(&ui.on, "ui", false, "also serve the local UI on 127.0.0.1 and open it")
 	cmd.Flags().BoolVar(&ui.noBrowser, "no-browser", false, "with --ui, print the UI's URL instead of opening a browser")
@@ -93,7 +116,7 @@ type devSetup struct {
 // uiFlags are signet dev's --ui and --no-browser.
 type uiFlags struct{ on, noBrowser bool }
 
-func runDev(cmd *cobra.Command, args []string, path, pkg string, ci bool, debounce time.Duration, ui uiFlags, scan uint32, view dev.RenderOptions, timings bool) error {
+func runDev(cmd *cobra.Command, args []string, path, pkg string, ci bool, debounce time.Duration, ui uiFlags, scan uint32, view dev.RenderOptions, timings bool, ciOpts ciFlags) error {
 	deps, err := depsFor(cmd)
 	if err != nil {
 		return err
@@ -178,6 +201,11 @@ func runDev(cmd *cobra.Command, args []string, path, pkg string, ci bool, deboun
 	if _, err := locate(ctx, deps.Version, printer.Progress); err != nil {
 		return err
 	}
+	report := &ciReport{Version: 1, Contract: setup.contract, Crate: setup.crate.Name, FailOn: ciOpts.classes}
+	failOnLow := setup.file != nil && setup.file.Replay.FailOnLowFidelity
+	if ci && ciOpts.bundle != "" {
+		return runDevBundle(ctx, deps, printer, binary, setup, ciOpts, report, view)
+	}
 	network, err := sandboxNetwork(cmd, deps)
 	if err != nil {
 		return err
@@ -222,7 +250,7 @@ func runDev(cmd *cobra.Command, args []string, path, pkg string, ci bool, deboun
 	if err := session.applyRules(setup.file, setup.contract, printer.Progress); err != nil {
 		return err
 	}
-	view.TTY = !printer.JSON && writerIsTerminal(printer.Out)
+	view.TTY = !ci && !printer.JSON && writerIsTerminal(printer.Out)
 	if f := setup.file; f != nil {
 		view.FailOnLowFidelity = f.Replay.FailOnLowFidelity
 	}
@@ -251,6 +279,11 @@ func runDev(cmd *cobra.Command, args []string, path, pkg string, ci bool, deboun
 		}
 		cycle = &c
 	case dev.IsBuildError(buildErr) && ci:
+		session.buildFailed(took, "", buildErr, printer.Progress)
+		report.buildFailed(took, buildErr)
+		if err := report.write(ciOpts); err != nil {
+			return err
+		}
 		return buildErr
 	case dev.IsBuildError(buildErr):
 		session.buildFailed(took, "", buildErr, printer.Progress)
@@ -268,7 +301,14 @@ func runDev(cmd *cobra.Command, args []string, path, pkg string, ci bool, deboun
 		}
 		return watchAndRebuild(ctx, setup, builder, session, debounce, printer.Progress)
 	}
-	return printer.Result(struct {
+	report.Network, report.ForkLedger, report.Protocol, report.Wasm = m.Network, m.ForkLedger, m.Protocol, builder.Last()
+	report.Note = fmt.Sprintf("ran on a live fork of %s at ledger %d: real-transaction replays and the fetched state depend on the network; --bundle runs offline", m.Network, m.ForkLedger)
+	report.Build.DurationMS = ms(took)
+	report.judge(cycle, failOnLow)
+	if err := report.write(ciOpts); err != nil {
+		return err
+	}
+	if err := printer.Result(struct {
 		Contract   string     `json:"contract"`
 		Network    string     `json:"network"`
 		ForkLedger uint32     `json:"forkLedger"`
@@ -277,10 +317,77 @@ func runDev(cmd *cobra.Command, args []string, path, pkg string, ci bool, deboun
 		Manifest   string     `json:"manifest"`
 		Wasm       string     `json:"wasm,omitempty"`
 		Cycle      *dev.Cycle `json:"cycle,omitempty"`
-	}{setup.contract, m.Network, m.ForkLedger, m.Protocol, setup.crate.Name, setup.crate.ManifestPath, builder.Last(), cycle}, func(w io.Writer) error {
+		Report     *ciReport  `json:"report"`
+	}{setup.contract, m.Network, m.ForkLedger, m.Protocol, setup.crate.Name, setup.crate.ManifestPath, builder.Last(), cycle, report}, func(w io.Writer) error {
 		_, err := fmt.Fprintln(w, header)
 		return err
-	})
+	}); err != nil {
+		return err
+	}
+	if n := report.failures(); n > 0 {
+		return &diffFoundError{n}
+	}
+	return nil
+}
+
+// runDevBundle is --ci --bundle: the build checked offline against a repro
+// bundle's state and calls (#573), with fetching denied.
+func runDevBundle(ctx context.Context, deps Deps, printer *output.Printer, binary string, setup devSetup, ciOpts ciFlags, report *ciReport, view dev.RenderOptions) error {
+	b, err := loadBundle(ciOpts.bundle)
+	if err != nil {
+		return err
+	}
+	if b.Fork.Contract != setup.contract {
+		return &inputError{fmt.Sprintf("%s is a bundle of %s, not %s", ciOpts.bundle, b.Fork.Contract, setup.contract)}
+	}
+	report.Offline, report.Network, report.ForkLedger, report.Protocol = true, b.Network.Name, b.Fork.Ledger, b.Simulator.Lane
+	report.Note = "ran offline on " + filepath.Base(ciOpts.bundle) + " (bundleHash " + b.BundleHash + ")"
+	view.TTY = false
+	builder := &dev.Builder{Stellar: binary, Crate: setup.crate}
+	began := time.Now()
+	built, buildErr := builder.Build(ctx)
+	took := time.Since(began)
+	report.Build.DurationMS = ms(took)
+	if buildErr != nil {
+		if !dev.IsBuildError(buildErr) {
+			return buildErr
+		}
+		printer.Progress(strings.TrimSuffix(dev.Render(dev.Frame{Build: took, BuildError: buildErr.Error()}, view), "\n"))
+		report.buildFailed(took, buildErr)
+		if err := report.write(ciOpts); err != nil {
+			return err
+		}
+		return buildErr
+	}
+	local, err := os.ReadFile(built.Wasm)
+	if err != nil {
+		return fmt.Errorf("%w: reading the build: %v", exitcode.ErrConfiguration, err)
+	}
+	report.Wasm = built.Wasm
+	sim, err := startSimulator(ctx, deps, printer.Progress)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = sim.Close() }()
+	if err := requireLane(sim.HelloAck(), b.Simulator.Lane); err != nil {
+		return err
+	}
+	cycle, err := replayBundle(ctx, sim, b, local)
+	if err != nil {
+		return err
+	}
+	printer.Progress(strings.TrimSuffix(dev.Render(dev.Frame{Build: took, Cycle: &cycle}, view), "\n"))
+	report.judge(&cycle, setup.file != nil && setup.file.Replay.FailOnLowFidelity)
+	if err := report.write(ciOpts); err != nil {
+		return err
+	}
+	if err := printer.Result(report, nil); err != nil {
+		return err
+	}
+	if n := report.failures(); n > 0 {
+		return &diffFoundError{n}
+	}
+	return nil
 }
 
 func newDevInitCmd() *cobra.Command {

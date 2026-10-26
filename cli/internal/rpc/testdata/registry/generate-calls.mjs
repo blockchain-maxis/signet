@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 // Writes calls-getLedgerEntries.json: what an RPC would answer for a pair of
 // contracts where one calls the other (#552), built from the sandbox's
-// `caller` and `callee` fixture WASMs (sandbox/fixtures). Not a recording:
+// `caller` and `callee` fixture WASMs (sandbox/fixtures), and a deployed
+// `counter_v1` for signet dev --ci's tests (#639). Not a recording:
 // the contracts are not deployed anywhere. Their ids are sha256 of a fixed
 // label, and their entries are dated before the registry's fork ledger
 // (4887004) with the registry's TTL, so a fork of them sees no drift.
@@ -28,7 +29,7 @@ const sha = (b) => createHash('sha256').update(b).digest();
 
 const entries = [];
 const ids = {};
-for (const name of ['caller', 'callee']) {
+for (const name of ['caller', 'callee', 'counter_v1']) {
   const wasm = readFileSync(join(root, 'sandbox', 'fixtures', 'wasm', `${name}.wasm`));
   const hash = sha(wasm);
   const id = sha(`signet-test-${name}`);
@@ -77,4 +78,8 @@ writeFileSync(
   join(here, 'calls-getLedgerEntries.json'),
   `${JSON.stringify({ contracts: ids, entries }, null, 2)}\n`,
 );
-console.log(`caller ${ids.caller}\ncallee ${ids.callee}`);
+console.log(
+  Object.entries(ids)
+    .map(([name, id]) => `${name} ${id}`)
+    .join('\n'),
+);

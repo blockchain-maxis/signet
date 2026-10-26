@@ -115,7 +115,9 @@ func TestDevPreflightNamesEachMissingPiece(t *testing.T) {
 	delete(e.rpc.override, "getLatestLedger")
 	e.rpc.mu.Unlock()
 
-	stdout, stderr, err := e.cli("dev", registryContract, "--path", crate, "--rpc-url", e.rpc.srv.URL, "--ci")
+	// The fake build is not the registry, so only its interface differs:
+	// --fail-on breaking leaves that out.
+	stdout, stderr, err := e.cli("dev", registryContract, "--path", crate, "--rpc-url", e.rpc.srv.URL, "--ci", "--fail-on", "breaking")
 	if err != nil {
 		t.Fatalf("%v\n%s", err, stderr)
 	}

@@ -1,0 +1,129 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://signet.dev/schemas/sandbox/v1/ci-report.json",
+  "title": "signet dev --ci report",
+  "description": "What signet dev --ci --report writes (#639): the build, every replay with its differences, the interface and storage layout findings, which of them failed under --fail-on, and the exit code. Not a wire message. See docs/SANDBOX.md.",
+  "type": "object",
+  "definitions": {
+    "difference": {
+      "type": "object",
+      "properties": {
+        "class": { "enum": ["breaking", "behavioural", "cost", "ignored"] },
+        "text": { "type": "string" }
+      },
+      "required": ["class", "text"],
+      "additionalProperties": false
+    },
+    "finding": {
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "class": { "type": "string" },
+        "reason": { "type": "string" },
+        "failed": { "type": "boolean" }
+      },
+      "required": ["name", "reason", "failed"],
+      "additionalProperties": false
+    }
+  },
+  "properties": {
+    "version": { "const": 1 },
+    "contract": { "type": "string" },
+    "network": { "type": "string" },
+    "fork_ledger": { "type": "integer", "minimum": 0 },
+    "protocol": { "type": "integer" },
+    "crate": { "type": "string" },
+    "wasm": { "type": "string" },
+    "offline": { "type": "boolean" },
+    "note": { "type": "string" },
+    "fail_on": {
+      "type": "array",
+      "items": { "enum": ["breaking", "behavioural", "cost", "spec", "layout"] },
+      "minItems": 1
+    },
+    "result": { "enum": ["clean", "failed", "build_failed"] },
+    "exit_code": { "enum": [0, 10, 12] },
+    "build": {
+      "type": "object",
+      "properties": {
+        "duration_ms": { "type": "number", "minimum": 0 },
+        "error": { "type": "string" }
+      },
+      "required": ["duration_ms"],
+      "additionalProperties": false
+    },
+    "summary": {
+      "type": "object",
+      "additionalProperties": { "type": "integer", "minimum": 0 }
+    },
+    "replays": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "properties": {
+          "name": { "type": "string" },
+          "source": { "enum": ["saved", "real"] },
+          "tx": { "type": "string" },
+          "link": { "type": "string" },
+          "group": {
+            "enum": ["", "expected", "breaking", "behavioural", "cost", "ignored", "low-fidelity"]
+          },
+          "failed": { "type": "boolean" },
+          "differences": { "type": "array", "items": { "$ref": "#/definitions/difference" } },
+          "verdict": {
+            "type": "object",
+            "properties": {
+              "expect": { "type": "string" },
+              "pass": { "type": "boolean" },
+              "reason": { "type": "string" }
+            },
+            "required": ["expect", "pass"],
+            "additionalProperties": false
+          },
+          "fidelity": {
+            "type": "object",
+            "properties": {
+              "high": { "type": "boolean" },
+              "reason": { "type": "string" }
+            },
+            "required": ["high"],
+            "additionalProperties": false
+          }
+        },
+        "required": ["name", "source", "group", "failed", "differences"],
+        "additionalProperties": false
+      }
+    },
+    "spec": { "type": "array", "items": { "$ref": "#/definitions/finding" } },
+    "layout": { "type": "array", "items": { "$ref": "#/definitions/finding" } },
+    "timing": {
+      "type": "object",
+      "properties": {
+        "install_ms": { "type": "number" },
+        "swap_ms": { "type": "number" },
+        "a_ms": { "type": "number" },
+        "b_ms": { "type": "number" },
+        "diff_ms": { "type": "number" }
+      },
+      "required": ["install_ms", "swap_ms", "a_ms", "b_ms", "diff_ms"],
+      "additionalProperties": false
+    }
+  },
+  "required": [
+    "version",
+    "contract",
+    "fork_ledger",
+    "protocol",
+    "crate",
+    "offline",
+    "fail_on",
+    "result",
+    "exit_code",
+    "build",
+    "summary",
+    "replays",
+    "spec",
+    "layout"
+  ],
+  "additionalProperties": false
+}

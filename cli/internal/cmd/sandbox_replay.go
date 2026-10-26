@@ -47,19 +47,9 @@ gives the same bytes on every platform, which CI checks.`,
 			if err != nil {
 				return err
 			}
-			raw, err := os.ReadFile(args[0])
+			b, err := loadBundle(args[0])
 			if err != nil {
-				return &inputError{err.Error()}
-			}
-			var b bundle.Bundle
-			if err := json.Unmarshal(raw, &b); err != nil {
-				return &inputError{fmt.Sprintf("%s is not a repro bundle: %v", args[0], err)}
-			}
-			if b.Version != bundle.Version {
-				return &inputError{fmt.Sprintf("%s is bundle version %d; this signet reads version %d", args[0], b.Version, bundle.Version)}
-			}
-			if hash, err := bundle.Hash(&b); err != nil || hash != b.BundleHash {
-				return &inputError{fmt.Sprintf("%s has been edited: its bundleHash %s does not match its content (%s)", args[0], b.BundleHash, hash)}
+				return err
 			}
 			local, err := base64.StdEncoding.DecodeString(b.Wasm.Local.Base64)
 			if err != nil {
@@ -82,7 +72,7 @@ gives the same bytes on every platform, which CI checks.`,
 			if err := requireLane(sim.HelloAck(), b.Simulator.Lane); err != nil {
 				return err
 			}
-			cycle, err := replayBundle(ctx, sim, &b, local)
+			cycle, err := replayBundle(ctx, sim, b, local)
 			if err != nil {
 				return err
 			}
@@ -140,6 +130,26 @@ gives the same bytes on every platform, which CI checks.`,
 	cmd.Flags().StringVar(&wasmPath, "wasm", "", "a WASM to run as the build instead of the bundle's")
 	cmd.Flags().StringVar(&stream, "stream", "", "write every call's full A and B results here, as NDJSON")
 	return cmd
+}
+
+// loadBundle reads a repro bundle, refusing another version or an edited
+// one.
+func loadBundle(path string) (*bundle.Bundle, error) {
+	raw, err := os.ReadFile(path)
+	if err != nil {
+		return nil, &inputError{err.Error()}
+	}
+	var b bundle.Bundle
+	if err := json.Unmarshal(raw, &b); err != nil {
+		return nil, &inputError{fmt.Sprintf("%s is not a repro bundle: %v", path, err)}
+	}
+	if b.Version != bundle.Version {
+		return nil, &inputError{fmt.Sprintf("%s is bundle version %d; this signet reads version %d", path, b.Version, bundle.Version)}
+	}
+	if hash, err := bundle.Hash(&b); err != nil || hash != b.BundleHash {
+		return nil, &inputError{fmt.Sprintf("%s has been edited: its bundleHash %s does not match its content (%s)", path, b.BundleHash, hash)}
+	}
+	return &b, nil
 }
 
 // requireLane refuses a bundle recorded on a lane this simulator lacks.
