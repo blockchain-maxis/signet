@@ -167,6 +167,15 @@ jobs:
       - name: Build
         run: pnpm build
 
+      # The SDK's publishable output (#655): Node imports dist/ with no
+      # TypeScript loader, the browser bundle stays under its gzipped budget,
+      # and npm pack would publish dist/ and the README only.
+      - name: SDK build output
+        run: |
+          pnpm --filter @signet/sdk smoke:node
+          pnpm --filter @signet/sdk check:size
+          pnpm --filter @signet/sdk check:pack
+
       # The page equivalent of the wasm size budget below: fails when the
       # contract page's first-load JS grows past its declared budget. Reads the
       # build's per-route stats, so it must run after Build.
@@ -485,6 +494,12 @@ jobs:
       # exactly one lane: this one takes everything else.
       - name: Run e2e smoke tests
         run: pnpm --filter @signet/web exec playwright test --grep-invert @db
+
+      # The SDK's browser bundle (#655) in a blank page, with a stubbed API.
+      - name: SDK browser bundle
+        run: |
+          pnpm --filter @signet/sdk build
+          pnpm --filter @signet/sdk test:browser
 
       # The signet dev local UI (#586): axe on every view, in the dark and
       # light themes, and a keyboard-only run, against the built bundle and

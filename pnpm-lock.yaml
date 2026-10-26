@@ -254,11 +254,13 @@ importers:
         version: 5.9.3
 
   packages/sdk:
-    dependencies:
-      '@signet/types':
-        specifier: workspace:*
-        version: link:../types
     devDependencies:
+      '@playwright/test':
+        specifier: 1.64.1
+        version: 1.64.1
+      esbuild:
+        specifier: 0.28.0
+        version: 0.28.0
       openapi-typescript:
         specifier: ^7.13.0
         version: 7.13.0(typescript@5.9.3)

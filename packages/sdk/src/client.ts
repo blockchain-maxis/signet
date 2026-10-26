@@ -107,7 +107,9 @@ export class SignetClient {
 
   constructor(options: SignetClientOptions) {
     this.baseUrl = options.baseUrl.replace(/\/$/, '');
-    this.fetchImpl = options.fetch ?? globalThis.fetch;
+    // Bound: a browser's fetch called as a method of another object throws
+    // "Illegal invocation".
+    this.fetchImpl = options.fetch ?? globalThis.fetch?.bind(globalThis);
     this.timeoutMs = options.timeoutMs ?? DEFAULT_TIMEOUT_MS;
     this.maxRetries = options.maxRetries ?? DEFAULT_MAX_RETRIES;
     this.apiKey = options.apiKey;

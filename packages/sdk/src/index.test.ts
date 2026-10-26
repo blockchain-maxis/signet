@@ -4,8 +4,8 @@ import * as sdk from './index.ts';
 
 /**
  * Regression test for the public export surface. `types.ts` deliberately
- * curates what it re-exports from `@signet/types` instead of `export *`-ing
- * everything — see the comment there for why. This asserts the boundary at
+ * declares its few domain types instead of re-exporting `@signet/types` —
+ * see the comment there for why. This asserts the boundary at
  * runtime so a careless `export *` (or a new accidental re-export) fails a
  * test instead of silently becoming part of the next npm publish.
  */

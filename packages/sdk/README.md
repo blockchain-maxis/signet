@@ -250,14 +250,30 @@ answers and are never retried.
 
 ## Compatibility
 
-- **Node.js 22+** — the package is ESM-only (`"type": "module"`) and relies on the global
-  `fetch`. On older Node, pass `options.fetch` (e.g. `undici`). It currently ships
-  TypeScript sources (`main`/`types` → `src/index.ts`), so a Node consumer needs a
-  TypeScript-aware loader such as `node --experimental-strip-types`, `tsx`, or a bundler.
-- **Browsers** — works in any browser with `fetch`. v1 sends
-  `Access-Control-Allow-Origin: *`, so a cross-origin `baseUrl` works. Don't put an
-  `apiKey` in browser code.
-- **No runtime dependencies.** `@signet/types` is types-only and erases at build time.
+- **Node.js 22+** — ESM only (`"type": "module"`), built to `dist/` as JavaScript with
+  `.d.ts` declarations, so no TypeScript loader is needed. It relies on the global
+  `fetch`; on older Node, pass `options.fetch` (e.g. `undici`).
+- **Browsers** — bundlers pick the `browser` export, `dist/browser/signet.min.js`: one
+  minified ES module with no Node built-ins, about 2 kB gzipped (CI fails it over 12 kB).
+  Without a bundler, import it directly:
+
+  ```html
+  <script type="module">
+    import { SignetClient } from '/vendor/signet.min.js';
+    const health = await new SignetClient({ baseUrl: 'https://signet.example' }).getHealth();
+  </script>
+  ```
+
+  v1 sends `Access-Control-Allow-Origin: *`, so a cross-origin `baseUrl` works. Don't put
+  an `apiKey` in browser code.
+- **No runtime dependencies.**
+- **Inside this monorepo** the `development` export condition points at `src/`
+  (`customConditions` in `tsconfig.base.json`), so workspaces typecheck against the
+  sources without building first.
+
+Building: `pnpm --filter @signet/sdk build` writes `dist/`. `smoke:node`, `check:size`,
+`check:pack` (what `npm pack` would publish) and `test:browser` (the bundle in Chromium)
+check it; CI runs all four.
 
 ## Testing against the SDK
 

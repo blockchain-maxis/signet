@@ -1,19 +1,28 @@
 // Deliberate public type surface for @signet/sdk.
 //
-// `@signet/types` is the shared, internal domain-type package consumed by
-// every workspace (web, indexer, sdk, contracts tooling) — most of what it
-// exports (handle-validation internals, `RESERVED_HANDLES`, the package's own
-// `SIGNET_TYPES_VERSION` marker)
-// exists for those internal consumers, not for SDK integrators. Blindly
-// re-exporting all of it (`export *`) would make every one of those internal
-// shapes part of this package's public npm contract, so a later internal
-// refactor becomes a breaking change for external consumers who never asked
-// for that shape in the first place.
-//
-// Only the types that actually appear in `SignetClient`'s method signatures
-// are re-exported below. See `index.test.ts` for a regression test that
-// fails if an internal export leaks back in.
-export type { Handle, StellarAddress, RegistryEntry, RegistryCount } from '@signet/types';
+// The handful of domain types the client's signatures use are declared here,
+// not re-exported from the internal `@signet/types` package: that package is
+// private to the monorepo, so a published `.d.ts` that imported it would not
+// resolve for anyone outside it, and re-exporting it would make its internal
+// shapes part of this package's public contract. `index.test.ts` fails if an
+// internal export leaks in.
+
+/** A Signet handle: lowercase, `/^[a-z0-9_-]{1,32}$/`. */
+export type Handle = string;
+
+/** A Stellar account or contract address (G… / C…). */
+export type StellarAddress = string;
+
+/** A single handle ↔ wallet binding from the on-chain registry. */
+export interface RegistryEntry {
+  handle: Handle;
+  wallet: StellarAddress;
+}
+
+/** The registry's binding counter. */
+export interface RegistryCount {
+  count: number;
+}
 
 import type { components, operations } from './generated/v1.ts';
 

@@ -3,7 +3,7 @@
   "version": "0.1.0",
   "private": true,
   "license": "Apache-2.0",
-  "description": "Read-only client for the Signet API \u2014 fetch a developer's verifiable Stellar/Soroban career record by handle.",
+  "description": "Read-only client for the Signet API — fetch a developer's verifiable Stellar/Soroban career record by handle.",
   "keywords": [
     "signet",
     "stellar",
@@ -22,23 +22,38 @@
     "url": "https://github.com/blockchain-maxis/signet/issues"
   },
   "type": "module",
-  "main": "./src/index.ts",
-  "types": "./src/index.ts",
+  "sideEffects": false,
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
   "exports": {
-    ".": "./src/index.ts"
+    ".": {
+      "development": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "browser": "./dist/browser/signet.min.js",
+      "import": "./dist/index.js",
+      "default": "./dist/index.js"
+    },
+    "./package.json": "./package.json"
   },
+  "files": [
+    "dist",
+    "README.md"
+  ],
   "scripts": {
-    "build": "tsc --noEmit",
+    "build": "node scripts/build.mjs",
     "typecheck": "tsc --noEmit",
     "lint": "eslint . --config ../../eslint.config.js",
     "test": "node --experimental-strip-types --test \"src/**/*.test.ts\"",
     "generate": "node scripts/generate-v1.mjs",
-    "generate:check": "node scripts/generate-v1.mjs --check"
-  },
-  "dependencies": {
-    "@signet/types": "workspace:*"
+    "generate:check": "node scripts/generate-v1.mjs --check",
+    "check:size": "node scripts/check-size.mjs",
+    "check:pack": "node scripts/check-pack.mjs",
+    "smoke:node": "node scripts/smoke-node.mjs",
+    "test:browser": "playwright test"
   },
   "devDependencies": {
+    "@playwright/test": "1.64.1",
+    "esbuild": "0.28.0",
     "openapi-typescript": "^7.13.0",
     "typescript": "^5.6.3"
   }

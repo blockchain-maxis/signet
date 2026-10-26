@@ -334,3 +334,18 @@ test('every request carries an abort signal', async () => {
   assert.ok(seenSignal instanceof AbortSignal);
   assert.equal(seenSignal?.aborted, false);
 });
+
+test('the default fetch is called bound to globalThis, as browsers require', async () => {
+  const original = globalThis.fetch;
+  const seen: unknown[] = [];
+  globalThis.fetch = async function (this: unknown) {
+    seen.push(this);
+    return new Response(JSON.stringify({ data: { status: 'ok' } }));
+  } as typeof fetch;
+  try {
+    await new SignetClient({ baseUrl: BASE }).getHealth();
+  } finally {
+    globalThis.fetch = original;
+  }
+  assert.deepEqual(seen, [globalThis]);
+});
