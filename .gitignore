@@ -24,6 +24,8 @@ packages/db/src/generated/
 
 # Logs
 *.log
+# The sandbox tutorial's recorded run is a fixture, not a log (#643).
+!sandbox/testdata/tutorial/session.log
 npm-debug.log*
 pnpm-debug.log*
 
