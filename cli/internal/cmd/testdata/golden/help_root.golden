@@ -14,6 +14,7 @@ Usage:
 Identity & linking:
   identity    Resolve the Stellar identity signet will sign with
   link        Attach this machine's deploy wallet to your Signet handle
+  status      Show the deployment, your identity and handle, and indexing progress
   unlink      Detach this machine's deploy wallet from its Signet profile
   whoami      Show the identity, deploy key, and handle signet is configured as
 

@@ -7,12 +7,18 @@ the handle; signing a challenge with your local identity proves you control
 the deploy key. Both are required, and signet never reads your secret key —
 signing goes through the stellar CLI.
 
+The profile shows the wallet's contracts once Signet's indexer has scanned
+it. --wait keeps signet running until then (5m by default, or
+--wait=<duration>) and prints what it found; running out of time is not an
+error. signet status shows the same progress later.
+
 Usage:
   signet link [flags]
 
 Flags:
-  -h, --help         help for link
-      --no-browser   print the approval URL instead of opening a browser
+  -h, --help                 help for link
+      --no-browser           print the approval URL instead of opening a browser
+      --wait duration[=5m]   after linking, wait up to this long for the indexer to scan the wallet (--wait alone: 5m)
 
 Global Flags:
       --context string         deployment context to use (overrides SIGNET_CONTEXT and the config file's current context)

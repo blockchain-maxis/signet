@@ -1,0 +1,27 @@
+$ signet status --help
+-- stdout --
+Prints the context signet uses (deployment and network) and the
+deployment's health, the identity signet signs as, its public key and the
+handle it is linked to, and, for each of the handle's wallets, whether the
+indexer has scanned it yet.
+
+A wallet that was just linked shows "indexing" until the indexer has scanned
+it; its contracts appear on the profile after that.
+
+Usage:
+  signet status [flags]
+
+Flags:
+  -h, --help   help for status
+
+Global Flags:
+      --context string         deployment context to use (overrides SIGNET_CONTEXT and the config file's current context)
+      --insecure               allow a plain-http deployment URL on a non-local host (signed challenges travel in cleartext; use only against a deployment you control)
+      --json                   write a single JSON result to stdout instead of human-readable output (diagnostics go to stderr)
+      --network string         Stellar network to talk to (overrides SIGNET_NETWORK, the context, and default "testnet")
+      --sign-with-key string   identity to sign with, for non-interactive use (same value as STELLAR_SIGN_WITH_KEY; not remembered)
+      --source string          identity to sign as (remembered in the config file for next time)
+      --url string             Signet deployment URL (overrides SIGNET_URL, the config file, and the default)
+-- stderr --
+(empty)
+-- exit 0 --

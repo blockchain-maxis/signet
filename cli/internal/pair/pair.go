@@ -13,6 +13,7 @@ package pair
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"net/http"
 	"net/url"
@@ -185,4 +186,77 @@ func (c *Client) WhoAmI(ctx context.Context, publicKey string) (Identity, error)
 		Source:    d.Source,
 		IsPrimary: d.IsPrimary,
 	}, nil
+}
+
+// Health is what `GET /api/v1/health` reports about a deployment.
+type Health struct {
+	Status  string `json:"status"`
+	Network string `json:"network"`
+	Checks  struct {
+		DB       string `json:"db"`
+		Registry string `json:"registry"`
+		Pairing  string `json:"pairing"`
+	} `json:"checks"`
+}
+
+// Health asks a deployment how it is (`GET /api/v1/health`).
+func (c *Client) Health(ctx context.Context) (Health, error) {
+	var out struct {
+		Data Health `json:"data"`
+	}
+	if err := c.api.Get(ctx, "/api/v1/health", &out); err != nil {
+		return Health{}, err
+	}
+	return out.Data, nil
+}
+
+// Wallet is one wallet linked to a handle, as
+// `GET /api/v1/profiles/{handle}/wallets` lists it.
+type Wallet struct {
+	Address   string `json:"address"`
+	IsPrimary bool   `json:"isPrimary"`
+	Source    string `json:"source"`
+	// IndexingPending is true until the indexer has scanned the wallet since
+	// it was (re)linked.
+	IndexingPending bool `json:"indexingPending"`
+}
+
+// Wallets lists the wallets linked to a handle, primary first.
+func (c *Client) Wallets(ctx context.Context, handle string) ([]Wallet, error) {
+	var out struct {
+		Data []Wallet `json:"data"`
+	}
+	if err := c.api.Get(ctx, "/api/v1/profiles/"+url.PathEscape(handle)+"/wallets", &out); err != nil {
+		return nil, err
+	}
+	return out.Data, nil
+}
+
+// ContractCount is how many contracts a handle's wallets deployed.
+type ContractCount struct {
+	Count int `json:"count"`
+	// LowerBound is true when the deployment could only list part of them.
+	LowerBound bool `json:"lowerBound"`
+}
+
+// Contracts counts the contracts a handle deployed, from the first page of
+// `GET /api/v1/profiles/{handle}/contracts`: its exact total, or, when the
+// list is partial, the page's length as a lower bound.
+func (c *Client) Contracts(ctx context.Context, handle string) (ContractCount, error) {
+	var out struct {
+		Data []json.RawMessage `json:"data"`
+		Meta struct {
+			Total      *int    `json:"total"`
+			Truncated  bool    `json:"truncated"`
+			NextCursor *string `json:"nextCursor"`
+		} `json:"meta"`
+	}
+	path := "/api/v1/profiles/" + url.PathEscape(handle) + "/contracts?limit=100"
+	if err := c.api.Get(ctx, path, &out); err != nil {
+		return ContractCount{}, err
+	}
+	if out.Meta.Total != nil && !out.Meta.Truncated {
+		return ContractCount{Count: *out.Meta.Total}, nil
+	}
+	return ContractCount{Count: len(out.Data), LowerBound: true}, nil
 }

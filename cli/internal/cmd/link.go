@@ -17,6 +17,7 @@ import (
 	"github.com/blockchain-maxis/signet/cli/internal/keys"
 	"github.com/blockchain-maxis/signet/cli/internal/link"
 	"github.com/blockchain-maxis/signet/cli/internal/loopback"
+	"github.com/blockchain-maxis/signet/cli/internal/pair"
 	"github.com/blockchain-maxis/signet/cli/internal/redact"
 	"github.com/blockchain-maxis/signet/cli/internal/spec"
 )
@@ -33,6 +34,7 @@ func init() { register(groupIdentity, newLinkCmd) }
 // invite typing one you do not own, and the server would refuse it anyway.
 func newLinkCmd() *cobra.Command {
 	var noBrowser bool
+	var wait time.Duration
 
 	cmd := &cobra.Command{
 		Use:   "link",
@@ -42,7 +44,12 @@ func newLinkCmd() *cobra.Command {
 signet prints a URL to approve in your browser. Approving it proves you own
 the handle; signing a challenge with your local identity proves you control
 the deploy key. Both are required, and signet never reads your secret key —
-signing goes through the stellar CLI.`,
+signing goes through the stellar CLI.
+
+The profile shows the wallet's contracts once Signet's indexer has scanned
+it. --wait keeps signet running until then (5m by default, or
+--wait=<duration>) and prints what it found; running out of time is not an
+error. signet status shows the same progress later.`,
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			deps, err := depsFor(cmd)
@@ -128,7 +135,12 @@ signing goes through the stellar CLI.`,
 			result.PublicKey = redact.Secrets(result.PublicKey)
 			result.Network = redact.Secrets(result.Network)
 
-			return printer.Result(result, func(w io.Writer) error {
+			out := linkResult{Result: result}
+			if wait > 0 && result.Handle != "" {
+				out.Indexing = waitForIndexing(cmd.Context(), client, result.Handle, publicKey, wait, printer.Progress)
+			}
+
+			return printer.Result(out, func(w io.Writer) error {
 				handle := result.Handle
 				if handle == "" {
 					handle = "your handle"
@@ -139,15 +151,87 @@ signing goes through the stellar CLI.`,
 				if result.Status == "already-linked" {
 					verb = "Already linked:"
 				}
-				_, err := fmt.Fprintf(w, "%s %s to %s on %s.\n", verb, result.PublicKey, handle, result.Network)
-				return err
+				if _, err := fmt.Fprintf(w, "%s %s to %s on %s.\n", verb, result.PublicKey, handle, result.Network); err != nil {
+					return err
+				}
+				if ix := out.Indexing; ix != nil {
+					if ix.Done {
+						_, err := fmt.Fprintf(w, "indexed: %s found\n", contractsPhrase(ix.contractCount()))
+						return err
+					}
+					_, err := fmt.Fprint(w, "still indexing, check `signet status` later\n")
+					return err
+				}
+				return nil
 			})
 		},
 	}
 
 	cmd.Flags().BoolVar(&noBrowser, "no-browser", false, "print the approval URL instead of opening a browser")
+	cmd.Flags().DurationVar(&wait, "wait", 0, "after linking, wait up to this long for the indexer to scan the wallet (--wait alone: 5m)")
+	cmd.Flags().Lookup("wait").NoOptDefVal = "5m"
 
 	return cmd
+}
+
+// linkResult is link's --json result: the link, and with --wait what the
+// indexer did.
+type linkResult struct {
+	link.Result
+	Indexing *linkIndexing `json:"indexing,omitempty"`
+}
+
+// linkIndexing is --wait's outcome. Done is false when the wait ran out.
+type linkIndexing struct {
+	Done       bool `json:"done"`
+	Contracts  *int `json:"contracts,omitempty"`
+	LowerBound bool `json:"contractsLowerBound,omitempty"`
+}
+
+func (ix *linkIndexing) contractCount() pair.ContractCount {
+	n := 0
+	if ix.Contracts != nil {
+		n = *ix.Contracts
+	}
+	return pair.ContractCount{Count: n, LowerBound: ix.LowerBound}
+}
+
+// linkWaitInterval is how often --wait asks; a variable so tests need not
+// sleep real seconds.
+var linkWaitInterval = 5 * time.Second
+
+// waitForIndexing polls the handle's wallets until the linked one is no
+// longer waiting for the indexer, or the wait runs out (#630). Running out,
+// or a deployment that cannot answer, is not a failure: the link itself
+// succeeded.
+func waitForIndexing(ctx context.Context, client *pair.Client, handle, publicKey string, wait time.Duration, progress func(string)) *linkIndexing {
+	ctx, cancel := context.WithTimeout(ctx, wait)
+	defer cancel()
+	progress(fmt.Sprintf("Waiting up to %s for the indexer to scan %s…", wait, publicKey))
+	for {
+		if wallets, err := client.Wallets(ctx, handle); err == nil && indexed(wallets, publicKey) {
+			ix := &linkIndexing{Done: true}
+			if c, err := client.Contracts(ctx, handle); err == nil {
+				ix.Contracts, ix.LowerBound = &c.Count, c.LowerBound
+			}
+			return ix
+		}
+		select {
+		case <-ctx.Done():
+			return &linkIndexing{Done: false}
+		case <-time.After(linkWaitInterval):
+		}
+	}
+}
+
+// indexed reports whether publicKey is among wallets and scanned.
+func indexed(wallets []pair.Wallet, publicKey string) bool {
+	for _, w := range wallets {
+		if w.Address == publicKey {
+			return !w.IndexingPending
+		}
+	}
+	return false
 }
 
 // linkPollInterval overrides link.PollInterval when non-zero. A variable so a

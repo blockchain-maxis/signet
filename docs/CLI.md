@@ -148,6 +148,59 @@ currently resolves to. An unlinked key says so, and says what to do about it.
 key appears in either mode; the public key comes from `stellar keys address`,
 so signet never holds one to print.
 
+### Waiting for the indexer
+
+A new link shows on the profile once Signet's indexer has scanned the wallet,
+which can take a few minutes. `signet link --wait` keeps going until then (5
+minutes by default, or `--wait=<duration>` such as `--wait=90s`), then prints
+what it found:
+
+```bash
+signet link --wait
+# Linked GCKI… to @alice on testnet.
+# indexed: 3 contracts found
+```
+
+Running out of time is not an error: it prints `still indexing, check
+\`signet status\` later` and exits `0`, because the link itself succeeded. With
+`--json` the result gains `indexing: { done, contracts?, contractsLowerBound? }`.
+
+`signet status` shows the same progress at any time:
+
+```bash
+signet status
+# deployment: https://signet.example (context prod)
+# network:    testnet
+# health:     ok (database up, registry up, pairing up)
+# identity:   deploy
+# publicKey:  GCKIZN6RQPU73ORI5Q6HM3PMRELBELH2DITSWEEU7G4K2E227BXPUX6U
+# handle:     @alice
+# wallets:
+#   GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN  indexed  primary, onchain
+#   GCKIZN6RQPU73ORI5Q6HM3PMRELBELH2DITSWEEU7G4K2E227BXPUX6U  indexing cli, this key
+# contracts:  3 contracts
+```
+
+It reads `GET /api/v1/health`, `GET /api/v1/lookup/{publicKey}`, and for a
+linked key `GET /api/v1/profiles/{handle}/wallets` and
+`/api/v1/profiles/{handle}/contracts`. A deployment that does not answer its
+health check is reported as `unreachable`, not as a failure.
+
+`signet status --json` prints one object:
+
+| Key | Type | Meaning |
+| --- | --- | --- |
+| `context` | string, omitted when none | The active context's name |
+| `deployment` | string | The deployment URL |
+| `network` | string | The network signet is set to |
+| `health` | object | `{ status, db, registry, pairing }` from the health check, or `{ status: "unreachable", error }` |
+| `identity` | string | The identity signet signs as |
+| `publicKey` | string | Its public key |
+| `handle` | string | The linked handle, `""` when not linked |
+| `linked` | boolean | Whether the key is linked |
+| `wallets` | array or null | `{ address, isPrimary, source, indexingPending, this }` per wallet of the handle; null when not linked or the deployment did not list them. `this` marks the key signet uses. |
+| `contracts` | object or null | `{ count, lowerBound }`: how many contracts the handle's wallets deployed; `lowerBound` when the deployment could only list part |
+
 ### Unlinking
 
 ```bash

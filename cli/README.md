@@ -97,6 +97,17 @@ Ctrl-C while waiting prints `pairing abandoned; the link expires at …` to stde
 and exits `130`. Linking a wallet that is already bound to your handle reports
 `status: "already-linked"` instead of `"linked"`.
 
+`--wait[=<duration>]` keeps `link` running until the indexer has scanned the
+wallet (5m by default) and prints `indexed: N contracts found`; running out of
+time prints `still indexing, check \`signet status\` later` and exits 0.
+
+### `signet status`
+
+Prints the deployment, its network and health, the identity, public key and
+linked handle, and for each of the handle's wallets whether the indexer has
+scanned it yet, with the contract count. `--json` emits the object documented
+in [docs/CLI.md](../docs/CLI.md#waiting-for-the-indexer).
+
 ### `signet whoami`
 
 ```bash
