@@ -1,4 +1,12 @@
-import type { Handle, ProfileResponse, RegistryCount, RegistryEntry, V1Data } from './types.ts';
+import type {
+  Handle,
+  ProfileResponse,
+  RegistryCount,
+  RegistryEntry,
+  V1Data,
+  V1Meta,
+  V1Schemas,
+} from './types.ts';
 import {
   ApiError,
   NetworkError,
@@ -279,5 +287,188 @@ export class SignetClient {
   async countRegistryEntries(): Promise<RegistryCount> {
     const { data } = await this.request<V1Data<'getRegistryStats'>>('/registry/stats');
     return { count: data.boundHandles ?? 0 };
+  }
+
+  /** Every wallet linked to a handle, primary first (`GET /api/v1/profiles/{handle}/wallets`); null for an unknown handle. */
+  async getWallets(handle: Handle): Promise<V1Data<'getHandleWallets'> | null> {
+    return this.dataOrNull(`/profiles/${encodeURIComponent(handle)}/wallets`);
+  }
+
+  /**
+   * One page of the contracts a handle's wallets deployed, newest first
+   * (`GET /api/v1/profiles/{handle}/contracts`). Pass `meta.nextCursor` back as
+   * `cursor` for the next page; `meta.truncated` says the list may be partial.
+   */
+  async listContracts(
+    handle: Handle,
+    options: PageOptions = {},
+  ): Promise<Page<V1Schemas['ProfileContract'], V1Meta<'getProfileContracts'>>> {
+    return this.page(`/profiles/${encodeURIComponent(handle)}/contracts`, options);
+  }
+
+  /**
+   * The contract when one of the handle's wallets deployed it
+   * (`GET /api/v1/profiles/{handle}/contracts/{address}`), else null: the same
+   * rule as the contract page. A contract another handle deployed and one that
+   * does not exist are both null.
+   */
+  async getContract(handle: Handle, address: string): Promise<V1Data<'getProfileContract'> | null> {
+    return this.dataOrNull(
+      `/profiles/${encodeURIComponent(handle)}/contracts/${encodeURIComponent(address)}`,
+    );
+  }
+
+  /**
+   * Whether a handle deployed a contract: the grant-portal call. `attribution`
+   * says how it was established (the indexer, or a deployer check over Horizon)
+   * and which of the handle's wallets deployed it. A lookup the deployment
+   * could not make still throws (`UnavailableError`), so "could not check" is
+   * never reported as "not verified".
+   */
+  async verifyDeployment(
+    handle: Handle,
+    address: string,
+  ): Promise<{ verified: boolean; attribution?: V1Data<'getProfileContract'>['attribution'] }> {
+    const contract = await this.getContract(handle, address);
+    return contract ? { verified: true, attribution: contract.attribution } : { verified: false };
+  }
+
+  /** A deployed contract's embedded interface (`GET /api/v1/contracts/{address}/spec`); null when there is none. */
+  async getContractSpec(address: string): Promise<V1Data<'getContractSpec'> | null> {
+    return this.dataOrNull(`/contracts/${encodeURIComponent(address)}/spec`);
+  }
+
+  /** The interface of a WASM by its SHA-256 (`GET /api/v1/specs/{wasmHash}`); null when unknown. */
+  async getSpecByHash(wasmHash: string): Promise<V1Data<'getSpecByHash'> | null> {
+    return this.dataOrNull(`/specs/${encodeURIComponent(wasmHash)}`);
+  }
+
+  /**
+   * One page of a handle's operations, newest first
+   * (`GET /api/v1/profiles/{handle}/operations`).
+   */
+  async listOperations(
+    handle: Handle,
+    options: PageOptions = {},
+  ): Promise<Page<V1Schemas['Operation'], V1Meta<'getProfileOperations'>>> {
+    return this.page(`/profiles/${encodeURIComponent(handle)}/operations`, options);
+  }
+
+  /**
+   * The whole reverse lookup (`GET /api/v1/lookup/{address}`): the handle,
+   * how the wallet was linked (`source`) and whether it is primary. `handle`
+   * is null for a wallet linked to nothing.
+   */
+  async lookupAddress(address: string): Promise<V1Data<'lookupWallet'>> {
+    return (await this.request<V1Data<'lookupWallet'>>(`/lookup/${encodeURIComponent(address)}`))
+      .data;
+  }
+
+  /** The registry and index counts (`GET /api/v1/registry/stats`); a count is null when its layer was unreadable. */
+  async getRegistryStats(): Promise<V1Data<'getRegistryStats'>> {
+    return (await this.request<V1Data<'getRegistryStats'>>('/registry/stats')).data;
+  }
+
+  /** The deployment's health (`GET /api/v1/health`). */
+  async getHealth(): Promise<V1Data<'getHealth'>> {
+    return (await this.request<V1Data<'getHealth'>>('/health')).data;
+  }
+
+  /**
+   * Every contract a handle deployed, following `nextCursor` page by page.
+   * When the deployment's list is partial (capped, or no layer could
+   * enumerate), the iteration ends early by design: `truncated` is then true
+   * once it is done, and the iterator's final result is `{ truncated }`.
+   */
+  iterateContracts(
+    handle: Handle,
+    options: { pageSize?: number } = {},
+  ): PageIterator<V1Schemas['ProfileContract']> {
+    return new PageIterator((cursor) =>
+      this.listContracts(handle, { cursor, limit: options.pageSize }),
+    );
+  }
+
+  /** Every operation of a handle, as `iterateContracts` does for contracts. */
+  iterateOperations(
+    handle: Handle,
+    options: { pageSize?: number } = {},
+  ): PageIterator<V1Schemas['Operation']> {
+    return new PageIterator((cursor) =>
+      this.listOperations(handle, { cursor, limit: options.pageSize }),
+    );
+  }
+
+  private async page<T, M>(path: string, options: PageOptions): Promise<Page<T, M>> {
+    const res = await this.request<T[], M>(path, {
+      query: { limit: options.limit, cursor: options.cursor },
+    });
+    return { data: res.data, meta: res.meta as M };
+  }
+}
+
+export interface PageOptions {
+  /** Page size; the server's default (25) and maximum (100) apply. */
+  limit?: number;
+  /** `meta.nextCursor` from the previous page. */
+  cursor?: string | null;
+}
+
+/** One page of a list endpoint. */
+export interface Page<T, M> {
+  data: T[];
+  meta: M;
+}
+
+/** What an iteration ends with. */
+export interface IterationEnd {
+  /** True when the deployment's list was partial, so the iteration stopped early. */
+  truncated: boolean;
+}
+
+interface PageMetaLike {
+  nextCursor: string | null;
+  truncated: boolean;
+}
+
+/**
+ * An `AsyncIterable` over a cursor-paginated list. `for await` yields every
+ * item; `truncated` is null until the iteration is done, then whether the
+ * list was partial.
+ */
+export class PageIterator<T> implements AsyncIterableIterator<T> {
+  /** Null until the iteration is done; then whether the list was partial. */
+  truncated: boolean | null = null;
+  private readonly items: AsyncGenerator<T, IterationEnd>;
+
+  constructor(fetchPage: (cursor: string | null) => Promise<Page<T, PageMetaLike>>) {
+    this.items = this.walk(fetchPage);
+  }
+
+  private async *walk(
+    fetchPage: (cursor: string | null) => Promise<Page<T, PageMetaLike>>,
+  ): AsyncGenerator<T, IterationEnd> {
+    let cursor: string | null = null;
+    let truncated = false;
+    do {
+      const page = await fetchPage(cursor);
+      yield* page.data;
+      truncated = truncated || page.meta.truncated;
+      cursor = page.meta.nextCursor;
+    } while (cursor);
+    this.truncated = truncated;
+    return { truncated };
+  }
+
+  next(): Promise<IteratorResult<T, IterationEnd>> {
+    return this.items.next();
+  }
+
+  return(): Promise<IteratorResult<T, IterationEnd>> {
+    return this.items.return({ truncated: this.truncated ?? false });
+  }
+
+  [Symbol.asyncIterator](): this {
+    return this;
   }
 }

@@ -147,6 +147,11 @@ jobs:
       - name: Typecheck
         run: pnpm typecheck
 
+      # The SDK's response types are generated from docs/api/openapi-v1.json
+      # (#654); fails when they are stale against the snapshot.
+      - name: Check the SDK's generated v1 types
+        run: pnpm --filter @signet/sdk generate:check
+
       - name: Test
         run: pnpm test
 

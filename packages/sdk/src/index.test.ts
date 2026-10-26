@@ -30,6 +30,7 @@ test('exports the deliberate public surface: the client, its errors, and nothing
     'ApiError',
     'NetworkError',
     'NotFoundError',
+    'PageIterator',
     'RateLimitedError',
     'SignetClient',
     'SignetError',

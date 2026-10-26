@@ -143,6 +143,53 @@ the on-chain bound wallet or one linked from the CLI. A `C…` contract ID is a
 The registry's own binding counter: an upper bound, not a live total, because a binding
 that lapses from on-chain storage unaccessed is never subtracted.
 
+### Contracts and verification
+
+| Method | Requests | Returns |
+|--|--|--|
+| `listContracts(handle, { limit, cursor })` | `GET /api/v1/profiles/{handle}/contracts` | `{ data, meta }`: one page, newest deploy first |
+| `getContract(handle, address)` | `GET /api/v1/profiles/{handle}/contracts/{address}` | the contract, or `null` unless one of the handle's wallets deployed it |
+| `verifyDeployment(handle, address)` | the same | `{ verified, attribution? }` |
+| `getContractSpec(address)` | `GET /api/v1/contracts/{address}/spec` | the embedded interface, or `null` |
+| `getSpecByHash(wasmHash)` | `GET /api/v1/specs/{wasmHash}` | the interface, or `null` |
+
+`verifyDeployment` is the grant-portal call: did this applicant's handle deploy the
+contract they say they built? `attribution` says how Signet knows (`indexer`, or a
+`deployer-check` over Horizon on a deployment without a database) and which of the
+handle's wallets deployed it. A contract another handle deployed and one that does not
+exist are both `{ verified: false }`. When the deployment could not check at all, the call
+throws `UnavailableError` rather than answering "not verified".
+
+```ts
+const { verified, attribution } = await signet.verifyDeployment('alice', 'CA…');
+```
+
+### Wallets, operations, lookup, stats, health
+
+| Method | Requests | Returns |
+|--|--|--|
+| `getWallets(handle)` | `GET /api/v1/profiles/{handle}/wallets` | every linked wallet, primary first, or `null` |
+| `listOperations(handle, { limit, cursor })` | `GET /api/v1/profiles/{handle}/operations` | `{ data, meta }`: one page |
+| `lookupAddress(address)` | `GET /api/v1/lookup/{address}` | `{ address, handle, source, isPrimary, network }` (`handle` null when unlinked) |
+| `getRegistryStats()` | `GET /api/v1/registry/stats` | `{ boundHandles, indexedContracts, indexedWallets, network }` |
+| `getHealth()` | `GET /api/v1/health` | the deployment's health checks |
+
+### Iterating every page
+
+`iterateContracts(handle)` and `iterateOperations(handle)` are `AsyncIterable`s that
+follow `meta.nextCursor` until the list ends (`{ pageSize }` sets the page size):
+
+```ts
+const contracts = signet.iterateContracts('alice');
+for await (const c of contracts) console.log(c.address);
+if (contracts.truncated) console.log('the deployment could only list part of them');
+```
+
+A list the deployment can only give in part (a capped Horizon walk, or no layer able to
+enumerate) ends early **by design**: `truncated` is `null` while iterating and, once done,
+`true` when the list was partial. Reading the iterator by hand, the final result is
+`{ done: true, value: { truncated } }`.
+
 ### `client.request(path, { query })`
 
 The transport the methods use, for any v1 endpoint: `GET {baseUrl}/api/v1{path}`, with
