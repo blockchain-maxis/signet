@@ -9,8 +9,8 @@ import (
 	"testing"
 )
 
-// The exit-code taxonomy is documented twice — cli/README.md and docs/CLI.md
-// both carry an "Exit codes" table — and #528's acceptance is that neither
+// The exit-code taxonomy is documented three times — cli/README.md,
+// docs/CLI.md and docs/SANDBOX.md each carry an "Exit codes" table — and #528's acceptance is that neither
 // can drift from sentinelCodes: this test parses both tables and compares
 // the code sets against the source of truth. Codes 0–2 (OK, Generic,
 // InvalidInput) are documented but deliberately outside the sentinel table
@@ -62,6 +62,8 @@ func TestDocsTablesMatchSentinelCodes(t *testing.T) {
 	docs := map[string][]int{
 		"../../README.md":      exitCodeTable(t, "../../README.md"),
 		"../../../docs/CLI.md": exitCodeTable(t, "../../../docs/CLI.md"),
+		// The sandbox guide's troubleshooting table (#642).
+		"../../../docs/SANDBOX.md": exitCodeTable(t, "../../../docs/SANDBOX.md"),
 	}
 
 	want := map[int]bool{OK: true, Generic: true, InvalidInput: true}

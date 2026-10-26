@@ -38,6 +38,7 @@ call before listing it, and takes its headline number from the contract's own
 | `/p/{handle}` | Profile for any handle bound on the registry (404 otherwise) |
 | `/how-it-works` | How Signet works + what's coming |
 | [`docs/CLI.md`](docs/CLI.md) | Terminal linking: install, the link flow and what each step proves, CI usage, exit codes, troubleshooting |
+| [`docs/SANDBOX.md`](docs/SANDBOX.md) | The contract sandbox: run a deployed contract locally on a fork, and `signet dev` to compare a new build with it before shipping |
 
 ## What's working in this build
 

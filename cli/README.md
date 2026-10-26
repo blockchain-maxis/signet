@@ -12,6 +12,9 @@ structured result, but it doesn't yet perform a real on-chain claim or call a
 deployment's HTTP API — that (along with local key management) lands in
 follow-up issues once `internal/keys`/`internal/spec` are implemented.
 
+The contract sandbox (`signet sandbox`, `signet dev`) has its own user guide:
+[`docs/SANDBOX.md`](../docs/SANDBOX.md).
+
 ## The `stellar` CLI dependency
 
 `internal/keys` delegates identity resolution and signing to the [Stellar

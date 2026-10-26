@@ -1,5 +1,8 @@
 # Design: contract sandbox
 
+> The sandbox as built (`signet sandbox`, `signet dev`) is documented for
+> users in [`SANDBOX.md`](SANDBOX.md). This note is the design reasoning.
+
 **Status:** design note. Nothing here is built yet, and per the roadmap item this
 follows terminal linking rather than preceding it. The note exists so the shape
 is settled before then — and because investigating it turned up something that

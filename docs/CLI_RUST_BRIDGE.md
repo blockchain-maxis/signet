@@ -1,5 +1,9 @@
 # The Go ↔ Rust bridge (design note)
 
+> What the bridge means for someone using the sandbox, including the two
+> handshake failures and where a crash's stderr shows, is in the user guide:
+> [`SANDBOX.md`](SANDBOX.md#troubleshooting).
+
 This is a design note, not implementation. **No Rust crate is scaffolded by
 this document** — it exists so the boundary between the Go CLI
 (`cli/cmd`, `cli/internal`) and the Rust contract simulator (`sandbox/simulator`)
