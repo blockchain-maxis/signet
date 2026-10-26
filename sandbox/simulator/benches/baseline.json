@@ -2,12 +2,12 @@
   "runner": "GitHub ubuntu-latest",
   "unit": "ns, median",
   "benchmarks": {
-    "calibration": 0,
-    "cold_start": 729610,
-    "swap": 43153,
-    "simulate_claim": 395261,
-    "simulate_claim_traced": 514554,
-    "replays_20": 13465504,
-    "diff": 84434
+    "calibration": 44541,
+    "cold_start": 985970,
+    "swap": 80955,
+    "simulate_claim": 699422,
+    "simulate_claim_traced": 836297,
+    "replays_20": 24007337,
+    "diff": 169654
   }
 }
