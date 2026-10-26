@@ -42,6 +42,7 @@ func newDevCmd() *cobra.Command {
 		view      dev.RenderOptions
 		timings   string
 		ciOpts    ciFlags
+		ln        localnetFlags
 	)
 	cmd := &cobra.Command{
 		Use:   "dev [contract]",
@@ -65,7 +66,16 @@ unsupported protocol, 13 a simulator failure. --report writes a JSON report
 (sandbox/protocol/schema/v1/ci-report.json) and --junit a JUnit file with
 one testcase per replay, interface change and layout finding. With --bundle
 the checks run offline, on a repro bundle's state and calls (signet sandbox
-export), instead of a live fork.`,
+export), instead of a live fork.
+
+--localnet also runs a local network (Stellar Quickstart, in Docker, through
+stellar container start) at the fork's protocol, or uses one already running
+at localhost:8000, and deploys each successful build to it: upgraded in place
+when the deployed code can replace itself through upgrade(BytesN<32>),
+otherwise deployed fresh. .signet/localnet.json says where it is. The fork
+keeps running as before; localnet starts from genesis, so --localnet-seed
+recreates state by running the calls marked seed = true as real transactions,
+and says what it could not recreate.`,
 		Example: `  signet dev CASFJHI5PQSRWS7JV25CF7FOMRKIVBP3RXRP3E2GH2CV4BCAG7FUJRCN --path ./contracts/registry
   signet dev            # everything from signet.dev.toml
   signet dev init CASF…RCN --path ./contracts/registry
@@ -78,11 +88,14 @@ export), instead of a live fork.`,
 			if !ci && (ciOpts.bundle != "" || ciOpts.report != "" || ciOpts.junit != "" || cmd.Flags().Changed("fail-on")) {
 				return &inputError{"--bundle, --report, --junit and --fail-on go with --ci"}
 			}
+			if err := ln.check(cmd, ci); err != nil {
+				return err
+			}
 			var err error
 			if ciOpts.classes, err = parseFailOn(ciOpts.failOn); err != nil {
 				return err
 			}
-			return runDev(cmd, args, path, pkg, ci, debounce, ui, scan, view, timings == "json", ciOpts)
+			return runDev(cmd, args, path, pkg, ci, debounce, ui, scan, view, timings == "json", ciOpts, ln)
 		},
 	}
 	addRPCFlags(cmd)
@@ -100,6 +113,7 @@ export), instead of a live fork.`,
 	cmd.Flags().BoolVar(&view.Clear, "clear", false, "clear the screen before each cycle (on a terminal)")
 	cmd.Flags().StringVar(&timings, "timings", "", "json: also write each cycle's time by phase (and the start's) to stderr, one JSON object per line")
 	cmd.Flags().Uint32Var(&scan, "scan-ledgers", 0, "also scan the newest N ledgers for the contract's transactions that emitted no event (slow: every transaction in them is decoded)")
+	addLocalnetFlags(cmd, &ln)
 	cmd.AddCommand(newDevInitCmd())
 	return cmd
 }
@@ -116,7 +130,7 @@ type devSetup struct {
 // uiFlags are signet dev's --ui and --no-browser.
 type uiFlags struct{ on, noBrowser bool }
 
-func runDev(cmd *cobra.Command, args []string, path, pkg string, ci bool, debounce time.Duration, ui uiFlags, scan uint32, view dev.RenderOptions, timings bool, ciOpts ciFlags) error {
+func runDev(cmd *cobra.Command, args []string, path, pkg string, ci bool, debounce time.Duration, ui uiFlags, scan uint32, view dev.RenderOptions, timings bool, ciOpts ciFlags, ln localnetFlags) error {
 	deps, err := depsFor(cmd)
 	if err != nil {
 		return err
@@ -290,6 +304,15 @@ func runDev(cmd *cobra.Command, args []string, path, pkg string, ci bool, deboun
 	default:
 		return buildErr
 	}
+	var local *devLocalnet
+	if ln.on {
+		if local, err = startLocalnet(ctx, ln, binary, m.Protocol, logDir, setup, session, printer.Out, printer.Progress); err != nil {
+			return err
+		}
+		if buildErr == nil {
+			local.deploy(ctx, built.Wasm)
+		}
+	}
 	if !ci {
 		if ui.on {
 			sessionView := &uiSession{deps: deps, network: network, session: session, builder: builder, setup: &setup}
@@ -299,7 +322,7 @@ func runDev(cmd *cobra.Command, args []string, path, pkg string, ci bool, deboun
 			}
 			defer stopUI()
 		}
-		return watchAndRebuild(ctx, setup, builder, session, debounce, printer.Progress)
+		return watchAndRebuild(ctx, setup, builder, session, debounce, local, printer.Progress)
 	}
 	report.Network, report.ForkLedger, report.Protocol, report.Wasm = m.Network, m.ForkLedger, m.Protocol, builder.Last()
 	report.Note = fmt.Sprintf("ran on a live fork of %s at ledger %d: real-transaction replays and the fetched state depend on the network; --bundle runs offline", m.Network, m.ForkLedger)
@@ -600,7 +623,7 @@ func plural(n int, one, many string) string {
 // source changes rebuilds, a newer one cancelling a build in flight, and a
 // change to signet.dev.toml alone replays without a rebuild. It runs until
 // Ctrl-C.
-func watchAndRebuild(ctx context.Context, setup devSetup, builder *dev.Builder, session *devSession, debounce time.Duration, progress func(string)) error {
+func watchAndRebuild(ctx context.Context, setup devSetup, builder *dev.Builder, session *devSession, debounce time.Duration, local *devLocalnet, progress func(string)) error {
 	files := []string{}
 	if root := setup.crate.WorkspaceRoot; root != "" {
 		files = append(files, filepath.Join(root, "Cargo.toml"), filepath.Join(root, "Cargo.lock"))
@@ -686,6 +709,9 @@ func watchAndRebuild(ctx context.Context, setup devSetup, builder *dev.Builder, 
 				active = o.built.Wasm
 				if !again {
 					replay(o.built.Wasm, o.took)
+					if local != nil {
+						local.deploy(ctx, o.built.Wasm)
+					}
 				}
 			default:
 				session.buildFailed(o.took, active, o.err, progress)

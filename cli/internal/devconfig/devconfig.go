@@ -102,6 +102,9 @@ type Call struct {
 	// Chain starts the call from the previous call's end state instead of
 	// from the fork (#567).
 	Chain bool `toml:"chain,omitempty"`
+	// Seed also runs the call as a real transaction on the local network
+	// after a fresh deploy, with signet dev --localnet-seed (#590).
+	Seed bool `toml:"seed,omitempty"`
 }
 
 // Expect is what a saved call should do: unchanged (the same result as

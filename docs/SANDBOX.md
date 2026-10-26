@@ -57,7 +57,7 @@ What else each part needs:
 | -------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
 | `signet sandbox fork`, `call`, `state` | a Stellar RPC (testnet has a default; set `--rpc-url` for any other)                                                       |
 | `signet dev`                           | the `stellar` CLI (25.2.0 or newer), Rust with `cargo`, and the `wasm32v1-none` target (`rustup target add wasm32v1-none`) |
-| `--localnet` (planned)                 | Docker                                                                                                                     |
+| `signet dev --localnet`                | Docker, and the `stellar` CLI's `container` commands                                                                       |
 
 `signet sandbox doctor` checks all of it at once: the simulator's lanes
 against your networks' protocols, and the `stellar`, `cargo` and Docker
@@ -593,12 +593,76 @@ is shared.
 
 ## Localnet
 
-`--localnet`, running against a local Stellar Quickstart network in Docker
-instead of a fork, is planned (#588, #589, #590) and not in this build. A
-fork covers the same ground for one contract, without Docker; a localnet will
-add what a fork cannot, such as several contracts deployed together from
-scratch. When it lands, this section will list what a fresh localnet is not
-seeded with (accounts, assets and contracts that exist on testnet).
+A fork answers questions about one contract, in process. A frontend or a wallet
+needs more: a real RPC that accepts real signed transactions. `signet dev
+--localnet` adds a local Stellar network next to the fork, with the current
+build deployed to it. It needs Docker; the fork keeps running exactly as
+before.
+
+```bash
+signet dev CASF…RCN --path ./contract --localnet
+# localnet: starting Quickstart at protocol 28 (stellar container start local --protocol-version 28)
+# localnet: healthy at http://localhost:8000/rpc
+# localnet: CDEV… · rpc http://localhost:8000/rpc · passphrase Standalone Network ; February 2017
+```
+
+- **Start or reuse.** A network already answering at
+  `http://localhost:8000/rpc` with the passphrase
+  `Standalone Network ; February 2017` is used as it is. Otherwise signet runs
+  `stellar container start local --protocol-version <the fork's protocol>`
+  (with `--localnet-limits` passed as `--limits`) and waits for it to be
+  healthy. Docker missing, Docker not running, the port held by something else
+  and another network answering there each stop with their own message.
+- **Deployer.** A `signet-dev` identity is made (or reused) and funded with
+  `stellar keys generate --fund --network local`; it deploys, upgrades and is
+  the admin.
+- **Every successful build** reaches localnet. When the deployed code can
+  replace its own executable (`wasm_inspect`) and exposes `upgrade` taking a
+  `BytesN<32>`, the new WASM is uploaded and `upgrade` invoked, so the address
+  and the storage stay. Otherwise the build is deployed fresh, and signet says
+  the address changed.
+- **`.signet/localnet.json`** is rewritten after each deploy, atomically (a
+  temporary file, then a rename), for a frontend or wallet to watch:
+  `{ contractId, rpcUrl, networkPassphrase, wasmHash, deployedAt, seedAccounts? }`.
+- **`--localnet-bindings <dir>`** runs `stellar contract bindings typescript`
+  into the directory after each deploy.
+
+### Seeding
+
+Quickstart starts from genesis and cannot import ledger entries, so the fork's
+storage cannot be copied over. The only honest way to recreate state is to send
+real transactions through the contract's own functions. With
+`--localnet-seed`, after each fresh deploy:
+
+1. A constructor, or an `initialize`, taking a single address is called with
+   `signet-dev` as that address (for the registry, `initialize(admin)`).
+2. Every `[[call]]` marked `seed = true` in `signet.dev.toml` runs, in order, as
+   a real transaction (`stellar contract invoke`). An account address in its
+   arguments is replaced by a funded localnet identity (`seed-1`, `seed-2`, …,
+   one per fork account, recorded in `localnet.json` as `seedAccounts`), and
+   the forked contract's own address by the localnet one.
+
+```toml
+[[call]]
+name = "alice claims"
+function = "claim"
+args = { handle = "alice", wallet = "GA5Z…KZVN" }
+expect = "ok"
+seed = true
+```
+
+Then it prints what is **not** seeded, every time:
+
+```text
+localnet: seeded by 1 real transaction; not seeded from the fork:
+  - the contract's address: localnet's is CDEV…, the fork's CASF…RCN (a contract ID derives from the network and the deployer)
+  - other accounts' balances and trustlines, and other contracts' state
+  - entries only an admin you don't control could have written
+  - historical timestamps and TTLs: localnet starts at genesis, at the current time
+  - anything written by transactions that are not in the seed list
+```
+
+An upgrade in place keeps localnet's storage, so it is not seeded again.
 
 ## Protocol support
 

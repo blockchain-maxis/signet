@@ -87,6 +87,10 @@
           "chain": {
             "type": "boolean",
             "description": "Start from the previous call's end state, on both sides, instead of from the fork (#567); not on the first call"
+          },
+          "seed": {
+            "type": "boolean",
+            "description": "With signet dev --localnet-seed, also run this call as a real transaction on the local network after each fresh deploy (#590)"
           }
         },
         "required": ["name", "function", "expect"],

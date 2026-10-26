@@ -21,6 +21,15 @@ one testcase per replay, interface change and layout finding. With --bundle
 the checks run offline, on a repro bundle's state and calls (signet sandbox
 export), instead of a live fork.
 
+--localnet also runs a local network (Stellar Quickstart, in Docker, through
+stellar container start) at the fork's protocol, or uses one already running
+at localhost:8000, and deploys each successful build to it: upgraded in place
+when the deployed code can replace itself through upgrade(BytesN<32>),
+otherwise deployed fresh. .signet/localnet.json says where it is. The fork
+keeps running as before; localnet starts from genesis, so --localnet-seed
+recreates state by running the calls marked seed = true as real transactions,
+and says what it could not recreate.
+
 Usage:
   signet dev [contract] [flags]
   signet dev [command]
@@ -43,6 +52,10 @@ Flags:
       --fail-on string              with --ci, what exits 10: breaking, behavioural, cost (replay differences), spec, layout (default "breaking,spec,layout")
   -h, --help                        help for dev
       --junit string                with --ci, write a JUnit XML file here
+      --localnet                    also run a local network (Stellar Quickstart, in Docker) with the current build deployed to it, redeployed after every successful build
+      --localnet-bindings string    with --localnet, write TypeScript bindings for the contract into this directory after each deploy
+      --localnet-limits string      with --localnet, the resource limits a new local network starts with (stellar container start --limits)
+      --localnet-seed               with --localnet, run the [[call]]s marked seed = true as real transactions after each fresh deploy
       --network-passphrase string   passphrase of a custom --network (checked against the RPC's getNetwork)
       --no-browser                  with --ui, print the UI's URL instead of opening a browser
       --package string              the contract crate, when --path is a workspace with several (default: package in signet.dev.toml)
