@@ -163,6 +163,7 @@ const ENV_ALLOW = new Set([
   'SIGNET_NETWORK', // shell env for the cli/ Go module (network override), not the pnpm workspace's .env
   'SIGNET_REGISTRY_WASM', // test input for the simulator's registry goldens (docs/SANDBOX.md), not app env
   'UPDATE_GOLDEN', // test flag that rewrites the simulator's goldens, not app env
+  'SIGNET_API_KEY', // examples/grant-portal's own env (an sgk_ key it sends), not this app's
 ]);
 
 /**
@@ -230,7 +231,7 @@ function loadPackageScripts() {
     const pkg = JSON.parse(fs.readFileSync(pkgPath, 'utf8'));
     if (pkg.name) scripts.set(pkg.name, new Set(Object.keys(pkg.scripts ?? {})));
   }
-  for (const base of ['apps', 'packages']) {
+  for (const base of ['apps', 'packages', 'examples']) {
     const baseDir = path.join(ROOT, base);
     if (!fs.existsSync(baseDir)) continue;
     for (const ent of fs.readdirSync(baseDir, { withFileTypes: true })) {
