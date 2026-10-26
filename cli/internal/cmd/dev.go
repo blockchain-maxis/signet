@@ -318,10 +318,7 @@ func runDev(cmd *cobra.Command, args []string, path, pkg string, ci bool, deboun
 		Wasm       string     `json:"wasm,omitempty"`
 		Cycle      *dev.Cycle `json:"cycle,omitempty"`
 		Report     *ciReport  `json:"report"`
-	}{setup.contract, m.Network, m.ForkLedger, m.Protocol, setup.crate.Name, setup.crate.ManifestPath, builder.Last(), cycle, report}, func(w io.Writer) error {
-		_, err := fmt.Fprintln(w, header)
-		return err
-	}); err != nil {
+	}{setup.contract, m.Network, m.ForkLedger, m.Protocol, setup.crate.Name, setup.crate.ManifestPath, builder.Last(), cycle, report}, nil); err != nil {
 		return err
 	}
 	if n := report.failures(); n > 0 {

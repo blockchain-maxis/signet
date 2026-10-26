@@ -16,6 +16,7 @@ import (
 	"github.com/blockchain-maxis/signet/cli/internal/dev"
 	"github.com/blockchain-maxis/signet/cli/internal/devconfig"
 	"github.com/blockchain-maxis/signet/cli/internal/exitcode"
+	"github.com/blockchain-maxis/signet/cli/internal/realtx"
 	"github.com/blockchain-maxis/signet/cli/internal/simulator"
 )
 
@@ -195,6 +196,9 @@ func replayBundle(ctx context.Context, sim *simulator.Client, b *bundle.Bundle, 
 		replays[i] = dev.Replay{Name: c.Name, Params: simulator.SimulateParams{Function: c.Function, Args: c.Args}, Chain: c.Chain}
 		if c.Source == "real" {
 			replays[i].Params.Args, replays[i].Params.ArgsXDR, replays[i].Params.SourceAccount = nil, c.ArgsXDR, c.SourceAccount
+			var tx realtx.Tx
+			tx.Hash, tx.Decoded.HostFunction.Function = c.Tx, c.Function
+			replays[i].Real = &dev.RealTx{Tx: tx, Unchecked: true}
 		}
 		if c.Expect != "" {
 			var e devconfig.Expect

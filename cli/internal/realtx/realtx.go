@@ -23,7 +23,9 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"regexp"
 	"slices"
+	"strconv"
 	"strings"
 
 	"github.com/blockchain-maxis/signet/cli/internal/rpc"
@@ -232,6 +234,12 @@ func Collect(ctx context.Context, client RPC, opts Options) (Report, error) {
 			req.Cursor = cursor
 		}
 		events, err := client.GetEvents(ctx, req)
+		if oldest, ok := outOfRange(err); ok && cursor == "" && oldest > report.From {
+			// The window moved between getHealth and getEvents: start
+			// where the RPC says it now starts.
+			report.From, req.StartLedger = oldest, oldest
+			events, err = client.GetEvents(ctx, req)
+		}
 		if err != nil {
 			return Report{}, fmt.Errorf("getEvents: %w", err)
 		}
@@ -362,6 +370,24 @@ func Collect(ctx context.Context, client RPC, opts Options) (Report, error) {
 		report.Transactions = report.Transactions[:opts.Limit]
 	}
 	return report, nil
+}
+
+// rangeError is how an RPC refuses a startLedger outside its window:
+// "startLedger must be within the ledger range: 5276464 - 5397423".
+var rangeError = regexp.MustCompile(`ledger range: (\d+) - \d+`)
+
+// outOfRange is the oldest ledger an RPC named when it refused a
+// startLedger as out of its range.
+func outOfRange(err error) (uint32, bool) {
+	if err == nil {
+		return 0, false
+	}
+	m := rangeError.FindStringSubmatch(err.Error())
+	if m == nil {
+		return 0, false
+	}
+	n, perr := strconv.ParseUint(m[1], 10, 32)
+	return uint32(n), perr == nil
 }
 
 // fetch reads a transaction from the cache, or from RPC into the cache. A

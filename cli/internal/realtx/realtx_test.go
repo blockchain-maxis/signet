@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -21,6 +22,9 @@ type fakeRPC struct {
 	txs    map[string]rpc.Transaction // what getTransaction finds
 	ledger []rpc.Transaction          // what getTransactions pages through
 	gets   int
+	// oldest is where the RPC's window really starts, when getHealth's
+	// answer is already stale.
+	oldest uint32
 }
 
 func (f *fakeRPC) GetHealth(context.Context) (rpc.Health, error) {
@@ -28,6 +32,9 @@ func (f *fakeRPC) GetHealth(context.Context) (rpc.Health, error) {
 }
 
 func (f *fakeRPC) GetEvents(_ context.Context, req rpc.EventsRequest) (rpc.Events, error) {
+	if f.oldest > 0 && req.Cursor == "" && req.StartLedger < f.oldest {
+		return rpc.Events{}, fmt.Errorf("RPC getEvents failed: startLedger must be within the ledger range: %d - 1100 (code -32600)", f.oldest)
+	}
 	if req.Cursor != "" {
 		return rpc.Events{}, nil
 	}
@@ -256,4 +263,19 @@ func TestDecodedReadsTheSimulatorsAnswer(t *testing.T) {
 		return
 	}
 	t.Fatal("no tx_decode answer in the transcript")
+}
+
+func TestAWindowThatMovedIsRetriedFromWhereTheRPCSaysItStarts(t *testing.T) {
+	f := &fakeRPC{
+		oldest: 1003,
+		events: []rpc.Event{{TxHash: "bb", Ledger: 1090, ContractID: contract}},
+		txs:    map[string]rpc.Transaction{"bb": tx("bb", 1090, contract+"|release")},
+	}
+	report, err := Collect(context.Background(), f, Options{Contract: contract, Limit: 20, Decode: decode})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if report.From != 1003 || len(report.Transactions) != 1 {
+		t.Fatalf("report: %+v", report)
+	}
 }

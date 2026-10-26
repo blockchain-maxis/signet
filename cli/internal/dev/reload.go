@@ -47,6 +47,9 @@ type Replay struct {
 type RealTx struct {
 	Tx   realtx.Tx
 	Link string
+	// Unchecked is a replay with no on-chain outcome to check fidelity
+	// against: a repro bundle's, offline.
+	Unchecked bool
 }
 
 // RealOutcome is a real transaction's replay: where it came from, and
@@ -379,8 +382,12 @@ func (r *Reloader) chain(ctx context.Context, replays []Replay, first int, local
 		o.Verdict = verdict(replay.Expect, *o)
 		if replay.Real != nil {
 			t := replay.Real.Tx
-			o.Real = &RealOutcome{Hash: t.Hash, Ledger: t.Ledger, Function: t.Function(), Link: replay.Real.Link,
-				Fidelity: realtx.CheckFidelity(t, o.A.Result, o.A.Error)}
+			o.Real = &RealOutcome{Hash: t.Hash, Ledger: t.Ledger, Function: t.Function(), Link: replay.Real.Link}
+			if replay.Real.Unchecked {
+				o.Real.Fidelity = realtx.Fidelity{High: true, Reason: "not checked: replayed offline, with no on-chain outcome to compare"}
+			} else {
+				o.Real.Fidelity = realtx.CheckFidelity(t, o.A.Result, o.A.Error)
+			}
 		}
 	}
 	return outcomes, runs, nil
