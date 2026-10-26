@@ -255,6 +255,45 @@ if any, is this `G…` wallet attributed to on this deployment?
 It replaces `GET /api/cli/whoami`, which older CLIs still call; that route now
 answers with a `Deprecation` header naming this one.
 
+### Badge
+
+`GET /api/v1/badge/{handle}.svg` (#656) is a "Verified by Signet" badge for a README or
+portfolio. Link it to the profile:
+
+```markdown
+[![Verified by Signet](https://signet.example/api/v1/badge/alice.svg)](https://signet.example/p/alice)
+```
+
+```html
+<a href="https://signet.example/p/alice"><img src="https://signet.example/api/v1/badge/alice.svg" alt="Verified by Signet: @alice" /></a>
+```
+
+It has four states, named in the `X-Signet-Badge-State` header:
+
+| State | Shows | When |
+| --- | --- | --- |
+| `verified` | `@alice · 3 contracts` | The handle is bound on this deployment. `N+` when the count is a lower bound; no count when no layer could list contracts. |
+| `verified` with `?contract=C…` | `@alice · deployed CAMY…EUXZ` | The contract's attribution check (the rule of the contract endpoint above) passed. |
+| `not-verified` | `@alice · contract not verified` | The handle is bound, but did not deploy `?contract=`, or it is not a contract ID. |
+| `not-found` | `not on Signet` | The registry answered that the handle is not bound. An invalid handle is never echoed. |
+| `unavailable` | `status unavailable`, grey | Signet could not check. Never a verdict either way. |
+
+Every badge also names the deployment's network in its own segment, striped on a test
+network, so a testnet badge cannot pass for a mainnet one.
+
+**What it asserts.** A verified badge means the handle is bound in this deployment's
+Identity Registry, on the network it shows, and (with `?contract=`) that one of the
+handle's wallets deployed that contract. It does not vouch for the contract's quality,
+safety or audit status, or for who the person behind the handle is.
+
+- Always `200 image/svg+xml`, so an `<img>` never breaks, even over the rate limit (which
+  renders `unavailable`).
+- `?style=flat` (the default) colours the message by state; `?style=plain` is one colour
+  family, the state carried by the words.
+- The SVG is self-contained: no fonts, images or scripts are fetched, every string is
+  escaped, and it has a `<title>`.
+- `Cache-Control: public, max-age=300` with a weak `ETag`; `unavailable` is `no-store`.
+
 ## Completeness
 
 `meta.source` says which layer answered, on every read whose answer depends on

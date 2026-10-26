@@ -5,6 +5,26 @@
  */
 
 export interface paths {
+    "/badge/{handle}.svg": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Verified by Signet badge
+         * @description A self-contained SVG badge for a README or portfolio. verified: the handle is bound on this deployment's network, with how many contracts its wallets deployed (N+ when the count is a lower bound); with ?contract=, only when that contract's attribution check passes. not-verified: the handle is bound but did not deploy ?contract=. not-found: no such handle. unavailable: Signet could not check (grey). Always 200 image/svg+xml so an embed never breaks; the state is in X-Signet-Badge-State. A verified badge means the handle is bound in the registry; it does not vouch for contract quality.
+         */
+        get: operations["getBadge"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/contracts/{address}/spec": {
         parameters: {
             query?: never;
@@ -579,6 +599,47 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    getBadge: {
+        parameters: {
+            query?: {
+                /** @description flat (colour by state, the default) or plain (one colour family). */
+                style?: "flat" | "plain";
+                /** @description A C... contract ID: the badge shows it as deployed only when the handle deployed it. */
+                contract?: string;
+            };
+            header?: never;
+            path: {
+                /** @description Handle (case-insensitive). An invalid handle renders not-found. */
+                handle: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The badge, in every state. */
+            200: {
+                headers: {
+                    /** @description public, max-age=300; no-store for unavailable. */
+                    "Cache-Control"?: string;
+                    /** @description Weak validator of the SVG. */
+                    ETag?: string;
+                    /** @description The state the badge shows. */
+                    "X-Signet-Badge-State"?: "verified" | "not-verified" | "not-found" | "unavailable";
+                    [name: string]: unknown;
+                };
+                content: {
+                    "image/svg+xml": string;
+                };
+            };
+            /** @description Not modified (If-None-Match matched the ETag). */
+            304: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     getContractSpec: {
         parameters: {
             query?: never;

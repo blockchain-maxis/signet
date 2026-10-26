@@ -1058,6 +1058,91 @@
   },
   "openapi": "3.1.0",
   "paths": {
+    "/badge/{handle}.svg": {
+      "get": {
+        "description": "A self-contained SVG badge for a README or portfolio. verified: the handle is bound on this deployment's network, with how many contracts its wallets deployed (N+ when the count is a lower bound); with ?contract=, only when that contract's attribution check passes. not-verified: the handle is bound but did not deploy ?contract=. not-found: no such handle. unavailable: Signet could not check (grey). Always 200 image/svg+xml so an embed never breaks; the state is in X-Signet-Badge-State. A verified badge means the handle is bound in the registry; it does not vouch for contract quality.",
+        "operationId": "getBadge",
+        "parameters": [
+          {
+            "description": "Handle (case-insensitive). An invalid handle renders not-found.",
+            "in": "path",
+            "name": "handle",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "flat (colour by state, the default) or plain (one colour family).",
+            "in": "query",
+            "name": "style",
+            "required": false,
+            "schema": {
+              "default": "flat",
+              "enum": [
+                "flat",
+                "plain"
+              ],
+              "type": "string"
+            }
+          },
+          {
+            "description": "A C... contract ID: the badge shows it as deployed only when the handle deployed it.",
+            "in": "query",
+            "name": "contract",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "image/svg+xml": {
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "description": "The badge, in every state.",
+            "headers": {
+              "Cache-Control": {
+                "description": "public, max-age=300; no-store for unavailable.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "ETag": {
+                "description": "Weak validator of the SVG.",
+                "schema": {
+                  "type": "string"
+                }
+              },
+              "X-Signet-Badge-State": {
+                "description": "The state the badge shows.",
+                "schema": {
+                  "enum": [
+                    "verified",
+                    "not-verified",
+                    "not-found",
+                    "unavailable"
+                  ],
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "304": {
+            "description": "Not modified (If-None-Match matched the ETag)."
+          }
+        },
+        "summary": "Verified by Signet badge",
+        "tags": [
+          "Badges"
+        ]
+      }
+    },
     "/contracts/{address}/spec": {
       "get": {
         "description": "Public chain data, without an attribution gate or registry fallback. The address mapping is short-lived: public, max-age=300, s-maxage=3600. Missing contracts return no_contract; a contract without an embedded interface returns no_embedded_spec.",

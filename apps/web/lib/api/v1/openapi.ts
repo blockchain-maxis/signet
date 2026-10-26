@@ -545,6 +545,60 @@ function specPath(byAddress: boolean): OpenApiPathItem {
 export const paths: Record<string, OpenApiPathItem> = {
   '/contracts/{address}/spec': specPath(true),
   '/specs/{wasmHash}': specPath(false),
+  '/badge/{handle}.svg': {
+    get: {
+      operationId: 'getBadge',
+      summary: 'Verified by Signet badge',
+      description:
+        "A self-contained SVG badge for a README or portfolio. verified: the handle is bound on this deployment's network, with how many contracts its wallets deployed (N+ when the count is a lower bound); with ?contract=, only when that contract's attribution check passes. not-verified: the handle is bound but did not deploy ?contract=. not-found: no such handle. unavailable: Signet could not check (grey). Always 200 image/svg+xml so an embed never breaks; the state is in X-Signet-Badge-State. A verified badge means the handle is bound in the registry; it does not vouch for contract quality.",
+      tags: ['Badges'],
+      parameters: [
+        {
+          name: 'handle',
+          in: 'path',
+          required: true,
+          description: 'Handle (case-insensitive). An invalid handle renders not-found.',
+          schema: { type: 'string' },
+        },
+        {
+          name: 'style',
+          in: 'query',
+          required: false,
+          description: 'flat (colour by state, the default) or plain (one colour family).',
+          schema: { type: 'string', enum: ['flat', 'plain'], default: 'flat' },
+        },
+        {
+          name: 'contract',
+          in: 'query',
+          required: false,
+          description:
+            'A C... contract ID: the badge shows it as deployed only when the handle deployed it.',
+          schema: { type: 'string' },
+        },
+      ],
+      responses: {
+        '200': {
+          description: 'The badge, in every state.',
+          headers: {
+            'X-Signet-Badge-State': {
+              description: 'The state the badge shows.',
+              schema: {
+                type: 'string',
+                enum: ['verified', 'not-verified', 'not-found', 'unavailable'],
+              },
+            },
+            'Cache-Control': {
+              description: 'public, max-age=300; no-store for unavailable.',
+              schema: { type: 'string' },
+            },
+            ETag: { description: 'Weak validator of the SVG.', schema: { type: 'string' } },
+          },
+          content: { 'image/svg+xml': { schema: { type: 'string' } } },
+        },
+        '304': { description: 'Not modified (If-None-Match matched the ETag).' },
+      },
+    },
+  },
   '/health': {
     get: {
       operationId: 'getHealth',
@@ -801,7 +855,8 @@ export const paths: Record<string, OpenApiPathItem> = {
           },
         },
         '400': {
-          description: 'Not a G... account address (a C... contract ID points to the contract endpoints).',
+          description:
+            'Not a G... account address (a C... contract ID points to the contract endpoints).',
           content: {
             'application/json': { schema: { $ref: '#/components/schemas/ErrorEnvelope' } },
           },
