@@ -77,8 +77,15 @@ func (b *Builder) Build(ctx context.Context) (Built, error) {
 		now = b.Now
 	}
 	start := now()
-	args := []string{"contract", "build", "--manifest-path", b.Crate.ManifestPath, "--package", b.Crate.Name}
+	manifest, absErr := filepath.Abs(b.Crate.ManifestPath)
+	if absErr != nil {
+		return Built{}, fmt.Errorf("%w: %v", exitcode.ErrConfiguration, absErr)
+	}
+	args := []string{"contract", "build", "--manifest-path", manifest, "--package", b.Crate.Name}
 	cmd := exec.Command(b.Stellar, args...)
+	// From the crate's directory, so cargo builds with the toolchain a
+	// rust-toolchain.toml there pins, not the working directory's.
+	cmd.Dir = filepath.Dir(manifest)
 	var output bytes.Buffer
 	cmd.Stdout, cmd.Stderr = &output, &output
 	ownGroup(cmd)

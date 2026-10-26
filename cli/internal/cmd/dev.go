@@ -188,7 +188,7 @@ func runDev(cmd *cobra.Command, args []string, path, pkg string, ci bool, deboun
 	if err := dev.CheckCargo(tools); err != nil {
 		return err
 	}
-	if err := dev.CheckWasmTarget(tools); err != nil {
+	if err := dev.CheckWasmTarget(tools, path); err != nil {
 		return err
 	}
 	if setup.crate, err = dev.FindCrate(tools, path, pkg); err != nil {

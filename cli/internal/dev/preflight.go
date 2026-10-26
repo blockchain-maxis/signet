@@ -35,11 +35,17 @@ func (t Tools) lookPath(name string) (string, error) {
 }
 
 func (t Tools) run(name string, args ...string) ([]byte, error) {
+	return t.runIn("", name, args...)
+}
+
+// runIn is run in dir; "" is the working directory.
+func (t Tools) runIn(dir, name string, args ...string) ([]byte, error) {
 	if t.Run != nil {
 		return t.Run(name, args...)
 	}
 	var stderr bytes.Buffer
 	cmd := exec.Command(name, args...)
+	cmd.Dir = dir
 	cmd.Stderr = &stderr
 	out, err := cmd.Output()
 	if err != nil && stderr.Len() > 0 {
@@ -61,17 +67,22 @@ func CheckCargo(t Tools) error {
 }
 
 // CheckWasmTarget is preflight step 3: the wasm32v1-none target is
-// installed.
-func CheckWasmTarget(t Tools) error {
+// installed for the toolchain that builds the crate at dir, which a
+// rust-toolchain.toml above it can pin to another than the working
+// directory's.
+func CheckWasmTarget(t Tools, dir string) error {
 	if _, err := t.lookPath("rustup"); err != nil {
 		return configuration("rustup is not on PATH, so the %s target cannot be checked: install Rust with rustup (https://rustup.rs)", WasmTarget)
 	}
-	out, err := t.run("rustup", "target", "list", "--installed")
+	if info, err := os.Stat(dir); err != nil || !info.IsDir() {
+		dir = "" // FindCrate says what is wrong with it
+	}
+	out, err := t.runIn(dir, "rustup", "target", "list", "--installed")
 	if err != nil {
 		return configuration("rustup target list --installed failed: %v", err)
 	}
 	if !slices.Contains(strings.Fields(string(out)), WasmTarget) {
-		return configuration("the %s Rust target is not installed: rustup target add %s", WasmTarget, WasmTarget)
+		return configuration("the %s Rust target is not installed for the toolchain that builds %s: rustup target add %s (run there)", WasmTarget, displayDir(dir), WasmTarget)
 	}
 	return nil
 }
@@ -136,4 +147,11 @@ func FindCrate(t Tools, path, pkg string) (Crate, error) {
 		return Crate{}, configuration("%s has several contract crates (%s): pick one with --package", manifest, strings.Join(names, ", "))
 	}
 	return contracts[0], nil
+}
+
+func displayDir(dir string) string {
+	if dir == "" {
+		return "the crate"
+	}
+	return dir
 }
