@@ -1,3 +1,6 @@
 packages:
   - "apps/*"
   - "packages/*"
+  # Runnable integrations of the public API (#657): built, typechecked and
+  # tested in CI with everything else.
+  - "examples/*"

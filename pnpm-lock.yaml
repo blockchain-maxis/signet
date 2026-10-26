@@ -224,6 +224,19 @@ importers:
         specifier: ^5.6.3
         version: 5.9.3
 
+  examples/grant-portal:
+    dependencies:
+      '@signet/sdk':
+        specifier: workspace:*
+        version: link:../../packages/sdk
+    devDependencies:
+      '@types/node':
+        specifier: ^20.16.0
+        version: 20.19.41
+      typescript:
+        specifier: ^5.6.3
+        version: 5.9.3
+
   packages/db:
     dependencies:
       '@prisma/client':

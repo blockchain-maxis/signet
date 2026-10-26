@@ -1,0 +1,13 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "noEmit": false,
+    "incremental": false,
+    "outDir": "dist",
+    "rewriteRelativeImportExtensions": true,
+    // Built output runs on plain Node, which resolves @signet/sdk's "import"
+    // export (its dist/), not the monorepo's "development" sources.
+    "customConditions": []
+  },
+  "exclude": ["src/**/*.test.ts"]
+}
