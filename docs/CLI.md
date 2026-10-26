@@ -136,6 +136,8 @@ signet whoami
 # publicKey:  GCKIZN6RQPU73ORI5Q6HM3PMRELBELH2DITSWEEU7G4K2E227BXPUX6U
 # deployment: https://signet.example
 # handle:     @alice
+# source:     cli
+# primary:    no, linked as an extra wallet
 ```
 
 Three of those are local — the identity, its public key, the deployment — and
@@ -406,7 +408,9 @@ involve a pairing:
 
 - `signet unlink` fetches a challenge (same as step 12), signs it, and sends
   `POST /api/cli/unlink {transaction}`.
-- `signet whoami` sends `GET /api/cli/whoami?publicKey=G…` and nothing else.
+- `signet whoami` sends `GET /api/v1/lookup/{publicKey}` and nothing else, or,
+  when a deployment older than that route answers it 404,
+  `GET /api/cli/whoami?publicKey=G…` (which carries no `source` or `isPrimary`).
 
 #### The approval URL and the loopback callback
 
@@ -438,7 +442,8 @@ bind a loopback port, it adds
 | `POST /api/cli/pair/reject` | `/link` page | Browser session cookie, plus a same-origin check. No profile is needed. |
 | `POST /api/cli/pair/complete` | CLI | A signed SEP-10 challenge for the deploy account, plus an already-approved pairing |
 | `POST /api/cli/unlink` | CLI | A signed SEP-10 challenge for the wallet being removed |
-| `GET /api/cli/whoami` | CLI | None. It answers from public data. |
+| `GET /api/v1/lookup/{address}` | CLI (`whoami`), anyone | None. It answers from public data. |
+| `GET /api/cli/whoami` | Older CLIs. Deprecated by `/api/v1/lookup/{address}` | None. It answers from public data. |
 | `GET /api/auth/sep10` | CLI | None. It issues the challenge. |
 | `GET` / `POST /api/cli-link` | Not called by the CLI yet **(#597)** | None for `GET`. `POST` checks a signed challenge. |
 
@@ -705,6 +710,12 @@ exit `9`.
 | 409 | `primary-wallet` | `That wallet is the profile’s primary wallet — releasing it is an on-chain registry operation, not an unlink` | `6` |
 
 #### `GET /api/cli/whoami?publicKey=G…`
+
+Deprecated (#645): `signet whoami` asks `GET /api/v1/lookup/{address}` (see
+[API_V1.md](API_V1.md#which-handle-is-a-wallet-linked-to)), which also says how
+the wallet was linked and whether it is primary. This route stays for older
+CLIs; every answer carries `Deprecation` and a `Link: <…>; rel="successor-version"`
+naming the v1 route.
 
 Success `200`:
 

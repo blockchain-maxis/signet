@@ -22,6 +22,10 @@ type whoamiResult struct {
 	Deployment string `json:"deployment"`
 	Handle     string `json:"handle"`
 	Linked     bool   `json:"linked"`
+	// Source is how the wallet was linked (onchain, cli, curated); absent
+	// when it is not linked, or the deployment predates /api/v1/lookup.
+	Source    string `json:"source,omitempty"`
+	IsPrimary bool   `json:"isPrimary"`
 }
 
 func init() { register(groupIdentity, newWhoamiCmd) }
@@ -40,7 +44,8 @@ func newWhoamiCmd() *cobra.Command {
 		Short: "Show the identity, deploy key, and handle signet is configured as",
 		Long: `Prints the identity signet will sign as, its Stellar public key, the
 deployment it talks to, and the handle that key is currently attributed to —
-or that it is not linked yet.
+or that it is not linked yet. For a linked key it also says how the wallet was
+linked (onchain, cli or curated) and whether it is the handle's primary wallet.
 
 Never prints a secret key: the public key is resolved through the stellar CLI,
 which keeps key material out of signet entirely.`,
@@ -87,6 +92,8 @@ which keeps key material out of signet entirely.`,
 				Deployment: redact.Secrets(resolved.BaseURL),
 				Handle:     redact.Secrets(identity.Handle),
 				Linked:     identity.Linked,
+				Source:     redact.Secrets(identity.Source),
+				IsPrimary:  identity.IsPrimary,
 			}
 
 			return printer.Result(result, func(out io.Writer) error {
@@ -100,7 +107,17 @@ which keeps key material out of signet entirely.`,
 					return err
 				}
 				if result.Linked {
-					_, err := fmt.Fprintf(out, "handle:     @%s\n", result.Handle)
+					if _, err := fmt.Fprintf(out, "handle:     @%s\n", result.Handle); err != nil {
+						return err
+					}
+					if result.Source == "" {
+						return nil
+					}
+					primary := "no, linked as an extra wallet"
+					if result.IsPrimary {
+						primary = "yes, the handle's on-chain wallet"
+					}
+					_, err := fmt.Fprintf(out, "source:     %s\nprimary:    %s\n", result.Source, primary)
 					return err
 				}
 				// Say what to do about it rather than only that it is missing —

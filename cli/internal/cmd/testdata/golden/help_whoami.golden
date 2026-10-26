@@ -2,7 +2,8 @@ $ signet whoami --help
 -- stdout --
 Prints the identity signet will sign as, its Stellar public key, the
 deployment it talks to, and the handle that key is currently attributed to —
-or that it is not linked yet.
+or that it is not linked yet. For a linked key it also says how the wallet was
+linked (onchain, cli or curated) and whether it is the handle's primary wallet.
 
 Never prints a secret key: the public key is resolved through the stellar CLI,
 which keeps key material out of signet entirely.

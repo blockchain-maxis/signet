@@ -165,6 +165,21 @@ export interface UnlinkResponse {
   handle: string | null;
 }
 
+/**
+ * `GET /api/v1/lookup/{address}`'s `data` (#645): which handle, if any, a
+ * wallet is attributed to. `signet whoami` reads it; `WhoamiResponse` is the
+ * deprecated route's shape, for older CLIs.
+ */
+export interface WalletLookup {
+  address: string;
+  handle: string | null;
+  /** How the wallet was linked (`onchain`, `cli`, `curated`); null when it is not. */
+  source: string | null;
+  isPrimary: boolean;
+  /** A network name, like `WhoamiResponse.network`. */
+  network: string;
+}
+
 export interface WhoamiResponse {
   publicKey: string;
   handle: string | null;

@@ -4,6 +4,8 @@ identity:   alice
 publicKey:  GASAAEJC6P5UZGRLYJ2I2KYLR7RXGF44JZXDYGCFBN7T5VIHECUUEMCD
 deployment: http://127.0.0.1:<port>
 handle:     @alice
+source:     onchain
+primary:    yes, the handle's on-chain wallet
 -- stderr --
 (empty)
 -- exit 0 --

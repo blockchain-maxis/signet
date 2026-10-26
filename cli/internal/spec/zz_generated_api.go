@@ -368,6 +368,15 @@ type UnlinkResponse struct {
 	Handle string `json:"handle"`
 }
 
+// WalletLookup mirrors the WalletLookup interface in packages/types/src/cli-api.ts.
+type WalletLookup struct {
+	Address   string `json:"address"`
+	Handle    string `json:"handle"`
+	Source    string `json:"source"`
+	IsPrimary bool   `json:"isPrimary"`
+	Network   string `json:"network"`
+}
+
 // WhoamiResponse mirrors the WhoamiResponse interface in packages/types/src/cli-api.ts.
 type WhoamiResponse struct {
 	PublicKey string `json:"publicKey"`

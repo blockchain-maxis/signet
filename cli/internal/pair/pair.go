@@ -13,6 +13,8 @@ package pair
 
 import (
 	"context"
+	"errors"
+	"net/http"
 	"net/url"
 
 	"github.com/blockchain-maxis/signet/cli/internal/api"
@@ -136,18 +138,51 @@ func (c *Client) Unlink(ctx context.Context, challengeXDR string) (Unlinked, err
 	return out, nil
 }
 
-// Identity is what `GET /api/cli/whoami` reports for a deploy account.
-type Identity = spec.WhoamiResponse
+// Identity is which handle, if any, a deploy account is attributed to.
+type Identity struct {
+	PublicKey string `json:"publicKey"`
+	Handle    string `json:"handle"`
+	Linked    bool   `json:"linked"`
+	Network   string `json:"network"`
+	// Source is how the wallet was linked (onchain, cli, curated), "" when it
+	// is not, or when the deployment predates /api/v1/lookup.
+	Source string `json:"source"`
+	// IsPrimary is whether it is the handle's on-chain bound wallet.
+	IsPrimary bool `json:"isPrimary"`
+}
 
 // WhoAmI asks a deployment which handle a deploy account is attributed to.
 //
 // A plain lookup: the CLI already knows its own key and which deployment it is
 // pointed at, and the handle is the one part only the server can answer.
+//
+// It asks `GET /api/v1/lookup/{address}` (#645), which reports the wallet's
+// source and whether it is primary. A deployment older than that route
+// answers it 404, and is asked the deprecated `GET /api/cli/whoami` instead.
 func (c *Client) WhoAmI(ctx context.Context, publicKey string) (Identity, error) {
-	var out Identity
-	path := "/api/cli/whoami?publicKey=" + url.QueryEscape(publicKey)
-	if err := c.api.Get(ctx, path, &out); err != nil {
+	var out struct {
+		Data spec.WalletLookup `json:"data"`
+	}
+	err := c.api.Get(ctx, "/api/v1/lookup/"+url.PathEscape(publicKey), &out)
+	var apiErr *api.Error
+	if errors.As(err, &apiErr) && apiErr.Status == http.StatusNotFound {
+		var old spec.WhoamiResponse
+		path := "/api/cli/whoami?publicKey=" + url.QueryEscape(publicKey)
+		if err := c.api.Get(ctx, path, &old); err != nil {
+			return Identity{}, err
+		}
+		return Identity{PublicKey: old.PublicKey, Handle: old.Handle, Linked: old.Linked, Network: old.Network}, nil
+	}
+	if err != nil {
 		return Identity{}, err
 	}
-	return out, nil
+	d := out.Data
+	return Identity{
+		PublicKey: d.Address,
+		Handle:    d.Handle,
+		Linked:    d.Handle != "",
+		Network:   d.Network,
+		Source:    d.Source,
+		IsPrimary: d.IsPrimary,
+	}, nil
 }

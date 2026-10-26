@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"bytes"
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -78,8 +77,8 @@ func goldenServer(t *testing.T, pairStatus string, identity pair.Identity) *http
 			_, _ = fmt.Fprintf(w, `{"ok":true,"wallet":%q,"handle":"alice","indexingPending":false,"status":"linked"}`, aliceKey)
 		case "/api/cli/unlink":
 			_, _ = fmt.Fprintf(w, `{"ok":true,"wallet":%q,"handle":"alice"}`, aliceKey)
-		case "/api/cli/whoami":
-			_ = json.NewEncoder(w).Encode(identity)
+		case "/api/v1/lookup/" + identity.PublicKey:
+			serveLookup(w, identity)
 		default:
 			http.Error(w, "unexpected request", http.StatusTeapot)
 		}
@@ -198,7 +197,8 @@ func TestGolden_Whoami(t *testing.T) {
 		name     string
 		identity pair.Identity
 	}{
-		{"linked", pair.Identity{PublicKey: aliceKey, Handle: "alice", Linked: true, Network: "testnet"}},
+		{"linked", pair.Identity{PublicKey: aliceKey, Handle: "alice", Linked: true, Network: "testnet", Source: "onchain", IsPrimary: true}},
+		{"linked_cli", pair.Identity{PublicKey: aliceKey, Handle: "alice", Linked: true, Network: "testnet", Source: "cli"}},
 		{"not_linked", pair.Identity{PublicKey: aliceKey, Network: "testnet"}},
 	} {
 		for _, mode := range []string{"human", "json"} {

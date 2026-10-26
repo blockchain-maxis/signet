@@ -88,7 +88,7 @@ ACCOUNTS=["GBWMCCC3NHSKLAOJDBKKYW7SSH2PFTTNVFKWSGLWGDLEBKLOVP5JLBBP"]
 `
 
 // fakeDeployment is a testnet deployment: it publishes its stellar.toml,
-// answers GET /api/cli/whoami with the given identity, and counts every
+// answers GET /api/v1/lookup/{address} with the given identity, and counts every
 // request by path, so a test can assert what unlink did (and did not) ask
 // for.
 func fakeDeployment(t *testing.T, identity pair.Identity) (*httptest.Server, *requestLog) {
@@ -106,15 +106,31 @@ func fakeDeployment(t *testing.T, identity pair.Identity) (*httptest.Server, *re
 			_, _ = w.Write([]byte(`{"transaction":"AAAAchallenge","network_passphrase":"Test SDF Network ; September 2015"}`))
 			return
 		}
-		if r.URL.Path == "/api/cli/whoami" {
-			w.Header().Set("Content-Type", "application/json")
-			_ = json.NewEncoder(w).Encode(identity)
+		if strings.HasPrefix(r.URL.Path, "/api/v1/lookup/") {
+			serveLookup(w, identity)
 			return
 		}
 		http.Error(w, "unexpected request", http.StatusTeapot)
 	}))
 	t.Cleanup(srv.Close)
 	return srv, log
+}
+
+// serveLookup answers GET /api/v1/lookup/{address} with identity, in the v1
+// envelope a deployment sends.
+func serveLookup(w http.ResponseWriter, identity pair.Identity) {
+	data := map[string]any{
+		"address": identity.PublicKey, "handle": nil, "source": nil,
+		"isPrimary": identity.IsPrimary, "network": identity.Network,
+	}
+	if identity.Linked {
+		data["handle"] = identity.Handle
+		if identity.Source != "" {
+			data["source"] = identity.Source
+		}
+	}
+	w.Header().Set("Content-Type", "application/json")
+	_ = json.NewEncoder(w).Encode(map[string]any{"data": data, "meta": map[string]string{"source": "database"}})
 }
 
 type requestLog struct {
@@ -215,7 +231,7 @@ func TestUnlink_NotLinkedExits0WithoutSigning(t *testing.T) {
 	}
 	byPath, total := log.snapshot()
 	// The network check's discovery (#618), then one whoami — no challenge.
-	if total != 2 || byPath["/.well-known/stellar.toml"] != 1 || byPath["/api/cli/whoami"] != 1 {
+	if total != 2 || byPath["/.well-known/stellar.toml"] != 1 || byPath["/api/v1/lookup/"+aliceKey] != 1 {
 		t.Fatalf("requests = %v, want stellar.toml and one whoami (no challenge fetched)", byPath)
 	}
 }

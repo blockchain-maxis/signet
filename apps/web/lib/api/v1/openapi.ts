@@ -735,6 +735,98 @@ export const paths: Record<string, OpenApiPathItem> = {
       },
     },
   },
+  '/lookup/{address}': {
+    get: {
+      operationId: 'lookupWallet',
+      summary: 'Which handle a wallet is attributed to',
+      description:
+        "The reverse of resolve. The deployment's Wallet record answers first, whatever the source (a wallet linked from the terminal or curated is found, not only the on-chain primary binding); without one, the Identity Registry's lookup. An address linked to nothing is a 200 with handle null, not a 404: the address is valid, it is just not linked. When neither layer could be asked, a 503, never a null that reads as 'not linked'.",
+      tags: ['Registry'],
+      parameters: [
+        {
+          name: 'address',
+          in: 'path',
+          required: true,
+          description: 'Stellar account address (G...). A C... contract ID is a 400.',
+          schema: { type: 'string', pattern: '^G[A-Z2-7]{55}$' },
+        },
+      ],
+      responses: {
+        '200': {
+          description: 'The handle the wallet is attributed to, or null.',
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                required: ['data', 'meta'],
+                properties: {
+                  data: {
+                    type: 'object',
+                    required: ['address', 'handle', 'source', 'isPrimary', 'network'],
+                    properties: {
+                      address: { type: 'string', pattern: '^G[A-Z2-7]{55}$' },
+                      handle: {
+                        type: ['string', 'null'],
+                        description: 'The handle, lowercase; null when the wallet is not linked.',
+                      },
+                      source: {
+                        type: ['string', 'null'],
+                        description:
+                          "How the wallet was linked: 'onchain', 'cli' or 'curated' (an open set); null when not linked.",
+                      },
+                      isPrimary: {
+                        type: 'boolean',
+                        description: "Whether it is the handle's primary (on-chain bound) wallet.",
+                      },
+                      network: { type: 'string', description: 'Network name.' },
+                    },
+                    additionalProperties: false,
+                  },
+                  meta: {
+                    type: 'object',
+                    required: ['source'],
+                    properties: {
+                      source: {
+                        type: 'string',
+                        enum: ['database', 'chain'],
+                        description: 'Which layer answered.',
+                      },
+                    },
+                    additionalProperties: false,
+                  },
+                },
+                additionalProperties: false,
+              },
+            },
+          },
+        },
+        '400': {
+          description: 'Not a G... account address (a C... contract ID points to the contract endpoints).',
+          content: {
+            'application/json': { schema: { $ref: '#/components/schemas/ErrorEnvelope' } },
+          },
+        },
+        '429': {
+          description: 'Rate limit exceeded.',
+          content: {
+            'application/json': { schema: { $ref: '#/components/schemas/ErrorEnvelope' } },
+          },
+        },
+        '500': {
+          description: 'Internal server error.',
+          content: {
+            'application/json': { schema: { $ref: '#/components/schemas/ErrorEnvelope' } },
+          },
+        },
+        '503': {
+          description: 'Neither the database nor the registry could be asked.',
+          content: {
+            'application/json': { schema: { $ref: '#/components/schemas/ErrorEnvelope' } },
+          },
+        },
+      },
+    },
+  },
   '/resolve/{handle}': {
     get: {
       operationId: 'resolveHandle',

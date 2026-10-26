@@ -204,15 +204,22 @@ export async function resolveHandle(
   return typeof wallet === 'string' && isValidStellarAddress(wallet) ? wallet : null;
 }
 
+export type WalletLookupResult =
+  | { status: 'bound'; handle: string }
+  | { status: 'unbound' }
+  | { status: 'unconfigured' }
+  | { status: 'error' };
+
 /**
- * Reverse lookup: the handle a wallet owns, or null when it owns none, the
- * address is malformed, or the registry could not be read.
+ * Reverse lookup, telling "owns no handle" (`unbound`) apart from "could not
+ * ask" (`unconfigured`, or `error` for an unreachable RPC, a bad StrKey, or an
+ * archived entry whose value cannot be read).
  */
-export async function lookupWallet(
+export async function lookupWalletDetailed(
   address: string,
   options: RegistryReadOptions = {},
-): Promise<string | null> {
-  if (!isValidStellarAddress(address)) return null;
+): Promise<WalletLookupResult> {
+  if (!isValidStellarAddress(address)) return { status: 'error' };
 
   // `isValidStellarAddress` is a shape guard, not a checksum check, so an
   // address of the right length and charset can still be a bad StrKey —
@@ -223,12 +230,29 @@ export async function lookupWallet(
   try {
     arg = new Address(address).toScVal();
   } catch {
-    return null;
+    return { status: 'error' };
   }
 
-  const handle = await simulateRead('lookup', [arg], options);
+  const res = await simulateReadDetailed('lookup', [arg], options);
+  if (res.status === 'unconfigured') return { status: 'unconfigured' };
+  if (res.status !== 'success') return { status: 'error' };
+  // `lookup` returns Option<String>: None is a wallet with no handle.
+  if (res.value === null || res.value === undefined) return { status: 'unbound' };
+  return typeof res.value === 'string' && isValidHandle(res.value)
+    ? { status: 'bound', handle: res.value }
+    : { status: 'error' };
+}
 
-  return typeof handle === 'string' && isValidHandle(handle) ? handle : null;
+/**
+ * Reverse lookup: the handle a wallet owns, or null when it owns none, the
+ * address is malformed, or the registry could not be read.
+ */
+export async function lookupWallet(
+  address: string,
+  options: RegistryReadOptions = {},
+): Promise<string | null> {
+  const res = await lookupWalletDetailed(address, options);
+  return res.status === 'bound' ? res.handle : null;
 }
 
 /**

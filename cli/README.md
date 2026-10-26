@@ -105,10 +105,14 @@ signet whoami
 # publicKey:  GCKIZN6RQPU73ORI5Q6HM3PMRELBELH2DITSWEEU7G4K2E227BXPUX6U
 # deployment: https://signet.example
 # handle:     @alice
+# source:     cli
+# primary:    no, linked as an extra wallet
 ```
 
-Answers "which account am I actually linked as?". `--json` emits
-`{identity, publicKey, deployment, handle, linked}`. Never prints a secret —
+Answers "which account am I actually linked as?", and for a linked key how the
+wallet was linked (`onchain`, `cli` or `curated`) and whether it is the handle's
+primary wallet. `--json` emits
+`{identity, publicKey, deployment, handle, linked, source, isPrimary}`. Never prints a secret —
 the public key is resolved through `stellar keys address`.
 
 ### `signet unlink`

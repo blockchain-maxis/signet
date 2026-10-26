@@ -231,6 +231,30 @@ no (404), by the same rule as the contract page `/p/{handle}/contract/{address}`
   layer could answer is a 503.
 - `Cache-Control: public, s-maxage=300` on a 200.
 
+### Which handle is a wallet linked to?
+
+`GET /api/v1/lookup/{address}` (#645) is the reverse of resolve: which handle,
+if any, is this `G…` wallet attributed to on this deployment?
+
+- `data`: `{ address, handle, source, isPrimary, network }`. `source` is how the
+  wallet was linked (`onchain`, `cli`, `curated`; see below) and `isPrimary`
+  whether it is the handle's on-chain bound wallet.
+- The deployment's `Wallet` record answers first, whatever its source, so a
+  wallet linked from the terminal is found, not only the on-chain primary
+  binding (`meta.source: "database"`). Without one, the Identity Registry's
+  `lookup` answers (`meta.source: "chain"`); a hit there is the primary wallet.
+- An address linked to nothing is a **200 with `handle: null`** (and `source:
+  null`), not a 404. The address is valid and the lookup succeeded; the answer
+  is that it is not linked. A 404 would read as "no such address", or be
+  confused with a route the deployment does not have.
+- That answer is only given when a layer could give it: with no `Wallet` row and
+  a registry that could not be read, the answer is a 503, never a `null` that
+  reads as "not linked".
+- A `C…` contract ID is a 400 pointing to the contract endpoints.
+
+It replaces `GET /api/cli/whoami`, which older CLIs still call; that route now
+answers with a `Deprecation` header naming this one.
+
 ## Completeness
 
 `meta.source` says which layer answered, on every read whose answer depends on

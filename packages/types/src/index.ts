@@ -53,6 +53,7 @@ export type {
   UnlinkFailure,
   UnlinkRequest,
   UnlinkResponse,
+  WalletLookup,
   WhoamiResponse,
 } from './cli-api.ts';
 

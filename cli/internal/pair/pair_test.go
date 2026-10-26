@@ -288,9 +288,51 @@ func TestDo_A503IsAConfigurationProblemNotANetworkOne(t *testing.T) {
 }
 
 func TestWhoAmI_ReportsTheHandleAKeyIsAttributedTo(t *testing.T) {
-	var gotKey string
+	var gotPath string
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		gotKey = r.URL.Query().Get("publicKey")
+		gotPath = r.URL.Path
+		_, _ = io.WriteString(w, `{"data":{"address":"GABC","handle":"alice","source":"cli","isPrimary":false,"network":"testnet"},"meta":{"source":"database"}}`)
+	}))
+	defer srv.Close()
+
+	identity, err := testClient(t, srv.URL).WhoAmI(context.Background(), "GABC")
+	if err != nil {
+		t.Fatalf("WhoAmI: %v", err)
+	}
+	want := Identity{PublicKey: "GABC", Handle: "alice", Linked: true, Network: "testnet", Source: "cli"}
+	if identity != want {
+		t.Fatalf("identity = %+v, want %+v", identity, want)
+	}
+	if gotPath != "/api/v1/lookup/GABC" {
+		t.Fatalf("asked %q", gotPath)
+	}
+}
+
+func TestWhoAmI_ReportsNotLinked(t *testing.T) {
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		_, _ = io.WriteString(w, `{"data":{"address":"GABC","handle":null,"source":null,"isPrimary":false,"network":"testnet"},"meta":{"source":"chain"}}`)
+	}))
+	defer srv.Close()
+
+	identity, err := testClient(t, srv.URL).WhoAmI(context.Background(), "GABC")
+	if err != nil {
+		t.Fatalf("WhoAmI: %v", err)
+	}
+	if identity.Linked || identity.Handle != "" || identity.Source != "" || identity.IsPrimary {
+		t.Fatalf("identity = %+v, want an unlinked key", identity)
+	}
+}
+
+// A deployment older than /api/v1/lookup answers it 404; the deprecated
+// route still says which handle, without the source.
+func TestWhoAmI_FallsBackToTheOldRoute(t *testing.T) {
+	var paths []string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		paths = append(paths, r.URL.Path)
+		if r.URL.Path != "/api/cli/whoami" {
+			http.NotFound(w, r)
+			return
+		}
 		_, _ = io.WriteString(w, `{"publicKey":"GABC","handle":"alice","linked":true,"network":"testnet"}`)
 	}))
 	defer srv.Close()
@@ -299,25 +341,10 @@ func TestWhoAmI_ReportsTheHandleAKeyIsAttributedTo(t *testing.T) {
 	if err != nil {
 		t.Fatalf("WhoAmI: %v", err)
 	}
-	if !identity.Linked || identity.Handle != "alice" {
+	if !identity.Linked || identity.Handle != "alice" || identity.Source != "" {
 		t.Fatalf("identity = %+v", identity)
 	}
-	if gotKey != "GABC" {
-		t.Fatalf("queried for %q", gotKey)
-	}
-}
-
-func TestWhoAmI_ReportsNotLinked(t *testing.T) {
-	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		_, _ = io.WriteString(w, `{"publicKey":"GABC","handle":null,"linked":false,"network":"testnet"}`)
-	}))
-	defer srv.Close()
-
-	identity, err := testClient(t, srv.URL).WhoAmI(context.Background(), "GABC")
-	if err != nil {
-		t.Fatalf("WhoAmI: %v", err)
-	}
-	if identity.Linked || identity.Handle != "" {
-		t.Fatalf("identity = %+v, want an unlinked key", identity)
+	if strings.Join(paths, " ") != "/api/v1/lookup/GABC /api/cli/whoami" {
+		t.Fatalf("asked %v", paths)
 	}
 }

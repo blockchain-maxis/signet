@@ -2,8 +2,11 @@ package cmd
 
 import (
 	"bytes"
+	"encoding/json"
 	"strings"
 	"testing"
+
+	"github.com/blockchain-maxis/signet/cli/internal/pair"
 )
 
 func TestWhoamiTakesNoArguments(t *testing.T) {
@@ -35,5 +38,39 @@ func TestWhoamiHelpNeverSuggestsASecret(t *testing.T) {
 	}
 	if !strings.Contains(cmd.Long, "Never prints a secret key") {
 		t.Fatal("help text does not state the guarantee")
+	}
+}
+
+// whoami reports how the wallet was linked and whether it is primary (#645),
+// from GET /api/v1/lookup/{address}.
+func TestWhoamiReportsTheWalletSourceAndPrimary(t *testing.T) {
+	buildFakeStellarOnPath(t)
+	for _, tc := range []struct {
+		identity pair.Identity
+		human    string
+	}{
+		{pair.Identity{PublicKey: aliceKey, Handle: "alice", Linked: true, Source: "cli"}, "source:     cli\nprimary:    no"},
+		{pair.Identity{PublicKey: aliceKey, Handle: "alice", Linked: true, Source: "onchain", IsPrimary: true}, "source:     onchain\nprimary:    yes"},
+	} {
+		isolateConfigDir(t)
+		srv, log := fakeDeployment(t, tc.identity)
+		out, err := runSignet(t, "whoami", "--url", srv.URL, "--source", "alice", "--json")
+		if err != nil {
+			t.Fatalf("whoami --json: %v\n%s", err, out)
+		}
+		var got whoamiResult
+		if err := json.Unmarshal([]byte(out), &got); err != nil {
+			t.Fatalf("decoding %q: %v", out, err)
+		}
+		if got.Source != tc.identity.Source || got.IsPrimary != tc.identity.IsPrimary || got.Handle != "alice" {
+			t.Fatalf("result = %+v, want source %q isPrimary %v", got, tc.identity.Source, tc.identity.IsPrimary)
+		}
+		human, err := runSignet(t, "whoami", "--url", srv.URL, "--source", "alice")
+		if err != nil || !strings.Contains(human, tc.human) {
+			t.Fatalf("human output lacks %q (err %v):\n%s", tc.human, err, human)
+		}
+		if n := log.byPath["/api/v1/lookup/"+aliceKey]; n != 2 {
+			t.Fatalf("asked the v1 lookup %d times, want 2: %v", n, log.byPath)
+		}
 	}
 }

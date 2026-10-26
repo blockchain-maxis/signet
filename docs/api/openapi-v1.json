@@ -375,6 +375,69 @@
         ],
         "type": "object"
       },
+      "ProfileContract": {
+        "additionalProperties": false,
+        "properties": {
+          "address": {
+            "description": "Soroban contract ID (C...).",
+            "pattern": "^C[A-Z2-7]{55}$",
+            "type": "string"
+          },
+          "contractType": {
+            "description": "Executable type, once the indexer has checked it; null otherwise.",
+            "enum": [
+              "wasm",
+              "stellar_asset",
+              null
+            ],
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "deployTxHash": {
+            "description": "Hash of the deploying transaction.",
+            "type": "string"
+          },
+          "deployedAt": {
+            "description": "ISO-8601 UTC deploy time.",
+            "format": "date-time",
+            "type": "string"
+          },
+          "deployer": {
+            "description": "The handle's wallet that deployed it.",
+            "pattern": "^[GC][A-Z2-7]{55}$",
+            "type": "string"
+          },
+          "network": {
+            "enum": [
+              "testnet",
+              "mainnet",
+              "futurenet",
+              "local"
+            ],
+            "type": "string"
+          },
+          "wasmHash": {
+            "description": "Indexed SHA-256 of the executable; null without the indexer.",
+            "pattern": "^[a-f0-9]{64}$",
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "address",
+          "deployer",
+          "deployedAt",
+          "deployTxHash",
+          "network",
+          "wasmHash",
+          "contractType"
+        ],
+        "type": "object"
+      },
       "SpecJson": {
         "definitions": {
           "contractBuild": {
@@ -1281,6 +1344,143 @@
         ]
       }
     },
+    "/lookup/{address}": {
+      "get": {
+        "description": "The reverse of resolve. The deployment's Wallet record answers first, whatever the source (a wallet linked from the terminal or curated is found, not only the on-chain primary binding); without one, the Identity Registry's lookup. An address linked to nothing is a 200 with handle null, not a 404: the address is valid, it is just not linked. When neither layer could be asked, a 503, never a null that reads as 'not linked'.",
+        "operationId": "lookupWallet",
+        "parameters": [
+          {
+            "description": "Stellar account address (G...). A C... contract ID is a 400.",
+            "in": "path",
+            "name": "address",
+            "required": true,
+            "schema": {
+              "pattern": "^G[A-Z2-7]{55}$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "data": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "address": {
+                          "pattern": "^G[A-Z2-7]{55}$",
+                          "type": "string"
+                        },
+                        "handle": {
+                          "description": "The handle, lowercase; null when the wallet is not linked.",
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "isPrimary": {
+                          "description": "Whether it is the handle's primary (on-chain bound) wallet.",
+                          "type": "boolean"
+                        },
+                        "network": {
+                          "description": "Network name.",
+                          "type": "string"
+                        },
+                        "source": {
+                          "description": "How the wallet was linked: 'onchain', 'cli' or 'curated' (an open set); null when not linked.",
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "address",
+                        "handle",
+                        "source",
+                        "isPrimary",
+                        "network"
+                      ],
+                      "type": "object"
+                    },
+                    "meta": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "source": {
+                          "description": "Which layer answered.",
+                          "enum": [
+                            "database",
+                            "chain"
+                          ],
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "source"
+                      ],
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "The handle the wallet is attributed to, or null."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Not a G... account address (a C... contract ID points to the contract endpoints)."
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Rate limit exceeded."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Internal server error."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Neither the database nor the registry could be asked."
+          }
+        },
+        "summary": "Which handle a wallet is attributed to",
+        "tags": [
+          "Registry"
+        ]
+      }
+    },
     "/openapi.json": {
       "get": {
         "description": "Returns the complete OpenAPI 3.1 document for Signet API v1.",
@@ -1417,6 +1617,275 @@
           }
         },
         "summary": "Profile for a handle",
+        "tags": [
+          "Profiles"
+        ]
+      }
+    },
+    "/profiles/{handle}/contracts": {
+      "get": {
+        "description": "The contracts any of the handle's wallets deployed on this deployment's network, newest first (address breaks a tie), with the same attribution as the profile page. Keyset-paginated: a page boundary never repeats or skips a contract. Without an indexer the deployment walks the bound wallet's Horizon history, capped; when neither is available it cannot enumerate contracts and says so with source 'none' and truncated true, never an empty answer that reads as 'no contracts'.",
+        "operationId": "getProfileContracts",
+        "parameters": [
+          {
+            "description": "Handle to look up (case-insensitive).",
+            "in": "path",
+            "name": "handle",
+            "required": true,
+            "schema": {
+              "pattern": "^[a-z0-9_-]{1,32}$",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Opaque pagination cursor from meta.nextCursor.",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Number of contracts to return (default 25, max 100).",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 25,
+              "maximum": 100,
+              "minimum": 1,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "data": {
+                      "items": {
+                        "$ref": "#/components/schemas/ProfileContract"
+                      },
+                      "type": "array"
+                    },
+                    "meta": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "cap": {
+                          "type": [
+                            "integer",
+                            "null"
+                          ]
+                        },
+                        "nextCursor": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "source": {
+                          "enum": [
+                            "database",
+                            "horizon",
+                            "none"
+                          ],
+                          "type": "string"
+                        },
+                        "total": {
+                          "description": "Contracts in the whole list; null when it is partial.",
+                          "type": [
+                            "integer",
+                            "null"
+                          ]
+                        },
+                        "truncated": {
+                          "description": "True when the list may be incomplete (capped, or no layer answered).",
+                          "type": "boolean"
+                        }
+                      },
+                      "required": [
+                        "nextCursor",
+                        "total",
+                        "truncated",
+                        "cap",
+                        "source"
+                      ],
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "A page of contracts."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Invalid handle, cursor or limit."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "No profile for this handle."
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Rate limit exceeded."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Internal server error."
+          }
+        },
+        "summary": "Contracts a handle deployed",
+        "tags": [
+          "Profiles"
+        ]
+      }
+    },
+    "/profiles/{handle}/contracts/{address}": {
+      "get": {
+        "description": "200 with the contract when one of the handle's wallets deployed it on this deployment's network, by the contract page's attribution: the indexer's records (method 'indexer'), or, with no database, a check of the wallets' Horizon history for the deploy (method 'deployer-check'). Otherwise 404. A contract another handle deployed and one that does not exist give the same 404 body, byte for byte, so the endpoint cannot be used to learn who deployed what.",
+        "operationId": "getProfileContract",
+        "parameters": [
+          {
+            "description": "Handle to look up (case-insensitive).",
+            "in": "path",
+            "name": "handle",
+            "required": true,
+            "schema": {
+              "pattern": "^[a-z0-9_-]{1,32}$",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Soroban contract ID (C...).",
+            "in": "path",
+            "name": "address",
+            "required": true,
+            "schema": {
+              "pattern": "^C[A-Z2-7]{55}$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "data": {
+                      "allOf": [
+                        {
+                          "$ref": "#/components/schemas/Contract"
+                        },
+                        {
+                          "required": [
+                            "handle",
+                            "deployer",
+                            "deployedAt",
+                            "wasmHash",
+                            "attribution"
+                          ],
+                          "type": "object"
+                        }
+                      ]
+                    }
+                  },
+                  "required": [
+                    "data"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "The handle deployed this contract."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Invalid handle or contract ID."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "No contract with this address is attributed to this handle."
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Rate limit exceeded."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Internal server error."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Attribution is unavailable (neither the database nor Horizon answered)."
+          }
+        },
+        "summary": "Whether a handle deployed a contract",
         "tags": [
           "Profiles"
         ]

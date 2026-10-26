@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { getAccount } from '@/lib/server/account';
 import { normalizeNetwork, type ErrorBody, type WhoamiResponse } from '@signet/types';
 import { getConfiguredNetwork } from '@/lib/cli-link';
+import { whoamiDeprecation } from '@/lib/api/v1/lookup';
 import { isValidStellarAddress } from '@/lib/stellar-address';
 import { LIMITS, enforceRateLimit } from '@/lib/rate-limit-http';
 
@@ -21,6 +22,10 @@ export const runtime = 'nodejs';
  * procedure already exposes, and a handle→wallet binding is public on-chain
  * data. Rate limited on the shared read budget because it is a plain lookup —
  * it mints nothing and signs nothing.
+ *
+ * Deprecated by `GET /api/v1/lookup/{address}` (#645), which also reports
+ * the wallet's `source` and `isPrimary`; kept for older CLIs, every answer
+ * names its successor in `Deprecation` and `Link`.
  */
 export async function GET(req: Request) {
   const limited = await enforceRateLimit(req, 'cli:whoami', LIMITS.read);
@@ -33,7 +38,7 @@ export async function GET(req: Request) {
         error: 'publicKey is required and must be a valid Stellar address',
         code: 'bad-request',
       } satisfies ErrorBody,
-      { status: 400 },
+      { status: 400, headers: whoamiDeprecation(null) },
     );
   }
 
@@ -49,6 +54,6 @@ export async function GET(req: Request) {
       // side is unchanged; it only displays the value.
       network: normalizeNetwork(getConfiguredNetwork()),
     } satisfies WhoamiResponse,
-    { headers: { 'cache-control': 'no-store' } },
+    { headers: { 'cache-control': 'no-store', ...whoamiDeprecation(publicKey) } },
   );
 }
