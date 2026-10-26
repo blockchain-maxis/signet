@@ -823,7 +823,7 @@ jobs:
       - name: Publish the JUnit report
         if: always()
         continue-on-error: true
-        uses: mikepenz/action-junit-report@v5
+        uses: mikepenz/action-junit-report@v6
         with:
           report_paths: sandbox/testdata/e2e/junit.xml
           check_name: signet dev
