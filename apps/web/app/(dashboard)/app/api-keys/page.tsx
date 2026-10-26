@@ -28,7 +28,7 @@ export default async function ApiKeysPage() {
         A key raises your rate limit on the{' '}
         <Link
           href="/docs/api"
-          className="text-[var(--text-accent)] underline-offset-4 hover:underline"
+          className="text-[var(--text-accent)] underline underline-offset-4"
         >
           public API
         </Link>

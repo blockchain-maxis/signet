@@ -177,7 +177,7 @@ export default function ApiOverviewPage() {
         rules, including what counts as a breaking change, are in{' '}
         <a
           href="https://github.com/blockchain-maxis/signet/blob/main/docs/API_V1.md"
-          className="text-[var(--text-accent)] underline-offset-4 hover:underline"
+          className="text-[var(--text-accent)] underline underline-offset-4"
         >
           docs/API_V1.md
         </a>
