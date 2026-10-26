@@ -1,9 +1,9 @@
 {
   "name": "@signet/sdk",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "private": true,
   "license": "Apache-2.0",
-  "description": "Read-only client for the Signet API — fetch a developer's verifiable Stellar/Soroban career record by handle.",
+  "description": "Read-only client for the Signet API \u2014 fetch a developer's verifiable Stellar/Soroban career record by handle.",
   "keywords": [
     "signet",
     "stellar",
@@ -31,12 +31,15 @@
     "build": "tsc --noEmit",
     "typecheck": "tsc --noEmit",
     "lint": "eslint . --config ../../eslint.config.js",
-    "test": "node --experimental-strip-types --test \"src/**/*.test.ts\""
+    "test": "node --experimental-strip-types --test \"src/**/*.test.ts\"",
+    "generate": "node scripts/generate-v1.mjs",
+    "generate:check": "node scripts/generate-v1.mjs --check"
   },
   "dependencies": {
     "@signet/types": "workspace:*"
   },
   "devDependencies": {
+    "openapi-typescript": "^7.13.0",
     "typescript": "^5.6.3"
   }
 }

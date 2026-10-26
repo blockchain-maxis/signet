@@ -3,9 +3,9 @@
 Read-only TypeScript client for the [Signet](https://github.com/blockchain-maxis/signet)
 API. Signet is a verifiable developer career record built on Stellar/Soroban: developers
 bind a deployment wallet to a handle on-chain, an indexer collects everything that wallet
-has deployed and invoked, and the result is served as a public profile. This SDK fetches
-those profiles over plain HTTP GET so an integrator can render someone's contract history
-without running a Signet deployment, speaking tRPC, or adding a client library.
+has deployed and invoked, and the result is served as a public profile. This SDK reads
+those profiles from a Signet deployment's versioned REST API (`/api/v1`, documented in
+[`docs/API_V1.md`](../../docs/API_V1.md)) over plain HTTP GET.
 
 ## Install
 
@@ -17,6 +17,34 @@ pnpm add @signet/sdk      # npm install @signet/sdk / yarn add @signet/sdk
 > is consumed as `"@signet/sdk": "workspace:*"`. Publishing is tracked in
 > [#60](https://github.com/blockchain-maxis/signet/issues/60); until it lands, use the
 > workspace dependency or a git dependency on this repo.
+
+## Migrating from 0.0.x
+
+0.1.0 moves the client from the web app's internal tRPC routes onto `/api/v1`. The method
+names are the same; two things changed.
+
+- **`getProfile` returns the v1 profile.** `ProfileResponse` was
+  `{ handle, profile: { name, bio, wallet, joined }, stats: { invocations, uniqueFunctions, reputation } }`.
+  It is now the v1 `Profile`:
+
+  | 0.0.x | 0.1.0 |
+  |--|--|
+  | `res.profile.name` | `res.displayName ?? res.handle` |
+  | `res.profile.bio` | `res.bio` (nullable) |
+  | `res.profile.wallet` | `res.primaryWallet` (nullable), and every wallet in `res.wallets` |
+  | `res.profile.joined` | `res.joinedAt` (ISO-8601, nullable) |
+  | `res.stats.invocations` | `res.counts.invocations` (`res.countsAreLowerBounds` says when it is a floor) |
+  | `res.stats.uniqueFunctions`, `res.stats.reputation` | not part of v1 |
+
+  The types `SignetProfile`, `ProfileStats` and `ProfileStatsResult` are no longer
+  exported.
+- **Errors are typed, and fewer things are `null`.** A 404 from a lookup is still `null`,
+  but a bad handle is now a `ValidationError`, a rate-limit refusal a `RateLimitedError`
+  and a deployment that cannot answer an `UnavailableError`, instead of all of them
+  reading as `null`. See [Errors](#errors-and-rate-limits).
+
+`lookupWallet` now also finds a wallet linked from the CLI, not only the on-chain primary
+binding. `listHandles` has no v1 endpoint and is deprecated (see below).
 
 ## Quickstart
 
@@ -32,19 +60,25 @@ pnpm --filter @signet/web dev     # http://localhost:3000
 Then, in another terminal (`quickstart.ts`):
 
 ```ts
-import { SignetClient } from '@signet/sdk';
+import { SignetClient, UnavailableError } from '@signet/sdk';
 
 const signet = new SignetClient({ baseUrl: 'http://localhost:3000' });
 
-const handles = await signet.listHandles();
-console.log(handles); // e.g. [ 'alice', 'bob' ] — every handle the deployment can see
-
 const profile = await signet.getProfile('alice');
-if (!profile) throw new Error('handle not found');
+if (!profile) {
+  console.log('alice is not on this deployment');
+} else {
+  console.log(profile.displayName ?? profile.handle);
+  console.log(profile.primaryWallet); // 'G…', the on-chain bound account
+  console.log(profile.counts); // { contracts, wallets, invocations }
+}
 
-console.log(profile.profile.name); // display name (the handle when none is set)
-console.log(profile.profile.wallet); // 'G…' — the bound Stellar account
-console.log(profile.stats); // { invocations, uniqueFunctions, reputation }
+try {
+  console.log(await signet.countRegistryEntries()); // { count: … }
+} catch (err) {
+  if (err instanceof UnavailableError) console.log('the registry is not reachable');
+  else throw err;
+}
 ```
 
 ```bash
@@ -54,8 +88,8 @@ node --experimental-strip-types quickstart.ts
 A deployment only knows the handles that are really bound: with the Identity Registry
 configured (`NEXT_PUBLIC_IDENTITY_REGISTRY_ID`) it resolves them live from the chain, and
 with `DATABASE_URL` set and the indexer running it serves indexed activity through the
-same procedures and the same response shapes. A local server with neither configured has
-no handles, so `listHandles()` resolves to `[]` and `getProfile()` to `null`.
+same endpoints and the same response shapes. A local server with neither has no handles,
+so `getProfile()` resolves to `null`.
 
 ## API reference
 
@@ -65,146 +99,107 @@ Everything below is exported from the package root.
 
 | Option | Type | Default | Notes |
 |--------|------|---------|-------|
-| `baseUrl` | `string` | *(required)* | Origin of a Signet deployment, e.g. `http://localhost:3000`. There is no hosted public deployment yet, so this has no default. A trailing slash is stripped, so `https://x.dev/` and `https://x.dev` behave identically. The SDK appends `/api/trpc/…` itself — don't include a path. |
+| `baseUrl` | `string` | *(required)* | Origin of a Signet deployment, e.g. `http://localhost:3000`. A trailing slash is stripped. The SDK appends `/api/v1/…` itself — don't include a path. |
+| `apiKey` | `string` | none | A Signet API key (`sgk_…`), sent as `Authorization: Bearer`, for the keyed rate limit. Keep it server-side. |
 | `fetch` | `typeof fetch` | `globalThis.fetch` | Override for tests, proxies, or runtimes without a global `fetch`. |
+| `timeoutMs` | `number` | `10000` | Per-attempt timeout; a stalled attempt is aborted. |
+| `maxRetries` | `number` | `2` | Retries after the first attempt, for 5xx, network failures and short rate limits (see below). `0` disables them. |
 
 **Throws** `Error('[signet] no fetch implementation available; pass options.fetch')` from
-the constructor when no `fetch` was passed and the runtime has no `globalThis.fetch`
-(Node 17 and older). This is the only error the SDK throws on its own.
-
-```ts
-const signet = new SignetClient({
-  baseUrl: 'https://signet.example.com',
-  fetch: myInstrumentedFetch,
-});
-```
+the constructor when no `fetch` was passed and the runtime has no `globalThis.fetch`.
 
 ### `client.getProfile(handle)`
 
 | | |
 |--|--|
-| **Parameters** | `handle: Handle` (`string`) — must match `/^[a-z0-9_-]{1,32}$/`; the server lowercases before validating. |
-| **Returns** | `Promise<ProfileResponse \| null>` |
-| **Requests** | `GET {baseUrl}/api/trpc/profile.byHandle?input={"handle":"…"}` |
-
-Resolves to `null` — never throws — when the handle is unknown, when the handle fails
-server-side validation, when the response status is not 2xx (including a rate-limit
-rejection), and when the tRPC envelope carries no `result.data`. If you need to tell
-"not found" apart from "the deployment is down", check the deployment's `/api/health`
-endpoint separately.
-
-```ts
-const res = await signet.getProfile('alice');
-// {
-//   handle: 'alice',
-//   profile: { handle, name, bio, wallet, joined },
-//   stats:   { invocations, uniqueFunctions, reputation },
-// }
-```
-
-> The server also returns a raw `operations` array alongside these fields. It is
-> deliberately **not** part of `ProfileResponse` — its shape is a Horizon payload that is
-> not yet a stable public contract, so don't rely on it through the SDK's types.
-
-### `client.listHandles()`
-
-| | |
-|--|--|
-| **Parameters** | none |
-| **Returns** | `Promise<Handle[]>` — `[]` on any failure, never `null`, never throws. |
-| **Requests** | `GET {baseUrl}/api/trpc/profile.list` |
-
-Lists every handle the deployment can serve: the curated static manifest, or the
-on-chain-bound handles once a database is configured.
+| **Returns** | `Promise<ProfileResponse \| null>`, the v1 `Profile`; `null` when there is no such handle. |
+| **Requests** | `GET {baseUrl}/api/v1/profiles/{handle}` |
 
 ### `client.resolveHandle(handle)`
 
 | | |
 |--|--|
-| **Parameters** | `handle: Handle` |
-| **Returns** | `Promise<RegistryEntry \| null>` — `null` if the handle isn't bound. |
-| **Requests** | `GET {baseUrl}/api/trpc/registry.resolve?input={"handle":"…"}` |
-
-Resolves a handle to its on-chain-bound wallet address via the Identity Registry.
+| **Returns** | `Promise<RegistryEntry \| null>` (`{ handle, wallet }`); `null` if the handle isn't bound. |
+| **Requests** | `GET {baseUrl}/api/v1/resolve/{handle}` |
 
 ### `client.lookupWallet(wallet)`
 
 | | |
 |--|--|
-| **Parameters** | `wallet: string` — a Stellar `G…` account address. |
-| **Returns** | `Promise<RegistryEntry \| null>` — `null` if the wallet has no bound handle. |
-| **Requests** | `GET {baseUrl}/api/trpc/registry.lookup?input={"wallet":"…"}` |
+| **Returns** | `Promise<RegistryEntry \| null>`; `null` if the wallet is not linked to a handle. |
+| **Requests** | `GET {baseUrl}/api/v1/lookup/{wallet}` |
 
-Reverse lookup of `resolveHandle`: given a wallet, find the handle bound to it.
+The reverse of `resolveHandle`: the handle a `G…` wallet is attributed to, whether it is
+the on-chain bound wallet or one linked from the CLI. A `C…` contract ID is a
+`ValidationError`.
 
 ### `client.countRegistryEntries()`
 
 | | |
 |--|--|
-| **Parameters** | none |
-| **Returns** | `Promise<RegistryCount>` — `{ count: 0 }` on any failure, never throws. |
-| **Requests** | `GET {baseUrl}/api/trpc/registry.count` |
+| **Returns** | `Promise<RegistryCount>` (`{ count }`); `0` when the registry could not be read. |
+| **Requests** | `GET {baseUrl}/api/v1/registry/stats` |
 
-Total number of handle ↔ wallet bindings currently on the Identity Registry.
+The registry's own binding counter: an upper bound, not a live total, because a binding
+that lapses from on-chain storage unaccessed is never subtracted.
+
+### `client.request(path, { query })`
+
+The transport the methods use, for any v1 endpoint: `GET {baseUrl}/api/v1{path}`, with
+`query` as the query string (`undefined` and `null` values left out). Resolves to the
+whole `{ data, meta }` envelope and throws the typed errors below.
+
+```ts
+const page = await signet.request('/profiles/alice/contracts', { query: { limit: 10 } });
+```
+
+### `client.listHandles()` *(deprecated)*
+
+| | |
+|--|--|
+| **Returns** | `Promise<Handle[]>` |
+| **Requests** | `GET {baseUrl}/api/trpc/profile.list` |
+
+v1 has no endpoint that lists handles, so this still calls the web app's internal tRPC
+route, which is not a stable contract. It will be removed in 1.0.
 
 ### Types
 
-Re-exported from `@signet/types`, so integrators depend on `@signet/sdk` alone. This is
-a deliberately curated subset — only the types that appear in the signatures above — not
-everything `@signet/types` exports; see [`src/types.ts`](src/types.ts) for why.
+`ProfileResponse` and the other response types are generated from the v1 OpenAPI document
+(`docs/api/openapi-v1.json`) into [`src/generated/v1.ts`](src/generated/v1.ts), so they
+cannot drift from the API. `V1Data<'operationId'>` and `V1Meta<'operationId'>` give the
+`data` and `meta` of any operation, and `V1Schemas` every component schema:
 
 ```ts
-type Handle = string;
-/** A Stellar account or contract address (G… / C…). */
-type StellarAddress = string;
+import type { V1Data, V1Schemas } from '@signet/sdk';
 
-interface SignetProfile {
-  handle: Handle;
-  name: string;
-  bio: string;
-  wallet: StellarAddress; // the on-chain-bound Stellar account
-  joined: string;
-}
-
-interface ProfileStats {
-  invocations: number;
-  uniqueFunctions: number;
-  reputation: number; // 0–100 heuristic score derived from observed activity
-}
-
-interface ProfileResponse {
-  handle: Handle;
-  profile: SignetProfile;
-  stats: ProfileStats;
-}
-
-/** A single handle ↔ wallet binding from the on-chain registry. */
-interface RegistryEntry {
-  handle: Handle;
-  wallet: StellarAddress;
-}
-
-interface RegistryCount {
-  count: number;
-}
-
-interface SignetClientOptions {
-  baseUrl?: string;
-  fetch?: typeof fetch;
-}
+type Wallets = V1Data<'getHandleWallets'>; // HandleWallet[]
+type Contract = V1Schemas['ProfileContract'];
 ```
+
+`Handle`, `StellarAddress`, `RegistryEntry` and `RegistryCount` are re-exported from
+`@signet/types`; see [`src/types.ts`](src/types.ts) for why the re-export is curated.
 
 ## Errors and rate limits
 
-The client is intentionally total: every method resolves to a value (`null` / `[]`)
-rather than rejecting, so a dead deployment degrades a page instead of crashing it.
-Network-level failures from the underlying `fetch` (DNS, TLS, aborted request) still
-reject — wrap calls in `try`/`catch` if you need to handle those.
+Every error extends `SignetError`. The ones the server answered with carry its `status`
+and the v1 envelope's `code`:
 
-Deployments rate-limit each caller IP to **60 requests per minute per procedure**
-(fixed window, in-memory per instance). Over the limit the API responds with an error
-status, which the SDK surfaces as `null` / `[]` — indistinguishable from "not found", so
-cache results client-side rather than fetching per render.
+| Class | When | Extra fields |
+|--|--|--|
+| `ValidationError` | `400`: a malformed handle, address, cursor or limit | `code`, `parameter` |
+| `NotFoundError` | `404`, from `request()` (the named lookups return `null` instead) | `code` |
+| `RateLimitedError` | `429` | `code`, `retryAfterSeconds` (from `Retry-After`, or `null`) |
+| `UnavailableError` | `503`: no layer the deployment reads could answer | `code` |
+| `ApiError` | any other non-OK status | `status`, `code` |
+| `NetworkError` | the request never reached the server, or timed out | — |
+
+Deployments rate-limit anonymous callers to **60 requests per minute per IP**, and API-key
+callers to a higher budget (300 by default). When a `429`'s `Retry-After` is 5 seconds or
+less and retries remain, the client waits it out and tries again; a longer wait surfaces
+as `RateLimitedError` at once, so the caller can decide. `5xx` and network failures are
+retried with exponential backoff (200 ms, 400 ms, … capped at 5 s). Other `4xx` are
+answers and are never retried.
 
 ## Compatibility
 
@@ -212,10 +207,10 @@ cache results client-side rather than fetching per render.
   `fetch`. On older Node, pass `options.fetch` (e.g. `undici`). It currently ships
   TypeScript sources (`main`/`types` → `src/index.ts`), so a Node consumer needs a
   TypeScript-aware loader such as `node --experimental-strip-types`, `tsx`, or a bundler.
-- **Browsers** — works in any browser with `fetch`. Requests are same-origin-agnostic
-  plain `GET`s, so a cross-origin `baseUrl` needs CORS enabled on that deployment.
-- **No runtime dependencies.** The only dependency, `@signet/types`, is types-only and
-  erases at build time.
+- **Browsers** — works in any browser with `fetch`. v1 sends
+  `Access-Control-Allow-Origin: *`, so a cross-origin `baseUrl` works. Don't put an
+  `apiKey` in browser code.
+- **No runtime dependencies.** `@signet/types` is types-only and erases at build time.
 
 ## Testing against the SDK
 
@@ -224,15 +219,17 @@ cache results client-side rather than fetching per render.
 ```ts
 const client = new SignetClient({
   baseUrl: 'http://localhost:3000',
-  fetch: async () => ({ ok: true, json: async () => ({ result: { data: fixture } }) }) as Response,
+  fetch: async () => new Response(JSON.stringify({ data: fixtureProfile })),
 });
 ```
 
 See [`src/client.test.ts`](src/client.test.ts) for the full pattern. Run the suite with
-`pnpm --filter @signet/sdk test`.
+`pnpm --filter @signet/sdk test`. After changing the API's OpenAPI document, regenerate the
+types with `pnpm --filter @signet/sdk generate`.
 
 ## Links
 
 - Repository: <https://github.com/blockchain-maxis/signet>
+- API reference: [`docs/API_V1.md`](../../docs/API_V1.md) and the OpenAPI document at
+  `/api/v1/openapi.json` on any deployment
 - Architecture and data flows: [`ARCHITECTURE.md`](../../ARCHITECTURE.md)
-- API surface (tRPC router): [`apps/web/lib/server/trpc.ts`](../../apps/web/lib/server/trpc.ts)

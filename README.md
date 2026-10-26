@@ -53,7 +53,7 @@ call before listing it, and takes its headline number from the contract's own
 - **On-chain Identity Registry — deployed to testnet** — a real Soroban contract (`packages/contracts/identity-registry`) binds a wallet to a handle via a signed `claim`; ownership is enforced by `require_auth`. Live at `CASFJHI5PQSRWS7JV25CF7FOMRKIVBP3RXRP3E2GH2CV4BCAG7FUJRCN` since 2026-07-09 (see [Status](#status)). 24 unit tests, builds to wasm.
 - **Wallet connect + claim flow — live** — `Connect wallet` / `Claim your handle` use Stellar Wallets Kit and submit a real on-chain `claim` against the deployed registry (`apps/web/lib/{wallet,registry}.ts`) whenever `NEXT_PUBLIC_IDENTITY_REGISTRY_ID` is set. With no contract id configured, `claimHandle` throws `RegistryNotConfiguredError` and the UI says this deployment is not configured against a registry, rather than showing a broken button.
 - **Public handle directory** — `/handles` discovers candidates from the indexer's database or, without one, the registry's `claimed`/`released` event stream over Soroban RPC, and confirms each with `resolve` (`apps/web/lib/directory.ts`).
-- **Real API + SDK** — tRPC `profile.byHandle` / `profile.list` / `health`; `@signet/sdk` fetches them. Both covered by tests.
+- **Real API + SDK** — a versioned REST API under `/api/v1` ([docs/API_V1.md](docs/API_V1.md)); `@signet/sdk` reads it with typed errors. Both covered by tests.
 - **CI gates** lint · typecheck · test · build, plus a Rust contract job.
 
 ## What's coming next (Phase 2)

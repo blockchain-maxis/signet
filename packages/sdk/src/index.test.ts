@@ -30,7 +30,10 @@ test('exports the deliberate public surface: the client, its errors, and nothing
     'ApiError',
     'NetworkError',
     'NotFoundError',
+    'RateLimitedError',
     'SignetClient',
     'SignetError',
+    'UnavailableError',
+    'ValidationError',
   ]);
 });
