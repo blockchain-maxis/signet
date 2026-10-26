@@ -1,0 +1,112 @@
+# Load test for the contract page and API v1 (#663). Manual only: it builds
+# the app, loads the #463 fixture into a throwaway Postgres, runs both k6
+# scripts in scripts/load against localhost, and uploads the summaries. It
+# never runs against a deployed URL.
+name: Load test
+
+on:
+  workflow_dispatch:
+    inputs:
+      vus:
+        description: Virtual users
+        default: "20"
+      duration:
+        description: How long each script runs
+        default: 2m
+
+permissions:
+  contents: read
+
+jobs:
+  load:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: signet
+          POSTGRES_PASSWORD: signet
+          POSTGRES_DB: signet_load
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U signet"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DATABASE_URL: postgresql://signet:signet@localhost:5432/signet_load
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: pnpm/action-setup@v6.1.0
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Apply migrations
+        run: pnpm db:deploy
+
+      - name: Load the contract-page fixture
+        working-directory: apps/indexer
+        run: node --import tsx ../web/e2e/seed-fixture.mts
+
+      - name: Build the web app
+        run: pnpm --filter @signet/web build
+
+      # Hermetic: the chain endpoints point at a closed local port, so no
+      # request leaves the runner. The proxy-hop setting makes the server
+      # believe k6's synthetic X-Forwarded-For, so the per-IP limiter sees
+      # many clients instead of answering 429.
+      - name: Start the server
+        working-directory: apps/web
+        env:
+          SIGNET_TRUSTED_PROXY_HOPS: "1"
+          SOROBAN_RPC_URL: http://127.0.0.1:9
+          HORIZON_URL: http://127.0.0.1:9
+          SIGNET_AUTH_SECRET: signet-load-only-session-secret
+          SEP10_SIGNING_SECRET: SD2H7CMH7XEAMXE5LZGYYJB6IU3XTPPLWZESDK3HB6KSRBVLXJQUB7SO
+          NEXT_PUBLIC_APP_URL: http://localhost:3100
+        run: |
+          nohup pnpm start -p 3100 > "$RUNNER_TEMP/server.log" 2>&1 &
+          for _ in $(seq 1 60); do
+            curl -sf http://localhost:3100/api/health > /dev/null && exit 0
+            sleep 1
+          done
+          cat "$RUNNER_TEMP/server.log"
+          exit 1
+
+      - name: Install k6
+        run: |
+          curl -sSfL https://github.com/grafana/k6/releases/download/v1.3.0/k6-v1.3.0-linux-amd64.tar.gz \
+            | tar -xz --strip-components=1 -C "$RUNNER_TEMP" k6-v1.3.0-linux-amd64/k6
+          "$RUNNER_TEMP/k6" version
+
+      - name: Contract page
+        env:
+          VUS: ${{ inputs.vus }}
+          DURATION: ${{ inputs.duration }}
+        run: |
+          "$RUNNER_TEMP/k6" run --summary-export load-contract-page.json scripts/load/contract-page.js
+
+      - name: API v1
+        if: success() || failure()
+        env:
+          VUS: ${{ inputs.vus }}
+          DURATION: ${{ inputs.duration }}
+        run: |
+          "$RUNNER_TEMP/k6" run --summary-export load-api-v1.json scripts/load/api-v1.js
+
+      - name: Upload the summaries
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: k6-summaries
+          path: load-*.json
+          if-no-files-found: warn

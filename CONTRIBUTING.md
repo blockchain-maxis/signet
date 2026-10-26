@@ -144,6 +144,37 @@ bash packages/spec/fixture-contracts/build-fixtures.sh --check
 > formatting is **not** a CI gate — don't reformat files you didn't otherwise
 > change, as it adds noise to reviews.
 
+### Load tests
+
+`scripts/load/` holds two [k6](https://grafana.com/docs/k6/latest/set-up/install-k6/)
+scripts (#663). k6 is a single binary and an optional prerequisite; nothing else needs it.
+
+- `contract-page.js`: Overview, Functions and Activity of the #463 fixture contract, with
+  10% unattributed addresses to exercise the negative cache.
+- `api-v1.js`: the documented v1 reads (not the two spec reads, which need a Soroban RPC).
+
+Each request carries a synthetic client IP in `X-Forwarded-For`, so the per-IP limiter
+sees many clients and the run measures the server rather than `429`s. Both assert p95
+under 800 ms and under 1% errors at 20 virtual users for 2 minutes (`VUS` and `DURATION`
+override). Run them against a local production build with the fixture loaded, never
+against a shared deployment:
+
+```bash
+# Postgres at DATABASE_URL, migrated (pnpm db:deploy), then the fixture:
+(cd apps/indexer && node --import tsx ../web/e2e/seed-fixture.mts)
+pnpm --filter @signet/web build
+cd apps/web && SIGNET_TRUSTED_PROXY_HOPS=1 SOROBAN_RPC_URL=http://127.0.0.1:9 \
+  HORIZON_URL=http://127.0.0.1:9 SIGNET_AUTH_SECRET=local-load \
+  NEXT_PUBLIC_APP_URL=http://localhost:3100 pnpm start -p 3100
+# in another terminal
+k6 run scripts/load/contract-page.js     # BASE_URL defaults to http://localhost:3100
+k6 run scripts/load/api-v1.js
+```
+
+`SIGNET_TRUSTED_PROXY_HOPS=1` makes the server believe the header; the two URLs at a closed
+port keep the run hermetic. The **Load test** workflow (`workflow_dispatch` only) does the
+same on a runner and uploads the k6 summaries.
+
 ## Area labels
 
 When opening or categorising issues and PRs, use the appropriate `area:` label:
