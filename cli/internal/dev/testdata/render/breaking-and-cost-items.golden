@@ -1,0 +1,8 @@
+✗ build 2.1s · install 3ms · swap 4ms · 2 saved replays 180ms · 1 breaking · 1 cost · 0 ignored
+  interface: 2 breaking, 0 compatible, 0 info
+    function-removed functions.upgrade
+    argument-added functions.increment.inputs.caller
+  breaking
+    increment  return: Ok(1) → Err(Refused)
+  cost
+    get        resources: instructions -3.1% (282,900 → 274,014), mem_bytes -0.1% (1,128,283 → 1,127,294), resource_fee +<0.1% (5,156 → 5,154)

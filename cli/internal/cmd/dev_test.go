@@ -120,7 +120,7 @@ func TestDevPreflightNamesEachMissingPiece(t *testing.T) {
 		t.Fatalf("%v\n%s", err, stderr)
 	}
 	if !strings.Contains(stdout, "signet dev · CASF…RCN @ testnet ledger 4887004 · lane p28 · crate identity-registry") ||
-		!strings.Contains(stdout, "built identity_registry.wasm in") {
+		!strings.Contains(stdout, " · swap ") {
 		t.Fatalf("header and build:\n%s", stdout)
 	}
 
@@ -151,8 +151,8 @@ func TestDevTakesWhatTheFlagsLeaveOutFromSignetDevToml(t *testing.T) {
 		t.Fatalf("%v\n%s", err, stderr)
 	}
 	if !strings.Contains(stdout, "crate identity-registry") ||
-		!strings.Contains(stdout, "replayed 1 saved call on 936996c7 (deployed) and 936996c7 (build): 2 runs") ||
-		!strings.Contains(stdout, "count is stable  A 2  =  B 2  ✓ unchanged") {
+		!strings.Contains(stdout, "✓ build ") || !strings.Contains(stdout, "1 saved replay ") ||
+		!strings.Contains(stdout, "0 breaking · 0 cost · 0 ignored") || !strings.Contains(stdout, "  no differences") {
 		t.Fatalf("stdout:\n%s", stdout)
 	}
 	t.Chdir(t.TempDir())

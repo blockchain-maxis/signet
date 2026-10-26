@@ -1,0 +1,23 @@
+✗ build 2.1s · install 3ms · swap 4ms · 1 saved replay 180ms · 1 breaking · 0 cost · 0 ignored
+  6bac3430 (deployed) → 6bac3430 (build) · time: install 3ms, swap 4ms, A 80ms, B 85ms, diff 15ms
+  breaking
+    increment
+      breaking    return: 1 → 2
+      breaking    storage added: GA5Z…KZVN temporary data {"type":"LedgerKeyNonce","xdr":"AAAAFURNsWxwhO+X"}
+      breaking    storage removed: GAAZ…CWN7 temporary data {"type":"LedgerKeyNonce","xdr":"AAAAFURNsWxwhO+X"}
+      breaking    storage CAU7…DHQ5 instance /value/storage/count: 1 → 2
+      breaking    auth: GA5Z…KZVN now signs
+      breaking    auth: GAAZ…CWN7 no longer signs
+      cost        resources: instructions +1% (380,773 → 384,710), mem_bytes +0.1% (1,129,927 → 1,130,525), resource_fee -99.9% (11,212,524,561 → 11,019,790)
+      storage                                                                      before  after
+      GA5Z…KZVN temporary data {"type":"LedgerKeyNonce","xdr":"AAAAFURNsWxwhO+X"}  -       ()
+      GAAZ…CWN7 temporary data {"type":"LedgerKeyNonce","xdr":"AAAAFURNsWxwhO+X"}  ()      -
+      CAU7…DHQ5 instance /value/storage/count                                      1       2
+      resource      A               B           delta
+      instructions  380,773         384,710     +3,937 (+1%)
+      mem_bytes     1,129,927       1,130,525   +598 (+0.1%)
+      resource_fee  11,212,524,561  11,019,790  -11,201,504,771 (-99.9%)
+      auth tree of GA5Z…KZVN:
+        CAU7…DHQ5.increment(GA5Z…KZVN)
+      auth tree of GAAZ…CWN7:
+        CAU7…DHQ5.increment(GAAZ…CWN7)

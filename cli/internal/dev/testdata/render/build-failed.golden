@@ -1,0 +1,3 @@
+✗ build failed in 1.4s · e7d811f3 (the previous build) is still active
+  error[E0425]: cannot find value `count` in this scope
+   --> src/lib.rs:14:9

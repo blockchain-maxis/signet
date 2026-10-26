@@ -1,0 +1,25 @@
+✗ build 2.1s · install 3ms · swap 4ms · 2 saved replays 180ms · 2 breaking · 0 cost · 0 ignored
+  c3295f35 (deployed) → e7d811f3 (build) · time: install 3ms, swap 4ms, A 80ms, B 85ms, diff 15ms
+  interface: 3 breaking, 0 compatible, 0 info
+    function-removed functions.upgrade
+    return-type-changed functions.get.outputs
+    return-type-changed functions.increment.outputs
+  breaking
+    get
+      breaking    return: 0 (u32) → 0 (i128)
+      cost        resources: instructions +2% (282,900 → 288,561), mem_bytes +0.1% (1,128,283 → 1,129,014), resource_fee +0.6% (5,156 → 5,187)
+      resource      A          B          delta
+      instructions  282,900    288,561    +5,661 (+2%)
+      mem_bytes     1,128,283  1,129,014  +731 (+0.1%)
+      resource_fee  5,156      5,187      +31 (+0.6%)
+    increment
+      breaking    return: 1 (u32) → 1 (i128)
+      breaking    storage CARU…HCQC instance /value/storage/count: 1 (u32) → 1 (i128)
+      cost        resources: instructions +2.2% (295,262 → 301,878), mem_bytes +0.1% (1,129,293 → 1,130,024), write_bytes +9.1% (132 → 144), resource_fee +42.9% (11,201,511,256 → 16,002,156,194)
+      storage                                  before   after
+      CARU…HCQC instance /value/storage/count  1 (u32)  1 (i128)
+      resource      A               B               delta
+      instructions  295,262         301,878         +6,616 (+2.2%)
+      mem_bytes     1,129,293       1,130,024       +731 (+0.1%)
+      write_bytes   132             144             +12 (+9.1%)
+      resource_fee  11,201,511,256  16,002,156,194  +4,800,644,938 (+42.9%)

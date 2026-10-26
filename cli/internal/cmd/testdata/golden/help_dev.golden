@@ -26,6 +26,7 @@ Available Commands:
 
 Flags:
       --ci                          run once, non-interactively: a failed build exits 12
+      --clear                       clear the screen before each cycle (on a terminal)
       --debounce duration           how long a burst of file changes must settle before one rebuild (default 150ms)
       --drift string                when an entry fetched for the fork changed on-chain after the fork ledger: warn, fail (exit 6), or refork (pin the latest ledger and run once more) (default "warn")
   -h, --help                        help for dev
@@ -36,6 +37,7 @@ Flags:
       --rpc-url string              Stellar RPC to fork from (overrides the context's rpc-url; testnet defaults to https://soroban-testnet.stellar.org)
       --scan-ledgers uint32         also scan the newest N ledgers for the contract's transactions that emitted no event (slow: every transaction in them is decoded)
       --ui                          also serve the local UI on 127.0.0.1 and open it
+      --verbose                     print every difference of every replay (storage, events, the auth tree, resources) and the time by phase
 
 Global Flags:
       --context string         deployment context to use (overrides SIGNET_CONTEXT and the config file's current context)

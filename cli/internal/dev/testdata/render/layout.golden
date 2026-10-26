@@ -1,0 +1,8 @@
+✗ build 2.1s · install 3ms · swap 4ms · 1 saved replay 180ms · 1 breaking · 0 cost · 0 ignored
+  interface: 1 breaking, 0 compatible, 0 info
+    field-added types.Profile.fields.age
+  storage layout: 2 stored values the build cannot read
+    CDJP…3T2B instance "profile" (Profile, static): the new Profile does not decode the stored value: age: field missing from Profile
+    CDJP…3T2B instance "profile" (Profile, replay): `get_profile` failed on the new build with Error(WasmVm, InvalidAction) after the deployed code read this key on the same call
+  breaking
+    get_profile  return: Ok({"id":1,"name":"ada"}) → Err(Error(WasmVm, InvalidAction))

@@ -1,0 +1,8 @@
+[H[2J[31m✗[0m build 2.1s · install 3ms · swap 4ms · 2 saved replays 180ms · 2 breaking · 0 cost · 0 ignored
+  interface: 3 breaking, 0 compatible, 0 info
+    function-removed functions.upgrade
+    return-type-changed functions.get.outputs
+    return-type-changed functions.increment.outputs
+  [31mbreaking[0m
+    get        return: 0 (u32) → 0 (i128)  (+1 more)
+    increment  return: 1 (u32) → 1 (i128)  (+2 more)

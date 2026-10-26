@@ -2,6 +2,8 @@ package cmd
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"fmt"
 	"os"
 	"reflect"
@@ -43,6 +45,8 @@ type devSession struct {
 	events *devui.Events
 	// real are the contract's recent real transactions as replays (#636).
 	real []dev.Replay
+	// view is how cycles print (#637).
+	view dev.RenderOptions
 }
 
 // storedCycle is a cycle as the UI fetches it.
@@ -177,7 +181,8 @@ func devReplays(f *devconfig.File) []dev.Replay {
 
 // runCycle runs the saved calls on the deployed code and on the build at
 // wasmPath, and says what each returned.
-func (s *devSession) runCycle(ctx context.Context, wasmPath string, replays []dev.Replay, progress func(string)) (dev.Cycle, error) {
+// build is how long building it took; 0 replays the current build again.
+func (s *devSession) runCycle(ctx context.Context, wasmPath string, build time.Duration, replays []dev.Replay, progress func(string)) (dev.Cycle, error) {
 	wasm, err := os.ReadFile(wasmPath)
 	if err != nil {
 		return dev.Cycle{}, fmt.Errorf("%w: reading the build: %v", exitcode.ErrConfiguration, err)
@@ -202,15 +207,26 @@ func (s *devSession) runCycle(ctx context.Context, wasmPath string, replays []de
 	if n := s.manifest.DriftedEntries; n > 0 {
 		s.publish("drift", map[string]int{"count": n})
 	}
-	for _, line := range describeCycle(cycle) {
-		progress(line)
-	}
+	progress(strings.TrimSuffix(dev.Render(dev.Frame{Build: build, Cycle: &cycle}, s.view), "\n"))
 	if s.log != nil {
 		if err := s.log.Cycle(wasm, cycleRecord(cycle, replays, s.overrides), time.Now()); err != nil {
 			progress("warning: the session log could not be written: " + err.Error())
 		}
 	}
 	return cycle, nil
+}
+
+// buildFailed says a build failed and which build is still active: the
+// one at wasmPath, or none yet.
+func (s *devSession) buildFailed(took time.Duration, wasmPath string, err error, progress func(string)) {
+	active := ""
+	if wasmPath != "" {
+		if wasm, rerr := os.ReadFile(wasmPath); rerr == nil {
+			sum := sha256.Sum256(wasm)
+			active = hex.EncodeToString(sum[:])
+		}
+	}
+	progress(strings.TrimSuffix(dev.Render(dev.Frame{Build: took, BuildError: err.Error(), Active: active}, s.view), "\n"))
 }
 
 // startLog begins the session log in dir (#572).
@@ -282,66 +298,6 @@ func cycleRecord(c dev.Cycle, replays []dev.Replay, overrides []devconfig.Overri
 	return out
 }
 
-// describeCycle is the cycle in lines, until the diff renderers (#568,
-// #637) say more: what each call returned on each side.
-func describeCycle(c dev.Cycle) []string {
-	head := fmt.Sprintf("replayed %d saved %s on %s (deployed) and %s (build): %d %s",
-		len(c.Outcomes), plural(len(c.Outcomes), "call", "calls"), shortHash(c.Deployed), shortHash(c.Local),
-		c.Simulations, plural(c.Simulations, "run", "runs"))
-	for _, reason := range c.Restarted {
-		head += fmt.Sprintf(" · simulator restarted (%s)", reason)
-	}
-	lines := []string{head}
-	if s := c.Spec; s != nil && len(s.Changes) > 0 {
-		lines = append(lines, fmt.Sprintf("  interface: %d breaking, %d compatible, %d info", s.Summary.Breaking, s.Summary.Compatible, s.Summary.Info))
-		for _, ch := range s.Changes {
-			if ch.Class == simulator.ClassBreaking {
-				lines = append(lines, fmt.Sprintf("    %s %s", ch.Kind, ch.Path))
-			}
-		}
-	}
-	if l := c.Layout; l != nil && len(l.Findings) > 0 {
-		lines = append(lines, fmt.Sprintf("  storage layout: %d stored %s the build cannot read", len(l.Findings), plural(len(l.Findings), "value", "values")))
-		for _, f := range l.Findings {
-			lines = append(lines, fmt.Sprintf("    %s %s (%s, %s): %s", f.Key, f.DecodedKey, f.UDT, f.Evidence, f.Reason))
-		}
-	}
-	if len(c.Outcomes) == 0 {
-		lines = append(lines, "  no saved calls: add some with signet sandbox call … --save")
-	}
-	for _, o := range c.Outcomes {
-		a, b := describeRun(o.A), describeRun(o.B)
-		mark, classes := "=", ""
-		if o.Diff != nil && !o.Diff.Summary.Clean() {
-			mark, classes = "≠", "  ("+describeSummary(o.Diff.Summary)+")"
-		}
-		check := ""
-		switch v := o.Verdict; {
-		case v == nil:
-		case v.Pass:
-			check = "  ✓ " + v.Expect
-		default:
-			check = fmt.Sprintf("  ✗ expected %s: %s", v.Expect, v.Reason)
-		}
-		lines = append(lines, fmt.Sprintf("  %s  A %s  %s  B %s%s%s", o.Name, a, mark, b, classes, check))
-	}
-	return lines
-}
-
-// describeSummary names the classes found: "1 breaking, 2 cost".
-func describeSummary(s simulator.DiffSummary) string {
-	var parts []string
-	for _, c := range []struct {
-		n    int
-		name string
-	}{{s.Breaking, "breaking"}, {s.Behavioural, "behavioural"}, {s.Cost, "cost"}, {s.Ignored, "ignored"}} {
-		if c.n > 0 {
-			parts = append(parts, fmt.Sprintf("%d %s", c.n, c.name))
-		}
-	}
-	return strings.Join(parts, ", ")
-}
-
 // applyFile hands signet.dev.toml to the session: its [diff] rules, and
 // its overrides, starting the session over when they changed.
 func (s *devSession) applyFile(ctx context.Context, f *devconfig.File, contract string, progress func(string)) error {
@@ -373,25 +329,4 @@ func (s *devSession) applyRules(f *devconfig.File, contract string, progress fun
 	}
 	s.reloader.SetRules(rules)
 	return nil
-}
-
-func describeRun(r dev.Run) string {
-	switch {
-	case r.Error != nil && r.Error.Decoded != nil && r.Error.Decoded.ErrorName != "":
-		return "error " + r.Error.Decoded.ErrorName
-	case r.Error != nil:
-		return "error " + r.Error.Code
-	case r.Result != nil && len(r.Result.ReturnValue) > 0:
-		return strings.TrimSpace(string(r.Result.ReturnValue))
-	case r.Result != nil:
-		return r.Result.ReturnValueXDR
-	}
-	return "?"
-}
-
-func shortHash(h string) string {
-	if len(h) > 8 {
-		return h[:8]
-	}
-	return h
 }

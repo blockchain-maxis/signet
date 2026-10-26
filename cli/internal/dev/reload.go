@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/blockchain-maxis/signet/cli/internal/devconfig"
 	"github.com/blockchain-maxis/signet/cli/internal/realtx"
@@ -108,7 +109,23 @@ type Cycle struct {
 	// fork, the installs and the base checkpoint, and that cost is said,
 	// not hidden.
 	Restarted []string `json:"restarted,omitempty"`
+	// Timing is where the cycle's time went (#637, #638).
+	Timing Timing `json:"timing"`
 }
+
+// Timing is a cycle's time by phase: installing the build, swapping it
+// into the instance, the A and the B runs, and the comparisons (the diffs,
+// the interface and the storage layout).
+type Timing struct {
+	Install time.Duration `json:"install_ns"`
+	Swap    time.Duration `json:"swap_ns"`
+	A       time.Duration `json:"a_ns"`
+	B       time.Duration `json:"b_ns"`
+	Diff    time.Duration `json:"diff_ns"`
+}
+
+// Replays is the time the replays took: both sides and their diffs.
+func (t Timing) Replays() time.Duration { return t.A + t.B + t.Diff }
 
 // Reloader runs the reload cycle (#566): each saved call on the deployed
 // executable (A) and on the newly built one (B), both from the same `base`
@@ -228,6 +245,9 @@ func (r *Reloader) DeployedWasm() []byte { return r.deployedWasm }
 func (r *Reloader) Cycle(ctx context.Context, wasm []byte, replays []Replay) (Cycle, error) {
 	sum := sha256.Sum256(wasm)
 	local := hex.EncodeToString(sum[:])
+	var timing Timing
+	since := func(d *time.Duration, start time.Time) { *d += time.Since(start) }
+	began := time.Now()
 	if !r.installed[local] {
 		var installed simulator.ContractInstallResult
 		if err := call(ctx, r.host, simulator.TypeContractInstall, simulator.ContractInstallParams{
@@ -237,7 +257,9 @@ func (r *Reloader) Cycle(ctx context.Context, wasm []byte, replays []Replay) (Cy
 		}
 		r.installed[local] = true
 	}
+	since(&timing.Install, began)
 	out := Cycle{Deployed: r.deployed, Local: local, Outcomes: make([]Outcome, 0, len(replays))}
+	began = time.Now()
 	if out.Spec = r.specs[local]; out.Spec == nil {
 		// The session is at base here, where the instance runs the
 		// deployed executable.
@@ -250,12 +272,13 @@ func (r *Reloader) Cycle(ctx context.Context, wasm []byte, replays []Replay) (Cy
 		}
 		out.Spec, r.specs[local] = &spec, &spec
 	}
+	since(&timing.Diff, began)
 	for start := 0; start < len(replays); {
 		end := start + 1
 		for end < len(replays) && replays[end].Chain {
 			end++
 		}
-		outcomes, runs, err := r.chain(ctx, replays[start:end], start, local)
+		outcomes, runs, err := r.chain(ctx, replays[start:end], start, local, &timing)
 		if err != nil {
 			return Cycle{}, err
 		}
@@ -267,11 +290,13 @@ func (r *Reloader) Cycle(ctx context.Context, wasm []byte, replays []Replay) (Cy
 	if err := r.rollback(ctx); err != nil {
 		return Cycle{}, err
 	}
+	began = time.Now()
 	layout, err := r.layout(ctx, wasm, out.Outcomes)
 	if err != nil {
 		return Cycle{}, err
 	}
-	out.Layout = layout
+	since(&timing.Diff, began)
+	out.Layout, out.Timing = layout, timing
 	if h, ok := r.host.(restarter); ok {
 		out.Restarted = h.TakeRestarts()
 	}
@@ -282,7 +307,7 @@ func (r *Reloader) Cycle(ctx context.Context, wasm []byte, replays []Replay) (Cy
 // first: all of A from base, then all of B from base with the build
 // swapped in. A is cached by the chain up to each call, so a chained
 // call's A is reused only when everything before it is the same.
-func (r *Reloader) chain(ctx context.Context, replays []Replay, first int, local string) ([]Outcome, int, error) {
+func (r *Reloader) chain(ctx context.Context, replays []Replay, first int, local string, timing *Timing) ([]Outcome, int, error) {
 	params := make([]simulator.SimulateParams, len(replays))
 	keys := make([]string, len(replays))
 	cached := true
@@ -318,7 +343,9 @@ func (r *Reloader) chain(ctx context.Context, replays []Replay, first int, local
 			return nil, 0, err
 		}
 		for j, replay := range replays {
+			began := time.Now()
 			a, err := r.simulate(ctx, params[j])
+			timing.A += time.Since(began)
 			if err != nil {
 				return nil, 0, fmt.Errorf("%s on the deployed code: %w", replay.Name, err)
 			}
@@ -326,18 +353,27 @@ func (r *Reloader) chain(ctx context.Context, replays []Replay, first int, local
 			runs++
 		}
 	}
+	began := time.Now()
 	if err := r.begin(ctx, local); err != nil {
 		return nil, 0, err
 	}
 	for j, replay := range replays {
+		if j == 0 {
+			timing.Swap += time.Since(began)
+		}
+		began = time.Now()
 		b, err := r.simulate(ctx, params[j])
+		timing.B += time.Since(began)
 		if err != nil {
 			return nil, 0, fmt.Errorf("%s on the new build: %w", replay.Name, err)
 		}
 		runs++
 		o := &outcomes[j]
 		o.Name, o.B = replay.Name, b
-		if o.Diff, err = r.diff(ctx, *o); err != nil {
+		began = time.Now()
+		o.Diff, err = r.diff(ctx, *o)
+		timing.Diff += time.Since(began)
+		if err != nil {
 			return nil, 0, fmt.Errorf("comparing %s: %w", replay.Name, err)
 		}
 		o.Verdict = verdict(replay.Expect, *o)

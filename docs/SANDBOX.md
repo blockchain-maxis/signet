@@ -195,11 +195,31 @@ and as **B** with the new build swapped into the instance. Both sides of a
 call run with the same PRNG seed, the seed of its position in the file, so a
 contract that draws from `env.prng()` sees the same values on both.
 
+Each cycle prints one summary line, then what needs a look (#637):
+
 ```text
-replayed 2 saved calls on 936996c7 (deployed) and 4f1a09bd (build): 4 runs
-  count is stable  A 2  =  B 2  ✓ unchanged
-  claim taken  A error HandleTaken  =  B error HandleTaken  ✓ error:HandleTaken
+✗ build 2.1s · install 3ms · swap 4ms · 2 saved replays 180ms · 1 breaking · 1 cost · 0 ignored
+  interface: 2 breaking, 0 compatible, 0 info
+    function-removed functions.upgrade
+    argument-added functions.increment.inputs.caller
+  breaking
+    increment  return: Ok(1) → Err(Refused)
+  cost
+    get        resources: instructions -3.1% (282,900 → 274,014), mem_bytes -0.1% (1,128,283 → 1,127,294)
 ```
+
+The summary counts replays by their worst difference, and starts with ✗
+when a replay broke or missed its `expect`. Interface and storage layout
+findings come first, then one line per replay with differences, grouped
+(failed expectations, breaking, behavioural, cost), with the first difference
+inline and how many more. A real transaction whose replay did not behave as
+it did on-chain is listed apart, as `low-fidelity (not counted)`. A failed
+build says which build is still active. `--verbose` prints every difference
+of every replay (a storage table with before and after, the events, the auth
+tree, the resource deltas) and the time by phase: install, swap, the A runs,
+the B runs, and the diffs. On a terminal the marks are coloured and `--clear`
+clears the screen before each cycle; piped, the output is plain and
+append-only.
 
 A depends only on the fork and the call, so it is run once and reused: a
 cycle after the first runs B alone, unless a call changed (a chained call's A

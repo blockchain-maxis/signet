@@ -38,6 +38,7 @@ func newDevCmd() *cobra.Command {
 		debounce  time.Duration
 		ui        uiFlags
 		scan      uint32
+		view      dev.RenderOptions
 	)
 	cmd := &cobra.Command{
 		Use:   "dev [contract]",
@@ -58,7 +59,7 @@ when it does not; exit 3 for the others).`,
   signet dev init CASF…RCN --path ./contracts/registry`,
 		Args: cobra.MaximumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			return runDev(cmd, args, path, pkg, ci, debounce, ui, scan)
+			return runDev(cmd, args, path, pkg, ci, debounce, ui, scan, view)
 		},
 	}
 	addRPCFlags(cmd)
@@ -68,6 +69,8 @@ when it does not; exit 3 for the others).`,
 	cmd.Flags().DurationVar(&debounce, "debounce", dev.DefaultDebounce, "how long a burst of file changes must settle before one rebuild")
 	cmd.Flags().BoolVar(&ui.on, "ui", false, "also serve the local UI on 127.0.0.1 and open it")
 	cmd.Flags().BoolVar(&ui.noBrowser, "no-browser", false, "with --ui, print the UI's URL instead of opening a browser")
+	cmd.Flags().BoolVar(&view.Verbose, "verbose", false, "print every difference of every replay (storage, events, the auth tree, resources) and the time by phase")
+	cmd.Flags().BoolVar(&view.Clear, "clear", false, "clear the screen before each cycle (on a terminal)")
 	cmd.Flags().Uint32Var(&scan, "scan-ledgers", 0, "also scan the newest N ledgers for the contract's transactions that emitted no event (slow: every transaction in them is decoded)")
 	cmd.AddCommand(newDevInitCmd())
 	return cmd
@@ -85,7 +88,7 @@ type devSetup struct {
 // uiFlags are signet dev's --ui and --no-browser.
 type uiFlags struct{ on, noBrowser bool }
 
-func runDev(cmd *cobra.Command, args []string, path, pkg string, ci bool, debounce time.Duration, ui uiFlags, scan uint32) error {
+func runDev(cmd *cobra.Command, args []string, path, pkg string, ci bool, debounce time.Duration, ui uiFlags, scan uint32, view dev.RenderOptions) error {
 	deps, err := depsFor(cmd)
 	if err != nil {
 		return err
@@ -207,6 +210,11 @@ func runDev(cmd *cobra.Command, args []string, path, pkg string, ci bool, deboun
 	if err := session.applyRules(setup.file, setup.contract, printer.Progress); err != nil {
 		return err
 	}
+	view.TTY = !printer.JSON && writerIsTerminal(printer.Out)
+	if f := setup.file; f != nil {
+		view.FailOnLowFidelity = f.Replay.FailOnLowFidelity
+	}
+	session.view = view
 	session.collectReal(ctx, client, network.Name, setup.contract, setup.file, scan, printer.Progress)
 	logDir := setup.fileDir
 	if logDir == "" {
@@ -219,12 +227,13 @@ func runDev(cmd *cobra.Command, args []string, path, pkg string, ci bool, deboun
 	// The initial build (#564). A failure keeps going interactively, where
 	// the next save retries it; with --ci it is exit 12.
 	builder := &dev.Builder{Stellar: binary, Crate: setup.crate}
+	began := time.Now()
 	built, buildErr := builder.Build(ctx)
+	took := time.Since(began)
 	var cycle *dev.Cycle
 	switch {
 	case buildErr == nil:
-		printer.Progress(fmt.Sprintf("built %s in %s", filepath.Base(built.Wasm), built.Duration.Round(100*time.Millisecond)))
-		c, err := session.runCycle(ctx, built.Wasm, session.replays(setup.file), printer.Progress)
+		c, err := session.runCycle(ctx, built.Wasm, took, session.replays(setup.file), printer.Progress)
 		if err != nil {
 			return err
 		}
@@ -232,7 +241,7 @@ func runDev(cmd *cobra.Command, args []string, path, pkg string, ci bool, deboun
 	case dev.IsBuildError(buildErr) && ci:
 		return buildErr
 	case dev.IsBuildError(buildErr):
-		printer.Progress("build failed:\n" + buildErr.Error())
+		session.buildFailed(took, "", buildErr, printer.Progress)
 	default:
 		return buildErr
 	}
@@ -493,6 +502,7 @@ func watchAndRebuild(ctx context.Context, setup devSetup, builder *dev.Builder, 
 
 	type outcome struct {
 		built dev.Built
+		took  time.Duration
 		err   error
 	}
 	results := make(chan outcome, 1)
@@ -504,14 +514,16 @@ func watchAndRebuild(ctx context.Context, setup devSetup, builder *dev.Builder, 
 		building, again = true, false
 		session.publish("build.started", nil)
 		go func() {
+			began := time.Now()
 			built, err := builder.Build(bctx)
-			results <- outcome{built, err}
+			results <- outcome{built, time.Since(began), err}
 		}()
 	}
 	defer func() { cancel() }()
 	// A failed cycle is said and the loop goes on: the next save retries.
-	replay := func(wasm string) {
-		if _, err := session.runCycle(ctx, wasm, session.replays(setup.file), progress); err != nil && ctx.Err() == nil {
+	active := builder.Last()
+	replay := func(wasm string, took time.Duration) {
+		if _, err := session.runCycle(ctx, wasm, took, session.replays(setup.file), progress); err != nil && ctx.Err() == nil {
 			progress("replay failed: " + err.Error())
 		}
 	}
@@ -538,7 +550,7 @@ func watchAndRebuild(ctx context.Context, setup devSetup, builder *dev.Builder, 
 					progress(err.Error())
 				}
 				if builder.Last() != "" && !building {
-					replay(builder.Last())
+					replay(builder.Last(), 0)
 				}
 				continue
 			}
@@ -555,12 +567,12 @@ func watchAndRebuild(ctx context.Context, setup devSetup, builder *dev.Builder, 
 			switch {
 			case errors.Is(o.err, context.Canceled):
 			case o.err == nil:
-				progress(fmt.Sprintf("built %s in %s", filepath.Base(o.built.Wasm), o.built.Duration.Round(100*time.Millisecond)))
+				active = o.built.Wasm
 				if !again {
-					replay(o.built.Wasm)
+					replay(o.built.Wasm, o.took)
 				}
 			default:
-				progress("build failed:\n" + o.err.Error())
+				session.buildFailed(o.took, active, o.err, progress)
 				session.publish("build.failed", map[string]string{"message": o.err.Error()})
 			}
 			if again && ctx.Err() == nil {
@@ -629,4 +641,15 @@ func startUI(ctx context.Context, cmd *cobra.Command, view *uiSession, noBrowser
 		progress("could not open a browser: " + err.Error())
 	}
 	return func() { cancel(); <-done; unregister() }, nil
+}
+
+// writerIsTerminal reports whether w is a terminal, where signet dev may
+// colour and clear (#637); a variable so tests can stand in for one.
+var writerIsTerminal = func(w io.Writer) bool {
+	f, ok := w.(*os.File)
+	if !ok {
+		return false
+	}
+	info, err := f.Stat()
+	return err == nil && info.Mode()&os.ModeCharDevice != 0
 }
