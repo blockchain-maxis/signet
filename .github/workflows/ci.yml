@@ -51,6 +51,8 @@ jobs:
               # The e2e job builds the registry from source (#641).
               - 'packages/contracts/**'
               - 'docs/examples/signet-dev-ci.yml'
+              - 'docs/SANDBOX_TUTORIAL.md'
+              - 'scripts/check-tutorial.mjs'
               # The shared spec reader the host is held to (#547).
               - 'packages/spec/**'
               - '.github/workflows/ci.yml'
@@ -825,6 +827,11 @@ jobs:
         with:
           report_paths: sandbox/testdata/e2e/junit.xml
           check_name: signet dev
+
+      # The tutorial's commands that need no network, against this bundle
+      # (#643).
+      - name: The tutorial's offline commands
+        run: node ../../../scripts/check-tutorial.mjs
 
       - name: A changed count's return fails the check
         run: |

@@ -13,8 +13,12 @@ import (
 	"github.com/blockchain-maxis/signet/cli/internal/devconfig"
 )
 
-// guidePath is the sandbox user guide (#642).
-var guidePath = filepath.Join("..", "..", "..", "docs", "SANDBOX.md")
+// guidePath is the sandbox user guide (#642), tutorialPath its tutorial
+// (#643).
+var (
+	guidePath    = filepath.Join("..", "..", "..", "docs", "SANDBOX.md")
+	tutorialPath = filepath.Join("..", "..", "..", "docs", "SANDBOX_TUTORIAL.md")
+)
 
 // signetCommands are the `signet …` commands a markdown file cites: every
 // line of a shell code fence that starts with signet, and every inline code
@@ -57,6 +61,11 @@ func TestTheSandboxGuideCitesRealCommandsAndFlags(t *testing.T) {
 	if len(commands) < 20 {
 		t.Fatalf("found only %d signet commands in %s", len(commands), guidePath)
 	}
+	tutorial := signetCommands(t, tutorialPath)
+	if len(tutorial) < 8 {
+		t.Fatalf("found only %d signet commands in %s", len(tutorial), tutorialPath)
+	}
+	commands = append(commands, tutorial...)
 	for _, line := range commands {
 		line, _, _ = strings.Cut(line, " #") // a trailing comment
 		fields := strings.Fields(line)[1:]

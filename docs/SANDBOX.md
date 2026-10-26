@@ -20,6 +20,9 @@ command reference in [`cli/README.md`](../cli/README.md#signet-sandbox-fork).
 - [Protocol support](#protocol-support)
 - [Troubleshooting](#troubleshooting)
 
+New to it? [The tutorial](SANDBOX_TUTORIAL.md) forks Signet's own registry
+and catches a breaking change in it, with real output.
+
 ## What it is, and what it is not
 
 It is local: every call runs in `signet-simulator`, the contract simulator
