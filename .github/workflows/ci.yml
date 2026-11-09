@@ -125,7 +125,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - uses: pnpm/action-setup@v6.1.0
+      - uses: pnpm/action-setup@v6.1.1
 
       - uses: actions/setup-node@v7
         with:
@@ -234,7 +234,7 @@ jobs:
       # SDK: generate it for the registry and types_zoo fixtures and `go vet` it
       # in a throwaway module. Ubuntu only, because the generator is TypeScript
       # and its output does not depend on the OS.
-      - uses: pnpm/action-setup@v6.1.0
+      - uses: pnpm/action-setup@v6.1.1
         if: matrix.os == 'ubuntu-latest'
 
       - uses: actions/setup-node@v7
@@ -456,7 +456,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - uses: pnpm/action-setup@v6.1.0
+      - uses: pnpm/action-setup@v6.1.1
 
       # The local UI's security tests (#587) run its real server, in Go.
       - uses: actions/setup-go@v7
@@ -541,7 +541,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - uses: pnpm/action-setup@v6.1.0
+      - uses: pnpm/action-setup@v6.1.1
 
       - uses: actions/setup-node@v7
         with:
@@ -671,7 +671,7 @@ jobs:
       # sandbox/protocol/schema/v1/, and every schema must be documented in
       # docs/CLI_RUST_BRIDGE.md. It needs `ajv`, which apps/web already pins in
       # the lockfile, so install just that workspace's dependencies.
-      - uses: pnpm/action-setup@v6.1.0
+      - uses: pnpm/action-setup@v6.1.1
 
       - uses: actions/setup-node@v7
         with:
@@ -1000,7 +1000,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - uses: pnpm/action-setup@v6.1.0
+      - uses: pnpm/action-setup@v6.1.1
 
       - uses: actions/setup-node@v7
         with:
