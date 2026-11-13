@@ -3,7 +3,7 @@ module github.com/blockchain-maxis/signet/cli
 go 1.25.0
 
 require (
-	github.com/BurntSushi/toml v1.4.0
+	github.com/BurntSushi/toml v1.6.0
 	github.com/dop251/goja v0.0.0-20261010124532-447a94be0917
 	github.com/fsnotify/fsnotify v1.8.0
 	github.com/spf13/cobra v1.10.2
