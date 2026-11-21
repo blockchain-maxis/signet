@@ -1,11 +1,16 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { hash, xdr } from '@stellar/stellar-sdk';
 import {
   ContractNotFound,
   InterfaceUnreadable,
   LruSpecCache,
   NoInterface,
   RpcUnavailable,
+  WasmNotFound,
   type SpecJson,
 } from '@signet/spec';
 import type { GetContractSpecOptions, ResolvedContractSpec } from '@signet/spec/resolve';
@@ -116,6 +121,10 @@ test('each resolver failure maps to a serialisable failure object', async () => 
       thrown: new ContractNotFound(ADDRESS, 'testnet'),
       failure: { kind: 'contract_not_found', network: 'testnet' },
     },
+    {
+      thrown: new WasmNotFound(HASH, 'testnet'),
+      failure: { kind: 'wasm_not_found', network: 'testnet' },
+    },
     { thrown: new NoInterface('no_section'), failure: { kind: 'no_interface' } },
     {
       thrown: new InterfaceUnreadable('16.1.0'),
@@ -147,4 +156,62 @@ test('with DATABASE_URL the shared memory cache is first, then the store', () =>
   const chain = specCaches('postgres://example');
   assert.equal(chain.length, 2);
   assert.strictEqual(chain[0], specCaches(undefined)[0]);
+});
+
+test('historical wasmHash resolves via code entry without calling getContractWasmByContractId', async () => {
+  const specFixturesDir = join(
+    dirname(fileURLToPath(import.meta.url)),
+    '..',
+    '..',
+    '..',
+    '..',
+    'packages',
+    'spec',
+    'fixtures',
+  );
+  const wasm = readFileSync(join(specFixturesDir, 'identity-registry.wasm'));
+  const codeEntryJson = JSON.parse(
+    readFileSync(join(specFixturesDir, 'contract-wasm-entry.json'), 'utf8'),
+  ) as { entries: { xdr: string }[] };
+  const val = xdr.LedgerEntryData.fromXDR(codeEntryJson.entries[0]!.xdr, 'base64');
+  const historicalHash = hash(wasm).toString('hex');
+  val.contractCode().hash(Buffer.from(historicalHash, 'hex'));
+  val.contractCode().code(wasm);
+  const memory = new LruSpecCache<SpecJson>();
+
+  const { getContractSpec } = await import('@signet/spec/resolve');
+  let wasmCalls = 0;
+  let ledgerCalls = 0;
+  const server = {
+    async getLedgerEntries(...keys: xdr.LedgerKey[]) {
+      ledgerCalls += 1;
+      const key = keys[0]!;
+      assert.equal(key.switch().name, 'contractCode');
+      assert.equal(key.contractCode().hash().toString('hex'), historicalHash);
+      return {
+        latestLedger: 100,
+        entries: [{ key, val, lastModifiedLedgerSeq: 1 }],
+      };
+    },
+    async getContractWasmByContractId(): Promise<Buffer> {
+      wasmCalls += 1;
+      throw new Error('must not inspect current contract executable for historical hash');
+    },
+  };
+
+  const result = await loadContractSpec(
+    { address: ADDRESS, network: 'testnet', wasmHash: historicalHash },
+    {
+      appNetwork: 'testnet',
+      caches: [memory],
+      resolve: (address, opts) => getContractSpec(address, { ...opts, server }),
+    },
+  );
+
+  assert.ok(result.ok);
+  assert.equal(result.wasmHash, historicalHash);
+  assert.equal(result.spec.wasmHash, historicalHash);
+  assert.equal(wasmCalls, 0);
+  assert.equal(ledgerCalls, 1);
+  assert.equal(memory.get(historicalHash)?.wasmHash, historicalHash);
 });
