@@ -170,8 +170,8 @@ test('historical wasmHash resolves via code entry without calling getContractWas
   const wasm = readFileSync(join(repoPackagesDir, 'spec', 'fixtures', 'identity-registry.wasm'));
   const codeEntryJson = JSON.parse(
     readFileSync(join(repoPackagesDir, 'fixtures', 'data', 'contract-wasm-entry.json'), 'utf8'),
-  ) as { entries: { xdr: string }[] };
-  const val = xdr.LedgerEntryData.fromXDR(codeEntryJson.entries[0]!.xdr, 'base64');
+  ) as { payload: { entries: { xdr: string }[] } };
+  const val = xdr.LedgerEntryData.fromXDR(codeEntryJson.payload.entries[0]!.xdr, 'base64');
   const historicalHash = hash(wasm).toString('hex');
   val.contractCode().hash(Buffer.from(historicalHash, 'hex'));
   val.contractCode().code(wasm);
