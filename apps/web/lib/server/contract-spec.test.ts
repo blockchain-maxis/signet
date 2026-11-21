@@ -159,19 +159,17 @@ test('with DATABASE_URL the shared memory cache is first, then the store', () =>
 });
 
 test('historical wasmHash resolves via code entry without calling getContractWasmByContractId', async () => {
-  const specFixturesDir = join(
+  const repoPackagesDir = join(
     dirname(fileURLToPath(import.meta.url)),
     '..',
     '..',
     '..',
     '..',
     'packages',
-    'spec',
-    'fixtures',
   );
-  const wasm = readFileSync(join(specFixturesDir, 'identity-registry.wasm'));
+  const wasm = readFileSync(join(repoPackagesDir, 'spec', 'fixtures', 'identity-registry.wasm'));
   const codeEntryJson = JSON.parse(
-    readFileSync(join(specFixturesDir, 'contract-wasm-entry.json'), 'utf8'),
+    readFileSync(join(repoPackagesDir, 'fixtures', 'data', 'contract-wasm-entry.json'), 'utf8'),
   ) as { entries: { xdr: string }[] };
   const val = xdr.LedgerEntryData.fromXDR(codeEntryJson.entries[0]!.xdr, 'base64');
   const historicalHash = hash(wasm).toString('hex');
