@@ -14,6 +14,7 @@ import { STELLAR_EXPLORER, STELLAR_NETWORK_NAME } from '@/lib/network';
 import { formatDate } from '@/lib/format-date';
 import OperationsList from './operations-list';
 import { CopyAddress } from './copy-address';
+import { RestoreBinding } from '@/components/restore-binding';
 
 // Rendered per request. The root layout reads request headers for the CSP
 // nonce, so no route can be statically pre-rendered anyway, and handles are
@@ -112,23 +113,51 @@ export default async function ProfilePage({ params }: { params: Promise<{ handle
           )}
 
           <div className="mt-7 flex items-center gap-3">
-            <span className="inline-flex items-center gap-2 border border-emerald-800 bg-emerald-950/30 px-3 py-1.5">
-              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-              <span
-                className="text-[10px] uppercase tracking-[0.22em] text-emerald-400"
-                style={{ fontFamily: 'var(--font-mono)' }}
-              >
-                Bound on-chain · Identity Registry
+            {profile.archived ? (
+              <span className="inline-flex items-center gap-2 border border-amber-800 bg-amber-950/30 px-3 py-1.5">
+                <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
+                <span
+                  className="text-[10px] uppercase tracking-[0.22em] text-amber-400"
+                  style={{ fontFamily: 'var(--font-mono)' }}
+                >
+                  Archived on-chain · Identity Registry
+                </span>
               </span>
-            </span>
+            ) : (
+              <span className="inline-flex items-center gap-2 border border-emerald-800 bg-emerald-950/30 px-3 py-1.5">
+                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                <span
+                  className="text-[10px] uppercase tracking-[0.22em] text-emerald-400"
+                  style={{ fontFamily: 'var(--font-mono)' }}
+                >
+                  Bound on-chain · Identity Registry
+                </span>
+              </span>
+            )}
           </div>
         </div>
       </header>
 
       <div className="relative z-10 mx-auto max-w-5xl px-8 py-16 md:px-14">
-
-        {/* Wallet */}
-        <section className="mb-16">
+        {profile.archived ? (
+          <section className="mb-16">
+            <SectionLabel>Archived binding</SectionLabel>
+            <div className="mt-6 border border-amber-900/60 bg-amber-950/20 px-6 py-6">
+              <p
+                className="text-[13px] leading-[1.7] text-amber-300"
+                style={{ fontFamily: 'var(--font-mono)' }}
+              >
+                This handle binding still exists on-chain, but its ledger storage entry has expired and is archived.
+              </p>
+              <div className="mt-6">
+                <RestoreBinding handle={handle} />
+              </div>
+            </div>
+          </section>
+        ) : (
+          <>
+            {/* Wallet */}
+            <section className="mb-16">
           <SectionLabel>Linked wallet</SectionLabel>
           <div className="mt-6 border border-[#1f1d19]">
             <div className="flex flex-wrap items-center justify-between gap-4 px-5 py-4">
@@ -385,6 +414,8 @@ export default async function ProfilePage({ params }: { params: Promise<{ handle
             </a>
           </div>
         </section>
+          </>
+        )}
       </div>
 
       {/* Footer — shared with the contract sub-route (#445) */}

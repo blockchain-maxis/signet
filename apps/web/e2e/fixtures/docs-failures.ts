@@ -139,6 +139,54 @@ export async function startMockRpc(): Promise<() => Promise<void>> {
           params?: { keys?: string[] };
         };
         id = rpc.id ?? 1;
+        if (rpc.method === 'simulateTransaction') {
+          res.writeHead(200, { 'content-type': 'application/json' });
+          res.end(
+            JSON.stringify({
+              jsonrpc: '2.0',
+              id,
+              result: {
+                transactionData: 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=',
+                minResourceFee: '1000',
+                restorePreamble: {
+                  minResourceFee: '1000',
+                  transactionData: 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=',
+                },
+                latestLedger: 1_000_001,
+              },
+            }),
+          );
+          return;
+        }
+        if (rpc.method === 'getAccount') {
+          res.writeHead(200, { 'content-type': 'application/json' });
+          res.end(
+            JSON.stringify({
+              jsonrpc: '2.0',
+              id,
+              result: {
+                id: (rpc.params as any)?.address ?? WALLET_3,
+                sequence: '100',
+              },
+            }),
+          );
+          return;
+        }
+        if (rpc.method === 'sendTransaction') {
+          res.writeHead(200, { 'content-type': 'application/json' });
+          res.end(
+            JSON.stringify({
+              jsonrpc: '2.0',
+              id,
+              result: {
+                status: 'PENDING',
+                hash: '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef',
+                latestLedger: 1_000_001,
+              },
+            }),
+          );
+          return;
+        }
         if (rpc.method !== 'getLedgerEntries') {
           res.writeHead(200, { 'content-type': 'application/json' });
           res.end(
