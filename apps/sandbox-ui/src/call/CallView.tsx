@@ -11,7 +11,19 @@ import type { CallResultView } from '../results/result.ts';
  * and the build's, with the fork's accounts offered for addresses, and each
  * run's answer below it in the results panel (#582).
  */
-export function CallView({ api, refresh }: { api: Api; refresh: number }) {
+export function CallView({
+  api,
+  refresh,
+  contract,
+  network,
+  buildPath,
+}: {
+  api: Api;
+  refresh: number;
+  contract?: string;
+  network?: string;
+  buildPath?: string;
+}) {
   const [specs, setSpecs] = useState<{ deployed: SpecJson | null; local: SpecJson | null } | null>(null);
   const [accounts, setAccounts] = useState<string[]>([]);
   const [runs, setRuns] = useState<CallRun[]>([]);
@@ -44,7 +56,15 @@ export function CallView({ api, refresh }: { api: Api; refresh: number }) {
   }
   return (
     <>
-      <CallForm api={api} specs={specs} accounts={accounts} onRuns={(r) => setRuns(r)} />
+      <CallForm
+        api={api}
+        specs={specs}
+        accounts={accounts}
+        contract={contract}
+        network={network}
+        buildPath={buildPath}
+        onRuns={(r) => setRuns(r)}
+      />
       {runs.length > 0 && (
         <section ref={results} aria-label="Results" className="mt-4 grid gap-3">
           {runs.map((run) =>
