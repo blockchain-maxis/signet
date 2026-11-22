@@ -4,6 +4,7 @@ type Fn = SpecJson['functions'][number];
 type Field = Fn['inputs'][number];
 type SpecType = SpecJson['types'][number];
 type ErrorCase = SpecJson['errors'][number];
+type SpecEvent = SpecJson['events'][number];
 
 export type SpecChangeKind =
   | 'function-added' | 'function-removed'
@@ -15,7 +16,7 @@ export type SpecChangeKind =
   | 'case-added' | 'case-removed'
   | 'variant-added' | 'variant-removed' | 'variant-renumbered'
   | 'error-added' | 'error-removed' | 'error-renumbered'
-  | 'event-changed'
+  | 'event-added' | 'event-removed' | 'event-changed'
   | 'spec-entries-changed';
 
 export interface SpecChange {
@@ -326,23 +327,74 @@ function errors(
   }
 }
 
+function events(
+  changes: SpecChange[],
+  before: readonly SpecEvent[],
+  after: readonly SpecEvent[],
+): void {
+  const oldMap = new Map(before.map((e) => [e.name, e]));
+  const newMap = new Map(after.map((e) => [e.name, e]));
+
+  for (const old of before) {
+    if (!newMap.has(old.name)) {
+      emit(changes, 'event-removed', `events.${old.name}`, true,
+        'Removing an event can break clients that subscribe to it.', old);
+    }
+  }
+
+  for (const next of after) {
+    if (!oldMap.has(next.name)) {
+      emit(changes, 'event-added', `events.${next.name}`, false,
+        'Adding an event does not affect clients that ignore unknown events.', undefined, next);
+    }
+  }
+
+  for (const old of before) {
+    const next = newMap.get(old.name);
+    if (!next) continue;
+
+    const path = `events.${old.name}`;
+    docs(changes, `${path}.doc`, old.doc, next.doc);
+
+    if (!same(old.prefixTopics, next.prefixTopics)) {
+      emit(changes, 'event-changed', `${path}.prefixTopics`, true,
+        'Changing an event prefix topic list alters how clients filter it.',
+        old.prefixTopics, next.prefixTopics);
+    }
+
+    if (old.dataFormat !== next.dataFormat) {
+      emit(changes, 'event-changed', `${path}.dataFormat`, true,
+        'Changing an event data format changes how payloads are decoded.',
+        old.dataFormat, next.dataFormat);
+    }
+
+    const len = Math.max(old.params.length, next.params.length);
+    for (let i = 0; i < len; i++) {
+      const oParam = old.params[i];
+      const nParam = next.params[i];
+      const paramPath = `${path}.params[${i}]`;
+      if (!oParam && nParam) {
+        emit(changes, 'event-changed', paramPath, true,
+          'Adding an event parameter changes the emitted event shape.', undefined, nParam);
+      } else if (oParam && !nParam) {
+        emit(changes, 'event-changed', paramPath, true,
+          'Removing an event parameter breaks clients reading it.', oParam);
+      } else if (oParam && nParam && !same(oParam, nParam)) {
+        emit(changes, 'event-changed', paramPath, true,
+          'Changing an event parameter name, type, or location breaks subscribers expecting the previous shape.',
+          oParam, nParam);
+      }
+    }
+  }
+}
+
 /** Compare callable interfaces; storage layout compatibility is out of scope. */
 export function diffSpecs(before: SpecJson, after: SpecJson): SpecDiff {
   const changes: SpecChange[] = [];
   functions(changes, before.functions, after.functions);
   types(changes, before.types, after.types);
   errors(changes, before.errors, after.errors);
-  if (!same(before.events, after.events)) {
-    emit(
-      changes,
-      'event-changed',
-      'events',
-      true,
-      'Changing contract events can break clients that depend on their names, parameters, topics, or data format.',
-      before.events,
-      after.events,
-    );
-  }
+  events(changes, before.events, after.events);
 
   // Until the parser exposes flattened interface views, preserve detection
   // of changes between real contract specs through their serialized entries.
@@ -350,6 +402,7 @@ export function diffSpecs(before: SpecJson, after: SpecJson): SpecDiff {
     before.functions.length === 0 && after.functions.length === 0 &&
     before.types.length === 0 && after.types.length === 0 &&
     before.errors.length === 0 && after.errors.length === 0 &&
+    before.events.length === 0 && after.events.length === 0 &&
     !same(before.entriesXdr, after.entriesXdr)
   ) {
     emit(
