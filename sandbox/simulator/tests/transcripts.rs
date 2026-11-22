@@ -11,13 +11,17 @@
 use std::io::Write;
 use std::process::{Command, Stdio};
 
-const CLIENT_TYPES: [&str; 8] = [
+const CLIENT_TYPES: [&str; 12] = [
     "hello",
     "shutdown",
     "xdr_keys",
     "tx_decode",
     "wasm_inspect",
     "ledger_open",
+    "ledger_put",
+    "ledger_get",
+    "ledger_checkpoint",
+    "ledger_rollback",
     "contract_install",
     "simulate",
 ];
@@ -110,6 +114,16 @@ fn xdr_helpers_transcript_replays_byte_for_byte() {
 fn trace_transcript_replays_byte_for_byte() {
     // A traced caller -> callee simulate (#541) on fixture contracts.
     let (sent, expected) = load("trace.ndjson");
+    let replay = run_simulator(&sent);
+    assert_eq!(replay.stdout, expected);
+    assert!(replay.status.success());
+}
+
+#[test]
+fn ledger_transcript_replays_byte_for_byte() {
+    // ledger_open (with network config), ledger_put, ledger_get, ledger_checkpoint,
+    // and ledger_rollback to a valid handle, cp-0, and cp-99 (#929).
+    let (sent, expected) = load("ledger.ndjson");
     let replay = run_simulator(&sent);
     assert_eq!(replay.stdout, expected);
     assert!(replay.status.success());
