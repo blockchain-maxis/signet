@@ -631,7 +631,11 @@ fn contract_install_checks_wasm_size_limit_and_flags_unchecked(lane: u32) {
     }));
     assert_eq!(installed["type"], "result", "{installed}");
     assert!(installed.get("size_checked").is_none(), "{installed}");
-    assert!(sim_exact.fetched.contains(&exact_key), "{:?}", sim_exact.fetched);
+    assert!(
+        sim_exact.fetched.contains(&exact_key),
+        "{:?}",
+        sim_exact.fetched
+    );
 
     // 3. Without ContractMaxSizeBytes and fetch: "deny" -> installs and marks size_checked: false.
     let mut sim_deny = Sim::start();
