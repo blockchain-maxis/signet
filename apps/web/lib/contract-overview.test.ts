@@ -208,6 +208,7 @@ test('a wrong-network failure names both networks', () => {
 test('no failure carries counts, and none invents a description', () => {
   const failures: SpecFailure[] = [
     { kind: 'contract_not_found', network: 'mainnet' },
+    { kind: 'wasm_not_found', network: 'mainnet' },
     { kind: 'no_interface' },
     { kind: 'interface_unreadable', sdkVersion: '16.1.0' },
     { kind: 'unavailable' },
@@ -224,6 +225,10 @@ test('no failure carries counts, and none invents a description', () => {
 test('classifySpecError maps the resolver’s typed errors and defaults to unavailable', () => {
   assert.deepEqual(classifySpecError({ kind: 'contract_not_found' }, 'testnet'), {
     kind: 'contract_not_found',
+    network: 'testnet',
+  });
+  assert.deepEqual(classifySpecError({ kind: 'wasm_not_found' }, 'testnet'), {
+    kind: 'wasm_not_found',
     network: 'testnet',
   });
   assert.deepEqual(classifySpecError({ kind: 'no_interface', reason: 'no_section' }, 'testnet'), {

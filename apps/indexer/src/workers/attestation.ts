@@ -3,6 +3,7 @@ import { pairingEvent, type PairingOutcome, type WalletSource } from '@signet/ty
 import { prisma } from '../db.js';
 import { logger } from '../logger.js';
 import { createRegistryReader, type RegistryReader } from '../registry-read.js';
+import { withRetry } from '../retry.js';
 import type { IndexerConfig } from '../config.js';
 
 /**
@@ -17,6 +18,17 @@ import type { IndexerConfig } from '../config.js';
  */
 
 const CURSOR_ID = 'attestation';
+
+/** Events asked for per `getEvents` call. 200 is the most the RPC hands back for one call. */
+const EVENTS_PAGE_LIMIT = 200;
+
+/**
+ * How many pages of events one tick reads before it stops and leaves the rest
+ * to the next tick. Ten pages is 2,000 registry events, far more than a tick
+ * normally has to read. The cap is there so that a flood cannot hold one tick,
+ * and the workers queued behind it, for an unbounded time.
+ */
+export const MAX_EVENT_PAGES_PER_TICK = 10;
 
 /**
  * Emit one pairing audit event.
@@ -276,6 +288,9 @@ export async function reconcileAgainstChain(
  * @param registryReader Optional contract-state reader (defaults to view
  *                    simulations against `server`). Tests inject a fake to
  *                    drive the reconcile path.
+ * @param options     `maxPages` overrides {@link MAX_EVENT_PAGES_PER_TICK},
+ *                    the number of `getEvents` pages one tick reads. Tests
+ *                    lower it to exercise the cap.
  */
 export async function runAttestationWorker(
   server: rpc.Server,
@@ -283,6 +298,7 @@ export async function runAttestationWorker(
   cursorStore?: CursorStore,
   eventStore?: AttestationStore,
   registryReader?: RegistryReader,
+  options: { maxPages?: number } = {},
 ): Promise<{ eventsDecoded: number; reconciled?: ReconcileStats }> {
   if (!config.registryContractId) {
     logger.debug({}, 'attestation.skip — no registry contract configured');
@@ -294,7 +310,19 @@ export async function runAttestationWorker(
 
   // Resume from the cursor, or start `eventWindowLedgers` back on first run.
   const cursor = await store.indexerCursor.findUnique({ where: { id: CURSOR_ID } });
-  const { sequence: latest } = await server.getLatestLedger();
+  let latest: number;
+  try {
+    const latestInfo = await withRetry(() => server.getLatestLedger(), {
+      label: 'attestation.soroban',
+    });
+    latest = latestInfo.sequence;
+  } catch (err) {
+    // Soroban RPC cannot be reached, so there is nothing to read this tick.
+    // The cursor stays where it is and the next tick tries again. Returning,
+    // rather than throwing, is what `runInvocationsWorker` does for this call.
+    logger.error({ error: String(err) }, 'attestation.latestLedgerFailed');
+    return { eventsDecoded: 0 };
+  }
   let startLedger: number;
   if (cursor && cursor.lastLedger > 0) {
     startLedger = cursor.lastLedger + 1;
@@ -355,50 +383,97 @@ export async function runAttestationWorker(
     startLedger = Math.max(1, latest - config.eventWindowLedgers);
   }
 
+  // The cap is checked after a page has been read, so a tick always reads at
+  // least one page whatever this is set to.
+  const maxPages = options.maxPages ?? MAX_EVENT_PAGES_PER_TICK;
+  const filters: rpc.Api.EventFilter[] = [
+    { type: 'contract', contractIds: [config.registryContractId] },
+  ];
+
   let applied = 0;
-  let latestLedger = startLedger;
+  let pages = 0;
+  // The ledger the cursor is saved at. It is the RPC tip only when the read
+  // ran dry; if the page cap stopped it first, it is set below the last event
+  // read, so that the next tick carries on from there.
+  let throughLedger = startLedger;
+  let moreToRead = false;
 
   try {
-    const res = await server.getEvents({
-      startLedger,
-      filters: [{ type: 'contract', contractIds: [config.registryContractId] }],
-      limit: 200,
-    });
-    latestLedger = res.latestLedger;
+    // One `getEvents` call returns at most `EVENTS_PAGE_LIMIT` events, so a
+    // window holding more than that has to be read page by page: the first
+    // call names the ledger to start at, each later one passes the `cursor`
+    // the previous response ended with.
+    let request: rpc.Api.GetEventsRequest = { startLedger, filters, limit: EVENTS_PAGE_LIMIT };
+    for (;;) {
+      const res = await server.getEvents(request);
+      pages++;
 
-    for (const e of res.events) {
-      const decoded = decodeEvent(e.topic, e.value);
-      if (!decoded) {
-        // A registry event this build cannot read is still a pairing the audit
-        // trail should show an attempt at, rather than a silent `continue`.
-        logPairing('rejected', { ledger: e.ledger, reason: 'undecodable-event' });
-        continue;
+      for (const e of res.events) {
+        const decoded = decodeEvent(e.topic, e.value);
+        if (!decoded) {
+          // A registry event this build cannot read is still a pairing the audit
+          // trail should show an attempt at, rather than a silent `continue`.
+          logPairing('rejected', { ledger: e.ledger, reason: 'undecodable-event' });
+          continue;
+        }
+        logPairing('started', {
+          handle: decoded.handle,
+          wallet: decoded.wallet,
+          reason: decoded.kind,
+          ledger: e.ledger,
+        });
+        await applyAttestation(evStore, decoded);
+        applied++;
+        logger.debug(
+          { kind: decoded.kind, handle: decoded.handle, ledger: e.ledger },
+          'attestation.applied',
+        );
       }
-      logPairing('started', {
-        handle: decoded.handle,
-        wallet: decoded.wallet,
-        reason: decoded.kind,
-        ledger: e.ledger,
-      });
-      await applyAttestation(evStore, decoded);
-      applied++;
-      logger.debug(
-        { kind: decoded.kind, handle: decoded.handle, ledger: e.ledger },
-        'attestation.applied',
-      );
+
+      // A short page is the RPC saying there is nothing further to read, and
+      // only then is it safe to move the cursor to the tip.
+      if (res.events.length < EVENTS_PAGE_LIMIT) {
+        throughLedger = res.latestLedger;
+        break;
+      }
+
+      if (pages >= maxPages) {
+        // Stopped by the cap with more to read. A page can end part-way through
+        // a ledger, so the cursor goes one below the last event's ledger and
+        // the next tick reads that ledger again from its start.
+        // `applyAttestation` is idempotent, so the events it sees twice do no
+        // harm. Never below where this tick started, so the cursor cannot move
+        // backwards.
+        const lastEventLedger = res.events[res.events.length - 1]!.ledger;
+        throughLedger = Math.max(startLedger - 1, lastEventLedger - 1);
+        moreToRead = true;
+        if (throughLedger < startLedger) {
+          // Every page read sat inside the ledger this tick started at, so
+          // the cursor cannot advance and the next tick would read the same
+          // pages again. It takes more registry events in one ledger than a
+          // whole tick reads; say so loudly rather than loop in silence.
+          logger.warn(
+            { startLedger, pages, eventsRead: pages * EVENTS_PAGE_LIMIT },
+            'attestation.stalled - one ledger holds more registry events than a tick reads',
+          );
+        }
+        break;
+      }
+
+      request = { cursor: res.cursor, filters, limit: EVENTS_PAGE_LIMIT };
     }
   } catch (err) {
-    logger.error({ error: String(err), startLedger }, 'attestation.fetchFailed');
+    logger.error({ error: String(err), startLedger, pages }, 'attestation.fetchFailed');
     // Leave the cursor untouched so we retry this window next tick.
     return { eventsDecoded: applied };
   }
 
   await store.indexerCursor.upsert({
     where: { id: CURSOR_ID },
-    update: { lastLedger: latestLedger },
-    create: { id: CURSOR_ID, lastLedger: latestLedger },
+    update: { lastLedger: throughLedger },
+    create: { id: CURSOR_ID, lastLedger: throughLedger },
   });
 
-  logger.debug({ applied, throughLedger: latestLedger }, 'attestation.done');
+  logger.debug({ applied, pages, throughLedger, moreToRead }, 'attestation.done');
   return { eventsDecoded: applied };
 }

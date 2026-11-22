@@ -10,8 +10,8 @@
  * export path so the browser-safe `@signet/spec` surface stays network-free.
  */
 
-import { InterfaceUnreadable, NoInterface } from './errors.ts';
-import { fetchContractSpec, fetchWasmHash } from './fetch.ts';
+import { InterfaceUnreadable, NoInterface, RpcUnavailable } from './errors.ts';
+import { fetchContractSpec, fetchContractSpecByHash, fetchWasmHash } from './fetch.ts';
 import type { FetchOptions } from './fetch.ts';
 import { toSpecJson } from './json.ts';
 import type { SpecJson } from './json.ts';
@@ -136,6 +136,15 @@ async function currentWasmHash(address: string, opts: GetContractSpecOptions): P
   return result.wasmHash;
 }
 
+function assertHashMatches(spec: SpecJson, expectedHash: string, rpcUrl: string): void {
+  if (spec.wasmHash.toLowerCase() !== expectedHash) {
+    throw new RpcUnavailable(
+      rpcUrl,
+      new Error(`Fetched WASM hash ${spec.wasmHash} does not match expected hash ${expectedHash}`),
+    );
+  }
+}
+
 async function fetchAndStore(
   address: string,
   wasmHash: string,
@@ -143,7 +152,11 @@ async function fetchAndStore(
 ): Promise<SpecJson> {
   let json: SpecJson;
   try {
-    json = toSpecJson(await fetchContractSpec(address, opts));
+    const spec =
+      opts.knownWasmHash !== undefined
+        ? await fetchContractSpecByHash(wasmHash, opts)
+        : await fetchContractSpec(address, opts);
+    json = toSpecJson(spec);
     json.provenance = 'embedded';
   } catch (error) {
     if (error instanceof NoInterface && error.reason === 'no_section') {
@@ -166,6 +179,7 @@ async function fetchAndStore(
             attestationPointer: fallbackResult.attestationPointer,
             attestationHash: fallbackResult.attestationHash,
           };
+          assertHashMatches(json, wasmHash, opts.rpcUrl);
           await Promise.all(opts.caches.map((cache) => writeCache(cache, wasmHash, json, opts)));
           return json;
         }
@@ -180,6 +194,7 @@ async function fetchAndStore(
     }
     throw error;
   }
+  assertHashMatches(json, wasmHash, opts.rpcUrl);
   await Promise.all(opts.caches.map((cache) => writeCache(cache, wasmHash, json, opts)));
   return json;
 }
@@ -190,7 +205,16 @@ async function readCache(
   opts: GetContractSpecOptions,
 ): Promise<SpecJson | undefined> {
   try {
-    return await cache.get(wasmHash);
+    const hit = await cache.get(wasmHash);
+    if (hit === undefined) return undefined;
+    if (hit.wasmHash.toLowerCase() !== wasmHash) {
+      opts.logger?.warn('spec cache entry hash mismatch', {
+        wasmHash,
+        cachedWasmHash: hit.wasmHash,
+      });
+      return undefined;
+    }
+    return hit;
   } catch (error) {
     opts.logger?.warn('spec cache read failed', { wasmHash, error });
     return undefined;

@@ -16,7 +16,7 @@ export interface ContractChangesProps {
 }
 
 function formatChangeLabel(change: SpecChange): string {
-  const cleanPath = change.path.replace(/^(functions|errors|types)\./, '');
+  const cleanPath = change.path.replace(/^(functions|errors|types|events)\./, '');
   switch (change.kind) {
     case 'function-added':
       return `Added function ${cleanPath}`;
@@ -64,6 +64,10 @@ function formatChangeLabel(change: SpecChange): string {
       return `Removed error ${cleanPath}`;
     case 'error-renumbered':
       return `Renumbered error ${cleanPath}`;
+    case 'event-added':
+      return `Added event ${cleanPath}`;
+    case 'event-removed':
+      return `Removed event ${cleanPath}`;
     case 'event-changed':
       return `Changed event ${cleanPath}`;
     default:

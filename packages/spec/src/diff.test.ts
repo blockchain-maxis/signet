@@ -260,7 +260,54 @@ test('smoke-tests real WASM fixtures', () => {
   }
 });
 
-test('detects contract event changes', () => {
+test('adding an event gives one non-breaking event-added change', () => {
+  const base = toSpecJson(parseContractSpec(
+    readFileSync(join(FIXTURES, 'identity-registry.wasm')),
+  ));
+  const after = {
+    ...base,
+    events: [{
+      name: 'Transfer',
+      doc: 'Emitted on token transfer',
+      prefixTopics: ['transfer'],
+      params: [
+        { name: 'from', type: 'address' as const, location: 'topic' as const },
+        { name: 'amount', type: 'i128' as const, location: 'data' as const },
+      ],
+      dataFormat: 'single_value' as const,
+    }],
+  };
+
+  const result = diffSpecs(base, after);
+  assert.equal(result.changes.length, 1);
+  assert.equal(result.changes[0]?.kind, 'event-added');
+  assert.equal(result.changes[0]?.path, 'events.Transfer');
+  assert.equal(result.changes[0]?.breaking, false);
+});
+
+test('removing an event is breaking', () => {
+  const base = toSpecJson(parseContractSpec(
+    readFileSync(join(FIXTURES, 'identity-registry.wasm')),
+  ));
+  const before = {
+    ...base,
+    events: [{
+      name: 'Transfer',
+      doc: '',
+      prefixTopics: ['transfer'],
+      params: [],
+      dataFormat: 'single_value' as const,
+    }],
+  };
+
+  const result = diffSpecs(before, base);
+  assert.equal(result.changes.length, 1);
+  assert.equal(result.changes[0]?.kind, 'event-removed');
+  assert.equal(result.changes[0]?.path, 'events.Transfer');
+  assert.equal(result.changes[0]?.breaking, true);
+});
+
+test('editing an event doc gives documentation-changed (non-breaking)', () => {
   const base = toSpecJson(parseContractSpec(
     readFileSync(join(FIXTURES, 'identity-registry.wasm')),
   ));
@@ -285,8 +332,100 @@ test('detects contract event changes', () => {
   };
 
   const result = diffSpecs(original, changed);
-  assert.ok(
-    result.changes.some((change) => change.kind === 'event-changed'),
-    'Expected an event change to be reported',
+  assert.equal(result.changes.length, 1);
+  assert.equal(result.changes[0]?.kind, 'documentation-changed');
+  assert.equal(result.changes[0]?.path, 'events.Transfer.doc');
+  assert.equal(result.changes[0]?.breaking, false);
+});
+
+test('moving an event param between topic and data gives one breaking change at its param path', () => {
+  const base = toSpecJson(parseContractSpec(
+    readFileSync(join(FIXTURES, 'identity-registry.wasm')),
+  ));
+  const before = {
+    ...base,
+    events: [{
+      name: 'Transfer',
+      doc: '',
+      prefixTopics: ['transfer'],
+      params: [
+        { name: 'from', type: 'address' as const, location: 'topic' as const },
+        { name: 'to', type: 'address' as const, location: 'topic' as const },
+      ],
+      dataFormat: 'single_value' as const,
+    }],
+  };
+  const after = {
+    ...before,
+    events: [{
+      ...before.events[0]!,
+      params: [
+        { name: 'from', type: 'address' as const, location: 'topic' as const },
+        { name: 'to', type: 'address' as const, location: 'data' as const },
+      ],
+    }],
+  };
+
+  const result = diffSpecs(before, after);
+  assert.equal(result.changes.length, 1);
+  assert.equal(result.changes[0]?.kind, 'event-changed');
+  assert.equal(result.changes[0]?.path, 'events.Transfer.params[1]');
+  assert.equal(result.changes[0]?.breaking, true);
+});
+
+test('reordering two events gives no changes', () => {
+  const base = toSpecJson(parseContractSpec(
+    readFileSync(join(FIXTURES, 'identity-registry.wasm')),
+  ));
+  const evA = {
+    name: 'Mint',
+    doc: '',
+    prefixTopics: ['mint'],
+    params: [],
+    dataFormat: 'single_value' as const,
+  };
+  const evB = {
+    name: 'Burn',
+    doc: '',
+    prefixTopics: ['burn'],
+    params: [],
+    dataFormat: 'single_value' as const,
+  };
+  const before = { ...base, events: [evA, evB] };
+  const after = { ...base, events: [evB, evA] };
+
+  assert.deepEqual(diffSpecs(before, after).changes, []);
+});
+
+test('changing event prefixTopics or dataFormat is breaking', () => {
+  const base = toSpecJson(parseContractSpec(
+    readFileSync(join(FIXTURES, 'identity-registry.wasm')),
+  ));
+  const before = {
+    ...base,
+    events: [{
+      name: 'Transfer',
+      doc: '',
+      prefixTopics: ['transfer'],
+      params: [{ name: 'amount', type: 'i128' as const, location: 'data' as const }],
+      dataFormat: 'single_value' as const,
+    }],
+  };
+  const after = {
+    ...before,
+    events: [{
+      ...before.events[0]!,
+      prefixTopics: ['xfer'],
+      dataFormat: 'vec' as const,
+    }],
+  };
+
+  const result = diffSpecs(before, after);
+  assert.deepEqual(
+    result.changes.map((c) => [c.kind, c.path, c.breaking]),
+    [
+      ['event-changed', 'events.Transfer.prefixTopics', true],
+      ['event-changed', 'events.Transfer.dataFormat', true],
+    ],
   );
 });

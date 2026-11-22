@@ -13,6 +13,7 @@ import assert from 'node:assert/strict';
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { env } from 'node:process';
+import type { ContractGraph } from './graph.ts';
 import { buildContractGraph } from './graph.ts';
 import { layoutContractGraph } from './layout.ts';
 import { FIXTURES_DIR, loadFixture } from './load-fixture.ts';
@@ -135,4 +136,83 @@ test('a call from a member of a collapsed group starts from the group', () => {
     },
   } as never);
   assert.ok(model.edges.some((e) => e.from === 'collapsed:interchain' && e.call));
+});
+
+function graphWithFunctions(names: readonly string[]): ContractGraph {
+  return {
+    nodes: names.map((name) => ({ id: `fn:${name}`, kind: 'function', name })),
+    edges: [],
+    errors: [],
+    events: [],
+    build: undefined,
+  };
+}
+
+function representedFunctions(graph: ContractGraph): string[] {
+  return graph.nodes
+    .filter((n) => n.kind === 'function')
+    .flatMap((n) => (n.collapsed ? [...n.collapsed.members] : [n.name]));
+}
+
+test('other_* and lifecycle_* prefix groups do not collide with synthetic catch-all groups', () => {
+  const names = [
+    'other_a',
+    'other_b',
+    'other_c',
+    'foo',
+    'bar',
+    ...Array.from({ length: 22 }, (_, i) => `pool_${i}`),
+  ];
+  assert.equal(names.length, 27);
+  const full = graphWithFunctions(names);
+
+  const allCollapsed = collapseGroups(full);
+  const fnNodes = allCollapsed.nodes.filter((n) => n.kind === 'function');
+  assert.equal(new Set(fnNodes.map((n) => n.id)).size, fnNodes.length);
+  assert.equal(fnNodes.find((n) => n.id === 'collapsed:other')?.name, 'other_* (3)');
+  assert.equal(fnNodes.find((n) => n.id === 'collapsed:~other')?.name, 'other (2)');
+  assert.deepEqual(representedFunctions(allCollapsed).sort(), [...names].sort());
+
+  // ?expand=other expands only other_*; ?expand=~other expands only the catch-all.
+  const expandPrefix = canonicalExpand('other', full);
+  const expandSynthetic = canonicalExpand('~other', full);
+  assert.deepEqual(expandPrefix, ['other']);
+  assert.deepEqual(expandSynthetic, ['~other']);
+
+  const prefixExpanded = collapseGroups(full, { expand: expandPrefix });
+  assert.deepEqual(representedFunctions(prefixExpanded).sort(), [...names].sort());
+  assert.ok(prefixExpanded.nodes.some((n) => n.id === 'fn:other_a'));
+  assert.ok(!prefixExpanded.nodes.some((n) => n.id === 'fn:foo'));
+  assert.ok(prefixExpanded.nodes.some((n) => n.id === 'collapsed:~other'));
+
+  const syntheticExpanded = collapseGroups(full, { expand: expandSynthetic });
+  assert.deepEqual(representedFunctions(syntheticExpanded).sort(), [...names].sort());
+  assert.ok(syntheticExpanded.nodes.some((n) => n.id === 'fn:foo'));
+  assert.ok(!syntheticExpanded.nodes.some((n) => n.id === 'fn:other_a'));
+  assert.ok(syntheticExpanded.nodes.some((n) => n.id === 'collapsed:other'));
+
+  // Expanding both in layout keeps distinct group box ids.
+  const bothLayout = layoutContractGraph(
+    collapseGroups(full, { expand: canonicalExpand('other,~other', full) }),
+  );
+  assert.equal(new Set(bothLayout.groups.map((g) => g.id)).size, bothLayout.groups.length);
+  assert.ok(bothLayout.groups.some((g) => g.id === 'group:other' && g.kind === 'prefix'));
+  assert.ok(bothLayout.groups.some((g) => g.id === 'group:~other' && g.kind === 'other'));
+
+  // Same disambiguation for lifecycle_* next to synthetic lifecycle.
+  const lifecycleNames = [
+    'lifecycle_a',
+    'lifecycle_b',
+    'lifecycle_c',
+    '__constructor',
+    'version',
+    ...Array.from({ length: 22 }, (_, i) => `pool_${i}`),
+  ];
+  const lifecycleGraph = graphWithFunctions(lifecycleNames);
+  const collapsedLifecycle = collapseGroups(lifecycleGraph);
+  assert.deepEqual(representedFunctions(collapsedLifecycle).sort(), [...lifecycleNames].sort());
+  assert.equal(collapsedLifecycle.nodes.find((n) => n.id === 'collapsed:lifecycle')?.name, 'lifecycle_* (3)');
+  assert.equal(collapsedLifecycle.nodes.find((n) => n.id === 'collapsed:~lifecycle')?.name, 'lifecycle (2)');
+  assert.deepEqual(canonicalExpand('lifecycle', lifecycleGraph), ['lifecycle']);
+  assert.deepEqual(canonicalExpand('~lifecycle', lifecycleGraph), ['~lifecycle']);
 });

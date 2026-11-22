@@ -125,7 +125,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - uses: pnpm/action-setup@v6.1.0
+      - uses: pnpm/action-setup@v6.1.1
 
       - uses: actions/setup-node@v7
         with:
@@ -240,7 +240,7 @@ jobs:
       # SDK: generate it for the registry and types_zoo fixtures and `go vet` it
       # in a throwaway module. Ubuntu only, because the generator is TypeScript
       # and its output does not depend on the OS.
-      - uses: pnpm/action-setup@v6.1.0
+      - uses: pnpm/action-setup@v6.1.1
         if: matrix.os == 'ubuntu-latest'
 
       - uses: actions/setup-node@v7
@@ -462,7 +462,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - uses: pnpm/action-setup@v6.1.0
+      - uses: pnpm/action-setup@v6.1.1
 
       # The local UI's security tests (#587) run its real server, in Go.
       - uses: actions/setup-go@v7
@@ -547,7 +547,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - uses: pnpm/action-setup@v6.1.0
+      - uses: pnpm/action-setup@v6.1.1
 
       - uses: actions/setup-node@v7
         with:
@@ -677,7 +677,7 @@ jobs:
       # sandbox/protocol/schema/v1/, and every schema must be documented in
       # docs/CLI_RUST_BRIDGE.md. It needs `ajv`, which apps/web already pins in
       # the lockfile, so install just that workspace's dependencies.
-      - uses: pnpm/action-setup@v6.1.0
+      - uses: pnpm/action-setup@v6.1.1
 
       - uses: actions/setup-node@v7
         with:
@@ -702,6 +702,12 @@ jobs:
 
       - name: Check protocol transcripts
         run: node protocol/check-transcripts.mjs
+
+      # sandbox/fixtures/README.md names the tests that use each fixture
+      # contract. Every name there must be a test in the file it is listed
+      # under, Rust or Go, so the table cannot drift back into invented names.
+      - name: Check the fixtures README
+        run: node fixtures/check-readme.mjs
 
       # spec_extract (#545) must emit SpecJson v1, the document the TS reader
       # in packages/spec produces. `cargo test` above built the binary.
@@ -849,7 +855,7 @@ jobs:
       - name: Publish the JUnit report
         if: always()
         continue-on-error: true
-        uses: mikepenz/action-junit-report@v5
+        uses: mikepenz/action-junit-report@v6
         with:
           report_paths: sandbox/testdata/e2e/junit.xml
           check_name: signet dev
@@ -1006,7 +1012,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - uses: pnpm/action-setup@v6.1.0
+      - uses: pnpm/action-setup@v6.1.1
 
       - uses: actions/setup-node@v7
         with:

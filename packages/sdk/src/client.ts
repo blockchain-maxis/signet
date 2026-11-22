@@ -242,18 +242,40 @@ export class SignetClient {
   }
 
   /**
-   * Every handle the deployment can serve.
+   * One page of the handle directory, in handle order (`GET /api/v1/profiles`).
+   * Pass `meta.nextCursor` back as `cursor` for the next page. `meta.source`
+   * says which layer answered, and `meta.truncated` that the list may be
+   * partial: it always is when it was read from the chain.
+   */
+  async listProfiles(
+    options: PageOptions = {},
+  ): Promise<Page<V1Schemas['ProfileListItem'], V1Meta<'listProfiles'>>> {
+    return this.page('/profiles', options);
+  }
+
+  /**
+   * Every handle the deployment can serve, with its primary wallet, following
+   * `nextCursor` page by page. As with `iterateContracts`, `truncated` is true
+   * once the iteration is done when the deployment's list was partial.
+   */
+  iterateProfiles(options: { pageSize?: number } = {}): PageIterator<V1Schemas['ProfileListItem']> {
+    return new PageIterator((cursor) => this.listProfiles({ cursor, limit: options.pageSize }));
+  }
+
+  /**
+   * Every handle the deployment can serve, in one array.
    *
-   * @deprecated v1 has no endpoint that lists handles, so this still calls the
-   * internal tRPC route `profile.list`, which is not a stable contract. It will
-   * be removed in 1.0.
+   * @deprecated Use `iterateProfiles()`, or `listProfiles()` for one page.
+   * This walks the whole directory before it returns and cannot say when the
+   * list was partial. It reads `GET /api/v1/profiles` and no longer the
+   * internal tRPC route. It will be removed in 1.0.
    */
   async listHandles(): Promise<Handle[]> {
-    const body = await this.send<{ result?: { data?: Handle[] | null } }>(
-      '/api/trpc/profile.list',
-      'profile.list',
-    );
-    return body.result?.data ?? [];
+    const handles: Handle[] = [];
+    for await (const profile of this.iterateProfiles({ pageSize: 100 })) {
+      handles.push(profile.handle);
+    }
+    return handles;
   }
 
   /**

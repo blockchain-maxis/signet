@@ -226,3 +226,79 @@ test('an empty list iterates nothing, not truncated', async () => {
   assert.equal(n, 0);
   assert.equal(it.truncated, false);
 });
+
+// ─── The handle directory (#969) ────────────────────────────────────────────
+
+const listed = (handle: string) => ({ handle, primaryWallet: WALLET, joinedAt: null });
+const directoryPage = (
+  handles: string[],
+  nextCursor: string | null,
+  source: 'database' | 'chain' | 'none' = 'database',
+) => ({
+  body: {
+    data: handles.map(listed),
+    meta: {
+      nextCursor,
+      total: source === 'database' ? 5 : null,
+      truncated: source !== 'database',
+      source,
+    },
+  },
+});
+
+test('listProfiles passes limit and cursor and returns data and meta', async () => {
+  const meta = { nextCursor: 'abc', total: 3, truncated: false, source: 'database' };
+  const { client, urls } = routes({
+    '/api/v1/profiles?limit=1&cursor=prev': { body: { data: [listed('bob')], meta } },
+  });
+  const page = await client.listProfiles({ limit: 1, cursor: 'prev' });
+  assert.deepEqual(page, { data: [listed('bob')], meta });
+  assert.deepEqual(urls, ['/api/v1/profiles?limit=1&cursor=prev']);
+});
+
+test('iterateProfiles follows nextCursor across three pages', async () => {
+  const { client, urls } = routes({
+    '/api/v1/profiles?limit=2': directoryPage(['alice', 'bob'], 'p2'),
+    '/api/v1/profiles?limit=2&cursor=p2': directoryPage(['carol', 'dave'], 'p3'),
+    '/api/v1/profiles?limit=2&cursor=p3': directoryPage(['erin'], null),
+  });
+  const it = client.iterateProfiles({ pageSize: 2 });
+  const seen: string[] = [];
+  for await (const p of it) seen.push(p.handle);
+  assert.deepEqual(seen, ['alice', 'bob', 'carol', 'dave', 'erin']);
+  assert.equal(it.truncated, false);
+  assert.deepEqual(urls, [
+    '/api/v1/profiles?limit=2',
+    '/api/v1/profiles?limit=2&cursor=p2',
+    '/api/v1/profiles?limit=2&cursor=p3',
+  ]);
+});
+
+test('iterateProfiles says so when the directory came from the chain', async () => {
+  const { client } = routes({
+    '/api/v1/profiles': directoryPage(['alice', 'bob'], null, 'chain'),
+  });
+  const it = client.iterateProfiles();
+  const seen: string[] = [];
+  for await (const p of it) seen.push(p.handle);
+  assert.deepEqual(seen, ['alice', 'bob']);
+  assert.equal(it.truncated, true);
+});
+
+test('listHandles walks the v1 directory and never asks tRPC', async () => {
+  const { client, urls } = routes({
+    '/api/v1/profiles?limit=100': directoryPage(['alice', 'bob'], 'p2'),
+    '/api/v1/profiles?limit=100&cursor=p2': directoryPage(['carol'], null),
+  });
+  assert.deepEqual(await client.listHandles(), ['alice', 'bob', 'carol']);
+  assert.deepEqual(urls, ['/api/v1/profiles?limit=100', '/api/v1/profiles?limit=100&cursor=p2']);
+  assert.ok(
+    urls.every((url) => !url.startsWith('/api/trpc/')),
+    'no request goes to the internal tRPC route',
+  );
+});
+
+test('listHandles is empty when the deployment can list nothing', async () => {
+  const { client } = routes({ '/api/v1/profiles?limit=100': directoryPage([], null, 'none') });
+  assert.deepEqual(await client.listHandles(), []);
+});

@@ -608,10 +608,13 @@ signet dev CASF…RCN --path ./contract --localnet
 
 - **Start or reuse.** A network already answering at
   `http://localhost:8000/rpc` with the passphrase
-  `Standalone Network ; February 2017` is used as it is. Otherwise signet runs
-  `stellar container start local --protocol-version <the fork's protocol>`
+  `Standalone Network ; February 2017` is used as it is and left running
+  when `signet dev` exits (along with `.signet/localnet.json`). Otherwise
+  signet runs `stellar container start local --protocol-version <the fork's protocol>`
   (with `--localnet-limits` passed as `--limits`) and waits for it to be
-  healthy. Docker missing, Docker not running, the port held by something else
+  healthy, then stops it (`stellar container stop local`) and removes
+  `.signet/localnet.json` when the session ends unless `--localnet-keep` is
+  passed. Docker missing, Docker not running, the port held by something else
   and another network answering there each stop with their own message.
 - **Deployer.** A `signet-dev` identity is made (or reused) and funded with
   `stellar keys generate --fund --network local`; it deploys, upgrades and is

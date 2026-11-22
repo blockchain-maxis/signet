@@ -50,11 +50,13 @@ The web app reads `INDEXER_OPERATIONS_RETENTION_DAYS` only to label this scope. 
 The pruning worker ([`apps/indexer/src/workers/prune.ts`](../apps/indexer/src/workers/prune.ts)) executes periodically inside the indexer main loop:
 
 1. **Interval Execution:** Evaluates whether `INDEXER_PRUNE_INTERVAL_MS` (default `3,600,000` ms = 1 hour) has elapsed since the last pass.
-2. **Operations Ingestion and Pruning:** The operations worker stops paging at `createdAt < now - retentionDays` and does not store older invocations; the pruning worker deletes existing `Operation` rows older than that same cutoff.
+2. **Operations Ingestion and Pruning:** The operations worker reads each wallet back to `createdAt < now - retentionDays` and no further. Its newest-first check and its backward walk (`Wallet.operationsCursor`) both stop at the first operation older than the cutoff and store nothing older. The walk covers the window over several ticks, at most 500 operations per wallet per tick, and sets `Wallet.operationsBackfilledAt` when it reaches the cutoff or the end of the wallet's history; until then that wallet's counts are a lower bound. The pruning worker deletes existing `Operation` rows older than that same cutoff.
 3. **Snapshots Pruning:** Deletes `ContractSnapshot` rows where `capturedAt < now - retentionDays`.
 4. **Contract Invocations Pruning:** Keeps at most `INDEXER_INVOCATIONS_MAX_PER_CONTRACT` newest rows per contract, deleting older excess rows.
 5. **Pairing State Pruning:** Deletes ephemeral `PairingState` rows where `expiresAt` is more than 24 hours in the past.
 6. **Structured Metrics:** Logs `opsPruned`, `snapshotsPruned`, `invocationsPruned`, and `pairingsPruned` in indexer tick metrics.
+
+**Raising the operations window.** A walk that has finished does not start again by itself. After raising `INDEXER_OPERATIONS_RETENTION_DAYS`, the older part of the new window is not read until `Wallet.operationsBackfilledAt` is cleared, which resumes each walk from its cursor. The statement is in [`INDEXER.md`](INDEXER.md) §7. Lowering the window needs nothing: the pruning worker removes the rows that fall outside it.
 
 ---
 

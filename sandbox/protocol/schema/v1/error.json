@@ -78,7 +78,8 @@
                   "unknown_type",
                   "handshake_required",
                   "already_greeted",
-                  "no_open_ledger"
+                  "no_open_ledger",
+                  "unknown_checkpoint"
                 ]
               }
             }

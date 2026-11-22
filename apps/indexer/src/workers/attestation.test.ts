@@ -6,9 +6,11 @@ import {
   applyAttestation,
   reconcileAgainstChain,
   runAttestationWorker,
+  MAX_EVENT_PAGES_PER_TICK,
   type AttestationStore,
   type CursorStore,
 } from './attestation.ts';
+import { logger } from '../logger.ts';
 import type { RegistryReader } from '../registry-read.ts';
 import type { WalletSource } from '@signet/types';
 
@@ -400,6 +402,93 @@ test('runAttestationWorker does not move cursor on fetch error', async () => {
   assert.equal(cursor.saved?.lastLedger, 100);
 });
 
+test('runAttestationWorker returns nothing decoded when the latest ledger cannot be read', async (t) => {
+  // No backoff between the retries, so the test does not wait on them.
+  t.mock.method(Math, 'random', () => 0);
+  const { logger } = await import('../logger.ts');
+  const errors: { message: string; fields: Record<string, unknown> }[] = [];
+  t.mock.method(logger, 'error', (fields: Record<string, unknown>, message: string) => {
+    errors.push({ message, fields });
+  });
+  t.mock.method(logger, 'warn', () => {});
+
+  const cursor = recordingCursorStore({ lastLedger: 100 });
+  let latestLedgerCalls = 0;
+  let getEventsCalls = 0;
+  const downServer = {
+    getLatestLedger: async () => {
+      latestLedgerCalls++;
+      throw new Error('fetch failed');
+    },
+    getEvents: async () => {
+      getEventsCalls++;
+      return { latestLedger: 200, events: [] };
+    },
+  } as unknown as rpc.Server;
+  const { store, calls } = recordingStore();
+
+  // Soroban RPC being down is not this worker's failure to throw: it resolves,
+  // so the tick's other workers are not told anything went wrong with them.
+  const result = await runAttestationWorker(
+    downServer,
+    {
+      registryContractId: 'C…REGISTRY',
+      eventWindowLedgers: 200,
+    } as any,
+    cursor.store,
+    store,
+  );
+
+  assert.deepEqual(result, { eventsDecoded: 0 });
+  assert.ok(latestLedgerCalls > 1, 'a transient failure is retried before giving up');
+  assert.equal(getEventsCalls, 0, 'no events are asked for without a latest ledger');
+  assert.equal(calls.length, 0);
+  assert.equal(cursor.calls.filter((c: any[]) => c[0] === 'upsert').length, 0);
+  assert.equal(cursor.saved?.lastLedger, 100);
+  assert.deepEqual(
+    errors.filter((e) => e.message === 'attestation.latestLedgerFailed'),
+    [{ message: 'attestation.latestLedgerFailed', fields: { error: 'Error: fetch failed' } }],
+  );
+});
+
+test('runAttestationWorker carries on when the latest ledger is read on a retry', async (t) => {
+  t.mock.method(Math, 'random', () => 0);
+  const { logger } = await import('../logger.ts');
+  t.mock.method(logger, 'warn', () => {});
+
+  const pk = Keypair.random().publicKey();
+  const healthy = fakeServer({
+    latestLedger: 200,
+    events: [{ topic: topics('claimed', 'alice'), value: walletVal(pk) }],
+  });
+  let latestLedgerCalls = 0;
+  const flakyServer = {
+    getLatestLedger: async () => {
+      latestLedgerCalls++;
+      if (latestLedgerCalls === 1) throw new Error('fetch failed');
+      return healthy.getLatestLedger();
+    },
+    getEvents: healthy.getEvents.bind(healthy),
+  } as unknown as rpc.Server;
+  const cursor = recordingCursorStore({ lastLedger: 100 });
+  const { store, calls } = recordingStore();
+
+  const result = await runAttestationWorker(
+    flakyServer,
+    {
+      registryContractId: 'C…REGISTRY',
+      eventWindowLedgers: 200,
+    } as any,
+    cursor.store,
+    store,
+  );
+
+  assert.equal(latestLedgerCalls, 2);
+  assert.equal(result.eventsDecoded, 1);
+  assert.ok(calls.some((c: any[]) => c[0] === 'wallet.upsert' && c[1].where.pubkey === pk));
+  assert.equal(cursor.saved?.lastLedger, 200);
+});
+
 // ─── Reconcile tests (issue #189) ───────────────────────────────────────────
 
 /** A RegistryReader answering from a fixed handle→wallet map. */
@@ -689,4 +778,267 @@ test('the audit trail never carries key material', async () => {
     assert.doesNotMatch(serialized, /\bS[A-Z2-7]{55}\b/, 'a secret seed reached the log');
     assert.doesNotMatch(serialized, /secret|seed|signature|passphrase/i);
   }
+});
+
+// ─── Paging within a tick (#960) ─────────────────────────────────────────────
+
+type PagedEvent = { ledger: number; topic: xdr.ScVal[]; value: xdr.ScVal };
+type GetEventsCall = { startLedger?: number; cursor?: string; limit?: number };
+
+/**
+ * `count` claims by `count` distinct handles (`user0`, `user1`, ...), three to
+ * a ledger starting at `firstLedger`. Three to a ledger means a page of 200
+ * ends part-way through one: events 198, 199 and 200 share a ledger.
+ */
+function claims(count: number, firstLedger = 1_000, perLedger = 3): PagedEvent[] {
+  return Array.from({ length: count }, (_, i) => ({
+    ledger: firstLedger + Math.floor(i / perLedger),
+    topic: topics('claimed', `user${i}`),
+    value: walletVal(Keypair.random().publicKey()),
+  }));
+}
+
+/**
+ * A fake RPC that pages the way the real one does: `getEvents` takes either a
+ * `startLedger` or the `cursor` an earlier response ended with, and hands back
+ * at most `limit` events from there, in order. The cursor is simply the index
+ * of the next unread event.
+ */
+function pagedServer(
+  events: PagedEvent[],
+  latestLedger: number,
+  failOnCall?: number,
+): { server: rpc.Server; calls: GetEventsCall[] } {
+  const calls: GetEventsCall[] = [];
+  const server = {
+    getLatestLedger: async () => ({ sequence: latestLedger }),
+    getEvents: async (input: GetEventsCall) => {
+      calls.push({ startLedger: input.startLedger, cursor: input.cursor, limit: input.limit });
+      if (calls.length === failOnCall) throw new Error('rpc unavailable');
+      let from: number;
+      if (input.cursor !== undefined) {
+        from = Number(input.cursor);
+      } else {
+        const first = events.findIndex((e) => e.ledger >= (input.startLedger ?? 0));
+        from = first === -1 ? events.length : first;
+      }
+      const page = events.slice(from, from + (input.limit ?? 100));
+      return { latestLedger, events: page, cursor: String(from + page.length) };
+    },
+  } as unknown as rpc.Server;
+  return { server, calls };
+}
+
+/** The handles a recording store was asked to bind, in the order it was asked. */
+function boundHandles(calls: any[]): string[] {
+  return calls.filter((c) => c[0] === 'profile.upsert').map((c) => c[1].where.handle as string);
+}
+
+/** Every `user<i>` for `i` in `[from, to)`. */
+function users(from: number, to: number): string[] {
+  return Array.from({ length: to - from }, (_, i) => `user${from + i}`);
+}
+
+const PAGING_CONFIG = { registryContractId: 'C…REGISTRY', eventWindowLedgers: 5_000 } as any;
+
+test('runAttestationWorker reads a second page when the first comes back full', async () => {
+  const { server, calls } = pagedServer(claims(250), 2_000);
+  const cursor = recordingCursorStore({ lastLedger: 999 });
+  const { store, calls: evCalls } = recordingStore();
+
+  const result = await runAttestationWorker(server, PAGING_CONFIG, cursor.store, store);
+
+  // All 250, in order, in one tick.
+  assert.equal(result.eventsDecoded, 250);
+  assert.deepEqual(boundHandles(evCalls), users(0, 250));
+
+  // The first call names the ledger; the second passes the cursor the first
+  // response ended with, and no ledger, as the RPC requires.
+  assert.deepEqual(calls, [
+    { startLedger: 1_000, cursor: undefined, limit: 200 },
+    { startLedger: undefined, cursor: '200', limit: 200 },
+  ]);
+
+  // The read ran dry, so the cursor moves to the tip.
+  assert.equal(cursor.saved?.lastLedger, 2_000);
+});
+
+test('runAttestationWorker stops at the page cap and the next tick reads the rest', async () => {
+  const events = claims(250);
+  const { server, calls } = pagedServer(events, 2_000);
+  const cursor = recordingCursorStore({ lastLedger: 999 });
+
+  // Tick 1, capped at one page: the first 200 events, and no more calls.
+  const first = recordingStore();
+  const warnings: string[] = [];
+  const originalWarn = logger.warn;
+  logger.warn = (_fields, message) => {
+    warnings.push(message);
+  };
+  let capped: Awaited<ReturnType<typeof runAttestationWorker>>;
+  try {
+    capped = await runAttestationWorker(
+      server,
+      PAGING_CONFIG,
+      cursor.store,
+      first.store,
+      undefined,
+      { maxPages: 1 },
+    );
+  } finally {
+    logger.warn = originalWarn;
+  }
+  // Stopping at the cap is routine. It is not the "stalled" case, which is
+  // only for a cursor that cannot advance at all.
+  assert.deepEqual(
+    warnings.filter((m) => m.startsWith('attestation.stalled')),
+    [],
+  );
+  assert.equal(capped.eventsDecoded, 200);
+  assert.deepEqual(boundHandles(first.calls), users(0, 200));
+  assert.equal(calls.length, 1);
+
+  // The 200th event is in ledger 1066, and so is the 201st. The cursor is
+  // saved one below it, not at the tip, so that ledger is read again.
+  assert.equal(events[199]!.ledger, 1_066);
+  assert.equal(events[200]!.ledger, 1_066);
+  assert.equal(cursor.saved?.lastLedger, 1_065);
+
+  // Tick 2 starts at ledger 1066: the two events of it that were already
+  // applied (198 and 199) and then the 50 that were not.
+  const second = recordingStore();
+  const rest = await runAttestationWorker(server, PAGING_CONFIG, cursor.store, second.store);
+  assert.equal(calls[1]!.startLedger, 1_066);
+  assert.deepEqual(boundHandles(second.calls), users(198, 250));
+  assert.equal(rest.eventsDecoded, 52);
+  assert.equal(cursor.saved?.lastLedger, 2_000);
+
+  // Between them the two ticks applied every one of the 250.
+  const applied = new Set([...boundHandles(first.calls), ...boundHandles(second.calls)]);
+  assert.equal(applied.size, 250);
+});
+
+test('runAttestationWorker still moves the cursor to the tip for a single short page', async () => {
+  const { server, calls } = pagedServer(claims(50), 2_000);
+  const cursor = recordingCursorStore({ lastLedger: 999 });
+  const { store, calls: evCalls } = recordingStore();
+
+  const result = await runAttestationWorker(server, PAGING_CONFIG, cursor.store, store);
+
+  assert.equal(result.eventsDecoded, 50);
+  assert.equal(boundHandles(evCalls).length, 50);
+  assert.equal(calls.length, 1, 'a short page needs no second call');
+  assert.equal(cursor.saved?.lastLedger, 2_000);
+});
+
+test('runAttestationWorker asks once more when a page is exactly full, and finds it empty', async () => {
+  const { server, calls } = pagedServer(claims(200), 2_000);
+  const cursor = recordingCursorStore({ lastLedger: 999 });
+  const { store } = recordingStore();
+
+  const result = await runAttestationWorker(server, PAGING_CONFIG, cursor.store, store);
+
+  // 200 events could be all of them or the first of more; only a second
+  // (empty) page can tell, and then the tip is safe.
+  assert.equal(result.eventsDecoded, 200);
+  assert.equal(calls.length, 2);
+  assert.equal(cursor.saved?.lastLedger, 2_000);
+});
+
+test('runAttestationWorker reads at most MAX_EVENT_PAGES_PER_TICK pages by default', async () => {
+  assert.equal(MAX_EVENT_PAGES_PER_TICK, 10);
+
+  // One page more than the cap allows: 2,200 events.
+  const events = claims(200 * (MAX_EVENT_PAGES_PER_TICK + 1));
+  const { server, calls } = pagedServer(events, 9_000);
+  const cursor = recordingCursorStore({ lastLedger: 999 });
+  const { store } = recordingStore();
+
+  const result = await runAttestationWorker(
+    server,
+    { ...PAGING_CONFIG, eventWindowLedgers: 50_000 },
+    cursor.store,
+    store,
+  );
+
+  assert.equal(calls.length, MAX_EVENT_PAGES_PER_TICK);
+  assert.equal(result.eventsDecoded, 200 * MAX_EVENT_PAGES_PER_TICK);
+  // Below the last event read (index 1999), not at the tip.
+  assert.equal(cursor.saved?.lastLedger, events[1_999]!.ledger - 1);
+});
+
+test('runAttestationWorker leaves the cursor alone when a later page fails', async () => {
+  // The second call throws: the first 200 were applied, and they will simply
+  // be applied again next tick, because the cursor has not moved.
+  const { server, calls } = pagedServer(claims(250), 2_000, 2);
+  const cursor = recordingCursorStore({ lastLedger: 999 });
+  const { store } = recordingStore();
+
+  const result = await runAttestationWorker(server, PAGING_CONFIG, cursor.store, store);
+
+  assert.equal(calls.length, 2);
+  assert.equal(result.eventsDecoded, 200);
+  assert.equal(cursor.saved?.lastLedger, 999);
+  assert.equal(cursor.calls.filter((c: any[]) => c[0] === 'upsert').length, 0);
+});
+
+test('runAttestationWorker never moves the cursor backwards when one ledger overflows a tick', async () => {
+  // More registry events in a single ledger than the capped tick reads. There
+  // is no ledger to resume from short of the one it started at, so the cursor
+  // stays where it was, and the worker says so instead of looping in silence.
+  const { server } = pagedServer(claims(250, 1_000, 250), 2_000);
+  const cursor = recordingCursorStore({ lastLedger: 999 });
+  const { store } = recordingStore();
+
+  const warnings: Array<{ fields: Record<string, unknown>; message: string }> = [];
+  const originalWarn = logger.warn;
+  logger.warn = (fields, message) => {
+    warnings.push({ fields, message });
+  };
+  try {
+    await runAttestationWorker(server, PAGING_CONFIG, cursor.store, store, undefined, {
+      maxPages: 1,
+    });
+  } finally {
+    logger.warn = originalWarn;
+  }
+
+  assert.equal(cursor.saved?.lastLedger, 999);
+  const stalled = warnings.filter((w) => w.message.startsWith('attestation.stalled'));
+  assert.equal(stalled.length, 1);
+  assert.equal(stalled[0]!.fields.startLedger, 1_000);
+});
+
+test('runAttestationWorker reports the pages it read in attestation.done', async () => {
+  const debugLines: Array<{ fields: Record<string, unknown>; message: string }> = [];
+  const originalDebug = logger.debug;
+  logger.debug = (fields, message) => {
+    debugLines.push({ fields, message });
+  };
+  try {
+    const drained = pagedServer(claims(250), 2_000);
+    await runAttestationWorker(
+      drained.server,
+      PAGING_CONFIG,
+      recordingCursorStore({ lastLedger: 999 }).store,
+      recordingStore().store,
+    );
+    const capped = pagedServer(claims(250), 2_000);
+    await runAttestationWorker(
+      capped.server,
+      PAGING_CONFIG,
+      recordingCursorStore({ lastLedger: 999 }).store,
+      recordingStore().store,
+      undefined,
+      { maxPages: 1 },
+    );
+  } finally {
+    logger.debug = originalDebug;
+  }
+
+  const done = debugLines.filter((l) => l.message === 'attestation.done').map((l) => l.fields);
+  assert.deepEqual(done, [
+    { applied: 250, pages: 2, throughLedger: 2_000, moreToRead: false },
+    { applied: 200, pages: 1, throughLedger: 1_065, moreToRead: true },
+  ]);
 });
