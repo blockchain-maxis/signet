@@ -133,8 +133,8 @@ func readLine(br *bufio.Reader) ([]byte, error) {
 		case errors.Is(err, bufio.ErrBufferFull):
 			continue
 		case errors.Is(err, io.EOF) && len(buf) > 0:
-			// A last line without a newline still counts.
-			return buf, nil
+			// A last line without a newline still counts (trim any trailing CR too).
+			return bytes.TrimRight(buf, "\r"), nil
 		default:
 			return nil, err
 		}
