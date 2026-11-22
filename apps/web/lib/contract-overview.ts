@@ -67,6 +67,7 @@ export interface OverviewSpec {
  */
 export type SpecFailure =
   | { readonly kind: 'contract_not_found'; readonly network: string }
+  | { readonly kind: 'wasm_not_found'; readonly network: string }
   | {
       readonly kind: 'no_interface';
       /**
@@ -158,6 +159,12 @@ export function failureCopy(failure: SpecFailure): FailureCopy {
         title: `Not found on ${failure.network}`,
         detail: `No contract with this address exists on ${failure.network}. Check that the network is the one it was deployed to.`,
       };
+    case 'wasm_not_found':
+      return {
+        kind: failure.kind,
+        title: `Code not found on ${failure.network}`,
+        detail: `No contract code with this WASM hash exists on ${failure.network}. Its ledger entry may have expired or been evicted.`,
+      };
     case 'no_interface':
       // A statement about the contract, not an error (§1.5).
       return {
@@ -234,6 +241,8 @@ export function classifySpecError(error: unknown, network: string): SpecFailure 
   switch (e?.kind) {
     case 'contract_not_found':
       return { kind: 'contract_not_found', network };
+    case 'wasm_not_found':
+      return { kind: 'wasm_not_found', network };
     case 'no_interface':
       return e.reason === 'stellar_asset_contract'
         ? { kind: 'no_interface', reason: 'stellar_asset_contract' }
