@@ -262,6 +262,13 @@ model IndexerCursor {
   updatedAt  DateTime @updatedAt
 }
 
+model IndexerHeartbeat {
+  worker        String    @id
+  lastSuccessAt DateTime?
+  lastFailureAt DateTime?
+  lastError     String?
+}
+
 // CLI device-pairing state (`POST /api/cli/pair/{start,approve,complete}`).
 //
 // Binds a CLI-held deploy account to a browser-authenticated profile without

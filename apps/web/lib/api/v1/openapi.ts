@@ -663,6 +663,32 @@ export const paths: Record<string, OpenApiPathItem> = {
                         },
                         additionalProperties: false,
                       },
+                      indexer: {
+                        type: 'object',
+                        description:
+                          'Freshness of the background indexer loop. Skipped when the deployment runs without a database.',
+                        required: ['status', 'lastTickAt', 'lagSeconds'],
+                        properties: {
+                          status: {
+                            type: 'string',
+                            enum: ['up', 'down', 'skipped'],
+                            description: 'Verdict for the indexer loop.',
+                          },
+                          lastTickAt: {
+                            type: 'string',
+                            nullable: true,
+                            description:
+                              "ISO-8601 timestamp of the indexer's last completed tick, or null if never recorded.",
+                          },
+                          lagSeconds: {
+                            type: 'integer',
+                            nullable: true,
+                            description:
+                              "Seconds since the indexer's last completed tick, or null if never recorded.",
+                          },
+                        },
+                        additionalProperties: false,
+                      },
                     },
                     additionalProperties: false,
                   },

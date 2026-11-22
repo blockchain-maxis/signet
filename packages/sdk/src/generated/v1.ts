@@ -796,6 +796,18 @@ export interface operations {
                             networkPassphrase: string;
                             /** @enum {string} */
                             status: "ok" | "degraded";
+                            /** @description Freshness of the background indexer loop. Skipped when the deployment runs without a database. */
+                            indexer?: {
+                                /**
+                                 * @description Verdict for the indexer loop.
+                                 * @enum {string}
+                                 */
+                                status: "up" | "down" | "skipped";
+                                /** @description ISO-8601 timestamp of the indexer's last completed tick, or null if never recorded. */
+                                lastTickAt: string | null;
+                                /** @description Seconds since the indexer's last completed tick, or null if never recorded. */
+                                lagSeconds: number | null;
+                            };
                         };
                     };
                 };
