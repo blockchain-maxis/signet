@@ -164,6 +164,27 @@ impl FetchingSource {
                     key,
                 ));
             }
+            let derived = self.lane.entry_key(&entry).map_err(|e| {
+                self.fail(
+                    "rejected",
+                    format!(
+                        "Go's entry for {} is unusable: {e}",
+                        self.lane.describe_key(key)
+                    ),
+                    key,
+                )
+            })?;
+            if derived != fetched.key {
+                return Err(self.fail(
+                    "rejected",
+                    format!(
+                        "Go's entry for {} belongs to {}",
+                        self.lane.describe_key(&fetched.key),
+                        self.lane.describe_key(&derived),
+                    ),
+                    key,
+                ));
+            }
             store.insert_base(&fetched.key, entry, fetched.live_until, fetched_at);
         }
         self.misses.borrow_mut().push(key.to_vec());
@@ -213,5 +234,53 @@ impl ByteSnapshotSource for FetchingSource {
             } => Ok(Some((entry, live_until))),
             Lookup::Absent => Ok(None),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::io::Cursor;
+
+    use base64::engine::general_purpose::STANDARD as BASE64;
+    use base64::Engine;
+    use serde_json::json;
+
+    use super::*;
+    #[cfg(feature = "lane-p28")]
+    use crate::lanes::p28::fixtures;
+    #[cfg(all(not(feature = "lane-p28"), feature = "lane-p29"))]
+    use crate::lanes::p29::fixtures;
+    use crate::lanes::LaneRegistry;
+
+    #[test]
+    fn go_returning_entry_for_wrong_key_is_rejected() {
+        let key_a = fixtures::data_key_xdr(1);
+        let entry_b = fixtures::data_entry_xdr(2, 20);
+        let reply = json!({
+            "version": 1,
+            "id": "sim-1",
+            "type": "ledger_entries",
+            "entries": [{
+                "key_xdr": BASE64.encode(&key_a),
+                "entry_xdr": BASE64.encode(&entry_b),
+            }],
+        });
+        let line = format!("{reply}\n");
+        let channel = Rc::new(RefCell::new(Channel::new(
+            Box::new(Cursor::new(line.into_bytes())),
+            Box::new(std::io::sink()),
+            1 << 20,
+        )));
+        let store = Rc::new(RefCell::new(LayeredStore::new(1)));
+        let lane = LaneRegistry::builtin().newest();
+        let src = FetchingSource::new(store, channel, lane, FetchMode::Allow);
+        assert!(src.get(&key_a).is_err());
+        let failure = src.failure().expect("expected fetch failure");
+        assert_eq!(failure.kind, "rejected");
+        assert!(
+            failure.message.contains("belongs to"),
+            "unexpected failure message: {}",
+            failure.message
+        );
     }
 }
