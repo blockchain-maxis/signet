@@ -554,6 +554,11 @@ jobs:
       - name: Apply migrations
         run: pnpm db:deploy
 
+      - name: Indexer integration tests (migrated Postgres)
+        run: pnpm --filter @signet/indexer test:integration
+        env:
+          INDEXER_TEST_DATABASE_URL: ${{ env.DATABASE_URL }}
+
       - uses: actions/setup-go@v7
         with:
           go-version-file: cli/go.mod

@@ -15,6 +15,7 @@ import {
   type SorobanInvocationsRpc,
 } from './invocations.js';
 import { xdr } from '@stellar/stellar-sdk';
+import { Prisma } from '@signet/db';
 import claimFixture from '../../../../packages/fixtures/data/claim-get-transaction.json' with { type: 'json' };
 import deployFixture from '../../../../packages/fixtures/data/deploy-get-transaction.json' with { type: 'json' };
 import sacTransferFixture from '../../../../packages/fixtures/data/sac-transfer-call-get-transaction.json' with { type: 'json' };
@@ -199,7 +200,7 @@ test('runInvocationsWorker respects cursor and skips already scanned ledgers', a
       wasmHash: null,
       readOnly: [],
       readWrite: [],
-      changed: null,
+      changed: Prisma.DbNull,
       eventsContractIds: [],
     },
   });

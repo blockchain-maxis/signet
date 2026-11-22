@@ -71,20 +71,20 @@ async function tick(
       runDeploymentWorker(
         horizon,
         config,
-        prisma as unknown as DeploymentStore,
+        prisma,
         createContractExecutableReader(soroban),
       ),
-    activity: () => runActivityWorker(prisma as unknown as ActivityStore, config),
-    operations: () => runOperationsWorker(horizon, prisma as unknown as OperationsStore, config),
+    activity: () => runActivityWorker(prisma, config),
+    operations: () => runOperationsWorker(horizon, prisma, config),
     invocations: config.captureInvocations
-      ? () => runInvocationsWorker(soroban, config, prisma as unknown as InvocationsStore)
+      ? () => runInvocationsWorker(soroban, config, prisma)
       : undefined,
     executableRefresh: () =>
-      runExecutableRefreshWorker(soroban, config, prisma as unknown as ExecutableRefreshStore),
+      runExecutableRefreshWorker(soroban, config, prisma),
     prune:
       Date.now() - lastPrunedAt >= config.pruneIntervalMs
         ? async () => {
-            const res = await runPruningWorker(prisma as unknown as PruningStore, config);
+            const res = await runPruningWorker(prisma, config);
             lastPrunedAt = Date.now();
             return res;
           }

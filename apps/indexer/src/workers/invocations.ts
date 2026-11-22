@@ -1,4 +1,5 @@
 import { Address, StrKey, xdr, rpc } from '@stellar/stellar-sdk';
+import { Prisma } from '@signet/db';
 import { callEdgesFromTransaction, eventContractIds, invokedFunction, type CallEdge } from '@signet/visualiser';
 import { logger } from '../logger.js';
 import { sleep } from '../stellar.js';
@@ -28,9 +29,9 @@ export interface ContractInvocationCreate {
   wasmHash: string | null;
   readOnly: string[];
   readWrite: string[];
-  changed: string[] | null;
+  changed: string[] | Prisma.NullableJsonNullValueInput | Prisma.InputJsonValue;
   /** Cross-contract call edges out of this contract (#516); null if they could not be decoded. */
-  callEdges?: CallEdge[] | null;
+  callEdges?: Prisma.InputJsonValue | Prisma.NullableJsonNullValueInput;
   eventsContractIds: string[];
 }
 
@@ -41,8 +42,8 @@ export interface ContractInvocationUpdate {
   wasmHash: string | null;
   readOnly: string[];
   readWrite: string[];
-  changed: string[] | null;
-  callEdges: CallEdge[] | null;
+  changed: string[] | Prisma.NullableJsonNullValueInput | Prisma.InputJsonValue;
+  callEdges: Prisma.InputJsonValue | Prisma.NullableJsonNullValueInput;
   eventsContractIds: string[];
 }
 
@@ -469,9 +470,11 @@ export async function runInvocationsWorker(
         const { readOnly, readWrite } = extractFootprint(tx);
         const fnName = extractFunctionName(tx, contract.address) ?? safely(() => invokedFunction(envelope, contract.address));
         const metaXdr = (txRes as any).resultMetaXdr;
-        const changed = metaXdr ? extractChangedKeys(metaXdr) : null;
+        const changedKeys = metaXdr ? extractChangedKeys(metaXdr) : null;
+        const changed = changedKeys ?? Prisma.DbNull;
         const eventsContractIds = metaXdr ? extractEventsContractIds(metaXdr) : [];
-        const callEdges = safely(() => callEdgesFromTransaction(envelope, metaXdr ?? null, contract.address));
+        const rawCallEdges = safely(() => callEdgesFromTransaction(envelope, metaXdr ?? null, contract.address));
+        const callEdges = (rawCallEdges as unknown as Prisma.InputJsonValue) ?? Prisma.DbNull;
 
         const createdAt = txRes.createdAt
           ? typeof txRes.createdAt === 'number'
