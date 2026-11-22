@@ -150,6 +150,19 @@ func Start(ctx context.Context, o Options) (*Net, error) {
 	return n, nil
 }
 
+// Stop stops the Quickstart container when Start launched it, leaving an
+// already-running local network alone.
+func (n *Net) Stop(ctx context.Context) error {
+	if n == nil || !n.Started {
+		return nil
+	}
+	if _, err := n.stellar(ctx, "container", "stop", Network); err != nil {
+		return err
+	}
+	n.Started = false
+	return nil
+}
+
 func configError(format string, args ...any) error {
 	return fmt.Errorf("%w: %s", exitcode.ErrConfiguration, fmt.Sprintf(format, args...))
 }

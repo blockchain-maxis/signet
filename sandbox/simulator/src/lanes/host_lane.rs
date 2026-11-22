@@ -260,6 +260,20 @@ impl Lane for HostLane {
         decode::<LedgerEntry>(entry_xdr, "LedgerEntry").map(|_| ())
     }
 
+    fn contract_max_size_bytes(&self, entry_xdr: &[u8]) -> Result<u32, LaneError> {
+        use soroban_env_host::xdr::ConfigSettingEntry;
+        let entry: LedgerEntry = decode(entry_xdr, "LedgerEntry")?;
+        match entry.data {
+            LedgerEntryData::ConfigSetting(ConfigSettingEntry::ContractMaxSizeBytes(limit)) => {
+                Ok(limit)
+            }
+            _ => Err(LaneError::InvalidXdr {
+                what: "ContractMaxSizeBytes ConfigSetting entry",
+                protocol: LEDGER_PROTOCOL,
+            }),
+        }
+    }
+
     fn network_config(&self, src: Rc<dyn ByteSnapshotSource>) -> Result<Value, LaneError> {
         let snapshot = BytesSnapshot(src);
         let config = NetworkConfig::load_from_snapshot(&snapshot)

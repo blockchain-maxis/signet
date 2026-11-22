@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/spf13/cobra"
 
@@ -21,6 +22,7 @@ type localnetFlags struct {
 	limits   string
 	bindings string
 	seed     bool
+	keep     bool
 }
 
 func addLocalnetFlags(cmd *cobra.Command, f *localnetFlags) {
@@ -28,15 +30,16 @@ func addLocalnetFlags(cmd *cobra.Command, f *localnetFlags) {
 	cmd.Flags().StringVar(&f.limits, "localnet-limits", "", "with --localnet, the resource limits a new local network starts with (stellar container start --limits)")
 	cmd.Flags().StringVar(&f.bindings, "localnet-bindings", "", "with --localnet, write TypeScript bindings for the contract into this directory after each deploy")
 	cmd.Flags().BoolVar(&f.seed, "localnet-seed", false, "with --localnet, run the [[call]]s marked seed = true as real transactions after each fresh deploy")
+	cmd.Flags().BoolVar(&f.keep, "localnet-keep", false, "with --localnet, leave a Quickstart container signet started running when the session ends")
 }
 
 func (f localnetFlags) check(cmd *cobra.Command, ci bool) error {
-	sub := cmd.Flags().Changed("localnet-limits") || cmd.Flags().Changed("localnet-bindings") || f.seed
+	sub := cmd.Flags().Changed("localnet-limits") || cmd.Flags().Changed("localnet-bindings") || f.seed || f.keep
 	switch {
 	case f.on && ci:
 		return &inputError{"--localnet runs alongside an interactive signet dev; it does not go with --ci"}
 	case sub && !f.on:
-		return &inputError{"--localnet-limits, --localnet-bindings and --localnet-seed go with --localnet"}
+		return &inputError{"--localnet-limits, --localnet-bindings, --localnet-seed and --localnet-keep go with --localnet"}
 	}
 	return nil
 }
@@ -46,6 +49,7 @@ type devLocalnet struct {
 	session  *localnet.Session
 	sim      *devSession
 	protocol int
+	keep     bool
 	progress func(string)
 }
 
@@ -69,7 +73,25 @@ func startLocalnet(ctx context.Context, f localnetFlags, binary string, protocol
 			}
 		}
 	}
-	return &devLocalnet{session: ls, sim: s, protocol: protocol, progress: progress}, nil
+	return &devLocalnet{session: ls, sim: s, protocol: protocol, keep: f.keep, progress: progress}, nil
+}
+
+// stop shuts down a Quickstart container that signet started (unless
+// --localnet-keep is set) and clears its stale .signet/localnet.json.
+func (l *devLocalnet) stop() {
+	if l == nil || l.session == nil || l.session.Net == nil || !l.session.Net.Started || l.keep {
+		return
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+	defer cancel()
+	if err := l.session.Net.Stop(ctx); err != nil {
+		l.progress("localnet: stop failed: " + err.Error())
+		return
+	}
+	if err := os.Remove(filepath.Join(l.session.Dir, localnet.StateFile)); err != nil && !os.IsNotExist(err) {
+		l.progress("localnet: remove " + localnet.StateFile + ": " + err.Error())
+	}
+	l.progress("localnet: stopped")
 }
 
 // deploy brings the local network to the build at wasm. A failure is said and

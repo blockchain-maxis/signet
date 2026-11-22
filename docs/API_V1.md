@@ -196,6 +196,27 @@ not "this is everything that exists".
 - When the database answered, `meta.total` is an exact count integer.
 - On the Horizon fallback, `meta.total` is `null` (never a lower bound presented as an exact total), and the cursor never promises pages beyond the cap.
 
+### The handle directory
+
+`GET /api/v1/profiles` (#969) lists the handles this deployment can serve, so a
+client does not have to know a handle before it can ask about one:
+
+- `data`: `[{ handle, primaryWallet, joinedAt }]`, sorted by `handle`.
+  `primaryWallet` is null for a profile that has wallets but no primary, and
+  `joinedAt` is null on the chain fallback, which does not know it.
+- Only a handle with a wallet bound to it is listed. A profile whose wallets
+  were all released keeps its row in the database and is left out here.
+- The cursor is a keyset on `handle`, so a handle claimed while a client pages
+  never shifts or repeats a page. `limit` defaults to 25 and is at most 100.
+- `meta.source` is `database`, with an exact `meta.total`. With no database it
+  is `chain`: the registry's event stream, which reaches back only as far as
+  the RPC keeps events, so `truncated` is true and `total` is null.
+- A deployment that can ask neither cannot enumerate handles. It answers
+  `data: []` with `meta.source: "none"` and `truncated: true`, never a list
+  that reads as "no handles".
+- `Cache-Control` is the profile class (see [Caching](#caching)), or `no-store`
+  when a fallback layer, or none, answered.
+
 ### Contracts a handle deployed
 
 `GET /api/v1/profiles/{handle}/contracts` (#631) lists the contracts any of the

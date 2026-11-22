@@ -58,13 +58,39 @@ class StubRpcServer implements SpecRpcServer {
   wasmCalls = 0;
   response: rpc.Api.GetLedgerEntriesResponse = { entries: [], latestLedger: 0 };
   wasm: Buffer | undefined;
+  /** Additional historical WASM modules keyed by lowercase hex hash. */
+  codeModules = new Map<string, Buffer>();
+  /** When set, code lookups return these bytes regardless of the requested hash. */
+  forcedCode: Buffer | undefined;
+  /** Hashes whose contractCode ledger entry has been evicted (missing). */
+  missingCodeHashes = new Set<string>();
   /** Held open until released, so concurrent callers overlap. */
   gate: Promise<void> | undefined;
   ledgerFailure: Error | undefined;
 
-  async getLedgerEntries(): Promise<rpc.Api.GetLedgerEntriesResponse> {
+  async getLedgerEntries(...keys: xdr.LedgerKey[]): Promise<rpc.Api.GetLedgerEntriesResponse> {
     this.ledgerCalls += 1;
     if (this.ledgerFailure) throw this.ledgerFailure;
+    const key = keys[0];
+    if (key?.switch().name === 'contractCode') {
+      await this.gate;
+      const askedHash = key.contractCode().hash().toString('hex');
+      if (this.missingCodeHashes.has(askedHash)) {
+        return { latestLedger: this.response.latestLedger, entries: [] };
+      }
+      const code = this.forcedCode ?? (this.wasm ? (this.codeModules.get(askedHash) ?? this.wasm) : undefined);
+      if (!code) throw new Error('stub: no wasm configured');
+      const val = xdr.LedgerEntryData.fromXDR(
+        loadFixture('contract-wasm-entry').entries![0]!.xdr,
+        'base64',
+      );
+      val.contractCode().hash(Buffer.from(askedHash, 'hex'));
+      val.contractCode().code(code);
+      return {
+        latestLedger: this.response.latestLedger,
+        entries: [{ key, val, lastModifiedLedgerSeq: 1 }],
+      };
+    }
     return this.response;
   }
 
@@ -85,6 +111,7 @@ function deploy(stub: StubRpcServer, name: string): string {
   const wasm = fixtureWasm(name);
   const wasmHash = hash(wasm).toString('hex');
   stub.wasm = wasm;
+  stub.codeModules.set(wasmHash, wasm);
   stub.response = instanceResponse('registry-instance-entry', wasmHash);
   return wasmHash;
 }
@@ -119,7 +146,8 @@ test('10 concurrent calls for one uncached hash make exactly one WASM fetch', as
   release();
   const results = await Promise.all(calls);
 
-  assert.equal(stub.wasmCalls, 1);
+  assert.equal(stub.ledgerCalls, 1);
+  assert.equal(stub.wasmCalls, 0);
   assert.ok(results.every((r) => r.source === 'rpc' && r.wasmHash === wasmHash));
   assert.ok(results.every((r) => r.spec === results[0]!.spec));
   assert.equal(memory.get(wasmHash), results[0]!.spec);
@@ -138,13 +166,13 @@ test('single-flight entry is released after a failure so the next call retries',
     getContractSpec(REGISTRY, opts),
   ]);
   assert.ok(failures.every((r) => r.status === 'rejected'));
-  assert.equal(stub.wasmCalls, 1);
+  assert.equal(stub.ledgerCalls, 1);
   assert.equal(memory.size, 0);
 
   stub.wasm = good;
   const retried = await getContractSpec(REGISTRY, opts);
   assert.equal(retried.source, 'rpc');
-  assert.equal(stub.wasmCalls, 2);
+  assert.equal(stub.ledgerCalls, 2);
 });
 
 test('memory hit with knownWasmHash makes zero RPC calls', async () => {
@@ -290,5 +318,120 @@ test('failing caches are logged and treated as misses, not as failures', async (
   assert.deepEqual(
     logger.warnings.map((w) => w.message),
     ['spec cache read failed', 'spec cache write failed'],
+  );
+});
+
+test('stale knownWasmHash reads the code entry by hash and never calls getContractWasmByContractId', async () => {
+  const stub = new StubRpcServer();
+  const historicalHash = deploy(stub, 'identity-registry');
+  const currentHash = deploy(stub, 'events');
+  assert.notEqual(historicalHash, currentHash);
+
+  const memory = new LruSpecCache<SpecJson>();
+  const store = new LruSpecCache<SpecJson>();
+
+  const result = await getContractSpec(
+    REGISTRY,
+    options(stub, [memory, store], { knownWasmHash: historicalHash }),
+  );
+
+  assert.equal(stub.wasmCalls, 0);
+  assert.equal(stub.ledgerCalls, 1);
+  assert.equal(result.wasmHash, historicalHash);
+  assert.equal(result.spec.wasmHash, historicalHash);
+  assert.equal(memory.get(historicalHash)?.wasmHash, historicalHash);
+  assert.equal(store.get(historicalHash)?.wasmHash, historicalHash);
+});
+
+test('mismatched WASM hash rejects with RpcUnavailable and writes nothing to caches', async () => {
+  const stub = new StubRpcServer();
+  const askedHash = deploy(stub, 'identity-registry');
+  // RPC returns a different module for the asked code key.
+  stub.forcedCode = fixtureWasm('events');
+
+  const memory = new LruSpecCache<SpecJson>();
+  const store = new LruSpecCache<SpecJson>();
+
+  await assert.rejects(
+    getContractSpec(REGISTRY, options(stub, [memory, store], { knownWasmHash: askedHash })),
+    RpcUnavailable,
+  );
+  assert.equal(memory.size, 0);
+  assert.equal(store.size, 0);
+
+  // Even a fallback resolving a wrong-hash spec must never poison the caches.
+  stub.forcedCode = undefined;
+  const noSpecHash = deploy(stub, 'no_spec');
+  await assert.rejects(
+    getContractSpec(
+      REGISTRY,
+      options(stub, [memory, store], {
+        knownWasmHash: noSpecHash,
+        fallback: {
+          name: 'wrong_hash_fallback',
+          async resolve() {
+            return {
+              provenance: 'orbital_registry',
+              attestationPointer: 'orbital://bad',
+              attestationHash: 'abc',
+              spec: {
+                schemaVersion: 1,
+                wasmHash: 'b'.repeat(64),
+                sdkVersion: '16.1.0',
+                entriesXdr: [],
+                functions: [],
+                types: [],
+                errors: [],
+                events: [],
+                warnings: [],
+              },
+            };
+          },
+        },
+      }),
+    ),
+    RpcUnavailable,
+  );
+  assert.equal(memory.size, 0);
+  assert.equal(store.size, 0);
+});
+
+test('pre-seeded cache entry with mismatched wasmHash is logged, treated as a miss, and refetched', async () => {
+  const stub = new StubRpcServer();
+  const eventsHash = deploy(stub, 'events');
+  const registryHash = deploy(stub, 'identity-registry');
+
+  const temp = new LruSpecCache<SpecJson>();
+  const current = await getContractSpec(
+    REGISTRY,
+    options(stub, [temp], { knownWasmHash: eventsHash }),
+  );
+  assert.equal(current.spec.wasmHash, eventsHash);
+
+  const memory = new LruSpecCache<SpecJson>();
+  const store = new LruSpecCache<SpecJson>();
+  // Poison store under registryHash with events's spec.
+  store.set(registryHash, current.spec);
+  stub.ledgerCalls = 0;
+  stub.wasmCalls = 0;
+  const logger = new RecordingLogger();
+
+  const resolved = await getContractSpec(
+    REGISTRY,
+    options(stub, [memory, store], { knownWasmHash: registryHash, logger }),
+  );
+
+  assert.equal(resolved.source, 'rpc');
+  assert.equal(resolved.wasmHash, registryHash);
+  assert.equal(resolved.spec.wasmHash, registryHash);
+  assert.equal(store.get(registryHash)?.wasmHash, registryHash);
+  assert.equal(memory.get(registryHash)?.wasmHash, registryHash);
+  assert.ok(
+    logger.warnings.some(
+      (w) =>
+        w.message === 'spec cache entry hash mismatch' &&
+        w.context?.wasmHash === registryHash &&
+        w.context?.cachedWasmHash === eventsHash,
+    ),
   );
 });

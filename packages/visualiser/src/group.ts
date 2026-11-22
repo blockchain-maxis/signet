@@ -16,6 +16,26 @@ export const LIFECYCLE_GROUP = 'lifecycle';
 /** Name of the group holding everything that formed no group of its own. */
 export const OTHER_GROUP = 'other';
 
+/**
+ * Unique expand/node key for a group. Synthetic groups keep their own name
+ * (`other`, `lifecycle`) when unambiguous, and use `~<name>` (`~other`,
+ * `~lifecycle`) when a prefix family with the same name is also present.
+ * `~` cannot appear in a Soroban symbol, so synthetic and prefix keys never
+ * collide.
+ */
+export function groupExpandKey(
+  group: Pick<FunctionGroup, 'name' | 'kind'>,
+  groups: readonly Pick<FunctionGroup, 'name' | 'kind'>[],
+): string {
+  if (
+    group.kind !== 'prefix' &&
+    groups.some((other) => other.kind === 'prefix' && other.name === group.name)
+  ) {
+    return `~${group.name}`;
+  }
+  return group.name;
+}
+
 /** Entrypoints that go in the lifecycle group whatever their prefix. */
 const LIFECYCLE_NAMES: ReadonlySet<string> = new Set([
   '__constructor',

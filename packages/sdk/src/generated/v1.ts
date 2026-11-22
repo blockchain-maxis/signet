@@ -105,6 +105,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/profiles": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * The handle directory
+         * @description The handles this deployment can serve, in handle order, with a keyset cursor on the handle. Only a handle with a wallet bound to it is listed: a profile whose wallets were all released is left out. meta.source is database, or chain when there is no database and the registry event stream answered; that stream only reaches back as far as the RPC keeps events, so the list is then truncated and has no total. A deployment that can answer from neither returns an empty list with source none and truncated true, never a list that reads as "no handles".
+         */
+        get: operations["listProfiles"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/profiles/{handle}": {
         parameters: {
             query?: never;
@@ -418,6 +438,17 @@ export interface components {
             network: "testnet" | "mainnet" | "futurenet" | "local";
             /** @description Indexed SHA-256 of the executable; null without the indexer. */
             wasmHash: string | null;
+        };
+        ProfileListItem: {
+            /** @description A handle this deployment can serve. */
+            handle: string;
+            /**
+             * Format: date-time
+             * @description ISO-8601 UTC time the profile was first seen; null when the list came from the chain, which does not know.
+             */
+            joinedAt: string | null;
+            /** @description The Stellar address the handle is bound to; null when the profile has wallets but none is the primary. */
+            primaryWallet: string | null;
         };
         /**
          * SpecJson v1
@@ -885,6 +916,71 @@ export interface operations {
                     "application/json": {
                         [key: string]: unknown;
                     };
+                };
+            };
+            /** @description Rate limit exceeded. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Internal server error. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    listProfiles: {
+        parameters: {
+            query?: {
+                /** @description Opaque pagination cursor from meta.nextCursor. */
+                cursor?: string;
+                /** @description Number of handles to return (default 25, max 100). */
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description A page of handles. */
+            200: {
+                headers: {
+                    /** @description public, max-age=30, stale-while-revalidate=60; no-store when a fallback layer, or none, answered. */
+                    "Cache-Control"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        data: components["schemas"]["ProfileListItem"][];
+                        meta: {
+                            nextCursor: string | null;
+                            /** @enum {string} */
+                            source: "database" | "chain" | "none";
+                            /** @description Handles in the whole list; null when it is partial. */
+                            total: number | null;
+                            /** @description True when the list may be incomplete (read from the chain, or no layer answered). */
+                            truncated: boolean;
+                        };
+                    };
+                };
+            };
+            /** @description Invalid cursor or limit. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
                 };
             };
             /** @description Rate limit exceeded. */

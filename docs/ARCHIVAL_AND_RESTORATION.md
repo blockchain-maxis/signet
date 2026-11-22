@@ -79,6 +79,6 @@ node scripts/keepalive-contract.mjs alice bob
 ```
 
 To sweep every bound handle, take the list from a deployment's directory (`/handles`,
-or tRPC `profile.list`) and pass it in.
+or `GET /api/v1/profiles`) and pass it in.
 
 The script simulates a `resolve` view call on each handle, which triggers the contract's internal `extend_ttl` to bump the TTL back to ~30 days without incurring transaction submission fees.
