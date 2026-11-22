@@ -136,6 +136,12 @@ func TestStart_UsesARunningLocalNetwork(t *testing.T) {
 	if !accountRE.MatchString(n.Deployer) {
 		t.Fatalf("deployer = %q", n.Deployer)
 	}
+	if err := n.Stop(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if stops := f.called("stellar container stop"); len(stops) != 0 {
+		t.Fatalf("Stop touched a reused container: %v", stops)
+	}
 }
 
 func TestStart_StartsQuickstartAtTheForkProtocolWithLimits(t *testing.T) {
@@ -163,6 +169,34 @@ func TestStart_StartsQuickstartAtTheForkProtocolWithLimits(t *testing.T) {
 	}
 	if len(f2.called("stellar keys fund signet-dev --network local")) != 1 || len(f2.called("stellar keys generate")) != 0 {
 		t.Fatalf("calls = %v", f2.calls())
+	}
+}
+
+func TestStop_StopsOnlyStartedNetwork(t *testing.T) {
+	f := newFake(t)
+	n, err := Start(context.Background(), f.options(false, nil))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !n.Started {
+		t.Fatal("Started is false")
+	}
+	if err := n.Stop(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	stops := f.called("stellar container stop")
+	if len(stops) != 1 || stops[0] != "stellar container stop local" {
+		t.Fatalf("container stop = %v", stops)
+	}
+	if n.Started || f.started() {
+		t.Fatal("network still marked started after Stop")
+	}
+	// Calling Stop again is a no-op.
+	if err := n.Stop(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	if got := f.called("stellar container stop"); len(got) != 1 {
+		t.Fatalf("second Stop called container stop again: %v", got)
 	}
 }
 
