@@ -44,7 +44,7 @@ names are the same; two things changed.
   reading as `null`. See [Errors](#errors-and-rate-limits).
 
 `lookupWallet` now also finds a wallet linked from the CLI, not only the on-chain primary
-binding. `listHandles` has no v1 endpoint and is deprecated (see below).
+binding. `listHandles` is deprecated in favour of `iterateProfiles` (see below).
 
 ## Quickstart
 
@@ -168,6 +168,7 @@ const { verified, attribution } = await signet.verifyDeployment('alice', 'CA…'
 
 | Method | Requests | Returns |
 |--|--|--|
+| `listProfiles({ limit, cursor })` | `GET /api/v1/profiles` | `{ data, meta }`: one page of the handle directory, in handle order |
 | `getWallets(handle)` | `GET /api/v1/profiles/{handle}/wallets` | every linked wallet, primary first, or `null` |
 | `listOperations(handle, { limit, cursor })` | `GET /api/v1/profiles/{handle}/operations` | `{ data, meta }`: one page |
 | `lookupAddress(address)` | `GET /api/v1/lookup/{address}` | `{ address, handle, source, isPrimary, network }` (`handle` null when unlinked) |
@@ -176,8 +177,9 @@ const { verified, attribution } = await signet.verifyDeployment('alice', 'CA…'
 
 ### Iterating every page
 
-`iterateContracts(handle)` and `iterateOperations(handle)` are `AsyncIterable`s that
-follow `meta.nextCursor` until the list ends (`{ pageSize }` sets the page size):
+`iterateProfiles()`, `iterateContracts(handle)` and `iterateOperations(handle)` are
+`AsyncIterable`s that follow `meta.nextCursor` until the list ends (`{ pageSize }` sets the
+page size):
 
 ```ts
 const contracts = signet.iterateContracts('alice');
@@ -189,6 +191,15 @@ A list the deployment can only give in part (a capped Horizon walk, or no layer 
 enumerate) ends early **by design**: `truncated` is `null` while iterating and, once done,
 `true` when the list was partial. Reading the iterator by hand, the final result is
 `{ done: true, value: { truncated } }`.
+
+`iterateProfiles()` walks the handle directory (`{ handle, primaryWallet, joinedAt }`).
+On a deployment with no database the directory is read from the registry's events, which
+only reach back as far as the RPC keeps them, so that list is always `truncated`:
+
+```ts
+const profiles = signet.iterateProfiles();
+for await (const p of profiles) console.log(p.handle, p.primaryWallet);
+```
 
 ### `client.request(path, { query })`
 
@@ -205,10 +216,12 @@ const page = await signet.request('/profiles/alice/contracts', { query: { limit:
 | | |
 |--|--|
 | **Returns** | `Promise<Handle[]>` |
-| **Requests** | `GET {baseUrl}/api/trpc/profile.list` |
+| **Requests** | `GET {baseUrl}/api/v1/profiles`, page by page |
 
-v1 has no endpoint that lists handles, so this still calls the web app's internal tRPC
-route, which is not a stable contract. It will be removed in 1.0.
+Every handle in one array, read through `iterateProfiles()`. It is deprecated because it
+has to walk the whole directory before it returns and cannot say when the list was
+partial: use `iterateProfiles()`, or `listProfiles()` for one page. It no longer calls the
+web app's internal tRPC route. It will be removed in 1.0.
 
 ### Types
 

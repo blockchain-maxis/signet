@@ -438,6 +438,38 @@
         ],
         "type": "object"
       },
+      "ProfileListItem": {
+        "additionalProperties": false,
+        "properties": {
+          "handle": {
+            "description": "A handle this deployment can serve.",
+            "pattern": "^[a-z0-9_-]{1,32}$",
+            "type": "string"
+          },
+          "joinedAt": {
+            "description": "ISO-8601 UTC time the profile was first seen; null when the list came from the chain, which does not know.",
+            "format": "date-time",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "primaryWallet": {
+            "description": "The Stellar address the handle is bound to; null when the profile has wallets but none is the primary.",
+            "pattern": "^[GC][A-Z2-7]{55}$",
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        },
+        "required": [
+          "handle",
+          "primaryWallet",
+          "joinedAt"
+        ],
+        "type": "object"
+      },
       "SpecJson": {
         "definitions": {
           "contractBuild": {
@@ -1604,6 +1636,139 @@
           }
         },
         "summary": "OpenAPI 3.1 specification for API v1"
+      }
+    },
+    "/profiles": {
+      "get": {
+        "description": "The handles this deployment can serve, in handle order, with a keyset cursor on the handle. Only a handle with a wallet bound to it is listed: a profile whose wallets were all released is left out. meta.source is database, or chain when there is no database and the registry event stream answered; that stream only reaches back as far as the RPC keeps events, so the list is then truncated and has no total. A deployment that can answer from neither returns an empty list with source none and truncated true, never a list that reads as \"no handles\".",
+        "operationId": "listProfiles",
+        "parameters": [
+          {
+            "description": "Opaque pagination cursor from meta.nextCursor.",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Number of handles to return (default 25, max 100).",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 25,
+              "maximum": 100,
+              "minimum": 1,
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "data": {
+                      "items": {
+                        "$ref": "#/components/schemas/ProfileListItem"
+                      },
+                      "type": "array"
+                    },
+                    "meta": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "nextCursor": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "source": {
+                          "enum": [
+                            "database",
+                            "chain",
+                            "none"
+                          ],
+                          "type": "string"
+                        },
+                        "total": {
+                          "description": "Handles in the whole list; null when it is partial.",
+                          "type": [
+                            "integer",
+                            "null"
+                          ]
+                        },
+                        "truncated": {
+                          "description": "True when the list may be incomplete (read from the chain, or no layer answered).",
+                          "type": "boolean"
+                        }
+                      },
+                      "required": [
+                        "nextCursor",
+                        "total",
+                        "truncated",
+                        "source"
+                      ],
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "A page of handles.",
+            "headers": {
+              "Cache-Control": {
+                "description": "public, max-age=30, stale-while-revalidate=60; no-store when a fallback layer, or none, answered.",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            }
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Invalid cursor or limit."
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Rate limit exceeded."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Internal server error."
+          }
+        },
+        "summary": "The handle directory",
+        "tags": [
+          "Profiles"
+        ]
       }
     },
     "/profiles/{handle}": {
