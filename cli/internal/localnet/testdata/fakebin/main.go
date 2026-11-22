@@ -89,6 +89,8 @@ func stellar(args []string) {
 	case len(args) >= 3 && args[0] == "keys" && args[1] == "fund":
 	case len(args) >= 2 && args[0] == "container" && args[1] == "start":
 		add("started", strings.Join(args, " "))
+	case len(args) >= 2 && args[0] == "container" && args[1] == "stop":
+		_ = os.Remove(state("started"))
 	case len(args) >= 2 && args[0] == "contract" && args[1] == "deploy":
 		raw, _ := os.ReadFile(state("deploys"))
 		n, _ := strconv.Atoi(strings.TrimSpace(string(raw)))
