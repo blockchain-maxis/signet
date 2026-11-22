@@ -246,11 +246,11 @@ mod tests {
     use serde_json::json;
 
     use super::*;
-    use crate::lanes::LaneRegistry;
     #[cfg(feature = "lane-p28")]
     use crate::lanes::p28::fixtures;
     #[cfg(all(not(feature = "lane-p28"), feature = "lane-p29"))]
     use crate::lanes::p29::fixtures;
+    use crate::lanes::LaneRegistry;
 
     #[test]
     fn go_returning_entry_for_wrong_key_is_rejected() {
