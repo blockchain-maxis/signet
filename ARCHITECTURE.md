@@ -22,7 +22,7 @@ model see the contract doc-comment in
                        │  /app/*        dashboard (session-gated)       │
                        │  /api/trpc     the app's own data layer        │
                        │  /api/v1       public read-only API (+ SDK)    │
-                       │  /api/auth/*   SIWS challenge / verify / logout │
+                       │  /api/auth/sep10  SEP-10 web auth · logout/revoke│
                        └───────┬───────────────────────────┬──────────┘
                                │ reads (DB-first,           │ writes bindings
                                │ chain fallback)            │ (claim, signed)
@@ -169,10 +169,19 @@ and skipped without advancing the relevant cursor, so the next tick retries.
   external [`@signet/sdk`](packages/sdk) consumes these. tRPC is the web app's
   own data layer, not a public contract — integrators read `/api/v1`
   (see [`docs/API_V1.md`](docs/API_V1.md)).
-- **Auth** is Sign-In With Stellar: `/api/auth/challenge` → wallet signs →
-  `/api/auth/verify` issues a `SameSite=Lax` session cookie
-  ([`apps/web/lib/auth.ts`](apps/web/lib/auth.ts)); mutations additionally
-  enforce a same-origin check as CSRF defense.
+### Sign-in
+
+Sign-in uses **SEP-10** ([`apps/web/lib/wallet.ts`](apps/web/lib/wallet.ts),
+  [`apps/web/app/api/auth/sep10/route.ts`](apps/web/app/api/auth/sep10/route.ts)):
+  `GET /.well-known/stellar.toml` ([`apps/web/app/.well-known/stellar.toml/route.ts`](apps/web/app/.well-known/stellar.toml/route.ts))
+  advertises `WEB_AUTH_ENDPOINT`, `SIGNING_KEY`, and `NETWORK_PASSPHRASE`;
+  the UI (or any SEP-10 client) fetches a challenge transaction with
+  `GET /api/auth/sep10`, signs it with the wallet, and exchanges it at
+  `POST /api/auth/sep10` for a 5-minute bearer JWT ([`apps/web/lib/sep10.ts`](apps/web/lib/sep10.ts)) and a
+  7-day HMAC-signed `SameSite=Lax` `signet_session` cookie carrying a random
+  `sid` ([`apps/web/lib/auth.ts`](apps/web/lib/auth.ts)). Dashboard/account
+  mutations enforce a same-origin CSRF check (while `GET`/`POST /api/auth/sep10`
+  remain cross-origin per SEP-10).
 - Sessions are stateless HMACs, so **revocation** is a separate mechanism
   ([`apps/web/lib/session-revocation.ts`](apps/web/lib/session-revocation.ts)):
   a short list, keyed by address or session id, held in the same shared store
@@ -189,6 +198,28 @@ and skipped without advancing the relevant cursor, so the next tick retries.
   Both proofs are required — neither side's bare assertion is trusted — and
   the signed challenge is spent via the same nonce store as sign-in, so a
   pairing cannot be replayed.
+
+### URL surfaces
+
+Every request hits [`apps/web/middleware.ts`](apps/web/middleware.ts), which
+delegates URL resolution to the pure decision table in
+[`apps/web/lib/routing.ts`](apps/web/lib/routing.ts) (authoritative unit cases
+live in [`apps/web/lib/routing.test.ts`](apps/web/lib/routing.test.ts)).
+Subdomain routing runs first; preview hosts (`*.vercel.app`) and bare
+`localhost` fall back to path-based routing.
+
+| Public URL shape | Internal target / behaviour | Notes |
+| --- | --- | --- |
+| `app.{domain}/…` | `/app/…` | Dashboard routes |
+| `docs.{domain}/…` | `/docs/…` | Docs & API reference |
+| `api.{domain}/api/trpc/…` | Pass-through | Public REST integrators use `/api/v1` |
+| `{handle}.{domain}/` (and `*.localhost/`) | `/p/{handle}` | Valid handle only |
+| `{handle}.{domain}/contract/{address}[/{tab}\|/functions/{name}\|/embed]` | `/p/{handle}/contract/{address}[/…]` | Valid handle, `C…` shape, and tab/symbol |
+| `/@{handle}`, `/@{handle}/contract/{address}[/…]` | `/p/{handle}` / `/p/{handle}/contract/…` | Lowercased; invalid handle passes through |
+| `/{handle}` (single non-reserved segment) | `/p/{handle}` | Single segment only (`/{handle}/contract/…` does not rewrite) |
+| `/link` | Pass-through (`app/link/page.tsx`) | Carve-out so `/link?code=…` works even though `link` can still be claimed on the deployed immutable registry |
+| `RESERVED_HANDLES` + infrastructure subdomains (`www`, `status`, `support`, `mail`, `blog`, `static`, `assets`, `cdn`) | Marketing root / pass-through | Reserved names mirror [`packages/contracts/identity-registry/src/lib.rs`](packages/contracts/identity-registry/src/lib.rs); these infrastructure subdomains are routing-only exclusions in `apps/web/lib/routing.ts` on the deployed contract |
+| `/profile/{handle}`, `/profile/{handle}/contract/{address}` | HTTP 308 redirect to `/p/{handle}` / `/p/{handle}/contract/{address}` | Handled by [`apps/web/app/(profile)/profile/[handle]/page.tsx`](apps/web/app/%28profile%29/profile/[handle]/page.tsx) and [`apps/web/app/(profile)/profile/[handle]/contract/[address]/page.tsx`](apps/web/app/%28profile%29/profile/[handle]/contract/[address]/page.tsx) |
 
 ---
 
