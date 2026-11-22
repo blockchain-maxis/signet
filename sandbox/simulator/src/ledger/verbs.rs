@@ -78,6 +78,32 @@ fn decode_key(lane: &dyn Lane, id: &Value, path: &str, value: &str) -> Result<Ve
     Ok(bytes)
 }
 
+pub(crate) fn verify_entry_key(
+    lane: &dyn Lane,
+    id: &Value,
+    path: &str,
+    key_xdr: &[u8],
+    entry_xdr: &[u8],
+) -> Result<(), Value> {
+    let derived = lane
+        .entry_key(entry_xdr)
+        .map_err(|_| invalid_field(id, path, "a base64 LedgerEntry"))?;
+    if derived != key_xdr {
+        let reason = format!(
+            "entry is for {}, not {}",
+            lane.describe_key(&derived),
+            lane.describe_key(key_xdr)
+        );
+        return Err(error_message(
+            id,
+            "bad_request",
+            format!("`{path}`: {reason}"),
+            json!({ "kind": "invalid_field", "path": path, "reason": reason }),
+        ));
+    }
+    Ok(())
+}
+
 /// Base64 `LedgerEntry` XDR, checked by the ledger's own lane.
 fn decode_entry(lane: &dyn Lane, id: &Value, path: &str, value: &str) -> Result<Vec<u8>, Value> {
     let bytes = decode_b64(id, path, value)?;
@@ -240,6 +266,14 @@ pub fn ledger_open(
                 Ok(entry) => entry,
                 Err(error) => return error,
             };
+            let entry_path = if item.contains_key("entry_xdr") {
+                format!("{at}.entry_xdr")
+            } else {
+                format!("{at}.data_xdr")
+            };
+            if let Err(error) = verify_entry_key(lane, id, &entry_path, &key, &entry) {
+                return error;
+            }
             let live_until = item
                 .get("live_until_ledger")
                 .and_then(Value::as_u64)
@@ -335,6 +369,14 @@ pub fn ledger_put(
             Ok(entry) => entry,
             Err(error) => return error,
         };
+        let entry_path = if item.contains_key("entry_xdr") {
+            format!("{at}.entry_xdr")
+        } else {
+            format!("{at}.data_xdr")
+        };
+        if let Err(error) = verify_entry_key(open.lane, id, &entry_path, &key, &entry) {
+            return error;
+        }
         writes.push((key, entry, live_until));
     }
 
@@ -659,5 +701,44 @@ mod tests {
         );
         assert_eq!(put["type"], "error");
         assert_eq!(put["detail"]["path"], "entries[0].key_xdr");
+    }
+
+    #[test]
+    fn put_with_mismatched_key_and_entry_is_refused_and_writes_nothing() {
+        let mut ledger = None;
+        open(&mut ledger);
+        let put = ledger_put(
+            &mut ledger,
+            &id(),
+            &obj(json!({ "entries": [
+                { "key_xdr": key_b64(1), "entry_xdr": entry_b64(2, 20) },
+            ] })),
+        );
+        assert_eq!(put["type"], "error", "{put}");
+        assert_eq!(put["code"], "bad_request");
+        assert_eq!(put["detail"]["kind"], "invalid_field");
+        assert_eq!(put["detail"]["path"], "entries[0].entry_xdr");
+        let got = ledger_get(&ledger, &id(), &obj(json!({ "keys_xdr": [key_b64(1)] })));
+        assert_eq!(got["entries"][0]["entry_xdr"], Value::Null);
+    }
+
+    #[test]
+    fn open_with_mismatched_key_and_entry_is_refused() {
+        let mut ledger = None;
+        let reply = ledger_open(
+            &mut ledger,
+            &id(),
+            &obj(json!({
+                "network_passphrase": "Test SDF Network ; September 2015",
+                "entries": [
+                    { "key_xdr": key_b64(1), "entry_xdr": entry_b64(2, 20) },
+                ],
+            })),
+        );
+        assert_eq!(reply["type"], "error", "{reply}");
+        assert_eq!(reply["code"], "bad_request");
+        assert_eq!(reply["detail"]["kind"], "invalid_field");
+        assert_eq!(reply["detail"]["path"], "entries[0].entry_xdr");
+        assert!(ledger.is_none());
     }
 }

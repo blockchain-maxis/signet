@@ -260,6 +260,11 @@ impl Lane for HostLane {
         decode::<LedgerEntry>(entry_xdr, "LedgerEntry").map(|_| ())
     }
 
+    fn entry_key(&self, entry_xdr: &[u8]) -> Result<Vec<u8>, LaneError> {
+        let entry: LedgerEntry = decode(entry_xdr, "LedgerEntry")?;
+        encode(&entry.to_key(), "LedgerKey")
+    }
+
     fn network_config(&self, src: Rc<dyn ByteSnapshotSource>) -> Result<Value, LaneError> {
         let snapshot = BytesSnapshot(src);
         let config = NetworkConfig::load_from_snapshot(&snapshot)

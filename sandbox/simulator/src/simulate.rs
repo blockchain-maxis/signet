@@ -26,7 +26,7 @@ use crate::lanes::{
 };
 use crate::ledger::fetch::FetchingSource;
 use crate::ledger::store::{LayeredStore, Write};
-use crate::ledger::verbs::{entry_of, OpenLedger};
+use crate::ledger::verbs::{entry_of, verify_entry_key, OpenLedger};
 use crate::spec_verbs::{fetch_failed, wasm_of_contract};
 use crate::PROTOCOL_VERSION;
 
@@ -1110,6 +1110,13 @@ pub fn ledger_apply(
                 )
             }
         };
+        if let Some(ref entry_bytes) = entry {
+            if let Err(reply) =
+                verify_entry_key(open.lane, id, &format!("{at}.entry_xdr"), &key, entry_bytes)
+            {
+                return reply;
+            }
+        }
         let live_until = item
             .get("live_until_ledger")
             .and_then(Value::as_u64)
@@ -1171,6 +1178,14 @@ pub fn ledger_import(
             Ok(entry) => entry,
             Err(reply) => return reply,
         };
+        let entry_path = if item.contains_key("entry_xdr") {
+            format!("{at}.entry_xdr")
+        } else {
+            format!("{at}.data_xdr")
+        };
+        if let Err(reply) = verify_entry_key(open.lane, id, &entry_path, &key, &entry) {
+            return reply;
+        }
         let live_until = item
             .get("live_until_ledger")
             .and_then(Value::as_u64)
