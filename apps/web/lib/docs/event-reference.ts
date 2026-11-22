@@ -1,4 +1,10 @@
-import type { SpecEvent, SpecEventDataFormat, SpecType } from '@signet/spec';
+import { xdr } from '@stellar/stellar-sdk';
+import {
+  buildEvents,
+  type SpecEvent,
+  type SpecEventDataFormat,
+  type SpecType,
+} from '@signet/spec';
 import { eventAnchor } from './anchors.ts';
 import { linkedParts, type LinkedPart } from './function-reference.ts';
 
@@ -12,6 +18,7 @@ const DATA_FORMAT_LABELS: Readonly<Record<SpecEventDataFormat, string>> = {
 
 export interface EventReferenceSpec {
   readonly events?: readonly SpecEvent[];
+  readonly entriesXdr?: readonly string[];
   readonly types: readonly Pick<SpecType, 'name'>[];
 }
 
@@ -40,9 +47,28 @@ function docOf(doc: string | undefined): string | null {
   return typeof doc === 'string' && doc.trim().length > 0 ? doc : null;
 }
 
+/**
+ * Return declared events from a spec: prefers pre-populated `spec.events`, and
+ * falls back to decoding `entriesXdr` via `buildEvents` when `spec.events` is
+ * empty (since `parseContractSpec` populates events separately).
+ */
+export function resolveSpecEvents(spec: {
+  readonly events?: readonly SpecEvent[];
+  readonly entriesXdr?: readonly string[];
+}): readonly SpecEvent[] {
+  if (spec.events && spec.events.length > 0) return spec.events;
+  if (!spec.entriesXdr || spec.entriesXdr.length === 0) return [];
+  try {
+    const entries = spec.entriesXdr.map((e) => xdr.ScSpecEntry.fromXDR(e, 'base64'));
+    return buildEvents(entries);
+  } catch {
+    return [];
+  }
+}
+
 /** Build the Types tab's Events section data from a decoded contract spec. */
 export function buildEventReference(spec: EventReferenceSpec, typesHref: string): EventReference {
-  const rawEvents = spec.events ?? [];
+  const rawEvents = resolveSpecEvents(spec);
   if (rawEvents.length === 0) {
     return { events: [], isEmpty: true, note: NO_EVENTS_NOTE };
   }

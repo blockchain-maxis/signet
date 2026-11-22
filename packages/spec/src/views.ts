@@ -7,10 +7,9 @@
  */
 
 import type { xdr } from '@stellar/stellar-sdk';
-import { buildEvents } from './events.ts';
 import { toTypeRef } from './type-ref.ts';
 import { xdrText } from './xdr-text.ts';
-import type { SpecErrorCase, SpecEvent, SpecField, SpecFunction, SpecType } from './types.ts';
+import type { SpecErrorCase, SpecField, SpecFunction, SpecType } from './types.ts';
 
 /** Name the Soroban SDK gives a contract's constructor function. */
 export const CONSTRUCTOR_NAME = '__constructor';
@@ -128,17 +127,15 @@ export function buildErrors(entries: readonly xdr.ScSpecEntry[]): SpecErrorCase[
   return out;
 }
 
-/** The four flattened views of one decoded spec. */
+/** The three flattened views of one decoded spec. */
 export function buildSpecViews(entries: readonly xdr.ScSpecEntry[]): {
   functions: SpecFunction[];
   types: SpecType[];
   errors: SpecErrorCase[];
-  events: SpecEvent[];
 } {
   return {
     functions: buildFunctions(entries),
     types: buildTypes(entries),
     errors: buildErrors(entries),
-    events: buildEvents(entries),
   };
 }

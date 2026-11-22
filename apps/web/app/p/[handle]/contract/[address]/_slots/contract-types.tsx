@@ -1,5 +1,6 @@
 import type { SpecJson } from '@signet/spec';
 import { typesTabHref } from '@/lib/docs/function-reference';
+import { resolveSpecEvents } from '@/lib/docs/event-reference';
 import { buildTypesToc } from '@/lib/docs/toc';
 import { SectionLabel } from '../../../_components/section-label';
 import {
@@ -35,7 +36,7 @@ export function ContractTypes(props: ContractSlotProps) {
   const typesHref = typesTabHref(props.handle, props.address);
   const tocItems = buildTypesToc(spec, typesHref);
   const hasSearchableItems =
-    spec.types.length > 0 || spec.errors.length > 0 || (spec.events?.length ?? 0) > 0;
+    spec.types.length > 0 || spec.errors.length > 0 || resolveSpecEvents(spec).length > 0;
 
   return (
     <section data-testid="slot-types">
