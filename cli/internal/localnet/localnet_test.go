@@ -428,11 +428,11 @@ func TestSeed_RunsTheCallsInOrderWithAddressesMapped(t *testing.T) {
 	if seed1.Identity != "seed-1" || seed2.Identity != "seed-2" || seed1.Address == alice {
 		t.Fatalf("seedAccounts = %+v", st.SeedAccounts)
 	}
-	if !strings.HasSuffix(invokes[1], "-- claim --handle alice --wallet "+seed1.Address) ||
-		!strings.HasSuffix(invokes[2], "-- claim --handle bob --wallet "+seed2.Address) {
-		t.Fatalf("seed calls = %v", invokes[1:3])
+	if !strings.HasSuffix(invokes[1], "--source signet-dev --network local --send yes -- claim --handle alice --wallet seed-1") ||
+		!strings.HasSuffix(invokes[2], "--source signet-dev --network local --send yes -- claim --handle bob --wallet seed-2") {
+		t.Fatalf("seed calls (top-level aliases) = %v", invokes[1:3])
 	}
-	wantTouch := `-- touch --n 3 --who ["` + seed1.Address + `","` + st.ContractID + `"]`
+	wantTouch := `--source seed-1 --network local --send yes -- touch --n 3 --who ["` + seed1.Address + `","` + st.ContractID + `"]`
 	if !strings.HasSuffix(invokes[3], wantTouch) {
 		t.Fatalf("nested mapping: %q, want suffix %q", invokes[3], wantTouch)
 	}
@@ -459,6 +459,51 @@ func TestSeed_AFailingCallStopsAndSaysWhich(t *testing.T) {
 	_, err := s.Deploy(context.Background(), wasmFile(t, "v1"), Interface{})
 	if err == nil || !strings.Contains(err.Error(), "seed call alice claims") {
 		t.Fatalf("err = %v", err)
+	}
+}
+
+func TestSeed_ReportsNeededSignerOnAuthFailure(t *testing.T) {
+	f := newFake(t)
+	s := session(t, f, nil)
+	t.Setenv("FAKEBIN_INVOKE_FAIL", "touch")
+	alice := "GAAZI4TCR3TY5OJHCTJC2A4QSY6CJWJH5IAJTGKIN2ER7LBNVKOCCWN7"
+	bob := "GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN"
+	s.Seed = []SeedCall{
+		{Name: "nested multi auth", Function: "touch", Args: map[string]any{"who": []any{alice, bob}}},
+	}
+	_, err := s.Deploy(context.Background(), wasmFile(t, "v1"), Interface{})
+	if err == nil || !strings.Contains(err.Error(), "seed call nested multi auth") {
+		t.Fatalf("err = %v", err)
+	}
+	if got := formatMissingSignerHint("HostError: Error(Auth, InvalidAction) missing signature", map[string]SeedAccount{
+		alice: {Identity: "seed-1", Address: alice},
+	}); !strings.Contains(got, "seed-1 ("+alice+")") {
+		t.Fatalf("signer hint = %q", got)
+	}
+}
+
+func TestLocalnet_SeedE2E(t *testing.T) {
+	if os.Getenv("SIGNET_LOCALNET_E2E") != "1" {
+		t.Skip("set SIGNET_LOCALNET_E2E=1 to deploy identity-registry to a running Quickstart and verify claim seeding")
+	}
+	wasm := filepath.Join("..", "..", "..", "packages", "contracts", "target", "wasm32v1-none", "release", "identity_registry.wasm")
+	if _, err := os.Stat(wasm); err != nil {
+		t.Skipf("registry wasm missing at %s: %v", wasm, err)
+	}
+	n, err := Start(context.Background(), Options{Protocol: 28})
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := &Session{
+		Net: n,
+		Dir: filepath.Join(t.TempDir(), ".signet"),
+		Seed: []SeedCall{
+			{Name: "alice claims", Function: "claim", Args: map[string]any{"handle": "alice", "wallet": "GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN"}},
+		},
+	}
+	iface := Interface{Functions: map[string][]Param{"initialize": {{Name: "admin", Type: "address"}}}}
+	if _, err := s.Deploy(context.Background(), wasm, iface); err != nil {
+		t.Fatal(err)
 	}
 }
 
