@@ -3,6 +3,7 @@ import { pairingEvent, type PairingOutcome, type WalletSource } from '@signet/ty
 import { prisma } from '../db.js';
 import { logger } from '../logger.js';
 import { createRegistryReader, type RegistryReader } from '../registry-read.js';
+import { withRetry } from '../retry.js';
 import type { IndexerConfig } from '../config.js';
 
 /**
@@ -309,7 +310,19 @@ export async function runAttestationWorker(
 
   // Resume from the cursor, or start `eventWindowLedgers` back on first run.
   const cursor = await store.indexerCursor.findUnique({ where: { id: CURSOR_ID } });
-  const { sequence: latest } = await server.getLatestLedger();
+  let latest: number;
+  try {
+    const latestInfo = await withRetry(() => server.getLatestLedger(), {
+      label: 'attestation.soroban',
+    });
+    latest = latestInfo.sequence;
+  } catch (err) {
+    // Soroban RPC cannot be reached, so there is nothing to read this tick.
+    // The cursor stays where it is and the next tick tries again. Returning,
+    // rather than throwing, is what `runInvocationsWorker` does for this call.
+    logger.error({ error: String(err) }, 'attestation.latestLedgerFailed');
+    return { eventsDecoded: 0 };
+  }
   let startLedger: number;
   if (cursor && cursor.lastLedger > 0) {
     startLedger = cursor.lastLedger + 1;

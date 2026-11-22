@@ -27,10 +27,13 @@ for how the indexer fits the rest of the system see [`ARCHITECTURE.md`](../ARCHI
 
 ## 1. Workers
 
-Entry point: [`apps/indexer/src/index.ts`](../apps/indexer/src/index.ts). Workers run
-sequentially inside one tick, in this order. A worker that throws is caught per worker
-(deployment/activity/operations catch per wallet or per contract); anything that escapes
-is caught by the tick, logged as `tick.error`, and the loop continues.
+Entry point: [`apps/indexer/src/index.ts`](../apps/indexer/src/index.ts); the tick itself is
+`runTick` in [`apps/indexer/src/tick.ts`](../apps/indexer/src/tick.ts). Workers run
+sequentially inside one tick, in this order. A failure stays inside the worker it happened
+in: deployment, activity and operations catch per wallet or per contract, and anything
+that escapes a worker is caught around that worker, logged as `worker.failed`, and counted
+as zero in that tick. The workers after it still run, and `failedWorkers` on the
+`tick.summary` line names the ones that threw.
 
 | #   | Worker                 | Runs                                                                        | Input                                                                                                                                                                                                                                                                                                                                                                                        | Writes                                                                                                                                                                                                                                |
 | --- | ---------------------- | --------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -237,7 +240,7 @@ A healthy first minute looks like this:
 ```json
 {"ts":"…","lvl":"info","msg":"indexer.starting","network":"testnet","horizon":"https://horizon-testnet.stellar.org","rpc":"https://soroban-testnet.stellar.org","registry":"(unset)","interval":30000}
 {"ts":"…","lvl":"info","msg":"db.connected"}
-{"ts":"…","lvl":"info","msg":"tick.summary","walletsScanned":0,"eventsDecoded":0,"contractsFound":0,"opsUpserted":0,"snapshotsWritten":0,"durationMs":1841}
+{"ts":"…","lvl":"info","msg":"tick.summary","walletsScanned":0,"eventsDecoded":0,"contractsFound":0,"opsUpserted":0,"snapshotsWritten":0,"failedWorkers":[],"durationMs":1841}
 ```
 
 ### In Docker
@@ -257,6 +260,16 @@ Point `DATABASE_URL` at a reachable host — `localhost` inside the container is
 container. The process logs to stdout/stderr and expects the platform to restart it; it
 does not daemonize or self-heal beyond the per-tick error handling.
 
+**Liveness.** The image's `HEALTHCHECK` reads the modification time of a marker file
+(`/tmp/indexer-alive`) that the loop rewrites at the end of every tick. The check fails
+once the file is more than 120 seconds old, and three failed checks in a row, 30 seconds
+apart, mark the container unhealthy. The marker says the loop is turning, and nothing
+more. A tick finishes whether or not its workers succeeded, so a tick in which every
+worker failed still refreshes it: a restart would not bring a database or an RPC endpoint
+back, and that kind of failure is in the logs instead (`worker.failed`, and
+`failedWorkers` on `tick.summary`). What the health check catches is a process wedged on a
+call that never returns, which a restart does fix.
+
 ---
 
 ## 5. Reading the logs
@@ -275,12 +288,19 @@ The heartbeat is one `tick.summary` line per tick:
   "contractsFound": 0,
   "opsUpserted": 0,
   "snapshotsWritten": 0,
+  "failedWorkers": [],
   "durationMs": 1841
 }
 ```
 
 No `tick.summary` within ~`INDEXER_TICK_INTERVAL_MS + durationMs` means the process is
 wedged or dead. That line is the single best thing to alert on.
+
+`failedWorkers` lists the workers that threw during that tick, and is `[]` when none did. A
+worker in the list counted as zero on the same line, so a zero beside a non-empty
+`failedWorkers` is a failure and not a quiet tick. The names are `attestation`,
+`deployment`, `activity`, `operations`, `invocations`, `executable-refresh` and `prune`,
+plus `cursor` for the save of the `main` cursor at the end of the tick.
 
 | Line                                               | Level                         | Means                                                                                                                                                                          | Action                                                                                                                  |
 | -------------------------------------------------- | ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------- |
@@ -291,6 +311,7 @@ wedged or dead. That line is the single best thing to alert on.
 | `attestation.stalled`                              | warn                          | One ledger holds more registry events than a whole tick reads, so the cursor cannot advance past it.                                                                           | Should not happen at real volumes. If it does, the page cap in `attestation.ts` needs raising.                          |
 | `attestation.applied`                              | debug                         | One binding applied.                                                                                                                                                           | —                                                                                                                       |
 | `attestation.fetchFailed`                          | **error**                     | RPC call failed; cursor left in place, window retried next tick.                                                                                                               | Isolated → ignore. Repeating → §6.                                                                                      |
+| `attestation.latestLedgerFailed`                   | **error**                     | Soroban RPC did not answer `getLatestLedger`, even after retries. Nothing is read this tick, the cursor stays put, and the other workers still run.                            | Isolated → ignore. Repeating → the RPC endpoint is down or unreachable.                                                 |
 | `pairing.linkStarted`                              | info                          | A registry event named a handle↔wallet pairing and is about to be applied.                                                                                                     | The head of the audit trail for one binding.                                                                            |
 | `pairing.linkCompleted`                            | info                          | The binding was written. Carries `handle` and the public `wallet`.                                                                                                             | Retain these — this is how an account becomes attributed to a person.                                                   |
 | `pairing.unlinked`                                 | info                          | A binding was dropped. `reason` is `released`, `revoked`, `transferred` or `no-longer-bound`.                                                                                  | Expected after a release; unexpected ones are worth investigating with the `wallet` field.                              |
@@ -304,7 +325,9 @@ wedged or dead. That line is the single best thing to alert on.
 | `prune.operations_failed`                          | **error**                     | Deleting expired `Operation` records past retention cutoff failed.                                                                                                             | Check database connectivity and permissions. Retries next tick.                                                         |
 | `prune.snapshots_failed`                           | **error**                     | Deleting expired `ContractSnapshot` records past retention cutoff failed.                                                                                                      | Check database connectivity and permissions. Retries next tick.                                                         |
 | `activity.storeFailed` | **warn** | Reading invocations or writing the snapshot failed for one contract; **nothing is written** for it this tick. | Self-heals next tick; persistent means a database problem. |
-| `tick.error`                                       | **error**                     | An exception escaped a worker; this tick is abandoned, the loop continues.                                                                                                     | Read the `error` field; persistent → restart.                                                                           |
+| `worker.failed`                                    | **error**                     | A worker threw. Carries `worker` and `error`. It counts as zero this tick and is named in `failedWorkers`; the workers after it still run.                                     | Read `error`. It clears when the cause does; a repeat with no outage behind it is a bug.                                |
+| `tick.pendingCheckFailed`                          | **warn**                      | The check for a just-linked wallet, made every 2 s between ticks, could not query the database. The sleep carries on.                                                          | Isolated → ignore. Repeating → the database is unreachable; the next tick says so too.                                  |
+| `tick.error`                                       | **error**                     | Something outside the workers threw and the tick was abandoned; the loop continues. A worker's own failure is `worker.failed`, not this.                                       | Read the `error` field; persistent → restart.                                                                           |
 | `indexer.shutdown` / `indexer.stopping`            | info                          | Signal received / loop exited.                                                                                                                                                 | —                                                                                                                       |
 | `[indexer] fatal: …`                               | plain stderr                  | Startup failure. **The process exits 1.**                                                                                                                                      | §6.                                                                                                                     |
 
@@ -361,7 +384,7 @@ both.
 | Symptom                                                                                                     | Cause                                                                                                                                                             | Fix                                                                                                                                                                                                           |
 | ----------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `[indexer] fatal: Error: [indexer] DATABASE_URL is required`                                                | Env var not set.                                                                                                                                                  | Export `DATABASE_URL` before starting.                                                                                                                                                                        |
-| `[indexer] fatal: PrismaClientInitializationError: Can't reach database server at …` (`errorCode: 'P1001'`) | Postgres down, wrong host/port, or `localhost` used from inside a container.                                                                                      | `pnpm db:up`; check the host is reachable from where the process runs. **Startup only** — the process exits 1 and must be restarted; a mid-run outage surfaces as `tick.error` instead and self-heals.        |
+| `[indexer] fatal: PrismaClientInitializationError: Can't reach database server at …` (`errorCode: 'P1001'`) | Postgres down, wrong host/port, or `localhost` used from inside a container.                                                                                      | `pnpm db:up`; check the host is reachable from where the process runs. **Startup only** — the process exits 1 and must be restarted; a mid-run outage is logged as `worker.failed` instead and self-heals.    |
 | Table-not-found / column errors from Prisma                                                                 | Migrations not applied.                                                                                                                                           | `pnpm db:migrate` locally, `pnpm --filter @signet/db run migrate:deploy` in prod (the Docker image does this on boot).                                                                                        |
 | `eventsDecoded` always 0, no `attestation.*` lines even at `debug`                                          | No registry id configured — the worker returns immediately.                                                                                                       | Set `INDEXER_REGISTRY_CONTRACT_ID` (or `NEXT_PUBLIC_IDENTITY_REGISTRY_ID`) and restart. Confirm via the `registry` field on `indexer.starting`.                                                               |
 | `attestation.fetchFailed` every tick, `startLedger` far above the network's current ledger                  | Cursor ahead of the chain — a DB restored from another network, or a testnet reset. Note the `error` field currently renders as `[object Object]` for RPC errors. | Compare with the live ledger, then reset: `DELETE FROM "IndexerCursor" WHERE id = 'attestation';` (cold-starts one window back) or `UPDATE "IndexerCursor" SET "lastLedger" = <n> WHERE id = 'attestation';`. |
@@ -370,6 +393,7 @@ both.
 | `scanFailed` with a 429 / rate-limit error, worsening as wallets are added                                  | Horizon rate-limits the caller IP; the built-in throttle is only 100 ms between calls, and cost grows linearly with tracked wallets and contracts.                | Raise `INDEXER_TICK_INTERVAL_MS`, or move to a dedicated/authenticated Horizon instance. Transient — failed wallets are retried next tick.                                                                    |
 | `snapshotsWritten: 0` on every tick                                                                         | Every contract's snapshot is under 5 minutes old.                                                                                                                 | Normal. Only investigate if `ContractSnapshot` rows also stop appearing over a longer window.                                                                                                                 |
 | Profile page shows no indexed activity with the indexer running                                             | The web app falls back to a live Horizon read (or an empty record) when the DB has no rows for a handle.                                                          | Check the handle exists in `Profile` and that `Operation` rows were written for its wallet.                                                                                                                   |
+| The same worker in `failedWorkers` on every `tick.summary`                                                  | That worker throws before it can deal with the failure itself, usually on its first database read.                                                                | Read `error` on the `worker.failed` lines that name it. The other workers are unaffected, and it recovers by itself once the cause is gone.                                                                   |
 | No `tick.summary` for several intervals                                                                     | Process dead, or a worker is blocked on a hung HTTP call.                                                                                                         | Check liveness, then restart — the loop has no per-call timeout.                                                                                                                                              |
 
 ---

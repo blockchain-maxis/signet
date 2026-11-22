@@ -393,7 +393,7 @@ export interface LinkWalletStore {
  *
  * Every successful (re-)link sets `indexRequestedAt`, which is what makes the
  * indexer pick the wallet up promptly instead of waiting out the rest of the
- * current tick interval — see `apps/indexer/src/index.ts`'s idle-sleep loop
+ * current tick interval — see `idleUntilNextTick` in `apps/indexer/src/tick.ts`
  * and `apps/indexer/src/workers/deployment.ts`, which clears it once scanned.
  * A plain timestamp, not a queue: relinking just overwrites it, so the
  * trigger itself is idempotent under repeated links.
