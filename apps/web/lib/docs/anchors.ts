@@ -26,3 +26,8 @@ export function typeAnchor(name: string): string {
 export function errorAnchor(enumName: string, caseName?: string): string {
   return caseName ? `error-${enumName}-${caseName}` : `error-${enumName}`;
 }
+
+/** Fragment id for a declared contract event on the Types tab. */
+export function eventAnchor(name: string): string {
+  return `event-${name}`;
+}

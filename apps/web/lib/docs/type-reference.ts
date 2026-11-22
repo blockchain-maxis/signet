@@ -17,11 +17,13 @@
 import {
   referencedTypes,
   type SpecErrorCase,
+  type SpecEvent,
   type SpecField,
   type SpecFunction,
   type SpecType,
 } from '@signet/spec';
 import { typeAnchor } from './anchors.ts';
+import { resolveSpecEvents } from './event-reference.ts';
 import { linkedParts, type LinkedPart } from './function-reference.ts';
 
 /** The slice of a decoded spec the Types tab reads; `SpecJson` satisfies it. */
@@ -29,6 +31,8 @@ export interface TypeReferenceSpec {
   readonly functions: readonly SpecFunction[];
   readonly types: readonly SpecType[];
   readonly errors: readonly SpecErrorCase[];
+  readonly events?: readonly SpecEvent[];
+  readonly entriesXdr?: readonly string[];
 }
 
 /** A named, typed member (struct field or union payload field). */
@@ -142,7 +146,7 @@ function entry(type: SpecType, names: ReadonlySet<string>, typesHref: string): T
  * @param typesHref - the Types tab for this contract (`typesTabHref`).
  */
 export function buildTypeReference(spec: TypeReferenceSpec, typesHref: string): TypeReference {
-  const closure = referencedTypes(spec);
+  const closure = referencedTypes({ ...spec, events: resolveSpecEvents(spec) });
   const reached = new Set(closure.names);
 
   // First definition wins, matching `referencedTypes`; one id per type.
