@@ -143,5 +143,17 @@ test('the open claim form has no serious accessibility violations', async ({ pag
     }),
   );
   await openClaimForm(page);
+  // The hero fades out while scrolled away; return to the top so axe scans the resting hero alongside the open claim form.
+  await page.evaluate(() => window.scrollTo(0, 0));
+  await expect
+    .poll(() =>
+      page.getByRole('heading', { level: 1 }).evaluate((el) => {
+        for (let node: Element | null = el; node; node = node.parentElement) {
+          if (Number(getComputedStyle(node).opacity) < 0.99) return false;
+        }
+        return true;
+      }),
+    )
+    .toBe(true);
   await expectNoSeriousA11yViolations(page, 'claim form open');
 });

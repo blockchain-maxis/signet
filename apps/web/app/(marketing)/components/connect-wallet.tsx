@@ -206,7 +206,7 @@ export function ConnectWallet({
     : address
       ? variant === 'cta'
         ? 'Claim your handle'
-        : `Disconnect ${address}`
+        : `Disconnect ${truncate(address)} (${address})`
       : 'Connect wallet';
 
   const availabilityText =
