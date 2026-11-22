@@ -22,8 +22,9 @@ export const HANDLE_MAX_LEN = 32;
 export const HANDLE_PATTERN = /^[a-z0-9_-]{1,32}$/;
 
 /**
- * Handles that collide with the web app's routes and are rejected by `claim`.
- * Mirrors `RESERVED_HANDLES` in the contract, which is the authoritative list.
+ * Handles that collide with the web app's routes or infrastructure subdomains
+ * and are rejected by `claim`. Mirrors `RESERVED_HANDLES` in the contract,
+ * which is the authoritative list.
  */
 export const RESERVED_HANDLES = [
   'p',
@@ -36,6 +37,15 @@ export const RESERVED_HANDLES = [
   'profile',
   'robots',
   'sitemap',
+  'link',
+  'www',
+  'status',
+  'support',
+  'mail',
+  'blog',
+  'static',
+  'assets',
+  'cdn',
 ] as const;
 
 export type ReservedHandle = (typeof RESERVED_HANDLES)[number];
