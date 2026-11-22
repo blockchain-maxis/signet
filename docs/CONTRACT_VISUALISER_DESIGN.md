@@ -223,8 +223,10 @@ future light theme, a reader printing a profile) and has to stay correct.
   a small custom-property set (`--viz-node`, `--viz-edge`, `--viz-accent`,
   `--viz-muted`) defined once on the page and redefined per theme. The SVG
   file itself names no hex values. The one exception is the standalone export
-  (`renderStandaloneSvg`), which writes the token values into its own
-  `<style>` block so that the file works outside the page.
+  (`renderStandaloneSvg`), which writes the token values as literal `fill` and
+  `stroke` attributes, so that the file works outside the page and in an
+  editor that resolves no custom property. Its `auto` theme writes the light
+  values and overrides them in a `prefers-color-scheme: dark` block.
 - **Never hue alone.** A mutating function is marked by a glyph and a label
   _and_ a colour, so the distinction survives greyscale, colour-blindness, and
   a theme that drops the accent. This is the same discipline the profile
@@ -468,7 +470,8 @@ apart:
   region, which `packages/visualiser/src/interactive/expand.ts` swaps in
   place when a group is expanded.
 - **`diagram.svg`** is the interface alone: no collapsing, no overlays and no
-  links, with the address, network and WASM hash in a footer. It answers 422
+  links, with the address, network and WASM hash in a footer. Its nodes and
+  edges are drawn in the page's vocabulary (§2.3). It answers 422
   when the graph has more than `MAX_NODES` nodes. `?view=storage` draws the
   storage view instead (`renderStorageSvg`).
 - **PNG has no route of its own.** The button fetches `diagram.svg` and

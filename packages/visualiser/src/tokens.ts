@@ -144,3 +144,34 @@ export function generateInlineTokensStyle(theme?: VizTheme): string {
   }
   return generateTokensCss();
 }
+
+/**
+ * CSS rules that repaint an SVG whose colours are literal `fill` and `stroke`
+ * attributes in `from`'s tokens, which is how the standalone export writes
+ * them, in `to`'s: one pair of rules per token, matched on the colour
+ * written. The export's `auto` theme uses them for its dark block, and the
+ * PNG export for the theme it forces.
+ *
+ * With `important`, every token gets its rules, the unchanged ones too, so
+ * that they also hold against a dark block the file already carries.
+ *
+ * The match is exact only while no two tokens of a theme share a colour,
+ * which `standalone.test.ts` checks.
+ */
+export function literalColourRules(
+  from: VizTheme,
+  to: VizTheme,
+  options: { important?: boolean } = {},
+): string[] {
+  const bang = options.important ? ' !important' : '';
+  return VIZ_TOKEN_NAMES.filter(
+    (token) => options.important || VIZ_TOKENS[from][token] !== VIZ_TOKENS[to][token],
+  ).flatMap((token) => {
+    const written = VIZ_TOKENS[from][token];
+    const wanted = VIZ_TOKENS[to][token];
+    return [
+      `[fill="${written}"] { fill: ${wanted}${bang}; }`,
+      `[stroke="${written}"] { stroke: ${wanted}${bang}; }`,
+    ];
+  });
+}

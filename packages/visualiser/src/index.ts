@@ -167,6 +167,7 @@ export {
   formatTokenDeclarations,
   generateInlineTokensStyle,
   generateTokensCss,
+  literalColourRules,
   type VizTheme,
   type VizThemeTokens,
   type VizTokenName,
