@@ -57,6 +57,10 @@
           "type": "string",
           "pattern": "^[0-9a-f]{64}$",
           "description": "SHA-256 of the executable, hex"
+        },
+        "size_checked": {
+          "type": "boolean",
+          "description": "Present and false when ContractMaxSizeBytes is unavailable so the size limit could not be checked"
         }
       },
       "required": ["version", "id", "type", "contract_id", "wasm_hash"],

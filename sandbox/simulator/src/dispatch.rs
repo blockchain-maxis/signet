@@ -230,7 +230,12 @@ impl Dispatcher {
                 Step::reply(spec_decode_val(&self.ledger, fork.as_deref(), &id, &object))
             }
             "simulate" => Step::reply(simulate(&mut self.ledger, fork.as_ref(), &id, &object)),
-            "contract_install" => Step::reply(contract_install(&mut self.ledger, &id, &object)),
+            "contract_install" => Step::reply(contract_install(
+                &mut self.ledger,
+                fork.as_ref(),
+                &id,
+                &object,
+            )),
             "contract_info" => {
                 Step::reply(contract_info(&self.ledger, fork.as_ref(), &id, &object))
             }
