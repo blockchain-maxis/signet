@@ -172,6 +172,13 @@ Running out of time is not an error: it prints `still indexing, check
 \`signet status\` later` and exits `0`, because the link itself succeeded. With
 `--json` the result gains `indexing: { done, contracts?, contractsLowerBound? }`.
 
+Pressing Ctrl-C while waiting stops the wait at once instead of waiting out
+the whole `--wait`: it prints `stopped waiting; check \`signet status\` later`
+and still exits `0`, because the link already happened. With `--json` the
+result gains `indexing.interrupted: true` alongside `indexing.done: false`.
+(Ctrl-C *before* the link succeeds is different: it abandons the pairing and
+exits `130` — see the exit-code table below.)
+
 `signet status` shows the same progress at any time:
 
 ```bash
@@ -386,7 +393,7 @@ Stable, so scripts can branch on the code rather than on message text.
 | `12` | Build failed — the contract under test failed to build |
 | `13` | Simulator failure — the simulator itself failed, not the contract call it was running |
 | `14` | No spec — the contract's WASM has no interface spec (`contractspecv0`), so `visualise` has nothing to draw |
-| `130` | Interrupted — Ctrl-C while the command was waiting; `link` abandons the pairing |
+| `130` | Interrupted — Ctrl-C while the command was waiting; `link` abandons the pairing. Once the link has succeeded, Ctrl-C during `--wait` only stops waiting and exits `0` |
 
 ## Troubleshooting
 
