@@ -37,7 +37,7 @@ is caught by the tick, logged as `tick.error`, and the loop continues.
 | 1   | **attestation**        | Every tick, **skipped entirely** when no registry contract id is configured | Soroban RPC `getEvents` on the Identity Registry                                                                                                                                                                                                                                                                                                                                             | `Profile`, `Wallet` (`source: 'onchain'`), cursor `attestation`                                                                                                                                                                       |
 | 2   | **deployment**         | Every tick                                                                  | Horizon `/accounts/{pubkey}/operations` for every `Wallet` row — paginated backward from `Wallet.deploymentCursor` (50/page, up to 10 pages/tick) until fully backfilled, then paginated forward from `Wallet.deploymentWatermark` — plus a transaction fetch per contract-creation op, and one Soroban RPC `getLedgerEntries` per newly discovered contract to read its instance executable | `Contract` (incl. `wasmHash`/`executableType`/`wasmHashCheckedAt`), `ContractWasmVersion` (first hash of a WASM contract), `Wallet.deploymentCursor`/`deploymentBackfilledAt`/`deploymentWatermark`, clears `Wallet.indexRequestedAt` |
 | 3   | **activity**           | Every tick                                                                  | Postgres `ContractInvocation` rows (no network call) for every `Contract` whose newest snapshot is older than 5 min; a contract with no captured invocations gets no snapshot | `ContractSnapshot`                                                                                                                                                                                                                    |
-| 4   | **operations**         | Every tick                                                                  | Horizon `/accounts/{pubkey}/operations` for every `Wallet` (50 most recent, desc)                                                                                                                                                                                                                                                                                                            | `Operation`                                                                                                                                                                                                                           |
+| 4   | **operations**         | Every tick                                                                  | Horizon `/accounts/{pubkey}/operations` for every `Wallet` — newest-first until an operation that is already stored, plus a backward walk from `Wallet.operationsCursor` (50/page, up to 10 pages/tick) until the retention cutoff or the end of the wallet's history                                                                                                                        | `Operation` (invocations only); `Wallet.operationsCursor` after every page of the walk, and `Wallet.operationsBackfilledAt` when it ends                                                                                              |
 | 5   | **executable-refresh** | Periodic (`INDEXER_EXECUTABLE_REFRESH_MS`, default 6h)                      | Soroban RPC `getLedgerEntries` for contracts where `wasmHashCheckedAt` is null or older than the refresh interval (batched, at most 100 keys per call)                                                                                                                                                                                                                                       | `Contract.wasmHash`, `Contract.wasmHashCheckedAt`, `ContractWasmVersion`                                                                                                                                                              |
 | 6   | **prune**              | Periodic (`INDEXER_PRUNE_INTERVAL_MS`, default 1h)                          | `Operation`, `ContractSnapshot`, `PairingState`                                                                                                                                                                                                                                                                                                                                              | Deletes historical records and expired pairings older than retention windows                                                                                                                                                          |
 
@@ -125,6 +125,31 @@ profile quietly misses contracts). Anchoring to the watermark is what closes it.
 A wallet with a deep history therefore backfills over several ticks rather than either
 being silently truncated at 200 operations or re-scanning its full history on every tick,
 and a busy wallet cannot outrun the forward scan afterwards.
+
+The operations worker tracks its own backfill on the `Wallet` row too, with
+`operationsCursor` and `operationsBackfilledAt`. Each tick it reads a wallet newest-first
+until it reaches an operation it has already stored, which picks up new activity. Then it
+resumes a backward walk from `operationsCursor`, up to 10 pages of 50 operations, and
+writes the cursor after every page. The walk ends at the first operation older than the
+retention cutoff (`INDEXER_OPERATIONS_RETENTION_DAYS`), or at the end of the wallet's
+history, and sets `operationsBackfilledAt`. From then on only the newest-first check runs.
+
+A wallet whose walk has not started (`operationsCursor` is `null`) gets the walk alone,
+since it starts at the newest operation anyway. That includes every wallet that was
+indexed before these columns existed, so the first ticks after that upgrade walk each
+wallet once more from the top.
+
+Without the walk a wallet's history stopped at the first tick's page cap: 500 operations
+of any type, of which only the invocations are stored. Every later tick stopped on its
+first page, at the newest stored row, so anything older was never read, even inside the
+retention window, and the profile's counts were short without saying so. Until
+`operationsBackfilledAt` is set a wallet's counts are still a lower bound.
+
+Two limits remain. The page cap counts operations of every type, so a wallet with many
+payments takes more ticks to walk than its invocation count suggests. And the
+newest-first check has no watermark of its own, unlike the deployment worker: it stops
+at the newest stored row or after 10 pages, so a wallet that gains more than 500
+operations between two ticks still loses the ones below that window.
 
 Consequences worth knowing before an incident:
 
@@ -404,6 +429,21 @@ seen**. For everything else — a worker that was simply down too long — the a
 reconcile sweep (see §Cold start) already rebuilds the bindings from contract state on the
 next tick, and its `count()` cross-check tells you whether an archival backfill is worth
 the trouble.
+
+**Backfill operations** — make the operations worker read a wallet's history again, for
+example after raising `INDEXER_OPERATIONS_RETENTION_DAYS`:
+
+```sql
+-- carry each walk on from where it stopped, down to the new cutoff
+UPDATE "Wallet" SET "operationsBackfilledAt" = NULL;
+
+-- or start every walk again from the newest operation
+UPDATE "Wallet" SET "operationsCursor" = NULL, "operationsBackfilledAt" = NULL;
+```
+
+No restart is needed, because wallets are read fresh on every tick. The walk then runs at
+10 pages per wallet per tick until it has finished again. Reading an operation twice is
+harmless: every write is an upsert on the Horizon operation id.
 
 **Full rebuild** (local only):
 
