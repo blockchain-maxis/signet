@@ -919,7 +919,11 @@ impl Lane for HostLane {
                     },
                     "storage": instance.storage.as_ref().map_or_else(Vec::new, |map| {
                         map.iter()
-                            .map(|item| json!({ "key": plain(&item.key), "value": plain(&item.val) }))
+                            .map(|item| json!({
+                                "key": plain(&item.key),
+                                "key_expression": spec::key_expression(&item.key),
+                                "value": plain(&item.val),
+                            }))
                             .collect()
                     }),
                 }),
@@ -928,6 +932,7 @@ impl Lane for HostLane {
                     "contract": data.contract.to_string(),
                     "durability": data.durability.name().to_lowercase(),
                     "key": plain(&data.key),
+                    "key_expression": spec::key_expression(&data.key),
                     "value": plain(val),
                 }),
             },
