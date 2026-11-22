@@ -113,10 +113,9 @@ func newContextShowCmd() *cobra.Command {
 				return fmt.Errorf("%w: reading config: %w", exitcode.ErrConfiguration, err)
 			}
 
-			target := f.Current
-			if target == "" {
-				target = config.DefaultContextName
-			}
+			// With no argument, show the context this run resolved (--context,
+			// SIGNET_CONTEXT or the current one), not whatever the file says.
+			target := resolvedContextName(cmd, f)
 			if len(args) == 1 && args[0] != "" {
 				target = args[0]
 			}

@@ -1,8 +1,10 @@
 package config
 
 import (
+	"errors"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/blockchain-maxis/signet/cli/internal/exitcode"
@@ -294,6 +296,7 @@ func TestPrecedenceTableEveryLayer(t *testing.T) {
 						Network: "mainnet",
 						Source:  "alice",
 					},
+					"custom-ctx": {},
 				},
 			},
 			wantURL:     "https://flag.signet.internal",
@@ -339,7 +342,10 @@ func TestPrecedenceTableEveryLayer(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			got := Resolve(tt.opts, tt.file)
+			got, err := Resolve(tt.opts, tt.file)
+			if err != nil {
+				t.Fatalf("Resolve: %v", err)
+			}
 			if got.BaseURL != tt.wantURL {
 				t.Errorf("BaseURL = %q, want %q", got.BaseURL, tt.wantURL)
 			}
@@ -354,6 +360,93 @@ func TestPrecedenceTableEveryLayer(t *testing.T) {
 			}
 		})
 	}
+}
+
+// ─── Acceptance test 4: a named context must exist ────────────────────────
+
+// TestResolveMissingExplicitContext is #913: a misspelled --context or
+// SIGNET_CONTEXT used to fall through to the zero Context, i.e. the hosted
+// deployment on testnet, with no error.
+func TestResolveMissingExplicitContext(t *testing.T) {
+	file := File{
+		Version: 2,
+		Current: "default",
+		Contexts: map[string]Context{
+			"default": {URL: "https://signet.example.internal", Network: "testnet"},
+			"prod":    {URL: "https://prod.example.internal", Network: "mainnet"},
+		},
+	}
+
+	assertMissing := func(t *testing.T, got Resolved, err error) {
+		t.Helper()
+		if err == nil {
+			t.Fatalf("Resolve = %+v, want an error; the hosted default must not stand in for a named context", got)
+		}
+		msg := err.Error()
+		for _, want := range []string{`"prdo"`, "default", "prod"} {
+			if !strings.Contains(msg, want) {
+				t.Errorf("error %q does not mention %q", msg, want)
+			}
+		}
+		var coder interface{ ExitCode() int }
+		if !errors.As(err, &coder) {
+			t.Fatalf("error %T does not implement ExitCode()", err)
+		}
+		if coder.ExitCode() != exitcode.Configuration {
+			t.Errorf("ExitCode() = %d, want %d (exit 3)", coder.ExitCode(), exitcode.Configuration)
+		}
+	}
+
+	t.Run("from the flag", func(t *testing.T) {
+		got, err := Resolve(ResolveOptions{FlagContext: "prdo", FlagContextSet: true}, file)
+		assertMissing(t, got, err)
+	})
+
+	t.Run("from the environment", func(t *testing.T) {
+		got, err := Resolve(ResolveOptions{EnvContext: "prdo"}, file)
+		assertMissing(t, got, err)
+	})
+
+	t.Run("the flag wins over a valid environment", func(t *testing.T) {
+		_, err := Resolve(ResolveOptions{FlagContext: "prdo", FlagContextSet: true, EnvContext: "prod"}, file)
+		if err == nil {
+			t.Fatal("expected the explicitly named context to be checked")
+		}
+	})
+
+	t.Run("no contexts configured at all", func(t *testing.T) {
+		_, err := Resolve(ResolveOptions{FlagContext: "prdo", FlagContextSet: true}, File{})
+		if err == nil {
+			t.Fatal("expected an error with no config file")
+		}
+		if !strings.Contains(err.Error(), "no contexts are configured") {
+			t.Errorf("error %q does not say there are no contexts", err.Error())
+		}
+	})
+}
+
+// TestResolveImplicitDefaultSurvivesAnEmptyFile is the other half of #913: a
+// machine with no config file at all is a normal first run, not an error.
+func TestResolveImplicitDefaultSurvivesAnEmptyFile(t *testing.T) {
+	t.Run("implicit", func(t *testing.T) {
+		got, err := Resolve(ResolveOptions{}, File{})
+		if err != nil {
+			t.Fatalf("Resolve with no config file: %v", err)
+		}
+		if got.BaseURL != DefaultBaseURL || got.Network != DefaultNetwork || got.Context != DefaultContextName {
+			t.Errorf("Resolve = %+v, want the built-in defaults", got)
+		}
+	})
+
+	t.Run("explicit default", func(t *testing.T) {
+		got, err := Resolve(ResolveOptions{FlagContext: DefaultContextName, FlagContextSet: true}, File{})
+		if err != nil {
+			t.Fatalf("Resolve(--context default) with no config file: %v", err)
+		}
+		if got.Context != DefaultContextName || got.BaseURL != DefaultBaseURL {
+			t.Errorf("Resolve = %+v, want the built-in defaults", got)
+		}
+	})
 }
 
 // ─── Acceptance test 3: remove of current context refused with exit 2 ─────

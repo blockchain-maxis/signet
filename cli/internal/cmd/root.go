@@ -62,46 +62,65 @@ instance) over its HTTP API.`,
 	root.PersistentPreRunE = func(cmd *cobra.Command, _ []string) error {
 		file, err := config.Load()
 		var configErr error
+		// A command that diagnoses the environment runs on defaults and
+		// reports the file/context problem instead of refusing to start (#619).
+		toleratesBadConfig := cmd.Annotations[annotationToleratesBadConfig] == "true"
 		if err != nil {
-			// A command that diagnoses the environment runs on defaults and
-			// reports the file instead of refusing to start (#619).
-			if cmd.Annotations[annotationToleratesBadConfig] != "true" {
+			if !toleratesBadConfig {
 				return fmt.Errorf("%w: reading config file: %w", exitcode.ErrConfiguration, err)
 			}
 			file, configErr = config.File{}, err
 		}
 
-		flagURL, _ := cmd.Flags().GetString("url")
-		flagNetwork, _ := cmd.Flags().GetString("network")
-		flagContext, _ := cmd.Flags().GetString("context")
-		flagSource, _ := cmd.Flags().GetString("source")
-		flagSignWith, _ := cmd.Flags().GetString("sign-with-key")
+		// Read the flags from the ROOT's persistent flag set, never
+		// cmd.Flags(): a subcommand may define a local flag with the same name
+		// (`context add --url/--network/--source`), and those describe the
+		// context being added, not this invocation. Reading cmd.Flags() there
+		// made `context add staging --source charlie` remember charlie as the
+		// current context's identity (#913).
+		persistent := root.PersistentFlags()
+		flagURL, _ := persistent.GetString("url")
+		flagNetwork, _ := persistent.GetString("network")
+		flagContext, _ := persistent.GetString("context")
+		flagSource, _ := persistent.GetString("source")
+		flagSignWith, _ := persistent.GetString("sign-with-key")
 		// Keep the explicit-empty diagnostic tied to --sign-with-key. All other
 		// non-empty identities are validated after precedence is resolved, so a
 		// secret cannot bypass the check through --source, the environment, or a
 		// remembered config value.
-		if cmd.Flags().Changed("sign-with-key") && strings.TrimSpace(flagSignWith) == "" {
+		if persistent.Changed("sign-with-key") && strings.TrimSpace(flagSignWith) == "" {
 			if err := keys.ValidateSignWithKey(flagSignWith); err != nil {
 				return err
 			}
 		}
 		opts := config.ResolveOptions{
 			FlagURL:            flagURL,
-			FlagURLSet:         cmd.Flags().Changed("url"),
+			FlagURLSet:         persistent.Changed("url"),
 			FlagNetwork:        flagNetwork,
-			FlagNetworkSet:     cmd.Flags().Changed("network"),
+			FlagNetworkSet:     persistent.Changed("network"),
 			FlagContext:        flagContext,
-			FlagContextSet:     cmd.Flags().Changed("context"),
+			FlagContextSet:     persistent.Changed("context"),
 			FlagSource:         flagSource,
-			FlagSourceSet:      cmd.Flags().Changed("source"),
+			FlagSourceSet:      persistent.Changed("source"),
 			FlagSignWithKey:    flagSignWith,
-			FlagSignWithKeySet: cmd.Flags().Changed("sign-with-key"),
+			FlagSignWithKeySet: persistent.Changed("sign-with-key"),
 			EnvBaseURL:         os.Getenv(config.EnvBaseURL),
 			EnvNetwork:         os.Getenv(config.EnvNetwork),
 			EnvContext:         os.Getenv(config.EnvContext),
 			EnvSignWithKey:     os.Getenv(config.EnvSignWithKey),
 		}
-		resolved := config.Resolve(opts, file)
+		resolved, resolveErr := config.Resolve(opts, file)
+		if resolveErr != nil {
+			if !toleratesBadConfig {
+				return fmt.Errorf("%w: %w", exitcode.ErrConfiguration, resolveErr)
+			}
+			// Report it, and carry on with defaults so a diagnostic command can
+			// still say what else is wrong.
+			configErr = resolveErr
+			opts.FlagContext, opts.FlagContextSet = "", false
+			opts.EnvContext = ""
+			resolved, _ = config.Resolve(opts, file)
+		}
 		if resolved.Source != "" {
 			if err := keys.ValidateSignWithKey(resolved.Source); err != nil {
 				return err
@@ -110,13 +129,14 @@ instance) over its HTTP API.`,
 		deps := base
 		deps.Config = resolved
 		deps.ConfigError = configErr
-		deps.Insecure, _ = cmd.Flags().GetBool("insecure")
+		deps.Insecure, _ = persistent.GetBool("insecure")
 		cmd.SetContext(withDeps(config.WithResolved(cmd.Context(), resolved), deps))
 
 		// Deliberately only --source: --sign-with-key and STELLAR_SIGN_WITH_KEY
 		// are not written to the config file, because either may carry a secret
-		// and neither is a preference the user asked signet to remember.
-		if opts.FlagSourceSet {
+		// and neither is a preference the user asked signet to remember. A run
+		// that could not resolve its context writes nothing.
+		if opts.FlagSourceSet && resolveErr == nil {
 			if err := config.RememberSourceInContext(resolved.Context, resolved.Source); err != nil {
 				return fmt.Errorf("%w: saving identity to config file: %w", exitcode.ErrConfiguration, err)
 			}
