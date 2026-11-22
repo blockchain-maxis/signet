@@ -289,7 +289,13 @@ export function App() {
             <Suspense
               fallback={<div className="mt-4 h-64 animate-pulse rounded bg-raised" role="status" aria-label="loading the form" />}
             >
-              <CallView api={api} refresh={cycleRefresh} />
+              <CallView
+                api={api}
+                refresh={cycleRefresh}
+                contract={session.state === 'ok' ? session.value.contract : undefined}
+                network={session.state === 'ok' ? session.value.network.name : undefined}
+                buildPath={session.state === 'ok' ? session.value.build : undefined}
+              />
             </Suspense>
           ) : (
             <>
