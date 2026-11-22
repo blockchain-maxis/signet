@@ -17,6 +17,7 @@
 import {
   referencedTypes,
   type SpecErrorCase,
+  type SpecEvent,
   type SpecField,
   type SpecFunction,
   type SpecType,
@@ -29,6 +30,7 @@ export interface TypeReferenceSpec {
   readonly functions: readonly SpecFunction[];
   readonly types: readonly SpecType[];
   readonly errors: readonly SpecErrorCase[];
+  readonly events?: readonly SpecEvent[];
 }
 
 /** A named, typed member (struct field or union payload field). */

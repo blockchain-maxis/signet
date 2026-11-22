@@ -33,6 +33,7 @@ const contractId = (byte: number) => StrKey.encodeContract(Buffer.alloc(32, byte
 export const REGISTRY = contractId(0xa7);
 export const UNDOCUMENTED = contractId(0xa8);
 export const TYPES_ZOO = contractId(0xa9);
+export const EVENTS_CONTRACT = contractId(0xaa);
 
 const WALLET_4 = StrKey.encodeEd25519PublicKey(Buffer.alloc(32, 0xe4));
 const REGISTRY_WASM = '33'.repeat(32);
@@ -57,6 +58,24 @@ const typesZooSpec = JSON.parse(
   }),
 ) as typeof registrySpec;
 const TYPES_ZOO_WASM = rawTypesZooSpec.wasmHash;
+
+const EVENTS_WASM_PATH = join(
+  process.cwd(),
+  '..',
+  '..',
+  'packages',
+  'spec',
+  'fixtures',
+  'events.wasm',
+);
+const rawEventsSpec = toSpecJson(parseContractSpec(readFileSync(EVENTS_WASM_PATH)));
+const eventsSpec = JSON.parse(
+  JSON.stringify({
+    ...rawEventsSpec,
+    sdkVersion: '16.1.0',
+  }),
+) as typeof registrySpec;
+const EVENTS_WASM = rawEventsSpec.wasmHash;
 
 /** The SDK the e2e server runs (`RUNNING_SDK_VERSION`); a row stamped with another is stale and re-read over RPC. */
 const SDK_VERSION = '16.1.0';
@@ -261,6 +280,7 @@ export async function seedDocsRegistryFixture(): Promise<void> {
       { address: REGISTRY, tx: 'a7', wasm: REGISTRY_WASM, spec: registrySpec },
       { address: UNDOCUMENTED, tx: 'a8', wasm: UNDOCUMENTED_WASM, spec: undocumentedSpec },
       { address: TYPES_ZOO, tx: 'a9', wasm: TYPES_ZOO_WASM, spec: typesZooSpec },
+      { address: EVENTS_CONTRACT, tx: 'aa', wasm: EVENTS_WASM, spec: eventsSpec },
     ];
     for (const row of rows) {
       const data = {

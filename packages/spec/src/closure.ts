@@ -6,7 +6,7 @@
  * Docs and the visualiser both use this so they agree on what to draw.
  */
 
-import type { ContractSpec, SpecType, TypeRef } from './types.ts';
+import type { ContractSpec, SpecEvent, SpecType, TypeRef } from './types.ts';
 
 /** Result of {@link referencedTypes}. */
 export interface ReferencedTypes {
@@ -67,7 +67,9 @@ function directRefs(type: SpecType): string[] {
  * included in `names`, because the errors view renders them.
  */
 export function referencedTypes(
-  spec: Pick<ContractSpec, 'functions' | 'types' | 'errors'>,
+  spec: Pick<ContractSpec, 'functions' | 'types' | 'errors'> & {
+    readonly events?: readonly SpecEvent[];
+  },
   fnNames?: readonly string[],
 ): ReferencedTypes {
   const wanted = fnNames === undefined ? undefined : new Set(fnNames);
@@ -81,6 +83,11 @@ export function referencedTypes(
     if (wanted !== undefined && !wanted.has(fn.name)) continue;
     for (const input of fn.inputs) collectNamed(input.type, queue);
     for (const output of fn.outputs) collectNamed(output, queue);
+  }
+  if (wanted === undefined) {
+    for (const ev of spec.events ?? []) {
+      for (const param of ev.params) collectNamed(param.type, queue);
+    }
   }
 
   const seen = new Set<string>();

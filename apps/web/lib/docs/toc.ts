@@ -8,6 +8,7 @@
 
 import { errorAnchor, fnAnchor, typeAnchor } from './anchors.ts';
 import { buildErrorReference, type ErrorReferenceSpec } from './error-reference.ts';
+import { buildEventReference, type EventReferenceSpec } from './event-reference.ts';
 import {
   buildFunctionReference,
   type FunctionReferenceSpec,
@@ -43,14 +44,15 @@ export function buildFunctionsToc(
 
 /**
  * Build table of contents items for the Types tab.
- * Includes all reachable UDTs and error enums.
+ * Includes all reachable UDTs, error enums, and declared events.
  */
 export function buildTypesToc(
-  spec: TypeReferenceSpec & ErrorReferenceSpec,
+  spec: TypeReferenceSpec & ErrorReferenceSpec & EventReferenceSpec,
   typesHref: string,
 ): TocItem[] {
   const typeRef = buildTypeReference(spec, typesHref);
   const errorRef = buildErrorReference(spec);
+  const eventRef = buildEventReference(spec, typesHref);
 
   return [
     ...typeRef.used.map((t) => ({
@@ -68,5 +70,10 @@ export function buildTypesToc(
           };
         })
       : []),
+    ...eventRef.events.map((ev) => ({
+      title: ev.name,
+      href: `#${ev.id}`,
+      id: ev.id,
+    })),
   ];
 }

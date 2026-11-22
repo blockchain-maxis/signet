@@ -5,6 +5,7 @@ import { SectionLabel } from '../../../_components/section-label';
 import {
   DocsSearch,
   ErrorList,
+  EventList,
   TypeList,
   TableOfContentsDetails,
   TableOfContentsSticky,
@@ -33,7 +34,8 @@ export function ContractTypes(props: ContractSlotProps) {
   const spec = props.spec.spec as SpecJson;
   const typesHref = typesTabHref(props.handle, props.address);
   const tocItems = buildTypesToc(spec, typesHref);
-  const hasSearchableItems = spec.types.length > 0 || spec.errors.length > 0;
+  const hasSearchableItems =
+    spec.types.length > 0 || spec.errors.length > 0 || (spec.events?.length ?? 0) > 0;
 
   return (
     <section data-testid="slot-types">
@@ -41,8 +43,8 @@ export function ContractTypes(props: ContractSlotProps) {
       <div className="mt-6">
         {hasSearchableItems && (
           <DocsSearch
-            label="Filter types and errors"
-            placeholder="Filter by type, field, error, or doc (/)"
+            label="Filter types, errors, and events"
+            placeholder="Filter by type, field, error, event, or doc (/)"
             itemNoun="items"
           />
         )}
@@ -51,6 +53,7 @@ export function ContractTypes(props: ContractSlotProps) {
           <div className="min-w-0 flex-1">
             <TypeList spec={spec} handle={props.handle} address={props.address} />
             <ErrorList spec={spec} handle={props.handle} address={props.address} className="mt-12" />
+            <EventList spec={spec} handle={props.handle} address={props.address} className="mt-12" />
           </div>
           <TableOfContentsSticky items={tocItems} />
         </div>

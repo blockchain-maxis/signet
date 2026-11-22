@@ -155,7 +155,7 @@ export function parseContractSpec(
     functions: views.functions,
     types: views.types,
     errors: views.errors,
-    events: [],
+    events: views.events,
     ...(build !== undefined ? { build } : {}),
     ...(env !== undefined ? { env } : {}),
     warnings,

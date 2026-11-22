@@ -113,6 +113,18 @@ export function DocsSearch({
       errorList.hidden = isFiltering && !anyTableVisible;
     }
 
+    // Toggle event-list section when filtering events
+    const eventSections = Array.from(slot.querySelectorAll<HTMLElement>('[data-testid="event-section"]'));
+    const eventList = slot.querySelector<HTMLElement>('[data-testid="event-list"]');
+    if (eventList) {
+      if (eventSections.length > 0) {
+        const anyEventVisible = eventSections.some((sec) => !sec.hidden);
+        eventList.hidden = isFiltering && !anyEventVisible;
+      } else {
+        eventList.hidden = isFiltering;
+      }
+    }
+
     setCounts({ matched, total: items.length });
   }, []);
 

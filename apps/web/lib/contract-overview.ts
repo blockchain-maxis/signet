@@ -32,7 +32,11 @@ import { buildSpecViews, type SpecJson } from '@signet/spec';
  * never guessed.
  */
 export function withFlattenedViews(json: SpecJson): SpecJson {
-  const empty = json.functions.length === 0 && json.types.length === 0 && json.errors.length === 0;
+  const empty =
+    json.functions.length === 0 &&
+    json.types.length === 0 &&
+    json.errors.length === 0 &&
+    (json.events?.length ?? 0) === 0;
   if (!empty || json.entriesXdr.length === 0) return json;
   const entries = json.entriesXdr.map((entry) => xdr.ScSpecEntry.fromXDR(entry, 'base64'));
   return { ...json, ...buildSpecViews(entries) };

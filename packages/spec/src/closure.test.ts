@@ -85,3 +85,21 @@ test('unknown function names are ignored', () => {
   const spec = { functions: [fn('f', named('A'))], types: [struct('A')] as SpecType[], errors: [] };
   assert.deepEqual(referencedTypes(spec, ['nope']), { names: [], missing: [] });
 });
+
+test('types referenced only by event params are included in full-spec closure', () => {
+  const spec = {
+    functions: [],
+    types: [struct('EventPayload', 'u32'), struct('Orphan', 'u32')] as SpecType[],
+    errors: [],
+    events: [
+      {
+        name: 'Happened',
+        doc: '',
+        prefixTopics: ['happened'],
+        params: [{ name: 'payload', type: named('EventPayload'), location: 'data' as const }],
+        dataFormat: 'single_value' as const,
+      },
+    ],
+  };
+  assert.deepEqual(referencedTypes(spec).names, ['EventPayload']);
+});
