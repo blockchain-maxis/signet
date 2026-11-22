@@ -53,8 +53,8 @@ var (
 	hashRE     = regexp.MustCompile(`^[0-9a-f]{64}$`)
 )
 
-// Probe asks an RPC endpoint for its network passphrase.
-type Probe func(ctx context.Context, rpcURL string) (passphrase string, healthy bool, err error)
+// Probe asks an RPC endpoint for its network passphrase and protocol version.
+type Probe func(ctx context.Context, rpcURL string) (passphrase string, protocol int, healthy bool, err error)
 
 // Options configures the local network.
 type Options struct {
@@ -114,10 +114,12 @@ type Net struct {
 func Start(ctx context.Context, o Options) (*Net, error) {
 	o.defaults()
 	n := &Net{o: o}
-	passphrase, _, err := o.Probe(ctx, o.RPCURL)
+	passphrase, proto, _, err := o.Probe(ctx, o.RPCURL)
 	switch {
-	case err == nil && passphrase == Passphrase:
+	case err == nil && passphrase == Passphrase && (o.Protocol == 0 || proto == o.Protocol):
 		o.Progress("localnet: using the network already running at " + o.RPCURL)
+	case err == nil && passphrase == Passphrase:
+		return nil, configError("the local network at %s is running protocol %d, but the fork is at protocol %d; stop it (`stellar container stop local`) and run again so signet starts one at protocol %d", o.RPCURL, proto, o.Protocol, o.Protocol)
 	case err == nil:
 		return nil, configError("something at %s answers as a Stellar RPC for %q, not the local network; stop it, or it cannot be the localnet", o.RPCURL, passphrase)
 	default:
@@ -192,7 +194,7 @@ func checkPortFree(rpcURL string) error {
 func (n *Net) waitHealthy(ctx context.Context) error {
 	deadline := time.Now().Add(n.o.Wait)
 	for {
-		passphrase, healthy, err := n.o.Probe(ctx, n.o.RPCURL)
+		passphrase, _, healthy, err := n.o.Probe(ctx, n.o.RPCURL)
 		if err == nil && healthy && passphrase == Passphrase {
 			n.o.Progress("localnet: healthy at " + n.o.RPCURL)
 			return nil
@@ -208,8 +210,8 @@ func (n *Net) waitHealthy(ctx context.Context) error {
 	}
 }
 
-// RPCProbe asks getNetwork for the passphrase and getHealth for the status.
-func RPCProbe(ctx context.Context, rpcURL string) (string, bool, error) {
+// RPCProbe asks getNetwork for the passphrase and protocolVersion, and getHealth for the status.
+func RPCProbe(ctx context.Context, rpcURL string) (string, int, bool, error) {
 	call := func(method string, out any) error {
 		body := strings.NewReader(fmt.Sprintf(`{"jsonrpc":"2.0","id":1,"method":%q}`, method))
 		req, err := http.NewRequestWithContext(ctx, http.MethodPost, rpcURL, body)
@@ -235,16 +237,17 @@ func RPCProbe(ctx context.Context, rpcURL string) (string, bool, error) {
 		return json.Unmarshal(envelope.Result, out)
 	}
 	var network struct {
-		Passphrase string `json:"passphrase"`
+		Passphrase      string `json:"passphrase"`
+		ProtocolVersion int    `json:"protocolVersion"`
 	}
 	if err := call("getNetwork", &network); err != nil {
-		return "", false, err
+		return "", 0, false, err
 	}
 	var health struct {
 		Status string `json:"status"`
 	}
 	healthy := call("getHealth", &health) == nil && health.Status == "healthy"
-	return network.Passphrase, healthy, nil
+	return network.Passphrase, network.ProtocolVersion, healthy, nil
 }
 
 // stellar runs the stellar CLI and returns its stdout.

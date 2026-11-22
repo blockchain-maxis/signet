@@ -93,11 +93,11 @@ func (f *fake) options(up bool, progress *[]string) Options {
 		Protocol: 28,
 		Wait:     5 * time.Second,
 		Poll:     10 * time.Millisecond,
-		Probe: func(context.Context, string) (string, bool, error) {
+		Probe: func(context.Context, string) (string, int, bool, error) {
 			if up || f.started() {
-				return Passphrase, true, nil
+				return Passphrase, 28, true, nil
 			}
-			return "", false, errors.New("connection refused")
+			return "", 0, false, errors.New("connection refused")
 		},
 		Progress: func(s string) {
 			if progress != nil {
@@ -183,13 +183,19 @@ func TestStart_SaysWhatIsWrong(t *testing.T) {
 			o.RPCURL = "http://" + l.Addr().String() + "/rpc"
 		}, "is in use by something that is not a Stellar RPC"},
 		{"another network", func(_ *testing.T, _ *fake, o *Options) {
-			o.Probe = func(context.Context, string) (string, bool, error) {
-				return "Test SDF Network ; September 2015", true, nil
+			o.Probe = func(context.Context, string) (string, int, bool, error) {
+				return "Test SDF Network ; September 2015", 28, true, nil
 			}
 		}, `answers as a Stellar RPC for "Test SDF Network ; September 2015", not the local network`},
+		{"different protocol", func(_ *testing.T, _ *fake, o *Options) {
+			o.Protocol = 28
+			o.Probe = func(context.Context, string) (string, int, bool, error) {
+				return Passphrase, 27, true, nil
+			}
+		}, "protocol 27, but the fork is at protocol 28"},
 		{"never healthy", func(_ *testing.T, _ *fake, o *Options) {
 			o.Wait = 50 * time.Millisecond
-			o.Probe = func(context.Context, string) (string, bool, error) { return "", false, errors.New("refused") }
+			o.Probe = func(context.Context, string) (string, int, bool, error) { return "", 0, false, errors.New("refused") }
 		}, "did not become healthy"},
 	}
 	for _, tc := range cases {
@@ -203,6 +209,9 @@ func TestStart_SaysWhatIsWrong(t *testing.T) {
 			}
 			if tc.name != "never healthy" && !errors.Is(err, exitcode.ErrConfiguration) {
 				t.Fatalf("err = %v, want a configuration error", err)
+			}
+			if tc.name == "different protocol" && (len(f.called("stellar container start")) != 0 || f.started()) {
+				t.Fatalf("attempted to start a container on protocol mismatch: %v", f.calls())
 			}
 		})
 	}

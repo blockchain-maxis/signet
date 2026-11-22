@@ -608,7 +608,9 @@ signet dev CASF…RCN --path ./contract --localnet
 
 - **Start or reuse.** A network already answering at
   `http://localhost:8000/rpc` with the passphrase
-  `Standalone Network ; February 2017` is used as it is. Otherwise signet runs
+  `Standalone Network ; February 2017` **and the same protocol version as the fork**
+  is used as it is (a mismatch stops with configuration exit 3 and asks you to stop
+  it with `stellar container stop local`). Otherwise signet runs
   `stellar container start local --protocol-version <the fork's protocol>`
   (with `--localnet-limits` passed as `--limits`) and waits for it to be
   healthy. Docker missing, Docker not running, the port held by something else
