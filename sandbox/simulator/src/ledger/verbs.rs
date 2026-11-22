@@ -599,6 +599,59 @@ mod tests {
     }
 
     #[test]
+    fn rollback_to_cp_zero_is_refused_and_preserves_session_writes() {
+        let mut ledger = None;
+        open(&mut ledger);
+
+        // Pre-checkpoint session write + checkpoint (cp-1) + post-checkpoint session write.
+        {
+            let open_ledger = ledger.as_ref().unwrap();
+            let mut store = open_ledger.store.borrow_mut();
+            store.apply_modified([crate::ledger::store::Write {
+                key: fixtures::data_key_xdr(1),
+                entry: Some(fixtures::data_entry_xdr(1, 10)),
+                live_until: Some(500),
+            }]);
+        }
+        let cp1 = ledger_checkpoint(&mut ledger, &id());
+        assert_eq!(cp1["checkpoint"], "cp-1");
+        {
+            let open_ledger = ledger.as_ref().unwrap();
+            let mut store = open_ledger.store.borrow_mut();
+            store.apply_modified([crate::ledger::store::Write {
+                key: fixtures::data_key_xdr(2),
+                entry: Some(fixtures::data_entry_xdr(2, 20)),
+                live_until: Some(500),
+            }]);
+        }
+
+        let refused = ledger_rollback(&mut ledger, &id(), &obj(json!({ "checkpoint": "cp-0" })));
+        assert_eq!(refused["type"], "error");
+        assert_eq!(refused["code"], "bad_request");
+        assert_eq!(refused["detail"]["kind"], "unknown_checkpoint");
+
+        // Both session writes must still be live after the refused rollback.
+        let got = ledger_get(
+            &ledger,
+            &id(),
+            &obj(json!({ "keys_xdr": [key_b64(1), key_b64(2)] })),
+        );
+        assert_eq!(got["entries"][0]["entry_xdr"], entry_b64(1, 10));
+        assert_eq!(got["entries"][1]["entry_xdr"], entry_b64(2, 20));
+
+        // cp-1 remains valid and reverts only the post-checkpoint write.
+        let ok = ledger_rollback(&mut ledger, &id(), &obj(json!({ "checkpoint": "cp-1" })));
+        assert_eq!(ok["type"], "result");
+        let after = ledger_get(
+            &ledger,
+            &id(),
+            &obj(json!({ "keys_xdr": [key_b64(1), key_b64(2)] })),
+        );
+        assert_eq!(after["entries"][0]["entry_xdr"], entry_b64(1, 10));
+        assert_eq!(after["entries"][1]["entry_xdr"], Value::Null);
+    }
+
+    #[test]
     fn verbs_refuse_to_run_without_an_open_ledger() {
         let ledger = None;
         let got = ledger_get(&ledger, &id(), &obj(json!({ "keys_xdr": [key_b64(1)] })));

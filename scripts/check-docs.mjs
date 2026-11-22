@@ -184,6 +184,17 @@ const NOT_ENV_IDENTIFIERS = new Set([
   'MAX_WASM_SECTIONS', // packages/spec — parser limit, not config
   'MAX_SPEC_ENTRIES', // packages/spec — parser limit, not config
   'DECODE_LIMITS', // sandbox/simulator — the XDR decode limits, a constant, not config
+  'MAX_NODES', // packages/visualiser — diagram size ceiling, not config
+  'MIN_EDGES', // packages/visualiser — not-worth-drawing threshold, not config
+  'COLLAPSE_THRESHOLD', // packages/visualiser — when function groups collapse, not config
+  'MIN_GROUP_SIZE', // packages/visualiser — smallest name-prefix group, not config
+  'MAX_RAW_NODES', // packages/visualiser — layout work ceiling, not config
+  'MIN_TEXT_PX', // packages/visualiser — smallest rendered text, not config
+  'DEFAULT_TYPE_DEPTH', // packages/visualiser — type graph depth drawn, not config
+  'LAYOUT_VERSION', // packages/visualiser — layout algorithm version, not config
+  'MUTABILITY_PER_FUNCTION', // apps/web/lib/server/diagram.ts — bounded read, not config
+  'MUTABILITY_TTL_MS', // apps/web/lib/server/diagram.ts — cache lifetime, not config
+  'CALL_GRAPH_WINDOW', // apps/web/lib/server/call-graph-source.ts — bounded read, not config
   'NETWORK_PASSPHRASE', // stellar.toml key the CLI reads, not env
   'SIGNING_KEY', // stellar.toml key the CLI reads, not env
   'WEB_AUTH_ENDPOINT', // stellar.toml key the CLI reads, not env

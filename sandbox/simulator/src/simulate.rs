@@ -800,6 +800,7 @@ pub fn contract_info(
 /// ledger, at `contract_id` or at an id derived from the executable.
 pub fn contract_install(
     ledger: &mut Option<OpenLedger>,
+    fork: Option<&Rc<FetchingSource>>,
     id: &Value,
     object: &Map<String, Value>,
 ) -> Value {
@@ -846,6 +847,10 @@ pub fn contract_install(
         }
         Err(e) => return invalid_field(id, "wasm_base64", &format!("a WASM executable: {e}")),
     }
+    let size_checked = match check_contract_max_size(open.lane, fork, id, wasm.len()) {
+        Ok(checked) => checked,
+        Err(reply) => return reply,
+    };
     let installed = match open.lane.install(&wasm, contract_id) {
         Ok(installed) => installed,
         Err(e @ LaneError::InvalidWasm(_)) => {
@@ -860,10 +865,54 @@ pub fn contract_install(
         store.insert_override(&key, entry, Some(u32::MAX));
     }
     open.installed.insert(installed.contract_id.clone());
-    result(
-        id,
-        json!({ "contract_id": installed.contract_id, "wasm_hash": hex(&installed.wasm_hash) }),
-    )
+    let mut body = json!({
+        "contract_id": installed.contract_id,
+        "wasm_hash": hex(&installed.wasm_hash),
+    });
+    if !size_checked {
+        body["size_checked"] = json!(false);
+    }
+    result(id, body)
+}
+
+fn check_contract_max_size(
+    lane: &'static dyn Lane,
+    fork: Option<&Rc<FetchingSource>>,
+    id: &Value,
+    used: usize,
+) -> Result<bool, Value> {
+    let Some(fork) = fork else {
+        return Ok(false);
+    };
+    let Ok(mut keys) = lane.ledger_keys(&KeyRequest::ConfigSetting {
+        setting: "ContractMaxSizeBytes".to_string(),
+    }) else {
+        return Ok(false);
+    };
+    let Some(setting_key) = keys.pop() else {
+        return Ok(false);
+    };
+    let entry_bytes = match fork.get(&setting_key.key_xdr) {
+        Ok(Some((bytes, _))) => bytes,
+        Ok(None) => return Ok(false),
+        Err(_) => match fork.failure() {
+            Some(failure) if failure.kind == "denied" => return Ok(false),
+            Some(failure) => return Err(fetch_failed(id, lane, &failure)),
+            None => return Ok(false),
+        },
+    };
+    let Ok(limit) = lane.contract_max_size_bytes(&entry_bytes) else {
+        return Ok(false);
+    };
+    if used > limit as usize {
+        return Err(error_message(
+            id,
+            "resource_limit",
+            format!("executable is {used} bytes, over the {limit} byte limit"),
+            json!({ "kind": "wasm_size", "limit": limit, "used": used }),
+        ));
+    }
+    Ok(true)
 }
 
 /// `contract_swap`: point an instance at another executable already in the

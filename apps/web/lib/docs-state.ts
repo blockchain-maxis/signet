@@ -53,6 +53,15 @@ export function docsStateCopy(failure: SpecFailure, network: string): DocsStateC
         showAddress: true,
         link: null,
       };
+    case 'wasm_not_found':
+      return {
+        kind: failure.kind,
+        variant: null,
+        heading: base.title,
+        body: base.detail,
+        showAddress: false,
+        link: null,
+      };
     case 'no_interface':
       if (failure.reason === 'stellar_asset_contract') {
         return {

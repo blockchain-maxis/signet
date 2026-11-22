@@ -476,6 +476,8 @@ pub trait Lane: Sync {
     fn check_ledger_entry(&self, entry_xdr: &[u8]) -> Result<(), LaneError>;
     /// Derive the `LedgerKey` XDR implied by `entry_xdr`.
     fn entry_key(&self, entry_xdr: &[u8]) -> Result<Vec<u8>, LaneError>;
+    /// Decode `ContractMaxSizeBytes` from a `ConfigSetting` `LedgerEntry` XDR.
+    fn contract_max_size_bytes(&self, entry_xdr: &[u8]) -> Result<u32, LaneError>;
 
     /// The network configuration `src` holds, as plain JSON for `status`
     /// and `ledger_open` (#535): limits, fee rates and TTLs. A missing
