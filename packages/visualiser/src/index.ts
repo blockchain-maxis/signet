@@ -140,6 +140,7 @@ export {
   LIFECYCLE_GROUP,
   MIN_GROUP_SIZE,
   OTHER_GROUP,
+  groupExpandKey,
   groupFunctions,
   type FunctionGroup,
 } from './group.ts';

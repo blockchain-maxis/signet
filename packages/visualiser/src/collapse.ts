@@ -21,7 +21,7 @@ import type {
   GraphEdgeKind,
   GraphNode,
 } from './graph.ts';
-import { groupFunctions, type FunctionGroup } from './group.ts';
+import { groupExpandKey, groupFunctions, type FunctionGroup } from './group.ts';
 
 /** Past this many functions, groups collapse unless the URL expands them. */
 export const COLLAPSE_THRESHOLD = 25;
@@ -29,8 +29,17 @@ export const COLLAPSE_THRESHOLD = 25;
 /** Node id prefix of a collapsed group: `collapsed:pool`. */
 export const COLLAPSED_PREFIX = 'collapsed:';
 
-export function collapsedGroupId(group: string): string {
-  return `${COLLAPSED_PREFIX}${group}`;
+/**
+ * Node id of a collapsed group (`collapsed:<key>`). When `groups` is passed
+ * and `group` is a synthetic group colliding with a same-named prefix family,
+ * uses `collapsed:~<name>` (e.g. `collapsed:~other`).
+ */
+export function collapsedGroupId(
+  group: string | Pick<FunctionGroup, 'name' | 'kind'>,
+  groups: readonly Pick<FunctionGroup, 'name' | 'kind'>[] = [],
+): string {
+  const key = typeof group === 'string' ? group : groupExpandKey(group, groups);
+  return `${COLLAPSED_PREFIX}${key}`;
 }
 
 /** A collapsed group's label: `pool_* (12)`, or `other (4)` for a synthetic group. */
@@ -61,9 +70,21 @@ export function canonicalExpand(
   raw: string | readonly string[] | null | undefined,
   graph: ContractGraph,
 ): string[] {
-  const names = new Set(functionGroupsOf(graph).map((g) => g.name));
+  const groups = functionGroupsOf(graph);
+  const aliasToKey = new Map<string, string>();
+  for (const group of groups) {
+    const key = groupExpandKey(group, groups);
+    aliasToKey.set(key, key);
+    if (group.kind !== 'prefix') aliasToKey.set(`~${group.name}`, key);
+  }
   const asked = typeof raw === 'string' ? raw.split(',') : (raw ?? []);
-  return [...new Set(asked.map((name) => name.trim()).filter((name) => names.has(name)))].sort();
+  return [
+    ...new Set(
+      asked
+        .map((name) => aliasToKey.get(name.trim()))
+        .filter((name): name is string => name !== undefined),
+    ),
+  ].sort();
 }
 
 /**
@@ -76,17 +97,23 @@ export function collapseGroups(graph: ContractGraph, opts: CollapseOptions = {})
   const functions = graph.nodes.filter((n) => n.kind === 'function');
   if (functions.length <= (opts.threshold ?? COLLAPSE_THRESHOLD)) return graph;
   const expand = new Set(opts.expand ?? []);
-  const groups = groupFunctions(functions.map((n) => n.name)).filter(
-    (g) => g.functions.length > 1 && !expand.has(g.name),
-  );
+  const allGroups = groupFunctions(functions.map((n) => n.name));
+  const groups = allGroups.filter((g) => {
+    if (g.functions.length <= 1) return false;
+    const key = groupExpandKey(g, allGroups);
+    if (expand.has(key)) return false;
+    if (g.kind !== 'prefix' && key === g.name && expand.has(`~${g.name}`)) return false;
+    return true;
+  });
   if (groups.length === 0) return graph;
 
   // Member function id -> the collapsed node standing for it.
   const into = new Map<string, GraphNode>();
   for (const group of groups) {
-    const collapsed: CollapsedGroup = { group: group.name, members: group.functions };
+    const key = groupExpandKey(group, allGroups);
+    const collapsed: CollapsedGroup = { group: key, members: group.functions };
     const node: GraphNode = {
-      id: collapsedGroupId(group.name),
+      id: collapsedGroupId(group, allGroups),
       kind: 'function',
       name: collapsedLabel(group),
       collapsed,
