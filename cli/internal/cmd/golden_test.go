@@ -39,7 +39,7 @@ var volatile = []struct {
 	// RFC 3339 timestamps, as an expiry or a recorded time.
 	{regexp.MustCompile(`\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:\d{2})`), "<timestamp>"},
 	// Isolated per-test config file paths differ in temp dir and slash style across OSes.
-	{regexp.MustCompile(`<tmp>(?:[\\/]|\\\\)[^"\s]*config\.json`), "<config-path>"},
+	{regexp.MustCompile(`<tmp>(?:[\\/]|\\\\)[^"\n]*config\.json`), "<config-path>"},
 }
 
 // normalizeGolden makes output comparable across runs and operating systems:
