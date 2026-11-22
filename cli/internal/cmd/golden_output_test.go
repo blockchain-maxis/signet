@@ -32,7 +32,13 @@ func runGolden(t *testing.T, args ...string) string {
 	root.SetIn(strings.NewReader(""))
 	root.SetArgs(args)
 	err := root.Execute()
+	return renderRunOutput(args, stdout.String(), stderr.String(), err)
+}
 
+// renderRunOutput renders everything an invocation produces — stdout,
+// stderr, and the error with its exit code — as one text block, so a golden
+// file shows the whole contract of a run.
+func renderRunOutput(args []string, stdout, stderr string, err error) string {
 	var out strings.Builder
 	fmt.Fprintf(&out, "$ signet %s\n", strings.Join(args, " "))
 	section := func(name, body string) {
@@ -46,8 +52,8 @@ func runGolden(t *testing.T, args ...string) string {
 			out.WriteString("\n")
 		}
 	}
-	section("stdout", stdout.String())
-	section("stderr", stderr.String())
+	section("stdout", stdout)
+	section("stderr", stderr)
 	if err == nil {
 		out.WriteString("-- exit 0 --\n")
 	} else {
