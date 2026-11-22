@@ -22,7 +22,7 @@ Signet adopts an **active window retention policy** with configurable thresholds
 | -------------------- | ------------------------ | -------------------------------------- | --------------- | --------------------------------------------------------------------- |
 | `Operation`          | **90 days**              | `INDEXER_OPERATIONS_RETENTION_DAYS`    | Every 1 hour    | Invocations older than 90 days are deleted.                           |
 | `ContractSnapshot`   | **30 days**              | `INDEXER_SNAPSHOTS_RETENTION_DAYS`     | Every 1 hour    | Periodic contract activity snapshots older than 30 days are pruned.   |
-| `ContractInvocation` | **1000 rows / contract** | `INDEXER_INVOCATIONS_MAX_PER_CONTRACT` | Every 1 hour    | Caps invocation index rows per contract to the most recent N records. |
+| `ContractInvocation` | **1000 rows / contract** | `INDEXER_INVOCATIONS_MAX_PER_CONTRACT` | Every 1 hour    | Caps invocation index rows per contract to the most recent N records (integer ≥ 1; see [#965](https://github.com/blockchain-maxis/signet/issues/965)). |
 | `PairingState`       | **24 hours**             | _(Fixed, not configurable)_            | Every 1 hour    | Ephemeral CLI pairing state rows older than 24 hours are pruned.      |
 
 > **Indefinite Retention Option:** Setting `INDEXER_OPERATIONS_RETENTION_DAYS=0`, `INDEXER_SNAPSHOTS_RETENTION_DAYS=0`, or `INDEXER_INVOCATIONS_MAX_PER_CONTRACT=0` disables pruning and retains records indefinitely. Operators choosing indefinite retention should allocate Postgres storage to accommodate unbounded linear growth.
