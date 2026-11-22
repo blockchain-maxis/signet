@@ -170,9 +170,12 @@ this endpoint. If you need the complete history, replay it from an archive/full 
 the _public_ endpoint does not help, it just silently truncates further out. Otherwise, accept
 that older bindings are missing and let on-chain events accumulate from now on.
 
-Each `getEvents` call takes at most **200 events**. A window with more than 200 events in
-it yields the first 200; the cursor then jumps to `latestLedger`, so **the remainder of
-that window is skipped**. This only bites on a busy backfill, not in steady state.
+Each `getEvents` call returns at most **200 events**, so the worker pages: it follows the
+`cursor` in each response until a page comes back short, and only then moves its own cursor
+to `latestLedger`. One tick reads at most ten pages (2,000 events). If it stops at that cap
+it saves the ledger below the last event it read instead, and the next tick carries on from
+there. That re-reads one ledger, which is harmless, because applying an event twice changes
+nothing.
 
 ### Why the web app cares
 
@@ -284,7 +287,8 @@ wedged or dead. That line is the single best thing to alert on.
 | `indexer.starting`                                 | info                          | Boot. Echoes network, endpoints, registry id (`(unset)` if none), tick interval.                                                                                               | Check the echoed config is what you expect.                                                                             |
 | `db.connected` / `db.disconnected`                 | info                          | Prisma connected / clean shutdown.                                                                                                                                             | —                                                                                                                       |
 | `tick.summary`                                     | info                          | Healthy heartbeat.                                                                                                                                                             | Alert on absence, not on zeros.                                                                                         |
-| `attestation.done`                                 | debug                         | Event window processed; `throughLedger` is the new cursor.                                                                                                                     | Confirms the cursor is advancing.                                                                                       |
+| `attestation.done`                                 | debug                         | Event window processed; `throughLedger` is the new cursor, `pages` the `getEvents` pages read, and `moreToRead` is true when the page cap stopped the tick with events left.   | Confirms the cursor is advancing.                                                                                       |
+| `attestation.stalled`                              | warn                          | One ledger holds more registry events than a whole tick reads, so the cursor cannot advance past it.                                                                           | Should not happen at real volumes. If it does, the page cap in `attestation.ts` needs raising.                          |
 | `attestation.applied`                              | debug                         | One binding applied.                                                                                                                                                           | —                                                                                                                       |
 | `attestation.fetchFailed`                          | **error**                     | RPC call failed; cursor left in place, window retried next tick.                                                                                                               | Isolated → ignore. Repeating → §6.                                                                                      |
 | `pairing.linkStarted`                              | info                          | A registry event named a handle↔wallet pairing and is about to be applied.                                                                                                     | The head of the audit trail for one binding.                                                                            |
@@ -395,9 +399,9 @@ retains that history. Against the public testnet endpoint it does not degrade gr
 ~10,700 ledgers (~15h) behind the tip (see §Cold start), so a large window against the
 public RPC looks like it worked and silently skips the backfill entirely, then advances the
 cursor past the gap anyway. Point `INDEXER_RPC_URL` at an archival provider before raising
-this past the ~8000 default. Re-applying already-seen events is harmless. Remember the
-200-events-per-call ceiling too: for a busy backfill, step the cursor forward in chunks
-rather than one huge window.
+this past the ~8000 default. Re-applying already-seen events is harmless. A busy backfill
+needs no stepping by hand: the worker pages through the window, up to ten pages (2,000
+events) a tick, until it has caught up.
 
 Note that deleting the cursor is only needed to recover handles the database has **never
 seen**. For everything else — a worker that was simply down too long — the automatic
