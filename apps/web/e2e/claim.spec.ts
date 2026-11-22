@@ -3,6 +3,8 @@ import { Keypair } from '@stellar/stellar-sdk';
 import { expectNoSeriousA11yViolations } from './a11y';
 import { stubWallet } from './support';
 
+test.use({ contextOptions: { reducedMotion: 'reduce' } });
+
 // The claim form: validation and error states. Opening it needs a connected
 // wallet (the form only renders with an address), so each test stubs the
 // wallet; none of them needs a session or a signature — validation runs
