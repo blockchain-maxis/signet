@@ -7,11 +7,14 @@ outline, interactive enhancers), and the web Diagram tab and `signet visualise`
 use it. The read/write marks, call graph, storage view and
 activity overlay are drawn from indexed calls and labelled as observed.
 Plain-language reading guide: the "Reading a contract diagram" section of the
-site's `/docs` page. This document
-exists to settle the shape before code, and — like the sandbox note — because
-investigating it changes what should be built. It is the third consumer of the
-shared spec reader that `CONTRACT_DOCS_DESIGN.md` §5 specifies and auto-docs
-builds first; it should not start before that reader exists.
+site's `/docs` page.
+
+This document was written to settle the shape before code. §1, what the spec
+does and does not contain, is kept as it was written, because it still decides
+what each part of the diagram may claim. §2 to §5 have been brought up to what
+was built: where the plan and the code differ, the text says what the code
+does and names the file. §6 lists the surfaces that draw a diagram, and the
+open questions are split into decisions and what is still open.
 
 A profile proves _what_ an address deployed. To a reader who does not write
 Rust, a deployed contract is a `C…` string and an operation count. Auto-docs
@@ -145,20 +148,37 @@ any contract with a non-trivial type graph, and it is honest about showing
 only what the interface contains.
 
 **Phase 2 — the mutate/read overlay.** Adds the read-vs-write mark to each
-function from a simulated footprint, reusing the sandbox's phase-1 simulate
-route (`CONTRACT_SANDBOX_DESIGN.md` §2.1) rather than building its own. Still
-no Rust.
+function. The plan was to take it from a simulated footprint, reusing the
+sandbox's phase-1 simulate route (`CONTRACT_SANDBOX_DESIGN.md` §2.1). What was
+built takes it from footprints that were observed instead, and the web app
+never simulates on a visitor's behalf:
+
+- **Indexed invocations.** The indexer stores each invocation's footprint in a
+  `ContractInvocation` row. `getMutabilityOverlay`
+  (`apps/web/lib/server/diagram.ts`) reads the latest
+  `MUTABILITY_PER_FUNCTION` (50) of each function, and `classifyFunctions`
+  (`packages/spec/src/observe/classify.ts`) turns them into one mark per
+  function.
+- **Local sandbox runs.** In the `signet dev` UI the marks come from that
+  session's own runs (`fromSandboxTrace`,
+  `packages/visualiser/src/observe/sandbox.ts`). They stay on the developer's
+  machine and are labelled as local.
+
+The renderer says which of the two it was, under the diagram (`describeMarks`,
+`packages/visualiser/src/render.ts`).
 
 **Phase 3 — the call graph.** Draws edges to other contracts from indexer
-transaction meta, weighted by observed frequency. This is the largest piece —
-it needs the indexer to record sub-invocations — and it is where the picture
+transaction meta, weighted by observed frequency. This was the largest piece —
+it needed the indexer to record sub-invocations — and it is where the picture
 the roadmap item imagines ("how it relates to contracts it calls") actually
-appears.
+appears. `loadContractCallGraph` (`apps/web/lib/server/call-graph-source.ts`)
+aggregates the call edges of the newest `CALL_GRAPH_WINDOW` (1000) stored
+invocations.
 
-Deciding this now matters because phase 1 is a layout function and an inline
-SVG, while phase 3 is an indexer schema change. "Visualise a contract" reads
-like one feature; most of its cost is in the third of it that the spec cannot
-feed.
+Deciding this early mattered because phase 1 is a layout function and an
+inline SVG, while phase 3 is an indexer schema change. "Visualise a contract"
+reads like one feature; most of its cost is in the third of it that the spec
+cannot feed.
 
 ---
 
@@ -176,20 +196,22 @@ deterministically.
 ### 2.2 What the diagram is
 
 - **A deterministic layout.** Same `wasmHash` → same diagram, always. Layout is
-  a pure function of the decoded spec, computed once and cached alongside it
-  (§4), not re-solved per render.
+  a pure function of the decoded spec. The Diagram tab keeps the spec-only
+  layout in a per-process cache (§4.2) rather than re-solving it per render.
 - **Server-rendered inline SVG.** No canvas, no runtime graph library. The
-  page it lives on pre-renders where the contract set is known and revalidates
-  otherwise, exactly as `/p/{handle}` does today; the diagram is part of that
-  HTML.
+  contract routes are rendered on request (`dynamic = 'force-dynamic'` in
+  `apps/web/app/p/[handle]/contract/[address]/layout.tsx`), not pre-rendered
+  as first planned, and the diagram is part of that HTML.
 - **Shape:** the contract as a labelled spine of its functions (grouped, §3),
   with referenced types as a second rank to the right and edges from each
   function to the types in its signature. Errors and events are lists below the
   spine, not nodes — they connect to everything or nothing, so drawing them as
   nodes adds edges without adding meaning.
-- **Every function label is a real `<a>`** to its section in the generated
-  docs on the same page (§4). The diagram is a table of contents you can see
-  the structure of.
+- **Every function label is a real `<a>`**, and so is every type. A function
+  links to its section on the contract's Functions tab
+  (`…/functions#fn-<name>`) and a type to the Types tab
+  (`…/types#type-<name>`), not to an anchor on the same page (§4.1). The
+  diagram is a table of contents you can see the structure of.
 
 ### 2.3 Both themes, and accessibility
 
@@ -200,7 +222,9 @@ future light theme, a reader printing a profile) and has to stay correct.
 - **Colour through tokens, never hardcoded.** The SVG uses `currentColor` and
   a small custom-property set (`--viz-node`, `--viz-edge`, `--viz-accent`,
   `--viz-muted`) defined once on the page and redefined per theme. The SVG
-  file itself names no hex values.
+  file itself names no hex values. The one exception is the standalone export
+  (`renderStandaloneSvg`), which writes the token values into its own
+  `<style>` block so that the file works outside the page.
 - **Never hue alone.** A mutating function is marked by a glyph and a label
   _and_ a colour, so the distinction survives greyscale, colour-blindness, and
   a theme that drops the accent. This is the same discipline the profile
@@ -208,13 +232,19 @@ future light theme, a reader printing a profile) and has to stay correct.
   colour alone.
 - **Contrast holds on both grounds.** Text and strokes meet WCAG AA (≥4.5:1
   for text) against both `#0a0908` and a white ground. Minimum _rendered_ text
-  size 12px; if the diagram would have to shrink text below that to fit, it
-  switches to the collapsed view (§3) instead of scaling down.
-- **A non-visual equivalent exists** — the generated docs on the same page
-  _are_ it. The `<svg>` carries `role="img"` with a `<title>`/`<desc>`
-  summarising node and edge counts; the authoritative structure for a screen
-  reader is the docs below, and the function links in the diagram point into
-  them.
+  size is 12px (`MIN_TEXT_PX`, `packages/visualiser/src/metrics.ts`). A
+  diagram that does not fit is not scaled down to fit: it scrolls inside a
+  bounded region, and the zoom steps stop where text would drop below 12px
+  (`packages/visualiser/src/interactive/viewport.ts`).
+- **A non-visual equivalent exists.** It is the outline, "Diagram as text": a
+  `<details>` after the SVG that lists what the diagram draws
+  (`buildDiagramOutline` and `renderOutlineHtml`, mounted by
+  `apps/web/app/p/[handle]/contract/[address]/_slots/contract-diagram.tsx`),
+  which the SVG points at with `aria-describedby`. The `<svg>` itself carries
+  `role="figure"`, not `role="img"`, with a `<title>` and `<desc>` summarising
+  node and edge counts: an img's children are presentational, and the nodes
+  here are links (`renderDiagramSvg`, `packages/visualiser/src/render.ts`).
+  Only the standalone export, which has no links, uses `role="img"`.
 - **No motion.** No entrance animation, no animated edge flow. `globals.css`
   already collapses transitions under `prefers-reduced-motion`; the diagram
   adds nothing that needs it.
@@ -222,8 +252,12 @@ future light theme, a reader printing a profile) and has to stay correct.
 ### 2.4 The diagram is an enhancement, never a replacement
 
 If layout fails, the spec is undecodable, or the contract publishes no
-interface (`CONTRACT_DOCS_DESIGN.md` §1.5), the docs page still renders in
-full. The visual is additive markup on a page that is complete without it.
+interface (`CONTRACT_DOCS_DESIGN.md` §1.5), the reference still renders in
+full: the Functions and Types tabs are separate routes and do not depend on
+the diagram. Two of those cases do not break the Diagram tab either. When the
+spec's entries do not decode it draws from the flattened views alone
+(`specForGraph`, `apps/web/lib/server/diagram-view.ts`), and when there is no
+spec it shows a placeholder.
 
 ---
 
@@ -231,45 +265,79 @@ full. The visual is additive markup on a page that is complete without it.
 
 The registry is the low end — 8 functions, no types, no external calls. It
 would render as one spine of eight labels with no edges, and for a contract
-that simple **the generated docs already say everything the diagram could**;
-phase 1 should just not draw a graph with no edges.
+that simple **the generated docs already say everything the diagram could**.
+So a graph with no edges is not drawn: `diagramDecision`
+(`packages/visualiser/src/decide.ts`) returns `too-simple` when the graph has
+no more than `MIN_EDGES` (0) spec-derived edges. The Diagram tab then says the
+function list is the complete picture, and still offers the outline.
 
 The high end is a router, an AMM, or a governance contract: 40+ functions, a
 type graph several levels deep, calls into a dozen token contracts. A single
-diagram of that is a hairball. Strategy, in order of effort:
+diagram of that is a hairball. The thresholds below were round numbers in the
+plan and are named constants now. What was built, in the order it applies:
 
 - **Group functions by name prefix.** Soroban contracts conventionally
   namespace (`pool_*`, `admin_*`, `get_*`). Clustering on the prefix is a
   spec-only heuristic that turns 40 flat labels into 5 groups a reader can
-  scan. Groups collapse and expand.
-- **Rank within a group.** With phase-3 data, order by observed call frequency
-  so the functions people actually use are on top. Without it, public
-  entrypoints before admin/init.
+  scan. A prefix forms a group once `MIN_GROUP_SIZE` (3) functions share it
+  (`packages/visualiser/src/group.ts`).
+- **Collapse the groups of a large contract.** Past `COLLAPSE_THRESHOLD` (25)
+  functions every group is drawn as one node, `pool_* (12)`, that links to the
+  URL expanding it (`packages/visualiser/src/collapse.ts`). The state lives in
+  the URL (`?expand=pool,admin`) and the server draws it, so it works without
+  JavaScript.
+- **Rank within a group.** `?order=use` orders functions by how often they
+  were observed in use, so the ones people actually call come first. It is
+  off by default, and the order is then left as it was.
 - **Inline the type graph one level, link beyond it.** A function's direct
-  argument types are drawn; types nested inside those are links to their own
-  section. (This is the same open question auto-docs has — decide it against a
-  real contract with a deep type graph, not the registry.)
-- **Bound the viewport, don't autofit.** Above the size where text would drop
-  below 12px, the diagram scrolls within a fixed-height container (wide
-  content in its own scroll region, never the page body) rather than shrinking
-  to a thumbnail.
-- **A hard ceiling.** Past ~60 nodes after grouping, phase 1 renders the
-  grouped function list from the docs with a one-line note that the contract's
-  surface is too large to diagram usefully, instead of a picture no one can
-  read. A diagram that cannot be read is worse than the list it replaced.
+  argument and return types are drawn: `DEFAULT_TYPE_DEPTH` is 1
+  (`packages/visualiser/src/type-graph.ts`). A named type nested deeper
+  becomes a stub node that carries only its name, the number of edges it
+  hides and its docs anchor.
+- **Bound the viewport, don't autofit.** The diagram scrolls within a bounded
+  region (wide content in its own scroll region, never the page body) rather
+  than shrinking to a thumbnail, and zoom stops where text would drop below
+  12px (`packages/visualiser/src/interactive/viewport.ts`).
+- **A hard ceiling.** More than `MAX_NODES` (60) nodes is `too-large`
+  (`decide.ts`). On the Diagram tab the count is taken after collapsing,
+  because `drawContractDiagram` decides on the collapsed graph. The tab then
+  says how many nodes the interface has and that it is too large to diagram
+  usefully on one canvas, and gives the outline instead of a picture no one
+  can read. A diagram that cannot be read is worse than the list it replaced.
+  `decide.ts` marks this number as provisional: it has not been calibrated
+  against real contracts.
+- **A second ceiling, on the work itself.** Above `MAX_RAW_NODES` (500) raw
+  nodes `layoutContractGraph` returns a `too-large` model at once, without
+  running the layout (`packages/visualiser/src/layout.ts`).
+
+When the interface is too simple or too large to draw but calls to other
+contracts were observed, the tab draws those calls on their own, from the
+functions that made them (`callersOnly`,
+`packages/visualiser/src/observe/call-graph.ts`).
+
+The SVG export and `signet visualise` do not collapse groups, so for them the
+60-node ceiling applies to the whole graph (§6).
 
 ---
 
 ## 4. Composition with the generated docs
 
-### 4.1 One page, two altitudes
+### 4.1 One contract, two altitudes
 
-The diagram lives at the **top of** `/p/{handle}/contract/{address}` — the
-route `CONTRACT_DOCS_DESIGN.md` §2.1 defines and the current
-`profile/[handle]/contract/[address]` redirect is a placeholder for — with the
-generated reference documentation below it. The diagram is the overview a
-non-developer reads first; the docs are the detail. A function node links to
-its doc section by anchor.
+The plan put the diagram at the **top of** `/p/{handle}/contract/{address}` —
+the route `CONTRACT_DOCS_DESIGN.md` §2.1 defines — with the generated
+reference documentation below it on the same page. What was built is a tab of
+its own, `/p/{handle}/contract/{address}/diagram`
+(`apps/web/app/p/[handle]/contract/[address]/diagram/page.tsx`), beside the
+Functions and Types tabs that hold the reference. The two altitudes are the
+same: the diagram is the overview a non-developer reads first; the docs are
+the detail. But a node links across to another tab, not down the page: a
+function to `…/functions#fn-<name>` and a type to `…/types#type-<name>`
+(`hrefForNode` in `drawContractDiagram`,
+`apps/web/lib/server/diagram-view.ts`).
+
+The older `profile/[handle]/contract/[address]` route, which the plan called a
+placeholder, is now a permanent redirect to the contract view.
 
 `/p/{handle}` itself stays a summary: it lists a developer's contracts and
 links here. No diagram on the profile root — same rule auto-docs sets for the
@@ -288,10 +356,9 @@ layoutContractGraph(spec: ContractSpec): DiagramModel
 ```
 
 `DiagramModel` is nodes and edges with resolved positions — enough for the
-renderer to emit SVG with no further computation. It is cached on `wasmHash`
-exactly as the spec is (`CONTRACT_DOCS_DESIGN.md` §4): an interface that has
-not changed has a layout that has not changed, and an upgraded contract
-(new WASM hash) gets both re-derived together.
+renderer to emit SVG with no further computation. An interface that has not
+changed has a layout that has not changed, and an upgraded contract (new WASM
+hash) gets both re-derived together.
 
 In the implementation the layout step takes the abstract graph that
 `buildContractGraph` derives from the spec (§2.2), not the spec itself, and
@@ -301,18 +368,44 @@ routes the edges (`routeDiagram`). The layout is hand-rolled columns with
 barycentre ordering (§2.1), and its `layoutVersion` goes into the cache key
 alongside `wasmHash`, so a change to the algorithm invalidates cached layouts.
 
-Phase 2's mutate/read marks and phase 3's call edges are separate overlays
-keyed on `(wasmHash, network)` and `(address, network, ledgerRange)`
-respectively — derived data with different freshness, not baked into the
-spec-only layout.
+**Where the layout is cached.** Not next to the spec, as this section first
+said. The Diagram tab, the fragment route and the embed page all draw through
+`drawContractDiagram`, which keeps spec-only layouts in a per-process LRU
+(`layoutCache`, at most 200 entries, in
+`apps/web/lib/server/diagram-view.ts`). The key is
+`wasmHash:LAYOUT_VERSION:expanded groups`, so each collapse state of a
+contract has its own entry, an upgraded contract gets a new one, and bumping
+`LAYOUT_VERSION` (`packages/visualiser/src/layout.ts`) retires every cached
+layout. The cache is lost on restart and is not shared between server
+instances. A layout that carries a call graph or an activity overlay is
+computed on each request and is not cached.
+
+A database-backed cache exists in the code and is not used. `getDiagram` and
+`PrismaDiagramStore` (`apps/web/lib/server/diagram.ts`) read and write
+`ContractSpec.layout` and `ContractSpec.layoutVersion`, but `getDiagram` has
+no caller outside its own tests, so nothing on the site fills or reads those
+columns. Wiring that cache up or deleting it is a change of its own; this note
+only records the fact.
+
+Phase 2's mutate/read marks and phase 3's call edges are separate overlays —
+derived data with different freshness, not baked into the spec-only layout.
+The marks are cached per `network:address:wasmHash` for `MUTABILITY_TTL_MS`
+(five minutes), and the call graph is drawn from the newest
+`CALL_GRAPH_WINDOW` stored invocations.
 
 ### 4.3 Provenance, identical to the docs
 
 - Every node and every phase-1 edge is derived from the deployed WASM at a
   stated hash. Nothing is inferred, nothing is authored by Signet.
-- Phase-2 marks are labelled _observed via simulation at ledger N_; phase-3
-  edges _from indexed activity, N transactions_ — visually distinct from the
-  spec-only structure, because they carry a weaker, time-bound guarantee.
+- Phase-2 marks and phase-3 edges are labelled as observed, with what they
+  were observed in. Under the diagram, `describeMarks` gives the number of
+  transactions and the ledgers they span and says the marks are not derived
+  from the contract interface, and `describeCallWindow`
+  (`packages/visualiser/src/observe/call-graph.ts`) does the same for the
+  calls and adds that calls which never happened in that window are not
+  shown. Local sandbox runs are counted separately in both lines. Both are
+  drawn visually distinct from the spec-only structure, because they carry a
+  weaker, time-bound guarantee.
 - A diagram is only ever drawn for a contract a real, chain-bound profile
   deployed; there is no curated or fixture data for it to lend on-chain
   authority to.
@@ -320,9 +413,13 @@ spec-only layout.
 ### 4.4 Storage
 
 Follows the auto-docs note: `wasmHash` on `Contract`, a `ContractSpec` table
-keyed by hash. The visualiser adds at most a `layout Json?` column on
-`ContractSpec` (or recomputes on render — layout is cheap and pure). No new
-top-level model in phase 1.
+keyed by hash. The visualiser added two nullable columns to `ContractSpec`,
+`layout Json?` and `layoutVersion Int?` (`packages/db/prisma/schema.prisma`),
+for the database-backed layout cache. That cache is not wired up (§4.2), so
+the columns are currently unused: nothing on the site writes or reads them,
+and the layout is recomputed on render or taken from the per-process cache —
+layout is cheap and pure. No new top-level model was added for the spec-only
+diagram.
 
 ---
 
@@ -333,7 +430,9 @@ top-level model in phase 1.
 2. **Visualiser phase 1** — `layoutContractGraph` + the SVG renderer over that
    reader. No execution, no bridge, no linking.
 3. **Sandbox phase 1** (`CONTRACT_SANDBOX_DESIGN.md`) — the simulate route.
-4. **Visualiser phase 2** — the mutate/read overlay, reusing that route.
+4. **Visualiser phase 2** — the mutate/read overlay. The plan had it reuse
+   that route. It was built from indexed `ContractInvocation` footprints and
+   from local sandbox runs instead (§1.6), so it does not depend on step 3.
 5. **Indexer sub-invocation capture**, then **visualiser phase 3** — the
    call graph.
 
@@ -344,24 +443,77 @@ that only the first is a small piece of work.
 
 ---
 
-## Open questions
+## 6. Surfaces
 
-- **Is a diagram the right primitive at all for a simple contract?** For a
-  flat token with five functions and no types, the diagram adds nothing over
-  the docs list. Phase 1 should have a "not worth drawing" threshold — but
-  where it sits needs real contracts to calibrate.
-- **Where does the mutate/read mark come from before phase 2?** Shipping the
-  return-type heuristic in phase 1, clearly labelled as a guess, versus
-  leaving the mark off entirely until simulation can back it. Leaning towards
-  off — an unlabelled guess is the one thing that breaks the "cannot be wrong"
-  property.
-- **Does the diagram belong on the OpenGraph image?** A contract's shape in a
-  shared profile card is a strong hook, but the OG renderer
-  (`apps/web/app/p/[handle]/opengraph-image.tsx`) is size- and
-  complexity-bound and would need the collapsed view (§3) as its only mode.
-- **How much interactivity is worth the static-rendering cost?** Pure SVG
-  (grouping expanded at render time, no JS) versus a little client JS for
-  collapse/expand and pan on large graphs. Phase 1 should try to stay pure.
-- **A `/contract/{address}` route with no handle** — the same diagram is
-  useful for any address, not only one on a profile. Deferred to auto-docs's
-  version of this question; the profile-scoped route is what ships first.
+These are the places that draw a contract diagram. They share the graph and
+the layout, and differ in which renderer they end in.
+
+| Surface            | Entry point                                                                                            | Draws through                                                                |
+| ------------------ | ------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------- |
+| Diagram tab        | `apps/web/app/p/[handle]/contract/[address]/diagram/page.tsx`, which mounts the `ContractDiagram` slot | `drawContractDiagram` → `renderDiagramSvg`                                   |
+| Fragment route     | `…/diagram/fragment/route.ts` → `exportDiagramFragment` (`apps/web/lib/server/diagram-fragment.ts`)    | `drawContractDiagram` → `renderDiagramSvg`                                   |
+| `diagram.svg`      | `…/diagram.svg/route.ts` → `exportContractDiagram` (`apps/web/lib/server/diagram-export.ts`)           | `layoutContractGraph` → `renderStandaloneSvg`                                |
+| PNG                | `…/diagram/export-png-button.tsx`, in the browser                                                      | `exportDiagramPng` (`packages/visualiser/src/interactive/png.ts`)            |
+| Embed              | `…/embed/page.tsx`, which mounts the same `ContractDiagram` slot                                       | `drawContractDiagram` → `renderDiagramSvg`                                   |
+| `signet visualise` | `cli/internal/cmd/visualise.go`, which runs the bundle embedded in `cli/internal/visualise/`           | `visualise` (`packages/visualiser/src/visualise.ts`) → `renderStandaloneSvg` |
+| `signet dev` UI    | `drawBuild` in `apps/sandbox-ui/src/diagram.ts`                                                        | `layoutContractGraph` → `renderDiagramSvg`                                   |
+
+`…` stands for `apps/web/app/p/[handle]/contract/[address]`. What sets them
+apart:
+
+- **The Diagram tab, the fragment route and the embed page** are one
+  drawing. `drawContractDiagram` (`apps/web/lib/server/diagram-view.ts`)
+  collapses groups, applies the overlays, takes the worth-drawing decision
+  and uses the layout cache (§4.2). The fragment route returns only the drawn
+  region, which `packages/visualiser/src/interactive/expand.ts` swaps in
+  place when a group is expanded.
+- **`diagram.svg`** is the interface alone: no collapsing, no overlays and no
+  links, with the address, network and WASM hash in a footer. It answers 422
+  when the graph has more than `MAX_NODES` nodes. `?view=storage` draws the
+  storage view instead (`renderStorageSvg`).
+- **PNG has no route of its own.** The button fetches `diagram.svg` and
+  rasterises it on a canvas in the browser.
+- **`signet visualise`** runs the same TypeScript as the site. The Go CLI
+  embeds one JavaScript bundle of the package, built by
+  `packages/visualiser/scripts/build-cli-bundle.mts`, so there is no second
+  layout to drift. When the decision is `too-simple` or `too-large` it draws
+  the function list alone.
+- **The `signet dev` UI** draws a local build with `renderDiagramSvg`, but
+  with no links. It adds a badge to whatever the build added or changed
+  against the deployed interface, and marks from that session's own sandbox
+  runs, labelled as local.
+
+---
+
+## Decisions
+
+The questions this note left open that now have an answer.
+
+- **Is a diagram the right primitive at all for a simple contract?** Not
+  always, so there is a not-worth-drawing threshold: a graph with no
+  spec-derived edges is not drawn (`MIN_EDGES`, §3). It sits at zero and has
+  not been calibrated against real contracts.
+- **Where does the mutate/read mark come from before phase 2?** Nowhere. The
+  mark shipped observed-only and never as a heuristic. `classifyFunctions`
+  gives a function `writes`, `no-writes-seen` or `unknown`, and the name and
+  return-type guess (`get_*`, `-> Option`) is deliberately not implemented
+  (`packages/spec/src/observe/classify.ts`).
+- **How much interactivity is worth the static-rendering cost?** The
+  server-rendered SVG is complete without JavaScript, and interactivity is
+  added on top as progressive enhancers in
+  `packages/visualiser/src/interactive/`: the detail card, keyboard
+  navigation, expand and collapse in place, the filter, permalinks, the
+  bounded viewport with zoom and pan, and PNG export.
+
+## Still open
+
+- **Does the diagram belong on the OpenGraph image?** Not decided. Neither
+  link-preview image draws it today: not the contract's
+  (`apps/web/app/p/[handle]/contract/[address]/opengraph-image.tsx`) and not
+  the profile card's (`apps/web/app/p/[handle]/opengraph-image.tsx`). The
+  constraint has not changed: the OG renderer is size- and complexity-bound
+  and would need the collapsed view (§3) as its only mode.
+- **A `/contract/{address}` route with no handle.** Not built. The same
+  diagram is useful for any address, not only one on a profile, but every
+  surface the site serves is under `/p/{handle}/contract/{address}`.
+  `signet visualise` already draws any address from the command line.
