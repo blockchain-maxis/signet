@@ -400,6 +400,93 @@ test('runAttestationWorker does not move cursor on fetch error', async () => {
   assert.equal(cursor.saved?.lastLedger, 100);
 });
 
+test('runAttestationWorker returns nothing decoded when the latest ledger cannot be read', async (t) => {
+  // No backoff between the retries, so the test does not wait on them.
+  t.mock.method(Math, 'random', () => 0);
+  const { logger } = await import('../logger.ts');
+  const errors: { message: string; fields: Record<string, unknown> }[] = [];
+  t.mock.method(logger, 'error', (fields: Record<string, unknown>, message: string) => {
+    errors.push({ message, fields });
+  });
+  t.mock.method(logger, 'warn', () => {});
+
+  const cursor = recordingCursorStore({ lastLedger: 100 });
+  let latestLedgerCalls = 0;
+  let getEventsCalls = 0;
+  const downServer = {
+    getLatestLedger: async () => {
+      latestLedgerCalls++;
+      throw new Error('fetch failed');
+    },
+    getEvents: async () => {
+      getEventsCalls++;
+      return { latestLedger: 200, events: [] };
+    },
+  } as unknown as rpc.Server;
+  const { store, calls } = recordingStore();
+
+  // Soroban RPC being down is not this worker's failure to throw: it resolves,
+  // so the tick's other workers are not told anything went wrong with them.
+  const result = await runAttestationWorker(
+    downServer,
+    {
+      registryContractId: 'C…REGISTRY',
+      eventWindowLedgers: 200,
+    } as any,
+    cursor.store,
+    store,
+  );
+
+  assert.deepEqual(result, { eventsDecoded: 0 });
+  assert.ok(latestLedgerCalls > 1, 'a transient failure is retried before giving up');
+  assert.equal(getEventsCalls, 0, 'no events are asked for without a latest ledger');
+  assert.equal(calls.length, 0);
+  assert.equal(cursor.calls.filter((c: any[]) => c[0] === 'upsert').length, 0);
+  assert.equal(cursor.saved?.lastLedger, 100);
+  assert.deepEqual(
+    errors.filter((e) => e.message === 'attestation.latestLedgerFailed'),
+    [{ message: 'attestation.latestLedgerFailed', fields: { error: 'Error: fetch failed' } }],
+  );
+});
+
+test('runAttestationWorker carries on when the latest ledger is read on a retry', async (t) => {
+  t.mock.method(Math, 'random', () => 0);
+  const { logger } = await import('../logger.ts');
+  t.mock.method(logger, 'warn', () => {});
+
+  const pk = Keypair.random().publicKey();
+  const healthy = fakeServer({
+    latestLedger: 200,
+    events: [{ topic: topics('claimed', 'alice'), value: walletVal(pk) }],
+  });
+  let latestLedgerCalls = 0;
+  const flakyServer = {
+    getLatestLedger: async () => {
+      latestLedgerCalls++;
+      if (latestLedgerCalls === 1) throw new Error('fetch failed');
+      return healthy.getLatestLedger();
+    },
+    getEvents: healthy.getEvents.bind(healthy),
+  } as unknown as rpc.Server;
+  const cursor = recordingCursorStore({ lastLedger: 100 });
+  const { store, calls } = recordingStore();
+
+  const result = await runAttestationWorker(
+    flakyServer,
+    {
+      registryContractId: 'C…REGISTRY',
+      eventWindowLedgers: 200,
+    } as any,
+    cursor.store,
+    store,
+  );
+
+  assert.equal(latestLedgerCalls, 2);
+  assert.equal(result.eventsDecoded, 1);
+  assert.ok(calls.some((c: any[]) => c[0] === 'wallet.upsert' && c[1].where.pubkey === pk));
+  assert.equal(cursor.saved?.lastLedger, 200);
+});
+
 // ─── Reconcile tests (issue #189) ───────────────────────────────────────────
 
 /** A RegistryReader answering from a fixed handle→wallet map. */

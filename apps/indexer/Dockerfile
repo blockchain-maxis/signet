@@ -27,9 +27,11 @@ RUN pnpm --filter @signet/db run generate
 
 ENV NODE_ENV=production
 
-# Liveness: the worker rewrites $INDEXER_LIVENESS_FILE after every successful
-# tick. The healthcheck reports unhealthy once that file goes stale (no tick
-# within INDEXER_LIVENESS_MAX_AGE_MS, default 120s ≈ 4 missed 30s ticks) or is
+# Liveness: the worker rewrites $INDEXER_LIVENESS_FILE at the end of every
+# tick. That says the loop is turning, not that the tick's workers succeeded:
+# a failed worker is logged and the tick still finishes. The healthcheck
+# reports unhealthy once that file goes stale (no tick within
+# INDEXER_LIVENESS_MAX_AGE_MS, default 120s ≈ 4 missed 30s ticks) or is
 # missing — so a wedged worker no longer looks healthy. start-period covers the
 # initial boot before failures count.
 ENV INDEXER_LIVENESS_FILE=/tmp/indexer-alive
