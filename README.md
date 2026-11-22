@@ -137,7 +137,7 @@ first:
 
 ## Architecture
 
-**See [`ARCHITECTURE.md`](ARCHITECTURE.md)** for the real data flows
+**See [`ARCHITECTURE.md`](ARCHITECTURE.md)** (including [Sign-in](ARCHITECTURE.md#sign-in) and [URL surfaces](ARCHITECTURE.md#url-surfaces)) for the real data flows
 (`claim → event → attestation → DB` and `wallet → operations → DB`), the read
 path, and a precise breakdown of what is **deployed** vs **operational-only**.
 Both flows are code-complete; the sketch below marks which pieces are running.
