@@ -3,6 +3,7 @@ package cmd
 import (
 	"bytes"
 	"encoding/json"
+	"os"
 	"strings"
 	"testing"
 
@@ -136,6 +137,159 @@ func TestContextAddUseShowRemove(t *testing.T) {
 	}
 	if _, ok := f.Contexts["staging"]; ok {
 		t.Errorf("staging context still exists after removal")
+	}
+}
+
+// seedDefaultAndProd writes a config with two contexts, default current.
+func seedDefaultAndProd(t *testing.T) {
+	t.Helper()
+	isolateConfigDir(t)
+	if err := config.Save(config.File{
+		Version: 2,
+		Current: "default",
+		Contexts: map[string]config.Context{
+			"default": {URL: "https://default.example.com", Network: "testnet"},
+			"prod":    {URL: "https://prod.example.com", Network: "mainnet"},
+		},
+	}); err != nil {
+		t.Fatalf("seeding config: %v", err)
+	}
+}
+
+// TestUnknownContextIsAConfigurationError is #913: a misspelled --context used
+// to run against the hosted deployment instead of failing.
+func TestUnknownContextIsAConfigurationError(t *testing.T) {
+	seedDefaultAndProd(t)
+
+	root, _, _ := testRoot(t)
+	root.SetArgs([]string{"--context", "nope", "link"})
+	err := root.Execute()
+	if err == nil {
+		t.Fatal("expected --context nope link to fail")
+	}
+	if got := ExitCode(err); got != exitcode.Configuration {
+		t.Errorf("ExitCode = %d, want %d (exit 3)", got, exitcode.Configuration)
+	}
+	for _, want := range []string{`"nope"`, "default", "prod"} {
+		if !strings.Contains(err.Error(), want) {
+			t.Errorf("error %q does not mention %q", err.Error(), want)
+		}
+	}
+}
+
+// TestConfigSetActsOnTheNamedContext is the "config ignores --context" half of
+// #913: the write used to land in f.Current whatever --context said.
+func TestConfigSetActsOnTheNamedContext(t *testing.T) {
+	seedDefaultAndProd(t)
+
+	root, stdout, _ := testRoot(t)
+	root.SetArgs([]string{"--context", "prod", "config", "set", "url", "https://new.example.com"})
+	if err := root.Execute(); err != nil {
+		t.Fatalf("--context prod config set url: %v", err)
+	}
+	if !strings.Contains(stdout.String(), `"prod"`) {
+		t.Errorf("output does not name the context it wrote: %q", stdout.String())
+	}
+
+	f, err := config.Load()
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if got := f.Contexts["prod"].URL; got != "https://new.example.com" {
+		t.Errorf("prod.url = %q, want the new value", got)
+	}
+	if got := f.Contexts["default"].URL; got != "https://default.example.com" {
+		t.Errorf("default.url = %q, want it untouched", got)
+	}
+	if f.Current != "default" {
+		t.Errorf("Current = %q, want default (naming a context edits it, it does not switch to it)", f.Current)
+	}
+}
+
+// TestConfigGetAndContextShowUseTheResolvedContext covers the read side.
+func TestConfigGetAndContextShowUseTheResolvedContext(t *testing.T) {
+	seedDefaultAndProd(t)
+
+	root, stdout, _ := testRoot(t)
+	root.SetArgs([]string{"--context", "prod", "config", "get", "url", "--json"})
+	if err := root.Execute(); err != nil {
+		t.Fatalf("--context prod config get url: %v", err)
+	}
+	var get map[string]string
+	if err := json.Unmarshal(stdout.Bytes(), &get); err != nil {
+		t.Fatalf("config get --json: %v, raw: %s", err, stdout.String())
+	}
+	if get["context"] != "prod" {
+		t.Errorf("config get context = %q, want prod", get["context"])
+	}
+	if get["value"] != "https://prod.example.com" {
+		t.Errorf("config get value = %q, want prod's url", get["value"])
+	}
+
+	root, stdout, _ = testRoot(t)
+	root.SetArgs([]string{"--context", "prod", "context", "show", "--json"})
+	if err := root.Execute(); err != nil {
+		t.Fatalf("--context prod context show: %v", err)
+	}
+	var show contextShowResult
+	if err := json.Unmarshal(stdout.Bytes(), &show); err != nil {
+		t.Fatalf("context show --json: %v, raw: %s", err, stdout.String())
+	}
+	if show.Name != "prod" || show.URL != "https://prod.example.com" {
+		t.Errorf("context show = %+v, want prod", show)
+	}
+}
+
+// TestContextAddSourceDoesNotTouchTheCurrentContext is #913: context add's
+// local --source shadowed the root's, so remembering an identity for the new
+// context wrote it into the current one.
+func TestContextAddSourceDoesNotTouchTheCurrentContext(t *testing.T) {
+	seedDefaultAndProd(t)
+
+	root, _, _ := testRoot(t)
+	root.SetArgs([]string{
+		"context", "add", "staging",
+		"--url", "https://staging.example.com",
+		"--network", "testnet",
+		"--source", "charlie",
+	})
+	if err := root.Execute(); err != nil {
+		t.Fatalf("context add: %v", err)
+	}
+
+	f, err := config.Load()
+	if err != nil {
+		t.Fatalf("Load: %v", err)
+	}
+	if got := f.Contexts["default"].Source; got != "" {
+		t.Errorf("default.source = %q after context add --source, want it untouched", got)
+	}
+	if got := f.Contexts["staging"].Source; got != "charlie" {
+		t.Errorf("staging.source = %q, want charlie", got)
+	}
+}
+
+// TestUnknownContextWithSourceCreatesNoContext pins the second half of the
+// same bug: remembering an identity never materialises the context.
+func TestUnknownContextWithSourceCreatesNoContext(t *testing.T) {
+	isolateConfigDir(t)
+
+	root, _, _ := testRoot(t)
+	root.SetArgs([]string{"--context", "nope", "--source", "alice", "whoami"})
+	err := root.Execute()
+	if err == nil {
+		t.Fatal("expected --context nope --source alice whoami to fail")
+	}
+	if got := ExitCode(err); got != exitcode.Configuration {
+		t.Errorf("ExitCode = %d, want %d (exit 3)", got, exitcode.Configuration)
+	}
+
+	path, err := config.Path()
+	if err != nil {
+		t.Fatalf("config.Path: %v", err)
+	}
+	if _, statErr := os.Stat(path); !os.IsNotExist(statErr) {
+		t.Fatalf("a config file was written for a context that does not exist (%v)", statErr)
 	}
 }
 
