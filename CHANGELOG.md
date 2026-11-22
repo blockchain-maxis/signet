@@ -44,6 +44,7 @@ For release instructions and versioning procedures, see [`docs/RELEASING.md`](do
 
 ### Removed
 
+- Retired the unused message-signing auth endpoints `POST /api/auth/challenge` and `POST /api/auth/verify` along with their server helpers (`createChallenge`, `verifyChallenge`, `redeemChallenge`, `verifySignature`) and `signMessage` in `@signet/web`; sign-in now goes exclusively through SEP-10 (`GET`/`POST /api/auth/sep10`) ([#894](https://github.com/blockchain-maxis/signet/issues/894)).
 - The synthetic demo profiles (`aquawolf`, `sorobuilder`, `stellardev`) and everything that served them: the shared persona list in `@signet/types`, the static operation fixtures under `apps/web/public/data/`, the indexer's demo seed and its `--reseed` flag / `indexer:seed` script, the landing page's "See it in action" and fabricated featured-developer sections, and the demo-wallet check workflow. Profiles now resolve database → chain only, activity database → Horizon only, and `/handles` lists only handles confirmed on the Identity Registry — with no registry configured it says so and lists nothing.
 
 ---
