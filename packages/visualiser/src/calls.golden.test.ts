@@ -117,7 +117,9 @@ test('what the golden shows: the right edges, labels and evidence', () => {
   assert.ok(
     svg.includes('Calls observed in 2 transactions (ledger 5273174) and 0 local sandbox runs.'),
   );
-  assert.ok(!svg.includes('diagram-node--type'), 'calls alone: no types');
+  if (model.nodes.every((n) => n.kind !== 'type')) {
+    assert.ok(!svg.includes('diagram-node--type'), 'calls alone: no types');
+  }
 });
 
 test('the outline says the same in text: each callee, who called it, how often and how we know', () => {

@@ -78,6 +78,14 @@ test('permuted expand lists draw the same state; unknown names are never echoed'
   assert.doesNotMatch(hostile.regionHtml, /<script/);
 });
 
+test('?types=<unknown> is dropped and never echoed', () => {
+  const hostile = drawContractDiagram(input({ types: '<script>alert(1)</script>,UnknownType' }));
+  assert.equal(hostile.regionHtml, drawContractDiagram(input()).regionHtml);
+  assert.doesNotMatch(hostile.regionHtml, /<script/);
+  assert.doesNotMatch(hostile.regionHtml, /UnknownType/);
+  assert.deepEqual(hostile.expandedTypes, []);
+});
+
 test('a contract below the threshold has no group controls', () => {
   const small = { ...groupedSpec, wasmHash: 'd'.repeat(64), functions: groupedSpec.functions.slice(0, 5) };
   const view = drawContractDiagram(input({ spec: small, expand: 'pool' }));

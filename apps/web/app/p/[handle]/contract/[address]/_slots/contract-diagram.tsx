@@ -69,6 +69,7 @@ function DiagramBody(
     activity: props.activity,
     range: parseActivityRange(props.range),
     rankByFrequency: props.order === 'use',
+    types: props.types,
   });
   const { decision, callsAlone, hasWrites, writesOnly } = view;
   const { mutability } = props;

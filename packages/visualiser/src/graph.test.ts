@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { contract, xdr } from '@stellar/stellar-sdk';
 import { buildSpecViews, parseContractSpec } from '@signet/spec';
 import type { ContractSpec } from '@signet/spec';
+import { loadFixture } from './load-fixture.ts';
 import { buildContractGraph, functionNodeId, typeNodeId } from './graph.ts';
 import type { GraphEdge, GraphNode } from './graph.ts';
 
@@ -116,8 +117,43 @@ test('Identity Registry: 8 function nodes, no type nodes, no edges; the error en
   assert.ok(graph.errors.every((e) => e.enumName.length > 0));
 });
 
+test('blend-pool-v1 draws 5 type nodes at default depth and 0 nodes with no incident edge', () => {
+  const graph = buildContractGraph(loadFixture('blend-pool-v1'));
+  const typeNodes = graph.nodes.filter((n) => n.kind === 'type' || n.kind === 'stub');
+  assert.equal(typeNodes.length, 5);
+
+  const incident = new Set<string>();
+  for (const edge of graph.edges) {
+    incident.add(edge.from);
+    incident.add(edge.to);
+  }
+  for (const node of typeNodes) {
+    assert.ok(incident.has(node.id), `node ${node.id} has no incident edge`);
+  }
+});
+
+test('testnet-lending-market draws 5 stubs and expanding one adds exactly its direct children', () => {
+  const spec = loadFixture('testnet-lending-market');
+  const graph = buildContractGraph(spec);
+  const stubs = graph.nodes.filter((n) => n.kind === 'stub');
+  assert.equal(stubs.length, 5);
+
+  // Pick the first stub
+  const stub = stubs[0]!;
+  const expanded = buildContractGraph(spec, { expandTypes: [stub.name] });
+  const inlined = expanded.nodes.find((n) => n.id === stub.id);
+  assert.equal(inlined?.kind, 'type');
+
+  // Direct children added as outgoing field edges from this inlined type
+  const newEdges = expanded.edges.filter((e) => e.from === stub.id);
+  assert.ok(newEdges.length > 0);
+  for (const edge of newEdges) {
+    assert.ok(expanded.nodes.some((n) => n.id === edge.to));
+  }
+});
+
 test('types_zoo: a three-deep struct nest becomes a chain of field edges', () => {
-  const graph = buildContractGraph(fixtureSpec('types_zoo'));
+  const graph = buildContractGraph(fixtureSpec('types_zoo'), { typeDepth: 3 });
 
   const chain = graph.edges.filter((e) => e.kinds.includes('field'));
   assert.deepEqual(
@@ -136,7 +172,7 @@ test('types_zoo: a three-deep struct nest becomes a chain of field edges', () =>
 test('types_zoo: node order follows spec order, functions first, ids are stable strings', () => {
   const spec = fixtureSpec('types_zoo');
   const views = buildSpecViews(spec.entries);
-  const graph = buildContractGraph(spec);
+  const graph = buildContractGraph(spec, { typeDepth: Infinity });
 
   assert.deepEqual(ids(graph.nodes), [
     ...views.functions.map((f) => `fn:${f.name}`),

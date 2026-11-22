@@ -15,6 +15,7 @@ import {
   buildDiagramOutline,
   callersOnly,
   canonicalExpand,
+  canonicalExpandTypes,
   CALLEES_MORE_ID,
   collapseGroups,
   diagramDecision,
@@ -56,6 +57,8 @@ export interface DiagramViewInput {
   readonly activity?: ActivityOverlay | null;
   readonly range?: ActivityRange;
   readonly rankByFrequency?: boolean;
+  /** The raw `?types=` list; checked against the spec's defined type names (#950). */
+  readonly types?: string | null;
 }
 
 export interface DiagramView {
@@ -68,6 +71,8 @@ export interface DiagramView {
   readonly writesOnly: boolean;
   /** Groups drawn expanded, canonical (sorted, known names only). */
   readonly expanded: readonly string[];
+  /** Types drawn expanded past depth 1, canonical (sorted, known names only). */
+  readonly expandedTypes?: readonly string[];
   /** Whether this contract has enough functions for its groups to collapse. */
   readonly collapsible: boolean;
   readonly totalFunctions: number;
@@ -118,12 +123,23 @@ export function diagramPath(handle: string, address: string): string {
 export function diagramStateHref(
   input: Pick<
     DiagramViewInput,
-    'handle' | 'address' | 'query' | 'writesOnly' | 'expandCallees' | 'range' | 'rankByFrequency'
+    'handle' | 'address' | 'query' | 'writesOnly' | 'expandCallees' | 'range' | 'rankByFrequency' | 'types'
   >,
   expand: readonly string[],
+  types?: readonly string[],
 ): string {
   const params = new URLSearchParams();
   if (expand.length) params.set('expand', [...expand].sort().join(','));
+  const typesToUse =
+    types !== undefined
+      ? types
+      : input.types
+        ? typeof input.types === 'string'
+          ? input.types.split(',')
+          : input.types
+        : [];
+  const cleanTypes = [...new Set(typesToUse.map((t) => t.trim()).filter(Boolean))].sort();
+  if (cleanTypes.length) params.set('types', cleanTypes.join(','));
   if (input.query) params.set('q', input.query);
   if (input.writesOnly) params.set('writes', '1');
   if (input.expandCallees) params.set('callees', 'all');
@@ -157,13 +173,14 @@ function cachedLayout(key: string, compute: () => PositionedDiagramModel): Posit
 /** Draws the Diagram tab's diagram for one URL state. */
 export function drawContractDiagram(input: DiagramViewInput): DiagramView {
   const spec = specForGraph(input.spec, input.address, input.network);
-  const full = buildContractGraph(spec);
+  const expandedTypes = canonicalExpandTypes(input.types ?? null, spec.types);
+  const full = buildContractGraph(spec, { expandTypes: expandedTypes });
   const expanded = canonicalExpand(input.expand ?? null, full);
   const graph = collapseGroups(full, { expand: expanded });
   const collapsible =
     full.nodes.filter((n) => n.kind === 'function').length > COLLAPSE_THRESHOLD &&
     functionGroupsOf(full).some((g) => g.functions.length > 1);
-  const stateKey = `${input.spec.wasmHash}:${LAYOUT_VERSION}:${expanded.join(',')}`;
+  const stateKey = `${input.spec.wasmHash}:${LAYOUT_VERSION}:${expanded.join(',')}:${expandedTypes.join(',')}`;
   const specModel = cachedLayout(stateKey, () => layoutContractGraph(graph));
   const decision = diagramDecision(graph, specModel);
 
@@ -195,9 +212,12 @@ export function drawContractDiagram(input: DiagramViewInput): DiagramView {
   const basePath = `/p/${encodeURIComponent(input.handle)}/contract/${encodeURIComponent(input.address)}`;
   const hrefForNode = (nodeId: string) => {
     const node = model.nodes.find((n) => n.id === nodeId);
-    if (node?.collapsed) return diagramStateHref(input, [...expanded, node.collapsed.group]);
+    if (node?.collapsed) return diagramStateHref(input, [...expanded, node.collapsed.group], expandedTypes);
     if (node?.kind === 'function') return `${basePath}/functions#fn-${node.name}`;
-    if (node?.kind === 'type') return `${basePath}/types#${typeAnchor(node.name)}`;
+    if (node?.kind === 'stub' && (node.hidden ?? 0) > 0) {
+      return diagramStateHref(input, expanded, [...expandedTypes, node.name]);
+    }
+    if (node?.kind === 'type' || node?.kind === 'stub') return `${basePath}/types#${typeAnchor(node.name)}`;
     if (node?.kind === 'callee' && node.address)
       return calls?.labels.get(node.address)?.href ?? null;
     if (node?.id === CALLEES_MORE_ID) return `${basePath}/diagram?callees=all`;
@@ -252,7 +272,7 @@ export function drawContractDiagram(input: DiagramViewInput): DiagramView {
     const collapseLinks = expanded
       .map(
         (group) =>
-          `<a href="${escapeHtml(diagramStateHref(input, expanded.filter((g) => g !== group)))}" data-group-toggle="${escapeHtml(group)}" class="rounded border border-[#2b2721] px-2 py-1 text-[#f5f4ee] hover:border-[#e05a4b] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#e05a4b]">Collapse ${escapeHtml(group)}</a>`,
+          `<a href="${escapeHtml(diagramStateHref(input, expanded.filter((g) => g !== group), expandedTypes))}" data-group-toggle="${escapeHtml(group)}" class="rounded border border-[#2b2721] px-2 py-1 text-[#f5f4ee] hover:border-[#e05a4b] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#e05a4b]">Collapse ${escapeHtml(group)}</a>`,
       )
       .join('');
     const controls = collapsible
@@ -273,6 +293,7 @@ export function drawContractDiagram(input: DiagramViewInput): DiagramView {
     hasWrites,
     writesOnly,
     expanded,
+    expandedTypes,
     collapsible,
     totalFunctions,
     matchingFunctions,

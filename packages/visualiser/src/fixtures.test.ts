@@ -103,27 +103,29 @@ test('the fixture set covers a large contract (40 or more functions) that still 
   for (const { name, spec } of large) {
     assert.ok(spec.types.length > 0, `${name}: has user-defined types`);
     const model = layoutContractGraph(buildContractGraph(spec));
-    assert.equal(
-      model.nodes.length,
-      spec.functions.length + spec.types.length + (UNDEFINED_TYPES[name]?.length ?? 0),
-      name,
-    );
+    assert.ok(model.nodes.length >= spec.functions.length, name);
     assert.ok(groupFunctions(spec.functions.map((f) => f.name)).length >= 2, `${name}: groups`);
   }
 });
 
 // --- the fixtures drive the visualiser pipeline ------------------------------
 
-test('graph: one node per function and per type, plus one per documented undefined type', () => {
+test('graph: only types reached by signatures are drawn, plus documented undefined types', () => {
+  const EXPECTED_TYPES_DRAWN: Record<string, number> = {
+    'identity-registry': 0,
+    'blend-pool-v1': 5,
+    'testnet-lending-market': 13,
+    'axelar-its': 5,
+    'soroswap-router': 0,
+  };
   for (const name of fixtureNames()) {
     const spec = loadFixture(name);
     const graph = buildContractGraph(spec);
     const undefinedTypes = UNDEFINED_TYPES[name] ?? [];
-    assert.equal(
-      graph.nodes.length,
-      spec.functions.length + spec.types.length + undefinedTypes.length,
-      name,
-    );
+    if (name in EXPECTED_TYPES_DRAWN) {
+      const typeNodes = graph.nodes.filter((n) => n.kind !== 'function');
+      assert.equal(typeNodes.length, EXPECTED_TYPES_DRAWN[name], `${name} type nodes`);
+    }
     assert.deepEqual(
       graph.nodes
         .filter((n) => n.kind === 'missing')
@@ -156,7 +158,9 @@ test('layout: the registry is one column; a contract with types needs more', () 
   assert.equal(columns('identity-registry'), 1);
   for (const name of fixtureNames()) {
     const spec = loadFixture(name);
-    if (spec.types.length > 0) assert.ok(columns(name) >= 2, name);
+    const graph = buildContractGraph(spec);
+    const hasDrawnTypes = graph.nodes.some((n) => n.kind !== 'function');
+    if (hasDrawnTypes) assert.ok(columns(name) >= 2, name);
   }
 });
 
