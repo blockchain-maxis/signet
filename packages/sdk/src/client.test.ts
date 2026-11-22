@@ -134,11 +134,17 @@ test('countRegistryEntries reads boundHandles from /api/v1/registry/stats', asyn
   assert.deepEqual(await client(stats(null).fetchImpl).countRegistryEntries(), { count: 0 });
 });
 
-test('listHandles still reads the deprecated tRPC route', async () => {
-  const { fetchImpl, calls } = mockFetch({ body: { result: { data: ['alice'] } } });
+test('listHandles reads the v1 handle directory', async () => {
+  const directory = (handles: string[]) => ({
+    body: {
+      data: handles.map((handle) => ({ handle, primaryWallet: WALLET, joinedAt: null })),
+      meta: { nextCursor: null, total: handles.length, truncated: false, source: 'database' },
+    },
+  });
+  const { fetchImpl, calls } = mockFetch(directory(['alice']));
   assert.deepEqual(await client(fetchImpl).listHandles(), ['alice']);
-  assert.equal(calls[0]!.url, `${BASE}/api/trpc/profile.list`);
-  const empty = mockFetch({ body: { result: { data: null } } });
+  assert.equal(calls[0]!.url, `${BASE}/api/v1/profiles?limit=100`);
+  const empty = mockFetch(directory([]));
   assert.deepEqual(await client(empty.fetchImpl).listHandles(), []);
 });
 
