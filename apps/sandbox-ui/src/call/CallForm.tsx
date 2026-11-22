@@ -179,21 +179,18 @@ export function CallForm({
     onRuns?.(runs);
   }
 
-  const cliCommand = useMemo(() => {
-    const built = argsJson(args, values);
-    return buildCallCommand({
-      contract,
-      fn,
-      args: built.args,
-      authMode,
-      sourceAccount: source,
-      ledgerSequence: sequence,
-      ledgerTimestamp: timestamp,
-      network,
-      runOn,
-      buildPath,
-    });
-  }, [contract, fn, args, values, authMode, source, sequence, timestamp, network, runOn, buildPath]);
+  const cliCommand = buildCallCommand({
+    contract,
+    fn,
+    args: argsJson(args, values).args,
+    authMode,
+    sourceAccount: source,
+    ledgerSequence: sequence,
+    ledgerTimestamp: timestamp,
+    network,
+    runOn,
+    buildPath,
+  });
 
   async function copyAsCommand() {
     setCopyNote(null);

@@ -221,3 +221,20 @@ test('Copy as command writes the equivalent CLI invocation to the clipboard and 
   expect(readonlyField.readOnly).toBe(true);
   expect(readonlyField.value).toBe(expected);
 });
+
+test('rerendering from null specs to a loaded spec does not violate Rules of Hooks', async () => {
+  const { api } = fakeApi();
+  const { rerender } = render(<CallForm api={api} specs={{ deployed: null, local: null }} />);
+  expect(screen.getByText(/No interface to call yet/)).toBeInTheDocument();
+
+  rerender(
+    <CallForm
+      api={api}
+      specs={{ deployed: registry as SpecJson, local: null }}
+      contract="CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD2KM"
+      network="testnet"
+    />,
+  );
+  await act(async () => {});
+  expect(screen.getByRole('button', { name: 'Copy as command' })).toBeInTheDocument();
+});
