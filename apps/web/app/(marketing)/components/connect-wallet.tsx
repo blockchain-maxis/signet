@@ -1,10 +1,11 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useId, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { HANDLE_MAX_LEN, isReservedHandle, isValidHandle } from '@signet/types';
 import { connectWallet, disconnectWallet, getConnectedAddress } from '@/lib/wallet';
 import { claimHandle, isRegistryConfigured, RegistryNotConfiguredError } from '@/lib/registry';
+import { explainRegistryError } from '@/lib/registry-errors';
 import { STELLAR_NETWORK } from '@/lib/network';
 
 function truncate(addr: string): string {
@@ -40,18 +41,80 @@ export function ConnectWallet({
   className?: string;
 }) {
   const router = useRouter();
+  const inputId = useId();
+  const validationId = useId();
+  const availabilityId = useId();
   const [address, setAddress] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const [status, setStatus] = useState<string | null>(null);
   const [showClaimForm, setShowClaimForm] = useState(false);
   const [handle, setHandle] = useState('');
   const [validationError, setValidationError] = useState<string | null>(null);
+  const [availability, setAvailability] = useState<
+    'idle' | 'checking' | 'available' | 'taken' | 'archived' | 'error'
+  >('idle');
+  const [boundHandle, setBoundHandle] = useState<string | null>(null);
 
   useEffect(() => {
     getConnectedAddress()
       .then(setAddress)
       .catch(() => {});
   }, []);
+
+  useEffect(() => {
+    if (!showClaimForm || !address) {
+      setBoundHandle(null);
+      return;
+    }
+    const controller = new AbortController();
+    fetch(`/api/v1/lookup/${encodeURIComponent(address)}`, { signal: controller.signal })
+      .then(async (res) => {
+        if (!res.ok) return null;
+        return (await res.json()) as { data?: { handle?: string | null } };
+      })
+      .then((json) => {
+        if (controller.signal.aborted) return;
+        const found = json?.data?.handle;
+        setBoundHandle(typeof found === 'string' && found.length > 0 ? found : null);
+      })
+      .catch(() => {
+        if (!controller.signal.aborted) setBoundHandle(null);
+      });
+    return () => controller.abort();
+  }, [showClaimForm, address]);
+
+  useEffect(() => {
+    if (!showClaimForm || !address || boundHandle || !handle || validationError) {
+      setAvailability('idle');
+      return;
+    }
+    const controller = new AbortController();
+    const timer = setTimeout(() => {
+      setAvailability('checking');
+      fetch(`/api/v1/resolve/${encodeURIComponent(handle)}`, { signal: controller.signal })
+        .then(async (res) => {
+          if (controller.signal.aborted) return;
+          if (res.status === 404) {
+            setAvailability('available');
+            return;
+          }
+          if (res.ok) {
+            const json = (await res.json()) as { data?: { archived?: boolean } };
+            if (controller.signal.aborted) return;
+            setAvailability(json?.data?.archived ? 'archived' : 'taken');
+            return;
+          }
+          setAvailability('error');
+        })
+        .catch(() => {
+          if (!controller.signal.aborted) setAvailability('error');
+        });
+    }, 300);
+    return () => {
+      clearTimeout(timer);
+      controller.abort();
+    };
+  }, [showClaimForm, address, boundHandle, handle, validationError]);
 
   async function onConnect() {
     setBusy(true);
@@ -103,7 +166,7 @@ export function ConnectWallet({
           'On-chain claim is unavailable — this deployment is not configured against an Identity Registry contract.',
         );
       } else {
-        setStatus(err instanceof Error ? err.message : 'Claim failed');
+        setStatus(explainRegistryError(err));
       }
     } finally {
       setBusy(false);
@@ -114,6 +177,8 @@ export function ConnectWallet({
     setShowClaimForm(false);
     setHandle('');
     setValidationError(null);
+    setAvailability('idle');
+    setBoundHandle(null);
     setStatus(null);
   }
 
@@ -124,6 +189,8 @@ export function ConnectWallet({
     setShowClaimForm(false);
     setHandle('');
     setValidationError(null);
+    setAvailability('idle');
+    setBoundHandle(null);
   }
 
   const label = busy
@@ -139,25 +206,80 @@ export function ConnectWallet({
     : address
       ? variant === 'cta'
         ? 'Claim your handle'
-        : `Disconnect ${address}`
+        : `Disconnect ${truncate(address)} (${address})`
       : 'Connect wallet';
 
-  // Show claim form
+  const availabilityText =
+    availability === 'available'
+      ? 'Handle is available'
+      : availability === 'taken'
+        ? 'Handle is already taken'
+        : availability === 'archived'
+          ? 'Handle binding is archived'
+          : availability === 'error'
+            ? "Couldn't check availability"
+            : availability === 'checking'
+              ? 'Checking availability…'
+              : null;
+
+  const isClaimBlocked =
+    busy ||
+    !handle ||
+    !!validationError ||
+    availability === 'taken' ||
+    availability === 'archived';
+
+  const describedBy =
+    [validationError ? validationId : null, availabilityText ? availabilityId : null]
+      .filter(Boolean)
+      .join(' ') || undefined;
+
+  // Show claim form (or bound-handle notice if this wallet already holds one)
   if (showClaimForm && address) {
+    if (boundHandle) {
+      return (
+        <span className="inline-flex flex-col items-start gap-2">
+          <p
+            className="max-w-[280px] text-xs leading-snug text-[#b8b5a8]"
+            style={{ fontFamily: 'var(--font-mono)' }}
+          >
+            This wallet already holds @{boundHandle}.
+          </p>
+          <button
+            type="button"
+            onClick={onCancelClaim}
+            className="rounded border border-[#8b1a1a] px-4 py-2 text-sm text-[#e05a4b] hover:bg-[#8b1a1a] hover:text-[#f5f4ee]"
+          >
+            Close
+          </button>
+        </span>
+      );
+    }
+
     return (
       <span className="inline-flex flex-col items-start gap-2">
         <div className="flex flex-col gap-2">
+          <label htmlFor={inputId} className="sr-only">
+            Handle
+          </label>
           <input
+            id={inputId}
             type="text"
             value={handle}
             onChange={(e) => handleInputChange(e.target.value)}
             placeholder="your-handle"
             disabled={busy}
-            className="rounded border border-[#8b1a1a] bg-[#f5f4ee] px-3 py-2 text-sm font-mono text-[#1a1816] placeholder:text-[#8a8779] focus:outline-none focus:ring-2 focus:ring-[#8b1a1a] disabled:opacity-50"
+            aria-invalid={
+              validationError || availability === 'taken' || availability === 'archived'
+                ? true
+                : undefined
+            }
+            aria-describedby={describedBy}
+            className="rounded border border-[#8b1a1a] bg-[#f5f4ee] px-3 py-2 text-sm font-mono text-[#1a1816] placeholder:text-[#6f6c61] focus:outline-none focus:ring-2 focus:ring-[#8b1a1a] disabled:opacity-50"
             maxLength={HANDLE_MAX_LEN}
             autoFocus
             onKeyDown={(e) => {
-              if (e.key === 'Enter' && !validationError && handle) {
+              if (e.key === 'Enter' && !isClaimBlocked) {
                 onSubmitClaim();
               } else if (e.key === 'Escape') {
                 onCancelClaim();
@@ -165,8 +287,22 @@ export function ConnectWallet({
             }}
           />
           {validationError && (
-            <span className="text-xs text-[#8b1a1a]" style={{ fontFamily: 'var(--font-mono)' }}>
+            <span
+              id={validationId}
+              className="text-xs text-[#e05a4b]"
+              style={{ fontFamily: 'var(--font-mono)' }}
+            >
               {validationError}
+            </span>
+          )}
+          {availabilityText && (
+            <span
+              id={availabilityId}
+              aria-live="polite"
+              className={`text-xs ${availability === 'taken' || availability === 'archived' ? 'text-[#e05a4b]' : 'text-[#b8b5a8]'}`}
+              style={{ fontFamily: 'var(--font-mono)' }}
+            >
+              {availabilityText}
             </span>
           )}
           <span
@@ -180,7 +316,7 @@ export function ConnectWallet({
             <button
               type="button"
               onClick={onSubmitClaim}
-              disabled={busy || !handle || !!validationError}
+              disabled={isClaimBlocked}
               className="rounded bg-[#8b1a1a] px-4 py-2 text-sm text-[#f5f4ee] hover:bg-[#6d1515] disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {busy ? 'Claiming…' : 'Claim'}
@@ -189,7 +325,7 @@ export function ConnectWallet({
               type="button"
               onClick={onCancelClaim}
               disabled={busy}
-              className="rounded border border-[#8b1a1a] px-4 py-2 text-sm text-[#8b1a1a] hover:bg-[#8b1a1a] hover:text-[#f5f4ee] disabled:opacity-50"
+              className="rounded border border-[#8b1a1a] px-4 py-2 text-sm text-[#e05a4b] hover:bg-[#8b1a1a] hover:text-[#f5f4ee] disabled:opacity-50"
             >
               Cancel
             </button>
