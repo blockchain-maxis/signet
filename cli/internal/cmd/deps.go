@@ -16,6 +16,7 @@ import (
 	"github.com/blockchain-maxis/signet/cli/internal/pair"
 	"github.com/blockchain-maxis/signet/cli/internal/rpc"
 	"github.com/blockchain-maxis/signet/cli/internal/simulator"
+	updatecheck "github.com/blockchain-maxis/signet/cli/internal/update"
 )
 
 // Deps is everything a command needs from the outside world, gathered in one
@@ -42,6 +43,9 @@ type Deps struct {
 	// Version and Commit identify this build, for `signet version`.
 	Version string
 	Commit  string
+
+	// CheckUpdate overrides update checking for tests.
+	CheckUpdate func(ctx context.Context, currentVersion string) (*updatecheck.CheckResult, error)
 
 	// LocateSimulator finds signet-simulator and reports a version mismatch
 	// through warn (simulator.Find). Only commands that execute contract
