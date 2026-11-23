@@ -15,7 +15,7 @@
 /**
  * Human-readable messages keyed by their contract Error discriminant.
  *
- * Codes 8 and 9 exist in the contract source but not in the currently deployed
+ * Codes 8, 9, 10, and 11 exist in the contract source but not in the currently deployed
  * wasm (see `docs/REGISTRY_INTEGRATION.md` §2), so they are unreachable against
  * today's testnet instance. They are mapped anyway: the alternative is that the
  * first deployment carrying them silently degrades a precise, actionable
@@ -31,6 +31,8 @@ const CONTRACT_ERROR_MESSAGES: Record<number, string> = {
   7: 'This wallet already has a handle.', // WalletAlreadyBound
   8: 'That handle is reserved for a Signet route.', // HandleReserved
   9: 'Too many handles in one batch — resolve at most 100 at a time.', // BatchTooLarge
+  10: 'That handle is reserved for another wallet during migration.', // HandleReservedForOther
+  11: 'The registry migration is sealed and no longer accepts reservations.', // RegistrySealed
 } as const;
 
 const FALLBACK_MESSAGE = 'An unexpected contract error occurred. Please try again.';

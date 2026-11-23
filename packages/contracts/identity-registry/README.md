@@ -42,6 +42,8 @@ registry and migrating; budget for that rather than assuming a patch path.
 | `release(handle)` | owning wallet | Remove your binding. Emits `released`. |
 | `transfer_handle(handle, new_wallet)` | current owner | Move a handle to another wallet. Emits `transferred`. |
 | `admin_revoke(handle)` | `admin` | Moderation force-remove. Emits `revoked`. |
+| `admin_reserve(handle, wallet)` | `admin` | Reserve handle for wallet during migration. Emits `reserved`. |
+| `seal()` | `admin` | End migration; refuse further reservations. Emits `sealed`. |
 | `resolve(handle) -> Option<Address>` | — | Handle → wallet. |
 | `lookup(wallet) -> Option<String>` | — | Wallet → handle. |
 | `is_bound(handle) -> bool` | — | Whether a handle is taken. |

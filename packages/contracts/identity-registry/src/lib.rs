@@ -77,6 +77,10 @@ enum DataKey {
     /// The binding counter (O(1); enumeration is via events). An upper
     /// bound, not a live total - see [`IdentityRegistry::count`].
     Count,
+    /// handle -> reserved wallet `Address`.
+    Reservation(String),
+    /// Registry migration sealed flag.
+    Sealed,
 }
 
 #[contracterror]
@@ -92,6 +96,8 @@ pub enum Error {
     WalletAlreadyBound = 7,
     HandleReserved = 8,
     BatchTooLarge = 9,
+    HandleReservedForOther = 10,
+    RegistrySealed = 11,
 }
 
 #[contract]
@@ -151,6 +157,16 @@ impl IdentityRegistry {
             return Err(Error::HandleReserved);
         }
 
+        let is_sealed = env.storage().instance().has(&DataKey::Sealed);
+        let res_key = DataKey::Reservation(handle.clone());
+        if !is_sealed {
+            if let Some(reserved_wallet) = env.storage().persistent().get::<_, Address>(&res_key) {
+                if reserved_wallet != wallet {
+                    return Err(Error::HandleReservedForOther);
+                }
+            }
+        }
+
         let owner_key = DataKey::Owner(handle.clone());
         if env.storage().persistent().has(&owner_key) {
             return Err(Error::HandleTaken);
@@ -158,6 +174,10 @@ impl IdentityRegistry {
         let wallet_key = DataKey::Handle(wallet.clone());
         if env.storage().persistent().has(&wallet_key) {
             return Err(Error::WalletAlreadyBound);
+        }
+
+        if env.storage().persistent().has(&res_key) {
+            env.storage().persistent().remove(&res_key);
         }
 
         env.storage().persistent().set(&owner_key, &wallet);
@@ -235,6 +255,70 @@ impl IdentityRegistry {
         admin.require_auth();
         let wallet = Self::resolve(env.clone(), handle.clone()).ok_or(Error::HandleNotFound)?;
         Self::remove_binding(&env, &handle, &wallet, symbol_short!("revoked"));
+        Ok(())
+    }
+
+    /// Reserve `handle` so that only `wallet` may claim it during migration.
+    ///
+    /// Requires admin authorization. Refused if the registry has been sealed
+    /// or if the handle is already bound. Does not create a binding: the wallet
+    /// owner must still call `claim` with their own authorization.
+    pub fn admin_reserve(env: Env, handle: String, wallet: Address) -> Result<(), Error> {
+        let admin: Address = env
+            .storage()
+            .instance()
+            .get(&DataKey::Admin)
+            .ok_or(Error::NotInitialized)?;
+        admin.require_auth();
+
+        if env.storage().instance().has(&DataKey::Sealed) {
+            return Err(Error::RegistrySealed);
+        }
+
+        validate_handle(&handle)?;
+        if is_reserved_handle(&handle) {
+            return Err(Error::HandleReserved);
+        }
+
+        let owner_key = DataKey::Owner(handle.clone());
+        if env.storage().persistent().has(&owner_key) {
+            return Err(Error::HandleTaken);
+        }
+
+        let res_key = DataKey::Reservation(handle.clone());
+        env.storage().persistent().set(&res_key, &wallet);
+        env.storage()
+            .persistent()
+            .extend_ttl(&res_key, BUMP_THRESHOLD, BUMP_LEDGERS);
+        Self::bump_instance(&env);
+
+        env.events()
+            .publish((symbol_short!("reserved"), handle), wallet);
+        Ok(())
+    }
+
+    /// End the migration period: permanently refuse any further `admin_reserve` calls.
+    ///
+    /// Requires admin authorization. One-way: once sealed, cannot be unsealed and
+    /// subsequent calls return `RegistrySealed`. Because the contract cannot
+    /// enumerate reservations to delete them, after `seal` `claim` simply ignores
+    /// any remaining `Reservation` entry.
+    pub fn seal(env: Env) -> Result<(), Error> {
+        let admin: Address = env
+            .storage()
+            .instance()
+            .get(&DataKey::Admin)
+            .ok_or(Error::NotInitialized)?;
+        admin.require_auth();
+
+        if env.storage().instance().has(&DataKey::Sealed) {
+            return Err(Error::RegistrySealed);
+        }
+
+        env.storage().instance().set(&DataKey::Sealed, &true);
+        Self::bump_instance(&env);
+
+        env.events().publish((symbol_short!("sealed"),), ());
         Ok(())
     }
 

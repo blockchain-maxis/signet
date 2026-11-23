@@ -76,6 +76,8 @@ callable at the next deployment, which will mint a new contract id.
 | `transfer_handle(handle: String, new_wallet: Address)` | current owner | `()` | Emits `transferred`. |
 | `resolve_batch(handles: Vec<String>)` | — | `Vec<Option<Address>>` | Positional; max 100 per call. |
 | `set_admin(new_admin: Address)` | current admin | `()` | Rotates moderation authority. Emits `admin_changed`. |
+| `admin_reserve(handle: String, wallet: Address)` | current admin | `()` | Migration reservation. Emits `reserved`. |
+| `seal()` | current admin | `()` | Ends migration; refuses further reservations and ignores remaining ones. Emits `sealed`. |
 
 Bindings are **1:1** — one handle per wallet, one wallet per handle. Handles are 1–32
 bytes of `[a-z0-9_-]`. There is no on-chain enumeration; see §5.
@@ -100,8 +102,10 @@ discriminant as a numeric contract error. In a failed simulation it appears as
 | 7 | `WalletAlreadyBound` | `claim` (or `transfer_handle` to a target) for a wallet that already owns a handle. |
 | 8 † | `HandleReserved` | `claim` for a name that collides with a Signet app route or infrastructure subdomain (`p`, `api`, `app`, `admin`, `docs`, `handles`, `how-it-works`, `profile`, `robots`, `sitemap`; plus `link`, `www`, `status`, `support`, `mail`, `blog`, `static`, `assets`, `cdn` in `main`, not yet deployed). |
 | 9 † | `BatchTooLarge` | `resolve_batch` with more than 100 handles. |
+| 10 † | `HandleReservedForOther` | `claim` during migration for a handle reserved for a different wallet. |
+| 11 † | `RegistrySealed` | `admin_reserve` or a second `seal` called after migration has been sealed. |
 
-† Codes 8 and 9 are **not** in the deployed wasm — like `transfer_handle` and
+† Codes 8, 9, 10, and 11 are **not** in the deployed wasm — like `transfer_handle` and
 `resolve_batch`, they arrived after the 2026-07-09 deployment. Two consequences for anyone
 integrating against the pinned contract id today: the reserved-name check is not enforced
 on-chain, so a direct caller can bind e.g. `app` (the web app's own router refuses to route
@@ -128,9 +132,11 @@ Every state change publishes one event. The topic tuple is always
 | `released` | `[ symbol("released"), string(handle) ]` | `address(wallet)` | `release` |
 | `revoked` | `[ symbol("revoked"), string(handle) ]` | `address(wallet)` | `admin_revoke` |
 | `transferred` † | `[ symbol("transferred"), string(handle) ]` | `[ address(from), address(to) ]` (a 2-tuple) | `transfer_handle` |
+| `reserved` † | `[ symbol("reserved"), string(handle) ]` | `address(wallet)` | `admin_reserve` |
+| `sealed` † | `[ symbol("sealed") ]` | `()` | `seal` |
 
-† `transfer_handle` is not in the deployed wasm (see §2), so the pinned deployment never
-emits `transferred`. It is documented here so consumers written now keep working after the
+† `transfer_handle`, `admin_reserve`, and `seal` are not in the deployed wasm (see §2), so the pinned deployment never
+emits `transferred`, `reserved`, or `sealed`. It is documented here so consumers written now keep working after the
 next deployment.
 
 Decoding one event:

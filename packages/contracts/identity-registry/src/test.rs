@@ -472,6 +472,121 @@ fn set_admin_emits_event() {
     assert!(!env.events().all().events().is_empty());
 }
 
+// ── migration reservations & seal (issue #982) ───────────────────────────────
+
+#[test]
+fn reserve_then_claim_by_named_wallet_succeeds_and_consumes_reservation() {
+    let (env, client, _admin) = setup();
+    let wallet = Address::generate(&env);
+    let handle = String::from_str(&env, "reserveduser");
+
+    client.admin_reserve(&handle, &wallet);
+
+    // Named wallet successfully claims
+    client.claim(&handle, &wallet);
+    assert_eq!(client.resolve(&handle), Some(wallet.clone()));
+    assert_eq!(client.count(), 1);
+
+    // Release the handle; reservation was consumed on claim, so another wallet can now claim it
+    client.release(&handle);
+    let other_wallet = Address::generate(&env);
+    client.claim(&handle, &other_wallet);
+    assert_eq!(client.resolve(&handle), Some(other_wallet));
+}
+
+#[test]
+fn claim_by_other_wallet_fails_with_handle_reserved_for_other() {
+    let (env, client, _admin) = setup();
+    let alice = Address::generate(&env);
+    let bob = Address::generate(&env);
+    let handle = String::from_str(&env, "aliceonly");
+
+    client.admin_reserve(&handle, &alice);
+
+    let res = client.try_claim(&handle, &bob);
+    assert_eq!(res, Err(Ok(Error::HandleReservedForOther)));
+}
+
+#[test]
+fn admin_reserve_requires_admin_auth() {
+    let (env, client, admin) = setup();
+    let wallet = Address::generate(&env);
+    let handle = String::from_str(&env, "resauth");
+
+    client.admin_reserve(&handle, &wallet);
+    let auths = env.auths();
+    assert_eq!(auths.len(), 1);
+    assert_eq!(auths[0].0, admin);
+
+    // Drop blanket auth: call without admin auth fails
+    env.set_auths(&[]);
+    let res = client.try_admin_reserve(&handle, &wallet);
+    assert!(res.is_err());
+}
+
+#[test]
+fn admin_reserve_of_bound_handle_fails() {
+    let (env, client, _admin) = setup();
+    let wallet1 = Address::generate(&env);
+    let wallet2 = Address::generate(&env);
+    let handle = String::from_str(&env, "alreadytaken");
+
+    client.claim(&handle, &wallet1);
+
+    let res = client.try_admin_reserve(&handle, &wallet2);
+    assert_eq!(res, Err(Ok(Error::HandleTaken)));
+}
+
+#[test]
+fn admin_reserve_after_seal_fails() {
+    let (env, client, _admin) = setup();
+    let wallet = Address::generate(&env);
+    let handle = String::from_str(&env, "toolate");
+
+    client.seal();
+
+    let res = client.try_admin_reserve(&handle, &wallet);
+    assert_eq!(res, Err(Ok(Error::RegistrySealed)));
+}
+
+#[test]
+fn after_seal_leftover_reservation_no_longer_blocks_anyone() {
+    let (env, client, _admin) = setup();
+    let alice = Address::generate(&env);
+    let bob = Address::generate(&env);
+    let handle = String::from_str(&env, "leftover");
+
+    // Reserve for Alice
+    client.admin_reserve(&handle, &alice);
+
+    // End migration
+    client.seal();
+
+    // Now Bob can claim even though the reservation was for Alice
+    client.claim(&handle, &bob);
+    assert_eq!(client.resolve(&handle), Some(bob));
+}
+
+#[test]
+fn seal_requires_admin_auth_and_second_seal_fails() {
+    let (env, client, admin) = setup();
+
+    client.seal();
+    let auths = env.auths();
+    assert_eq!(auths.len(), 1);
+    assert_eq!(auths[0].0, admin);
+
+    // Second seal fails with RegistrySealed
+    let res = client.try_seal();
+    assert_eq!(res, Err(Ok(Error::RegistrySealed)));
+
+    // Fresh registry without admin auth fails
+    let (env2, client2, _admin2) = setup();
+    env2.set_auths(&[]);
+    let res2 = client2.try_seal();
+    assert!(res2.is_err());
+}
+
 // ── instance TTL (issue #187) ───────────────────────────────────────────────
 
 /// The instance TTL as seen from inside the contract, in ledgers-remaining.

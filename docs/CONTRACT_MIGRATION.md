@@ -107,15 +107,16 @@ review**):
 /// the admin can only narrow who may claim, never assign ownership.
 pub fn admin_reserve(env: Env, handle: String, wallet: Address) -> Result<(), Error>;
 
-/// End the migration: drop every remaining reservation and refuse any further
-/// `admin_reserve`. One-way, admin-only. After this the registry behaves
-/// exactly like the current one.
+/// End the migration: refuse any further `admin_reserve`. After seal, remaining
+/// reservations are ignored (the contract cannot enumerate them to drop them).
+/// One-way, admin-only. After this the registry behaves exactly like the current one.
 pub fn seal(env: Env) -> Result<(), Error>;
 ```
 
 `claim` gains one check: if a reservation exists for the handle and names a
-different wallet, fail. A handle with no reservation stays open to anyone, as
-today.
+different wallet, fail. After `seal`, that check is skipped entirely so any
+remaining reservations no longer block anyone. A handle with no reservation
+stays open to anyone, as today.
 
 The point of `seal` is that the migration's extra admin power is temporary and
 its end is observable on-chain. Publish the seal transaction hash alongside the

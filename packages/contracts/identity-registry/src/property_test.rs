@@ -203,6 +203,8 @@ enum Op {
     Release { handle: usize },
     Transfer { handle: usize, wallet: usize },
     Revoke { handle: usize },
+    Reserve { handle: usize, wallet: usize },
+    Seal,
 }
 
 const POOL: usize = 5;
@@ -214,6 +216,8 @@ fn any_op() -> impl Strategy<Value = Op> {
         (0..POOL).prop_map(|handle| Op::Release { handle }),
         (0..POOL, 0..POOL).prop_map(|(handle, wallet)| Op::Transfer { handle, wallet }),
         (0..POOL).prop_map(|handle| Op::Revoke { handle }),
+        (0..POOL, 0..POOL).prop_map(|(handle, wallet)| Op::Reserve { handle, wallet }),
+        Just(Op::Seal),
     ]
 }
 
@@ -245,16 +249,22 @@ proptest! {
         // The model: handle index -> owning wallet index. The reverse binding is
         // read back out of it, mirroring the contract's two-key storage.
         let mut model: BTreeMap<usize, usize> = BTreeMap::new();
+        let mut reservations: BTreeMap<usize, usize> = BTreeMap::new();
+        let mut sealed = false;
 
         for (step, op) in ops.iter().enumerate() {
             match *op {
                 Op::Claim { handle, wallet } => {
-                    let should_fail =
-                        model.contains_key(&handle) || owner_of(&model, wallet).is_some();
+                    let reserved_for_other =
+                        !sealed && reservations.get(&handle).map_or(false, |&w| w != wallet);
+                    let should_fail = reserved_for_other
+                        || model.contains_key(&handle)
+                        || owner_of(&model, wallet).is_some();
                     let res = client.try_claim(&handles[handle], &wallets[wallet]);
                     prop_assert_eq!(res.is_err(), should_fail, "claim at step {}", step);
                     if !should_fail {
                         model.insert(handle, wallet);
+                        reservations.remove(&handle);
                     }
                 }
                 Op::Release { handle } => {
@@ -281,6 +291,22 @@ proptest! {
                     let res = client.try_admin_revoke(&handles[handle]);
                     prop_assert_eq!(res.is_err(), should_fail, "revoke at step {}", step);
                     model.remove(&handle);
+                }
+                Op::Reserve { handle, wallet } => {
+                    let should_fail = sealed || model.contains_key(&handle);
+                    let res = client.try_admin_reserve(&handles[handle], &wallets[wallet]);
+                    prop_assert_eq!(res.is_err(), should_fail, "reserve at step {}", step);
+                    if !should_fail {
+                        reservations.insert(handle, wallet);
+                    }
+                }
+                Op::Seal => {
+                    let should_fail = sealed;
+                    let res = client.try_seal();
+                    prop_assert_eq!(res.is_err(), should_fail, "seal at step {}", step);
+                    if !should_fail {
+                        sealed = true;
+                    }
                 }
             }
 
