@@ -54,6 +54,9 @@ export const OTHER_NETWORK = 'mainnet';
 export const WASM_HASH_1 = '11'.repeat(32);
 export const WASM_HASH_2 = '22'.repeat(32);
 
+/** Indexed operations seeded for the profile (#899). More than one 100-row read. */
+export const FIXTURE_OPERATION_COUNT = 130;
+
 /**
  * Contract A's `Owner("e2e-dev")` storage key (#515): every `claim` changes
  * it, every `resolve` reads it, so the storage view has a slot to draw.
@@ -142,6 +145,29 @@ export async function seedContractFixture(): Promise<void> {
       );
     }
     const [a, b] = rows as [(typeof rows)[number], (typeof rows)[number]];
+
+    // Fixture-only indexed operations (#899): more than the old 100-row window,
+    // so the profile heading must report the real total and "Load more" must
+    // page through every one of them.
+    for (let i = 0; i < FIXTURE_OPERATION_COUNT; i++) {
+      const txHash = `${i.toString(16).padStart(2, '0')}`.repeat(32);
+      const id = `${txHash}:0`;
+      const data = {
+        walletId: wallets[0]!.id,
+        type: 'invoke_host_function',
+        function: 'claim',
+        decodedFunction: 'claim',
+        sourceAccount: WALLET_1,
+        createdAt: new Date(Date.UTC(2026, 2, 20, 12, 0, 0) - i * 60_000),
+        transactionHash: txHash,
+        successful: true,
+      };
+      await prisma.operation.upsert({
+        where: { id },
+        update: data,
+        create: { id, ...data },
+      });
+    }
 
     // Fixture-only snapshots. ContractSnapshot has no natural key, so replace.
     // (#429 adds `countedSince`; once that column exists, set it here the way

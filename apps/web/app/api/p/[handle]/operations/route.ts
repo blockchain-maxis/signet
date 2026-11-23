@@ -9,8 +9,8 @@ export const runtime = 'nodejs';
  * Returns a paginated slice of operations for the given profile handle.
  * Defaults to the first 25 operations when offset/limit are omitted.
  *
- * `meta.total` is the number of operations retrieved, which is not the same as
- * the number that exist: the layer that answered reads a bounded window. When
+ * On the database path `meta.total` is the real number of operations and the
+ * list is complete. Only the Horizon fallback reads a bounded window: there
  * `meta.truncated` is true, `meta.total` is a lower bound, `meta.cap` names the
  * limit that produced it, and a client must not present the list as complete.
  *

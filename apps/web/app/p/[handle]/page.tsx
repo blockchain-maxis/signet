@@ -2,13 +2,8 @@ import { notFound } from 'next/navigation';
 import { SectionLabel } from './_components/section-label';
 import { SiteFooter } from './_components/site-footer';
 import { SiteNav } from './_components/site-nav';
-import {
-  getProfile,
-  getOperationsResult,
-  getProfileStats,
-  formatCount,
-  formatStatsWindow,
-} from '@/lib/profiles';
+import { getProfile, getProfileStats, formatCount, formatStatsWindow } from '@/lib/profiles';
+import { getProfileOperationsView } from '@/lib/profile-operations';
 import { getProfileContracts } from '@/lib/profile-contracts';
 import { STELLAR_EXPLORER, STELLAR_NETWORK_NAME } from '@/lib/network';
 import { formatDate } from '@/lib/format-date';
@@ -45,8 +40,9 @@ export default async function ProfilePage({ params }: { params: Promise<{ handle
   // `truncated` says the record stops at a cap rather than at the end of this
   // developer's history. Every claim below that would otherwise read as a total
   // is qualified by it — a partial record shown as complete is the one thing a
-  // career record must never do.
-  const { operations, truncated, cap, source } = await getOperationsResult(handle);
+  // career record must never do. With a database the first page comes from the
+  // same paginated read "Load more" uses, so `total` is the real count (#899).
+  const { operations, total, truncated, cap } = await getProfileOperationsView(handle);
   const stats = await getProfileStats(handle, operations);
   // Contracts the handle's wallets deployed, newest first — a summary list
   // linking to each contract page, with no interface detail (#455).
@@ -269,7 +265,12 @@ export default async function ProfilePage({ params }: { params: Promise<{ handle
               {
                 // Without the full history the earliest record we hold is not
                 // the developer's first activity, so the label stops claiming it.
-                label: truncated || historyWindowed ? 'Earliest shown' : 'First activity',
+                // The first page alone (`total > operations.length`) is not the
+                // full history either, even when the record behind it is complete.
+                label:
+                  truncated || historyWindowed || total > operations.length
+                    ? 'Earliest shown'
+                    : 'First activity',
                 value: oldest ? formatDate(oldest.created_at, { day: undefined }) : '—',
               },
               { label: 'Latest activity', value: newest ? formatDate(newest.created_at) : '—' },
@@ -306,9 +307,7 @@ export default async function ProfilePage({ params }: { params: Promise<{ handle
           <SectionLabel>
             Soroban invocations
             <span className="ml-1 text-[var(--text-muted)]">
-              {truncated
-                ? `· ${operations.length} shown · partial record`
-                : `· ${operations.length} indexed`}
+              {truncated ? `· ${total} shown · partial record` : `· ${total} indexed`}
             </span>
           </SectionLabel>
 
@@ -318,10 +317,9 @@ export default async function ProfilePage({ params }: { params: Promise<{ handle
                 className="text-[12px] leading-[1.7] text-amber-300"
                 style={{ fontFamily: 'var(--font-mono)' }}
               >
-                Partial record — this account has more history than is shown.{' '}
-                {source === 'horizon'
-                  ? `Without an indexer, activity is read straight from Horizon, which we page through only as far as the ${cap} most recent operations.`
-                  : `The indexer read only the ${cap} most recent operations for this wallet.`}{' '}
+                Partial record — this account has more history than is shown. Without an indexer,
+                activity is read straight from Horizon, which we page through only as far as the{' '}
+                {cap} most recent operations.{' '}
                 {statsTruncated
                   ? 'Counts above are lower bounds, and older invocations are not listed.'
                   : statsWindow
@@ -342,8 +340,8 @@ export default async function ProfilePage({ params }: { params: Promise<{ handle
 
           <OperationsList
             handle={handle}
-            initialOperations={operations.slice(0, 25)}
-            total={operations.length}
+            initialOperations={operations}
+            total={total}
             truncated={truncated}
             cap={cap}
           />

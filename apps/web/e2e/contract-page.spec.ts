@@ -7,6 +7,7 @@ import {
   CONFIGURED_NETWORK,
   DEPLOY_TX_A,
   FIXTURE_HANDLE,
+  FIXTURE_OPERATION_COUNT,
   MALFORMED_ADDRESS,
   OTHER_HANDLE,
   WASM_HASH_1,
@@ -338,6 +339,29 @@ test.describe('contract page @db', () => {
     // Turn on with #447: GET /profile/{handle}/contract/{address} redirects to
     // /p/{handle}/contract/{address}. Today `profile` is passed through by the
     // middleware and no such route exists.
+  });
+
+  test('the profile page reports the real operation total and pages to the end of the indexed record (#899)', async ({
+    page,
+  }) => {
+    await page.goto(`/p/${FIXTURE_HANDLE}`);
+
+    // The heading is the database's count, not the size of the first page, and
+    // the record is complete — nothing is described as partial.
+    await expect(page.getByText(`· ${FIXTURE_OPERATION_COUNT} indexed`)).toBeVisible();
+    await expect(page.getByText(/partial record/i)).toHaveCount(0);
+    await expect(page.getByText(/indexer read only/i)).toHaveCount(0);
+
+    const rows = page.getByTestId('operation-row');
+    await expect(rows).toHaveCount(25);
+    for (let shown = 25; shown < FIXTURE_OPERATION_COUNT; shown += 25) {
+      await page.getByRole('button', { name: /Load more/ }).click();
+      await expect(rows).toHaveCount(Math.min(FIXTURE_OPERATION_COUNT, shown + 25));
+    }
+
+    // Every indexed operation is listed and the button is gone.
+    await expect(rows).toHaveCount(FIXTURE_OPERATION_COUNT);
+    await expect(page.getByRole('button', { name: /Load more/ })).toHaveCount(0);
   });
 
   test('the profile page lists both attributed contracts, linked, and not the other-network one', async ({
