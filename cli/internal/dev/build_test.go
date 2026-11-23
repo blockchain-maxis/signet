@@ -98,3 +98,59 @@ func TestFirstErrorBlockWithoutErrors(t *testing.T) {
 		t.Fatalf("%q %d", first, more)
 	}
 }
+
+func fakeDevTools(t *testing.T) Tools {
+	t.Helper()
+	goBin, err := exec.LookPath("go")
+	if err != nil {
+		t.Skipf("go binary not found: %v", err)
+	}
+	dir := t.TempDir()
+	bin := filepath.Join(dir, "cargo")
+	if runtime.GOOS == "windows" {
+		bin += ".exe"
+	}
+	build := exec.Command(goBin, "build", "-o", bin, "./testdata/fakedevtools")
+	if output, err := build.CombinedOutput(); err != nil {
+		t.Fatalf("building fakedevtools: %v\n%s", err, output)
+	}
+	return Tools{
+		LookPath: func(name string) (string, error) {
+			if name == "cargo" {
+				return bin, nil
+			}
+			return exec.LookPath(name)
+		},
+		Run: func(name string, args ...string) ([]byte, error) {
+			if name == "cargo" {
+				cmd := exec.Command(bin, args...)
+				return cmd.Output()
+			}
+			return exec.Command(name, args...).Output()
+		},
+	}
+}
+
+func TestFindCrateCollectsLocalDepsFromPathDependency(t *testing.T) {
+	dir := t.TempDir()
+	crateDir := filepath.Join(dir, "contracts", "registry")
+	_ = os.MkdirAll(crateDir, 0o755)
+	manifest := filepath.Join(crateDir, "Cargo.toml")
+	_ = os.WriteFile(manifest, []byte("[package]\nname = \"identity-registry\"\n"), 0o644)
+
+	commonDir := filepath.Join(dir, "contracts", "common")
+	_ = os.MkdirAll(commonDir, 0o755)
+	commonManifest := filepath.Join(commonDir, "Cargo.toml")
+	_ = os.WriteFile(commonManifest, []byte("[package]\nname = \"common\"\n"), 0o644)
+
+	t.Setenv("FAKECARGO_PATH_DEPS", commonManifest)
+	tools := fakeDevTools(t)
+
+	c, err := FindCrate(tools, crateDir, "")
+	if err != nil {
+		t.Fatalf("FindCrate: %v", err)
+	}
+	if len(c.LocalDeps) != 1 || c.LocalDeps[0] != commonDir {
+		t.Fatalf("c.LocalDeps = %v, want [%s]", c.LocalDeps, commonDir)
+	}
+}

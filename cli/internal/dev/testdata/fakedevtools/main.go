@@ -51,14 +51,60 @@ func cargoMetadata(args []string) {
 		crateTypes = []string{"rlib"}
 	}
 	dir := filepath.Dir(manifest)
+
+	packages := []any{map[string]any{
+		"name":          pkg,
+		"id":            pkg + " 0.1.0",
+		"manifest_path": manifest,
+		"targets":       []any{map[string]any{"name": strings.ReplaceAll(pkg, "-", "_"), "crate_types": crateTypes}},
+	}}
+	var resolveNodes []any
+	var contractNodeDeps []string
+
+	if pathDeps := os.Getenv("FAKECARGO_PATH_DEPS"); pathDeps != "" {
+		var contractDeps []any
+		for _, depManifest := range strings.Split(pathDeps, string(filepath.ListSeparator)) {
+			depManifest = strings.TrimSpace(depManifest)
+			if depManifest == "" {
+				continue
+			}
+			depDir := filepath.Dir(depManifest)
+			depName := filepath.Base(depDir)
+			depID := depName + " 0.1.0"
+			contractDeps = append(contractDeps, map[string]any{
+				"name":   depName,
+				"source": nil,
+				"req":    "*",
+				"path":   depDir,
+			})
+			packages = append(packages, map[string]any{
+				"name":          depName,
+				"id":            depID,
+				"source":        nil,
+				"manifest_path": depManifest,
+				"targets":       []any{map[string]any{"name": depName, "crate_types": []string{"rlib"}}},
+			})
+			resolveNodes = append(resolveNodes, map[string]any{
+				"id":           depID,
+				"dependencies": []string{},
+			})
+			contractNodeDeps = append(contractNodeDeps, depID)
+		}
+		packages[0].(map[string]any)["dependencies"] = contractDeps
+	}
+
+	resolveNodes = append([]any{map[string]any{
+		"id":           pkg + " 0.1.0",
+		"dependencies": contractNodeDeps,
+	}}, resolveNodes...)
+
 	out, _ := json.Marshal(map[string]any{
 		"target_directory": filepath.Join(dir, "target"),
 		"workspace_root":   dir,
-		"packages": []any{map[string]any{
-			"name":          pkg,
-			"manifest_path": manifest,
-			"targets":       []any{map[string]any{"name": strings.ReplaceAll(pkg, "-", "_"), "crate_types": crateTypes}},
-		}},
+		"packages":         packages,
+		"resolve": map[string]any{
+			"nodes": resolveNodes,
+		},
 	})
 	fmt.Println(string(out))
 }
