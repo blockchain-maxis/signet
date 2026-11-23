@@ -8,7 +8,10 @@ import {
   extractOrigin,
   generateNonce,
   resolveConnectSources,
+  resolveFrameAncestors,
+  __resetFrameAncestorsWarningForTest,
 } from './csp.ts';
+import { logger } from './logger.ts';
 
 /** Pull a single directive (e.g. `script-src`) out of a CSP header value. */
 function directive(csp: string, name: string): string {
@@ -235,6 +238,101 @@ test('frame-ancestors respects custom allowlist env var when set for embed', () 
       delete process.env.FRAME_ANCESTORS_ALLOWLIST;
     } else {
       process.env.FRAME_ANCESTORS_ALLOWLIST = prev;
+    }
+  }
+});
+
+test('frame-ancestors allows space-separated source expressions including wildcards', () => {
+  const prev = process.env.FRAME_ANCESTORS_ALLOWLIST;
+  try {
+    process.env.FRAME_ANCESTORS_ALLOWLIST = 'https://a.example https://*.b.example';
+    const embedCsp = buildCsp('n', {
+      path: '/p/aquawolf/contract/CASFJHI5PQSRWS7JV25CF7FOMRKIVBP3RXRP3E2GH2CV4BCAG7FUJRCN/embed',
+    });
+    assert.equal(
+      directive(embedCsp, 'frame-ancestors'),
+      'frame-ancestors https://a.example https://*.b.example',
+    );
+  } finally {
+    if (prev === undefined) {
+      delete process.env.FRAME_ANCESTORS_ALLOWLIST;
+    } else {
+      process.env.FRAME_ANCESTORS_ALLOWLIST = prev;
+    }
+  }
+});
+
+test('frame-ancestors falls back to none when value contains semicolon or newline and logs once', (t) => {
+  const prevAllowlist = process.env.FRAME_ANCESTORS_ALLOWLIST;
+  const prevEmbed = process.env.EMBED_FRAME_ANCESTORS;
+  delete process.env.EMBED_FRAME_ANCESTORS;
+  __resetFrameAncestorsWarningForTest();
+
+  const warnings: Array<{ fields: Record<string, unknown>; msg: string }> = [];
+  t.mock.method(logger, 'warn', (fields: Record<string, unknown>, msg: string) => {
+    warnings.push({ fields, msg });
+  });
+
+  try {
+    // Semicolon injection attempt
+    process.env.FRAME_ANCESTORS_ALLOWLIST = 'https://a.example; script-src https:';
+    const embedPath = '/p/aquawolf/contract/CASFJHI5PQSRWS7JV25CF7FOMRKIVBP3RXRP3E2GH2CV4BCAG7FUJRCN/embed';
+    const cspSemi = buildCsp('n', { path: embedPath });
+    assert.equal(directive(cspSemi, 'frame-ancestors'), "frame-ancestors 'none'");
+    assert.equal(warnings.length, 1);
+    assert.equal(warnings[0].msg, 'csp.invalidFrameAncestors');
+    assert.equal(warnings[0].fields.value, 'https://a.example; script-src https:');
+
+    // Repeated call with the same invalid value logs only once
+    buildCsp('n', { path: embedPath });
+    assert.equal(warnings.length, 1);
+
+    // Newline injection attempt
+    process.env.FRAME_ANCESTORS_ALLOWLIST = 'https://a.example\nhttps://*.b.example';
+    const cspNewline = buildCsp('n', { path: embedPath });
+    assert.equal(directive(cspNewline, 'frame-ancestors'), "frame-ancestors 'none'");
+    assert.equal(warnings.length, 2);
+    assert.equal(warnings[1].msg, 'csp.invalidFrameAncestors');
+    assert.equal(warnings[1].fields.value, 'https://a.example\nhttps://*.b.example');
+  } finally {
+    if (prevAllowlist === undefined) {
+      delete process.env.FRAME_ANCESTORS_ALLOWLIST;
+    } else {
+      process.env.FRAME_ANCESTORS_ALLOWLIST = prevAllowlist;
+    }
+    if (prevEmbed === undefined) {
+      delete process.env.EMBED_FRAME_ANCESTORS;
+    } else {
+      process.env.EMBED_FRAME_ANCESTORS = prevEmbed;
+    }
+    __resetFrameAncestorsWarningForTest();
+  }
+});
+
+test('frame-ancestors honours deprecated EMBED_FRAME_ANCESTORS alias when FRAME_ANCESTORS_ALLOWLIST is unset', () => {
+  const prevAllowlist = process.env.FRAME_ANCESTORS_ALLOWLIST;
+  const prevEmbed = process.env.EMBED_FRAME_ANCESTORS;
+  delete process.env.FRAME_ANCESTORS_ALLOWLIST;
+
+  try {
+    process.env.EMBED_FRAME_ANCESTORS = 'https://deprecated.example.org';
+    const embedCsp = buildCsp('n', {
+      path: '/p/aquawolf/contract/CASFJHI5PQSRWS7JV25CF7FOMRKIVBP3RXRP3E2GH2CV4BCAG7FUJRCN/embed',
+    });
+    assert.equal(
+      directive(embedCsp, 'frame-ancestors'),
+      'frame-ancestors https://deprecated.example.org',
+    );
+  } finally {
+    if (prevAllowlist === undefined) {
+      delete process.env.FRAME_ANCESTORS_ALLOWLIST;
+    } else {
+      process.env.FRAME_ANCESTORS_ALLOWLIST = prevAllowlist;
+    }
+    if (prevEmbed === undefined) {
+      delete process.env.EMBED_FRAME_ANCESTORS;
+    } else {
+      process.env.EMBED_FRAME_ANCESTORS = prevEmbed;
     }
   }
 });
