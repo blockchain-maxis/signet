@@ -6,11 +6,10 @@ this is a standalone Go module, not a pnpm package — mirroring the split
 between orchestration/UX (Go, here) and anything that must execute Soroban
 semantics (Rust, `packages/contracts`).
 
-This module is currently a scaffold: the command tree, configuration, and
-identity resolution exist, and `link` validates its inputs and reports a
-structured result, but it doesn't yet perform a real on-chain claim or call a
-deployment's HTTP API — that (along with local key management) lands in
-follow-up issues once `internal/keys`/`internal/spec` are implemented.
+The CLI provides full linking of deployment wallets to on-chain Signet handles via
+browser-based approval and cryptographic challenges, key management and signing via the
+`stellar` CLI, status and unlink operations, contract visualization via `signet visualise`,
+and a local contract sandbox environment (`signet sandbox`, `signet dev`) backed by `signet-simulator`.
 
 The contract sandbox (`signet sandbox`, `signet dev`) has its own user guide:
 [`docs/SANDBOX.md`](../docs/SANDBOX.md).
@@ -30,22 +29,16 @@ an unrecognized-flag message pointing at the wrong tool.
 
 ## Opening a browser
 
-`internal/browser.OpenOrPrint(out, url, noBrowser)` is what a future
-interactive approval flow (`signet link` opening a page for a human to
-confirm) uses to show that page: it attempts the platform opener (`open` on
-macOS, `xdg-open` on Linux, `rundll32 url.dll,FileProtocolHandler` on
-Windows — Go has no stdlib opener, so this is an explicit per-OS call rather
-than a dependency), and falls back to printing the URL to `out` instead —
-never treating the opener's failure as fatal — when `noBrowser` is set, when
-no display is detected (`DISPLAY`/`WAYLAND_DISPLAY` on Linux; macOS/Windows
-are assumed to always have one), or when the platform opener itself fails to
-launch (e.g. it isn't installed). Both paths reach the developer at exactly
-the same URL.
-
-Not yet wired into any command: `link` doesn't perform a real approval flow
-yet (see "Commands" below), so there's nothing to open a browser to. The
-package is built and tested ahead of that landing, same as `internal/keys`
-and `internal/spec`.
+`internal/browser.OpenOrPrint(out, url, noBrowser)` is used by the interactive
+approval flow (`signet link`) to open an authorization URL in the developer's
+browser: it attempts the platform opener (`open` on macOS, `xdg-open` on Linux,
+`rundll32 url.dll,FileProtocolHandler` on Windows — Go has no stdlib opener, so
+this is an explicit per-OS call rather than a dependency), and falls back to
+printing the URL to `out` instead — never treating the opener's failure as fatal —
+when `--no-browser` is set, when no display is detected (`DISPLAY`/`WAYLAND_DISPLAY`
+on Linux; macOS/Windows are assumed to always have one), or when the platform
+opener itself fails to launch (e.g. it isn't installed). Both paths reach the
+developer at exactly the same URL.
 
 ## Commands
 
@@ -616,17 +609,31 @@ GOOS=linux  GOARCH=amd64 go build -o bin/signet-linux-amd64  ./cmd/signet
 
 ## Layout
 
-| Path                 | Purpose                                                                                                                                                                                                                                                                                                                                                     |
-| -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `cmd/signet`         | `main.go` — the binary's entrypoint                                                                                                                                                                                                                                                                                                                         |
-| `internal/cmd`       | Cobra command tree                                                                                                                                                                                                                                                                                                                                          |
-| `internal/config`    | Resolves `--url`/`--source`/`SIGNET_URL`/the config file into the settings a run uses                                                                                                                                                                                                                                                                       |
-| `internal/link`      | `signet link` — validates a handle/public key and reports a structured result; the actual on-chain claim / API call is not yet implemented                                                                                                                                                                                                                  |
-| `internal/keys`      | Resolves a named local identity to its public key, and checks the local `stellar` CLI is present and new enough, by shelling out to it; signing itself is not yet implemented                                                                                                                                                                               |
-| `internal/spec`      | Typed request/response models for a Signet deployment's HTTP API (scaffolded, not yet implemented)                                                                                                                                                                                                                                                          |
-| `internal/output`    | The shared output layer: `Printer{JSON, Out, Err}` with `Result` (one JSON object or the human rendering), `Progress` and `Interactive` (stdout for a person, stderr under `--json`)                                                                                                                                                                        |
-| `internal/exitcode`  | The exit-code taxonomy (see "Exit codes" above) — its own leaf package so both `internal/cmd` and packages like `internal/keys` can depend on it without a cycle                                                                                                                                                                                            |
-| `internal/browser`   | Opens a URL in the default browser for an approval flow, falling back to printing it — not yet wired into any command                                                                                                                                                                                                                                       |
-| `internal/simulator` | The one client for `signet-simulator`: finds it (`SIGNET_SIMULATOR_PATH`, beside `signet`, then `PATH`), spawns it, checks the handshake, serialises calls, answers its `ledger_fetch`, enforces the per-request timeout (SIGTERM, 2s, SIGKILL), stops it when idle, and respawns it transparently with the session replayed (docs/CLI_RUST_BRIDGE.md §4–5) |
-| `internal/rpc`       | A thin Stellar RPC JSON-RPC client (`getNetwork`, `getLatestLedger`, `getVersionInfo`, `getHealth`, `getLedgerEntries` paged at 200 keys, `getTransaction(s)`, `getEvents`, `simulateTransaction`) with retries, and the sandbox network selection; payloads stay base64                                                                                    |
-| `internal/fork`      | The on-disk fork cache: one bbolt database per network and `<contract>@<forkLedger>` under `os.UserCacheDir()/signet/forks/`, with a `manifest.json`, a single-process lock that names the owning PID, and corruption detection                                                                                                                             |
+| Path                 | Purpose                                                                                                               |
+| -------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| `cmd/signet`         | `main.go` — the binary's entrypoint                                                                                   |
+| `internal/api`       | Shared HTTP client and transport layer for communicating with a Signet deployment's API                               |
+| `internal/browser`   | Cross-platform browser opener for interactive linking and authorization approval flows                                 |
+| `internal/bundle`    | Session log recorder and standalone reproduction bundle exporter for `signet dev`                                     |
+| `internal/cmd`       | Cobra command definitions, subcommands, and CLI flag bindings                                                         |
+| `internal/config`    | Resolves `--url`, `--source`, `--context`, configuration files, and environment variables                             |
+| `internal/dev`       | Development server orchestrator and live-reloading run loop for `signet dev`                                          |
+| `internal/devconfig` | Strict configuration parser for `signet.dev.toml` test suites and sandbox settings                                    |
+| `internal/devui`     | Embedded local web UI server and WebSocket communication for interactive development sessions                         |
+| `internal/exitcode`  | Standardized exit-code taxonomy shared across commands and packages without cycles                                    |
+| `internal/fork`      | On-disk bbolt fork cache and storage management under `os.UserCacheDir()/signet/forks/`                                |
+| `internal/jsonschema`| JSON schema validation for manifests, configs, and session recordings                                                 |
+| `internal/keys`      | Resolves identities, validates `stellar` CLI version requirements, and delegates transaction signing                  |
+| `internal/link`      | `signet link` orchestrator managing browser pairing, challenges, and deployment registration                          |
+| `internal/localnet`  | Local Stellar Quickstart network runner for deploying and testing against a local container RPC                       |
+| `internal/loopback`  | Ephemeral single-request 127.0.0.1 callback listener for browser authorization handoffs                               |
+| `internal/networkcheck` | Validates target Stellar network compatibility between requested commands and deployment stellar.toml              |
+| `internal/output`    | Standardized output layer with JSON support, diagnostics formatting, and progress reporting                          |
+| `internal/pair`      | Pairing protocol client for challenge negotiation, polling, and TTL-bounded wait cycles                               |
+| `internal/realtx`    | Discovers recent real contract transactions via RPC events, ledger scanning, and deployment indexers                  |
+| `internal/redact`    | Redacts secret keys, StrKey seeds, and API tokens from logs and output streams                                         |
+| `internal/render`    | Terminal formatting, colorization, and diff rendering for simulation results                                         |
+| `internal/rpc`       | Thin Stellar RPC client supporting pagination, retries, batching, and network discovery                               |
+| `internal/simulator` | Process lifecycle manager and IPC client for `signet-simulator`                                                       |
+| `internal/spec`      | Contract specification loader, parser, and type definitions                                                           |
+| `internal/visualise` | Runs the visualiser bundle in an embedded JavaScript engine to render contract SVG diagrams                           |
