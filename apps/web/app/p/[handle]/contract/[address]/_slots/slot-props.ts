@@ -29,4 +29,8 @@ export interface ContractSlotProps {
   range?: string;
   /** Function order (?order=use ranks each group by observed use, #518). */
   order?: string;
+  /** Whether rendering inside embed iframe (#949). */
+  embed?: boolean;
+  /** Embed theme (?theme=, #949). */
+  theme?: string;
 }

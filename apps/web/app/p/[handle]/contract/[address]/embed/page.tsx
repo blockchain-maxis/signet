@@ -6,7 +6,7 @@ export const dynamic = 'force-dynamic';
 
 export interface EmbedPageProps {
   params: Promise<{ handle: string; address: string }>;
-  searchParams: Promise<{ theme?: string }>;
+  searchParams: Promise<{ theme?: string; expand?: string; q?: string }>;
 }
 
 /**
@@ -17,7 +17,7 @@ export interface EmbedPageProps {
  */
 export default async function ContractEmbedPage({ params, searchParams }: EmbedPageProps) {
   const { handle, address } = await params;
-  const { theme } = await searchParams;
+  const { theme, expand, q } = (await searchParams) ?? {};
 
   // Same 404 rule as the contract page
   const attribution = await attributeContract(handle, address);
@@ -46,7 +46,13 @@ export default async function ContractEmbedPage({ params, searchParams }: EmbedP
       }}
     >
       <div className="flex-1">
-        <ContractDiagram {...props} />
+        <ContractDiagram
+          {...props}
+          embed={true}
+          theme={theme}
+          expand={typeof expand === 'string' ? expand : undefined}
+          query={typeof q === 'string' ? q : undefined}
+        />
       </div>
 
       <footer className="mt-6 flex items-center justify-end border-t border-[#1f1d19] pt-3">

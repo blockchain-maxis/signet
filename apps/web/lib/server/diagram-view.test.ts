@@ -138,3 +138,35 @@ test('observed use draws heat counts, ranks by use on request, and links keep th
   // The collapse link keeps the range and the order.
   assert.match(ranked.regionHtml, /diagram\?range=24h&amp;order=use" data-group-toggle="admin"/);
 });
+
+test('in embed mode every href starts with the embed path or carries target="_blank"', () => {
+  const embedPath = `/p/alice/contract/${address}/embed`;
+  const view = drawContractDiagram(input({ embed: true, expand: 'pool', theme: 'dark' }));
+
+  const allHtml = `${view.regionHtml}\n${view.outlineHtml}`;
+  const anchorRegex = /<a\s+([^>]+)>/g;
+  let match;
+  let count = 0;
+  while ((match = anchorRegex.exec(allHtml)) !== null) {
+    count++;
+    const attrs = match[1]!;
+    const hrefMatch = attrs.match(/href="([^"]+)"/);
+    assert.ok(hrefMatch, `anchor must have href: ${match[0]}`);
+    const href = hrefMatch[1]!;
+    const hasTargetBlank = attrs.includes('target="_blank"');
+    const startsWithEmbed = href.startsWith(embedPath);
+
+    assert.ok(
+      startsWithEmbed || hasTargetBlank,
+      `href "${href}" must start with "${embedPath}" or carry target="_blank" in ${match[0]}`,
+    );
+
+    if (href.includes('/diagram?') || href.includes('/functions')) {
+      assert.ok(
+        hasTargetBlank,
+        `link pointing to ${href} must have target="_blank"`,
+      );
+    }
+  }
+  assert.ok(count > 0, 'must have checked at least one anchor tag');
+});

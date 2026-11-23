@@ -69,6 +69,8 @@ function DiagramBody(
     activity: props.activity,
     range: parseActivityRange(props.range),
     rankByFrequency: props.order === 'use',
+    embed: props.embed,
+    theme: props.theme,
   });
   const { decision, callsAlone, hasWrites, writesOnly } = view;
   const { mutability } = props;
@@ -146,6 +148,7 @@ function DiagramBody(
           )}
           {props.range && <input type="hidden" name="range" value={parseActivityRange(props.range)} />}
           {props.order === 'use' && <input type="hidden" name="order" value="use" />}
+          {props.embed && props.theme && <input type="hidden" name="theme" value={props.theme} />}
           <label
             className={`flex items-center gap-2 text-xs ${hasWrites ? 'text-[#f5f4ee]' : 'text-[#8a8779]'}`}
             title={
@@ -190,7 +193,7 @@ function DiagramBody(
       {view.collapsible && (
         <DiagramExpand
           region={DIAGRAM_REGION_ID}
-          fragmentPath={`${diagramPath(props.handle, props.address)}/fragment`}
+          fragmentPath={`${diagramPath(props.handle, props.address, props.embed)}/fragment`}
         />
       )}
       {mutability?.reason && (
@@ -318,7 +321,15 @@ export async function ContractDiagram(props: ContractSlotProps) {
           calls={calls}
           mutability={mutability}
           activity={activity}
-          storageOutline={storage ? renderStorageOutlineHtml(storage, hrefForType) : null}
+          storageOutline={
+            storage
+              ? renderStorageOutlineHtml(
+                  storage,
+                  hrefForType,
+                  props.embed ? () => '_blank' : undefined,
+                )
+              : null
+          }
         />
       </div>
       {props.spec.kind === 'spec' && (
@@ -341,6 +352,7 @@ export async function ContractDiagram(props: ContractSlotProps) {
                 href={`${basePath}/diagram.svg?view=storage&theme=auto`}
                 className="mb-3 inline-block text-xs underline underline-offset-4 focus-visible:outline focus-visible:outline-2"
                 download
+                {...(props.embed && { target: '_blank', rel: 'noopener' })}
               >
                 Download storage SVG
               </a>
@@ -355,6 +367,7 @@ export async function ContractDiagram(props: ContractSlotProps) {
                     title: `${props.handle} (${props.address}) storage, observed`,
                     hrefForType,
                     hrefForFunction: (name) => `${basePath}/functions#fn-${name}`,
+                    ...(props.embed && { target: '_blank' }),
                     ...(props.focus?.startsWith('slot:') && { focus: props.focus }),
                   }),
                 }}

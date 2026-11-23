@@ -56,6 +56,10 @@ export interface DiagramViewInput {
   readonly activity?: ActivityOverlay | null;
   readonly range?: ActivityRange;
   readonly rankByFrequency?: boolean;
+  /** Embed mode: external links get target="_blank" rel="noopener" (#949). */
+  readonly embed?: boolean;
+  /** Theme passed through in embed mode (#949). */
+  readonly theme?: string;
 }
 
 export interface DiagramView {
@@ -106,9 +110,10 @@ function escapeHtml(value: string): string {
     .replace(/'/g, '&#39;');
 }
 
-/** The Diagram tab's path. */
-export function diagramPath(handle: string, address: string): string {
-  return `/p/${encodeURIComponent(handle)}/contract/${encodeURIComponent(address)}/diagram`;
+/** The Diagram tab's path (or embed path in embed mode). */
+export function diagramPath(handle: string, address: string, embed?: boolean): string {
+  const segment = embed ? 'embed' : 'diagram';
+  return `/p/${encodeURIComponent(handle)}/contract/${encodeURIComponent(address)}/${segment}`;
 }
 
 /**
@@ -118,7 +123,7 @@ export function diagramPath(handle: string, address: string): string {
 export function diagramStateHref(
   input: Pick<
     DiagramViewInput,
-    'handle' | 'address' | 'query' | 'writesOnly' | 'expandCallees' | 'range' | 'rankByFrequency'
+    'handle' | 'address' | 'query' | 'writesOnly' | 'expandCallees' | 'range' | 'rankByFrequency' | 'embed' | 'theme'
   >,
   expand: readonly string[],
 ): string {
@@ -129,8 +134,9 @@ export function diagramStateHref(
   if (input.expandCallees) params.set('callees', 'all');
   if (input.range && input.range !== '7d') params.set('range', input.range);
   if (input.rankByFrequency) params.set('order', 'use');
+  if (input.embed && input.theme) params.set('theme', input.theme);
   const query = params.toString();
-  return `${diagramPath(input.handle, input.address)}${query ? `?${query}` : ''}`;
+  return `${diagramPath(input.handle, input.address, input.embed)}${query ? `?${query}` : ''}`;
 }
 
 /** Spec-only layouts by (wasmHash, layoutVersion, expanded groups): one entry per state. */
@@ -200,9 +206,23 @@ export function drawContractDiagram(input: DiagramViewInput): DiagramView {
     if (node?.kind === 'type') return `${basePath}/types#${typeAnchor(node.name)}`;
     if (node?.kind === 'callee' && node.address)
       return calls?.labels.get(node.address)?.href ?? null;
-    if (node?.id === CALLEES_MORE_ID) return `${basePath}/diagram?callees=all`;
+    if (node?.id === CALLEES_MORE_ID) {
+      if (input.embed) {
+        return `${diagramPath(input.handle, input.address, input.embed)}?callees=all${input.theme ? `&theme=${encodeURIComponent(input.theme)}` : ''}`;
+      }
+      return `${basePath}/diagram?callees=all`;
+    }
     return null;
   };
+
+  const targetForNode = input.embed
+    ? (nodeId: string) => {
+        const node = model.nodes.find((n) => n.id === nodeId);
+        if (node?.collapsed) return null;
+        if (node?.id === CALLEES_MORE_ID) return null;
+        return '_blank';
+      }
+    : undefined;
 
   // Read/write marks (#512): observed from indexed transactions, stated as such
   // under the diagram, never taken from the interface.
@@ -226,7 +246,7 @@ export function drawContractDiagram(input: DiagramViewInput): DiagramView {
   const outline = mutability
     ? withMarks(buildDiagramOutline(model), mutability.marks)
     : buildDiagramOutline(model);
-  const outlineHtml = renderOutlineHtml(outline, hrefForNode);
+  const outlineHtml = renderOutlineHtml(outline, hrefForNode, targetForNode);
 
   const cleanQuery = input.query?.trim().toLowerCase();
   const isFunction = (n: PositionedDiagramModel['nodes'][number]) => n.id.startsWith('fn:');
@@ -241,6 +261,7 @@ export function drawContractDiagram(input: DiagramViewInput): DiagramView {
     const svg = renderDiagramSvg(model, {
       idPrefix: `diagram-${input.address}-`,
       hrefForNode,
+      targetForNode,
       title: `${input.handle} (${input.address})`,
       ariaDescribedBy: 'diagram-outline',
       query: input.query,
