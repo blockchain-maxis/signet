@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 	"time"
@@ -165,10 +166,15 @@ error: could not compile `+"`"+pkg+"`"+` (lib) due to 2 previous errors
 	case "stale":
 		return
 	case "slow":
-		child := exec.Command(os.Args[0], "fake-sleep")
-		_ = child.Start()
-		pids := fmt.Sprintf("%d\n%d\n", os.Getpid(), child.Process.Pid)
-		_ = os.WriteFile(os.Getenv("FAKESTELLAR_PID_FILE"), []byte(pids), 0o600)
+		if p := os.Getenv("FAKESTELLAR_SLOW_STARTED"); p != "" {
+			_ = os.WriteFile(p, []byte("started"), 0o600)
+		}
+		if runtime.GOOS != "windows" {
+			child := exec.Command(os.Args[0], "fake-sleep")
+			_ = child.Start()
+			pids := fmt.Sprintf("%d\n%d\n", os.Getpid(), child.Process.Pid)
+			_ = os.WriteFile(os.Getenv("FAKESTELLAR_PID_FILE"), []byte(pids), 0o600)
+		}
 		time.Sleep(30 * time.Second)
 		return
 	}
