@@ -323,7 +323,14 @@ fn claim_allows_handles_that_only_resemble_reserved_names() {
     let (env, client, _admin) = setup();
 
     // Reservation is exact-match: superstrings of reserved names are fine.
-    for name in ["apps", "apiv2", "administrator", "profiles", "links", "www2"] {
+    for name in [
+        "apps",
+        "apiv2",
+        "administrator",
+        "profiles",
+        "links",
+        "www2",
+    ] {
         let handle = String::from_str(&env, name);
         client.claim(&handle, &Address::generate(&env));
         assert!(client.is_bound(&handle));
