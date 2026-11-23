@@ -15,9 +15,9 @@
  */
 
 import { fromSpecJson, type SpecJson } from '@signet/spec';
-import { diagramDecision, type DiagramDecision } from './decide.ts';
-import { buildContractGraph } from './graph.ts';
-import { layoutContractGraph, type LayoutOverlays, type PositionedDiagramModel } from './layout.ts';
+import type { DiagramDecision } from './decide.ts';
+import type { LayoutOverlays, PositionedDiagramModel } from './layout.ts';
+import { prepareDiagram } from './prepare.ts';
 import { renderStandaloneSvg } from './render.ts';
 import type { CallGraphOverlay } from './observe/call-graph.ts';
 import type { VizTheme } from './tokens.ts';
@@ -25,6 +25,8 @@ import type { VizTheme } from './tokens.ts';
 export interface VisualiseInput {
   readonly specJson: SpecJson;
   readonly theme: VizTheme | 'auto';
+  /** Groups to draw expanded (#946). */
+  readonly expand?: string[];
   /** For the footer: the contract the spec was read from. */
   readonly address?: string;
   readonly network?: string;
@@ -56,7 +58,6 @@ function listModel(model: PositionedDiagramModel): PositionedDiagramModel {
 
 export function visualise(input: VisualiseInput): VisualiseOutput {
   const spec = fromSpecJson(input.specJson);
-  const graph = buildContractGraph(spec);
   const calls = input.overlays?.calls;
   const overlays: LayoutOverlays = calls
     ? {
@@ -67,8 +68,10 @@ export function visualise(input: VisualiseInput): VisualiseOutput {
         },
       }
     : {};
-  const model = layoutContractGraph(graph, {}, overlays);
-  const decision = diagramDecision(graph, layoutContractGraph(graph));
+  const { model, decision } = prepareDiagram(spec, {
+    expand: input.expand,
+    overlays,
+  });
   const svg = renderStandaloneSvg(decision.kind === 'draw' ? model : listModel(model), {
     theme: input.theme,
     provenance: {

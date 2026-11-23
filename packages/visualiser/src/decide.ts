@@ -64,16 +64,15 @@ export function diagramDecision(graph: DecidableGraph, model: DiagramModel): Dia
     return { kind: 'too-large', nodeCount: positioned.rawNodeCount ?? graph.nodes.length };
   }
 
+  // Too large: more than MAX_NODES after grouping/collapsing.
+  if (graph.nodes.length > MAX_NODES) {
+    return { kind: 'too-large', nodeCount: graph.nodes.length };
+  }
+
   // Too simple: no spec-derived edges. The registry has 8 functions, 0 types,
   // 0 edges — the docs already say everything.
   if (graph.edges.length <= MIN_EDGES) {
     return { kind: 'too-simple', reason: 'no spec-derived edges to draw' };
-  }
-
-  // Too large: more than MAX_NODES after grouping/collapsing.
-  // For now we count all nodes; #502 will refine this to count after grouping.
-  if (graph.nodes.length > MAX_NODES) {
-    return { kind: 'too-large', nodeCount: graph.nodes.length };
   }
 
   return { kind: 'draw' };

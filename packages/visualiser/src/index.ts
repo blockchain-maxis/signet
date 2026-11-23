@@ -282,6 +282,10 @@ export {
 export type { CollapseOptions } from './collapse.ts';
 export type { CollapsedGroup } from './graph.ts';
 
+// Pure pipeline (#946): build -> collapse -> layout -> decide.
+export { prepareDiagram } from './prepare.ts';
+export type { PrepareDiagramOptions, PreparedDiagram } from './prepare.ts';
+
 // Activity overlay (#518): use over a range from indexed invocations.
 export {
   ACTIVITY_RANGES,

@@ -1,7 +1,6 @@
 import { fromSpecJson } from '@signet/spec';
 import {
-  buildContractGraph,
-  layoutContractGraph,
+  prepareDiagram,
   renderStandaloneSvg,
   renderStorageSvg,
   MAX_NODES,
@@ -41,6 +40,7 @@ export async function exportContractDiagram(
   if (view !== 'interface' && view !== 'storage') {
     return new Response('Invalid view', { status: 400, headers });
   }
+  const expand = new URL(request.url).searchParams.get('expand');
   const { address, wasmHash } = attribution.contract;
   const network = normalizeNetwork(attribution.contract.network);
   const download = (svg: string, name: string) =>
@@ -74,17 +74,15 @@ export async function exportContractDiagram(
   const result = await deps.loadSpec({ address, network, wasmHash });
   if (!result.ok) return new Response('Contract interface unavailable', { status: 503, headers });
   try {
-    // #497 will cache this pure layout by (wasmHash, layoutVersion). Reuse the
-    // canonical spec resolver now; do not create a competing layout cache.
-    const graph = buildContractGraph(fromSpecJson(result.spec));
-    if (graph.nodes.length > MAX_NODES) {
+    const prepared = prepareDiagram(fromSpecJson(result.spec), { expand });
+    if (prepared.decision.kind === 'too-large') {
       logger.warn(
-        { address, limit: MAX_NODES, observed: graph.nodes.length },
+        { address, limit: MAX_NODES, observed: prepared.graph.nodes.length },
         'spec.limit.exceeded',
       );
       return new Response('Diagram too large to export', { status: 422, headers });
     }
-    const svg = renderStandaloneSvg(layoutContractGraph(graph), {
+    const svg = renderStandaloneSvg(prepared.model, {
       theme,
       provenance: { address, network, wasmHash: result.wasmHash },
     });
