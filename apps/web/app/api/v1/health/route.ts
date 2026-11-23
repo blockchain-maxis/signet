@@ -25,6 +25,7 @@ export async function v1HealthData(probes: HealthProbes = {}) {
     network: getConfiguredNetwork(),
     networkPassphrase: getNetworkPassphrase(),
     checks: report.checks,
+    ...(report.indexer ? { indexer: report.indexer } : {}),
   };
 }
 

@@ -48,6 +48,24 @@ export interface TickSummary {
   durationMs: number;
 }
 
+export interface HeartbeatStore {
+  upsertHeartbeat: (heartbeat: {
+    worker: string;
+    lastSuccessAt?: Date;
+    lastFailureAt?: Date;
+    lastError?: string | null;
+  }) => Promise<void>;
+}
+
+/**
+ * Truncate lastError to 200 chars and redact URLs (docs/API_V1.md:103-104).
+ */
+export function sanitizeLastError(err: unknown): string {
+  const raw = err instanceof Error ? `${err.name}: ${err.message}` : String(err);
+  const withoutUrls = raw.replace(/https?:\/\/[^\s)\]]+/gi, '[redacted]');
+  return withoutUrls.slice(0, 200);
+}
+
 /**
  * Runs one worker and keeps a failure inside it. A worker that throws is
  * logged as `worker.failed` and counts as `zero` in the tick's totals, so the
@@ -57,11 +75,34 @@ export async function runWorker<T>(
   name: string,
   fn: () => Promise<T>,
   zero: T,
+  heartbeat?: HeartbeatStore,
 ): Promise<{ result: T; failed: boolean }> {
   try {
-    return { result: await fn(), failed: false };
+    const result = await fn();
+    if (heartbeat) {
+      try {
+        await heartbeat.upsertHeartbeat({
+          worker: name,
+          lastSuccessAt: new Date(),
+        });
+      } catch (hbErr) {
+        logger.warn({ worker: name, error: String(hbErr) }, 'heartbeat.writeFailed');
+      }
+    }
+    return { result, failed: false };
   } catch (err) {
     logger.error({ worker: name, error: String(err) }, 'worker.failed');
+    if (heartbeat) {
+      try {
+        await heartbeat.upsertHeartbeat({
+          worker: name,
+          lastFailureAt: new Date(),
+          lastError: sanitizeLastError(err),
+        });
+      } catch (hbErr) {
+        logger.warn({ worker: name, error: String(hbErr) }, 'heartbeat.writeFailed');
+      }
+    }
     return { result: zero, failed: true };
   }
 }
@@ -74,13 +115,16 @@ export async function runWorker<T>(
  * This never rejects because a worker failed. The summary's `failedWorkers`
  * names the ones that did.
  */
-export async function runTick(workers: TickWorkers): Promise<TickSummary> {
+export async function runTick(
+  workers: TickWorkers,
+  heartbeat?: HeartbeatStore,
+): Promise<TickSummary> {
   const start = Date.now();
   logger.debug({}, 'tick.start');
 
   const failedWorkers: string[] = [];
   const run = async <T>(name: string, fn: () => Promise<T>, zero: T): Promise<T> => {
-    const { result, failed } = await runWorker(name, fn, zero);
+    const { result, failed } = await runWorker(name, fn, zero, heartbeat);
     if (failed) failedWorkers.push(name);
     return result;
   };
@@ -143,6 +187,18 @@ export async function runTick(workers: TickWorkers): Promise<TickSummary> {
     durationMs: Date.now() - start,
   };
   logger.info({ ...summary }, 'tick.summary');
+
+  if (heartbeat) {
+    try {
+      await heartbeat.upsertHeartbeat({
+        worker: 'tick',
+        lastSuccessAt: new Date(),
+      });
+    } catch (err) {
+      logger.warn({ worker: 'tick', error: String(err) }, 'heartbeat.writeFailed');
+    }
+  }
+
   return summary;
 }
 

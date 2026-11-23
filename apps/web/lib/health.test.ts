@@ -4,6 +4,7 @@ import { nativeToScVal, type Transaction } from '@stellar/stellar-sdk';
 import type { SimulatingServer } from './server/registry-read.ts';
 import {
   CHECK_TIMEOUT_MS,
+  checkIndexer,
   checkRegistry,
   collectHealth,
   overallStatus,
@@ -231,4 +232,92 @@ test('the report includes pairing, derived from the checks beside it', async () 
   const withoutDb = await collectHealth({ db: probe('down'), registry: probe('up') });
   assert.equal(withoutDb.checks.pairing, 'down');
   assert.equal(withoutDb.status, 'degraded');
+});
+
+// ── indexer check ─────────────────────────────────────────────────────────
+
+test('checkIndexer returns skipped when no database is configured', async () => {
+  const originalDb = process.env.DATABASE_URL;
+  delete process.env.DATABASE_URL;
+  try {
+    const res = await checkIndexer();
+    assert.deepEqual(res, {
+      status: 'skipped',
+      lastTickAt: null,
+      lagSeconds: null,
+    });
+  } finally {
+    if (originalDb) process.env.DATABASE_URL = originalDb;
+  }
+});
+
+test('checkIndexer returns down when tick row is missing', async () => {
+  const mockPrisma = {
+    indexerHeartbeat: {
+      findUnique: async () => null,
+      findMany: async () => [],
+    },
+  };
+  const res = await checkIndexer({ prisma: mockPrisma as any });
+  assert.deepEqual(res, {
+    status: 'down',
+    lastTickAt: null,
+    lagSeconds: null,
+  });
+});
+
+test('checkIndexer returns up for a fresh heartbeat', async () => {
+  const now = Date.now();
+  const tickTime = new Date(now - 30_000); // 30s ago
+  const mockPrisma = {
+    indexerHeartbeat: {
+      findMany: async () => [
+        {
+          worker: 'tick',
+          lastSuccessAt: tickTime,
+          lastFailureAt: null,
+          lastError: null,
+        },
+      ],
+    },
+  };
+  const res = await checkIndexer({
+    prisma: mockPrisma as any,
+    now: () => now,
+  });
+  assert.equal(res.status, 'up');
+  assert.equal(res.lastTickAt, tickTime.toISOString());
+  assert.equal(res.lagSeconds, 30);
+});
+
+test('checkIndexer returns down and degrades probe for a 20-minute-old heartbeat', async () => {
+  const now = Date.now();
+  const tickTime = new Date(now - 20 * 60 * 1000); // 20m ago
+  const mockPrisma = {
+    indexerHeartbeat: {
+      findMany: async () => [
+        {
+          worker: 'tick',
+          lastSuccessAt: tickTime,
+          lastFailureAt: null,
+          lastError: null,
+        },
+      ],
+    },
+  };
+  const res = await checkIndexer({
+    prisma: mockPrisma as any,
+    now: () => now,
+  });
+  assert.equal(res.status, 'down');
+  assert.equal(res.lastTickAt, tickTime.toISOString());
+  assert.equal(res.lagSeconds, 1200);
+
+  const report = await collectHealth({
+    db: probe('up'),
+    registry: probe('up'),
+    indexer: async () => res,
+  });
+  assert.equal(report.status, 'degraded');
+  assert.equal(report.indexer.status, 'down');
 });

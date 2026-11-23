@@ -791,6 +791,20 @@ export interface operations {
                                 /** @enum {string} */
                                 registry: "up" | "down" | "skipped";
                             };
+                            indexer?: {
+                                /** @description Seconds since the last completed indexer tick, or null. */
+                                lagSeconds: number | null;
+                                /**
+                                 * Format: date-time
+                                 * @description ISO-8601 UTC timestamp of the last completed indexer tick, or null.
+                                 */
+                                lastTickAt: string | null;
+                                /**
+                                 * @description Freshness verdict for the indexer background service.
+                                 * @enum {string}
+                                 */
+                                status: "up" | "down" | "skipped";
+                            };
                             /** @description The Stellar network this deployment is configured for. */
                             network: string;
                             networkPassphrase: string;

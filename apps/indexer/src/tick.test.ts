@@ -141,6 +141,57 @@ test('runWorker also catches a worker that throws before it returns a promise', 
   assert.equal(lines[0]!.fields.error, 'TypeError: reader is not a function');
 });
 
+test('a failing worker writes lastFailureAt and leaves lastSuccessAt unchanged', async () => {
+  const heartbeats: Record<
+    string,
+    { lastSuccessAt?: Date; lastFailureAt?: Date; lastError?: string | null }
+  > = {
+    activity: { lastSuccessAt: new Date('2026-01-01T00:00:00Z') },
+  };
+  const store = {
+    async upsertHeartbeat({
+      worker,
+      lastSuccessAt,
+      lastFailureAt,
+      lastError,
+    }: {
+      worker: string;
+      lastSuccessAt?: Date;
+      lastFailureAt?: Date;
+      lastError?: string | null;
+    }) {
+      const prev = heartbeats[worker] || {};
+      heartbeats[worker] = {
+        lastSuccessAt: lastSuccessAt ?? prev.lastSuccessAt,
+        lastFailureAt: lastFailureAt ?? prev.lastFailureAt,
+        lastError: lastError !== undefined ? lastError : prev.lastError,
+      };
+    },
+  };
+  await runWorker('activity', throwing('database is gone'), { snapshotsWritten: 0 }, store);
+  assert.equal(heartbeats.activity?.lastSuccessAt?.toISOString(), '2026-01-01T00:00:00.000Z');
+  assert.ok(heartbeats.activity?.lastFailureAt);
+  assert.equal(heartbeats.activity?.lastError, 'Error: database is gone');
+});
+
+test('runWorker sanitizes lastError by redacting URLs and truncating to 200 chars', async () => {
+  const heartbeats: Record<string, any> = {};
+  const store = {
+    async upsertHeartbeat(entry: any) {
+      heartbeats[entry.worker] = entry;
+    },
+  };
+  const longUrlMsg =
+    'Failed to connect to https://soroban-testnet.stellar.org/rpc/v1 and http://secret.internal/api ' +
+    'x'.repeat(300);
+  await runWorker('attestation', throwing(longUrlMsg), { eventsDecoded: 0 }, store);
+  assert.ok(heartbeats.attestation?.lastFailureAt);
+  assert.ok(!heartbeats.attestation?.lastError.includes('https://soroban-testnet.stellar.org'));
+  assert.ok(!heartbeats.attestation?.lastError.includes('http://secret.internal'));
+  assert.ok(heartbeats.attestation?.lastError.includes('[redacted]'));
+  assert.ok(heartbeats.attestation?.lastError.length <= 200);
+});
+
 // ─── runTick ────────────────────────────────────────────────────────────────
 
 test('runTick runs every worker in order and adds up what they return', async () => {
