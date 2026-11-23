@@ -442,6 +442,8 @@ cache and the session log
 - `cli-sandbox-doctor` (`cli-sandbox-doctor.json`) is not a wire message either: it is what
   `signet sandbox doctor --json` writes ([#591](https://github.com/blockchain-maxis/signet/issues/591)),
   the lanes from the `hello_ack` beside each network's live protocol.
+- `cli-error` (`cli-error.json`) is not a wire message either: it is the structured error `signet`
+  writes to stderr under `--json` ([#920](https://github.com/blockchain-maxis/signet/issues/920)).
 - [`sandbox/protocol/transcripts/*.ndjson`](../sandbox/protocol/transcripts):
   golden transcripts, one message per line, in the order they cross the pipe:
   the handshake, a version mismatch, a simple `simulate`, a `ledger_fetch` round
