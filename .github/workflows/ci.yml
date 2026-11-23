@@ -310,9 +310,12 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
+      # The stable toolchain is installed with the minimal profile, so the two
+      # components the hygiene steps below need are asked for by name.
       - uses: dtolnay/rust-toolchain@stable
         with:
           targets: wasm32v1-none
+          components: rustfmt, clippy
 
       - name: Cache cargo
         uses: actions/cache@v6
@@ -323,8 +326,9 @@ jobs:
             packages/contracts/target
           key: cargo-${{ hashFiles('packages/contracts/Cargo.lock') }}
 
-      # soroban-sdk 28 refuses a plain `cargo build` for a contract and
-      # requires `stellar contract build` with stellar-cli >= 25.2.0.
+      # soroban-sdk 29 (Cargo.lock pins 29.0.1) refuses a plain `cargo build`
+      # for a contract and requires `stellar contract build` with
+      # stellar-cli >= 25.2.0.
       - name: Install stellar-cli
         env:
           STELLAR_CLI_VERSION: 25.2.0
@@ -333,9 +337,46 @@ jobs:
             | tar -xz -C "$RUNNER_TEMP" stellar
           echo "$RUNNER_TEMP" >> "$GITHUB_PATH"
 
+      # The same hygiene the sandbox job has: formatting, clippy with warnings
+      # as errors, and a lockfile that is not rewritten behind our back.
+      - name: Format check
+        working-directory: packages/contracts
+        run: cargo fmt --all --check
+
+      - name: Clippy
+        working-directory: packages/contracts
+        run: cargo clippy --locked --all-targets -- -D warnings
+
+      # The committed snapshots are removed first, so the run writes every one of
+      # them again. A snapshot whose test was deleted is then missing, and the
+      # next step reports it like any other difference.
       - name: Test
         working-directory: packages/contracts
-        run: cargo test
+        run: |
+          rm -rf identity-registry/test_snapshots
+          cargo test --locked
+
+      # Each unit test writes a snapshot of what it observed (events, storage,
+      # auth) under test_snapshots/, and those files are committed so a change
+      # in behaviour is a reviewable diff (packages/contracts/README.md). The
+      # run above rewrote them in the runner, so anything that now differs from
+      # the commit is a change nobody has looked at: a snapshot that changed, a
+      # new test whose snapshot was not added, or a snapshot left behind by a
+      # test that no longer exists.
+      - name: Snapshots match what is committed
+        working-directory: packages/contracts
+        run: |
+          snapshots=identity-registry/test_snapshots
+          git diff --exit-code -- "$snapshots" && clean=yes || clean=no
+          untracked=$(git status --porcelain --untracked-files=all -- "$snapshots" | grep '^??' || true)
+          if [ "$clean" = no ] || [ -n "$untracked" ]; then
+            if [ -n "$untracked" ]; then
+              echo "Snapshots that are not committed:"
+              echo "$untracked"
+            fi
+            echo "::error::The contract tests left $snapshots different from what is committed. Run \`cargo test\` in packages/contracts and commit the snapshots."
+            exit 1
+          fi
 
       - name: Build wasm
         working-directory: packages/contracts
@@ -354,7 +395,7 @@ jobs:
 
       # Guardrail against accidental contract bloat — a heavy dependency, a
       # broken release profile (opt-level/lto/strip), or unbounded logic can
-      # balloon the deployment artifact. identity-registry is ~9 KB today; the
+      # balloon the deployment artifact. identity-registry is ~7 KB today; the
       # 20 KB budget leaves headroom for planned growth while still catching a
       # regression. Bump BUDGET_BYTES deliberately when a size increase is
       # expected and justified.

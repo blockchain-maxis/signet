@@ -18,7 +18,7 @@ Rust/Soroban smart contracts for Signet, managed as a Cargo workspace
   rustup target add wasm32v1-none
   ```
 
-- Stellar CLI v25.2.0 or newer (required: soroban-sdk 28 only builds through `stellar contract build`):
+- Stellar CLI v25.2.0 or newer (required: soroban-sdk 29 only builds through `stellar contract build`):
 
   ```bash
   cargo install --locked stellar-cli
