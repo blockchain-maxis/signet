@@ -54,6 +54,16 @@ test('the handle directory says so, and lists nothing, when no registry is confi
   await expect(page.getByText(/handles? currently bound on the Identity Registry/i)).toHaveCount(0);
 });
 
+test('/handles?q=zz renders search form and empty caption when no registry configured', async ({
+  page,
+}) => {
+  await page.goto('/handles?q=zz');
+  await expect(page.getByRole('heading', { name: 'Handles' })).toBeVisible();
+  await expect(page.getByRole('searchbox', { name: /search handles/i })).toBeVisible();
+  await expect(page.getByText(/No Identity Registry is configured/i)).toBeVisible();
+  await expect(page.locator('a[href^="/p/"]')).toHaveCount(0);
+});
+
 test('closing CTA is a real connect-wallet button, not a dead link', async ({ page }) => {
   await page.goto('/');
   // The closing section, anchored by its headline.
