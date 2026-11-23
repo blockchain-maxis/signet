@@ -128,9 +128,11 @@ Every state change publishes one event. The topic tuple is always
 | `released` | `[ symbol("released"), string(handle) ]` | `address(wallet)` | `release` |
 | `revoked` | `[ symbol("revoked"), string(handle) ]` | `address(wallet)` | `admin_revoke` |
 | `transferred` † | `[ symbol("transferred"), string(handle) ]` | `[ address(from), address(to) ]` (a 2-tuple) | `transfer_handle` |
+| `admin_changed` † | `[ symbol("admin_changed") ]` | `[ address(old_admin), address(new_admin) ]` (a 2-tuple) | `set_admin` |
+| `initialized` † | `[ symbol("initialized") ]` | `address(admin)` | `initialize` |
 
-† `transfer_handle` is not in the deployed wasm (see §2), so the pinned deployment never
-emits `transferred`. It is documented here so consumers written now keep working after the
+† `transfer_handle`, `set_admin` and `initialized` are not in the deployed wasm (see §2), so the pinned deployment never
+emits `transferred`, `admin_changed` or `initialized`. They are documented here so consumers written now keep working after the
 next deployment.
 
 Decoding one event:

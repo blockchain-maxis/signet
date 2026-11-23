@@ -59,14 +59,21 @@ fn setup() -> (Env, IdentityRegistryClient<'static>, Address) {
 }
 
 #[test]
-fn initialize_publishes_no_events() {
+fn initialize_emits_event() {
     let env = Env::default();
     env.mock_all_auths();
     let contract_id = env.register(IdentityRegistry, ());
     let client = IdentityRegistryClient::new(&env, &contract_id);
     let admin = Address::generate(&env);
     client.initialize(&admin);
-    assert_eq!(last_events(&env).len(), 0, "initialize must publish no events");
+    assert_single_event(
+        &env,
+        vec![
+            &env,
+            Symbol::new(&env, "initialized").into_val(&env),
+        ],
+        admin.into_val(&env),
+    );
 }
 
 #[test]

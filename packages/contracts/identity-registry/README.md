@@ -36,7 +36,7 @@ registry and migrating; budget for that rather than assuming a patch path.
 
 | Method | Auth | Description |
 |--------|------|-------------|
-| `initialize(admin)` | `admin` | One-time; sets the moderation admin. |
+| `initialize(admin)` | `admin` | One-time; sets the moderation admin. Emits `initialized`. |
 | `set_admin(new_admin)` | current `admin` | Rotate moderation authority. Emits `admin_changed`. |
 | `claim(handle, wallet)` | `wallet` | Bind `handle` ↔ `wallet`. Emits `claimed`. |
 | `release(handle)` | owning wallet | Remove your binding. Emits `released`. |
@@ -47,6 +47,19 @@ registry and migrating; budget for that rather than assuming a patch path.
 | `is_bound(handle) -> bool` | — | Whether a handle is taken. |
 | `count() -> u32` | — | Number of bound handles (O(1)). |
 | `resolve_batch(handles) -> Vec<Option<Address>>` | — | Positional multi-resolve, max 100. |
+
+## Declared Events
+
+The contract declares typed events using `#[contractevent]`:
+
+| Event | Topics | Data | Description |
+|-------|--------|------|-------------|
+| `Claimed` | `[ symbol("claimed"), string(handle) ]` | `address(wallet)` | Handle bound to a wallet. |
+| `Released` | `[ symbol("released"), string(handle) ]` | `address(wallet)` | Handle voluntarily released. |
+| `Revoked` | `[ symbol("revoked"), string(handle) ]` | `address(wallet)` | Handle force-unbound by admin. |
+| `Transferred` | `[ symbol("transferred"), string(handle) ]` | `[ address(from), address(to) ]` | Handle moved to new wallet. |
+| `AdminChanged` | `[ symbol("admin_changed") ]` | `[ address(old_admin), address(new_admin) ]` | Moderation admin rotated. |
+| `Initialized` | `[ symbol("initialized") ]` | `address(admin)` | Registry initialized with admin. |
 
 ## Storage lifetime
 
