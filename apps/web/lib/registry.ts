@@ -12,10 +12,14 @@
  * state instead of a broken button.
  */
 
-import { signTransaction, NETWORK_PASSPHRASE } from './wallet';
+import { signTransaction, NETWORK_PASSPHRASE } from './wallet.ts';
 
 const CONTRACT_ID = process.env.NEXT_PUBLIC_IDENTITY_REGISTRY_ID ?? '';
 const RPC_URL = process.env.NEXT_PUBLIC_SOROBAN_RPC_URL ?? 'https://soroban-testnet.stellar.org';
+
+function getContractId(): string {
+  return process.env.NEXT_PUBLIC_IDENTITY_REGISTRY_ID ?? CONTRACT_ID;
+}
 
 export class RegistryNotConfiguredError extends Error {
   constructor() {
@@ -25,7 +29,7 @@ export class RegistryNotConfiguredError extends Error {
 }
 
 export function isRegistryConfigured(): boolean {
-  return CONTRACT_ID.length > 0;
+  return getContractId().length > 0;
 }
 
 export interface ClaimResult {
@@ -66,6 +70,64 @@ export async function claimHandle(handle: string, walletAddress: string): Promis
   const sent = await server.sendTransaction(signedTx);
   if (sent.status === 'ERROR') {
     throw new Error(`Claim submission failed: ${JSON.stringify(sent.errorResult ?? sent)}`);
+  }
+
+  return { hash: sent.hash };
+}
+
+export interface ReleaseResult {
+  hash: string;
+}
+
+export interface BuildReleaseOptions {
+  contractId?: string;
+  fee?: string;
+  networkPassphrase?: string;
+  timeout?: number;
+}
+
+/** Build the un-simulated release(handle) transaction. */
+export async function buildReleaseTransaction(
+  account: any,
+  handle: string,
+  options?: BuildReleaseOptions,
+): Promise<any> {
+  const { Contract, TransactionBuilder, BASE_FEE, nativeToScVal } =
+    await import('@stellar/stellar-sdk');
+
+  const contractId = options?.contractId ?? getContractId();
+  const contract = new Contract(contractId);
+  const op = contract.call('release', nativeToScVal(handle, { type: 'string' }));
+
+  return new TransactionBuilder(account, {
+    fee: options?.fee ?? BASE_FEE,
+    networkPassphrase: options?.networkPassphrase ?? NETWORK_PASSPHRASE,
+  })
+    .addOperation(op)
+    .setTimeout(options?.timeout ?? 60)
+    .build();
+}
+
+/** Release `handle` owned by the connected `walletAddress`. */
+export async function releaseHandle(handle: string, walletAddress: string): Promise<ReleaseResult> {
+  if (!isRegistryConfigured()) throw new RegistryNotConfiguredError();
+
+  const { TransactionBuilder, rpc } = await import('@stellar/stellar-sdk');
+
+  const server = new rpc.Server(RPC_URL, { allowHttp: RPC_URL.startsWith('http://') });
+  const account = await server.getAccount(walletAddress);
+
+  const tx = await buildReleaseTransaction(account, handle);
+
+  // Simulate + assemble (adds Soroban resource footprint and fees).
+  const prepared = await server.prepareTransaction(tx);
+
+  const signedXdr = await signTransaction(prepared.toXDR(), walletAddress);
+  const signedTx = TransactionBuilder.fromXDR(signedXdr, NETWORK_PASSPHRASE);
+
+  const sent = await server.sendTransaction(signedTx);
+  if (sent.status === 'ERROR') {
+    throw new Error(`Release submission failed: ${JSON.stringify(sent.errorResult ?? sent)}`);
   }
 
   return { hash: sent.hash };
