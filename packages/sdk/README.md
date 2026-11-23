@@ -168,9 +168,9 @@ const { verified, attribution } = await signet.verifyDeployment('alice', 'CA…'
 
 | Method | Requests | Returns |
 |--|--|--|
-| `listProfiles({ limit, cursor })` | `GET /api/v1/profiles` | `{ data, meta }`: one page of the handle directory, in handle order |
+| `listProfiles({ limit, cursor, signal })` | `GET /api/v1/profiles` | `{ data, meta }`: one page of the handle directory, in handle order |
 | `getWallets(handle)` | `GET /api/v1/profiles/{handle}/wallets` | every linked wallet, primary first, or `null` |
-| `listOperations(handle, { limit, cursor })` | `GET /api/v1/profiles/{handle}/operations` | `{ data, meta }`: one page |
+| `listOperations(handle, { limit, cursor, signal })` | `GET /api/v1/profiles/{handle}/operations` | `{ data, meta }`: one page |
 | `lookupAddress(address)` | `GET /api/v1/lookup/{address}` | `{ address, handle, source, isPrimary, network }` (`handle` null when unlinked) |
 | `getRegistryStats()` | `GET /api/v1/registry/stats` | `{ boundHandles, indexedContracts, indexedWallets, network }` |
 | `getHealth()` | `GET /api/v1/health` | the deployment's health checks |
@@ -201,14 +201,20 @@ const profiles = signet.iterateProfiles();
 for await (const p of profiles) console.log(p.handle, p.primaryWallet);
 ```
 
-### `client.request(path, { query })`
+### `client.request(path, { query, signal })`
 
 The transport the methods use, for any v1 endpoint: `GET {baseUrl}/api/v1{path}`, with
-`query` as the query string (`undefined` and `null` values left out). Resolves to the
-whole `{ data, meta }` envelope and throws the typed errors below.
+`query` as the query string (`undefined` and `null` values left out) and optional `signal`
+to cancel the request. Resolves to the whole `{ data, meta }` envelope and throws the
+typed errors below. An aborted signal cancels in-flight fetches immediately, rejects with the
+abort reason, and is never retried.
 
 ```ts
-const page = await signet.request('/profiles/alice/contracts', { query: { limit: 10 } });
+const controller = new AbortController();
+const page = await signet.request('/profiles/alice/contracts', {
+  query: { limit: 10 },
+  signal: controller.signal,
+});
 ```
 
 ### `client.listHandles()` *(deprecated)*
@@ -248,6 +254,7 @@ and the v1 envelope's `code`:
 | Class | When | Extra fields |
 |--|--|--|
 | `ValidationError` | `400`: a malformed handle, address, cursor or limit | `code`, `parameter` |
+| `UnauthorizedError` | `401`: missing, invalid or revoked API key | `code` |
 | `NotFoundError` | `404`, from `request()` (the named lookups return `null` instead) | `code` |
 | `RateLimitedError` | `429` | `code`, `retryAfterSeconds` (from `Retry-After`, or `null`) |
 | `UnavailableError` | `503`: no layer the deployment reads could answer | `code` |

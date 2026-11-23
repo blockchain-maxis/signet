@@ -11,6 +11,7 @@ export type {
 export {
   SignetError,
   NotFoundError,
+  UnauthorizedError,
   ValidationError,
   RateLimitedError,
   UnavailableError,

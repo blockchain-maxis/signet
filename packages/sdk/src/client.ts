@@ -12,6 +12,7 @@ import {
   NetworkError,
   NotFoundError,
   RateLimitedError,
+  UnauthorizedError,
   UnavailableError,
   ValidationError,
 } from './errors.ts';
@@ -84,6 +85,8 @@ interface V1ErrorBody {
 export interface RequestOptions {
   /** Query parameters; undefined and null values are left out. */
   query?: Record<string, string | number | undefined | null>;
+  /** Optional AbortSignal to cancel the request. */
+  signal?: AbortSignal;
 }
 
 const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
@@ -129,22 +132,47 @@ export class SignetClient {
    * `NetworkError` when the request never reached the server (including a
    * timeout); otherwise the typed error for the status (see `toError`).
    */
-  private async send<T>(path: string, label: string): Promise<T> {
+  private async send<T>(path: string, label: string, signal?: AbortSignal): Promise<T> {
+    if (signal?.aborted) {
+      throw signal.reason !== undefined
+        ? signal.reason
+        : new DOMException('This operation was aborted', 'AbortError');
+    }
+
     const url = `${this.baseUrl}${path}`;
     const headers: Record<string, string> = { accept: 'application/json' };
     if (this.apiKey) headers.authorization = `Bearer ${this.apiKey}`;
 
     for (let attempt = 0; ; attempt++) {
+      if (signal?.aborted) {
+        throw signal.reason !== undefined
+          ? signal.reason
+          : new DOMException('This operation was aborted', 'AbortError');
+      }
       const retriesLeft = attempt < this.maxRetries;
       const controller = new AbortController();
+      let callerAborted = false;
+
+      const onCallerAbort = () => {
+        callerAborted = true;
+        controller.abort(signal!.reason);
+      };
+
+      if (signal) {
+        signal.addEventListener('abort', onCallerAbort, { once: true });
+      }
+
       // The timer covers reading the body too, not just the response headers —
       // a server that streams one byte an hour is as stalled as a dead socket.
-      const timer = setTimeout(() => controller.abort(), this.timeoutMs);
+      const timer = setTimeout(() => controller.abort(new Error('timeout')), this.timeoutMs);
       try {
         let res: Response;
         try {
           res = await this.fetchImpl(url, { headers, signal: controller.signal });
         } catch (cause) {
+          if (signal?.aborted || callerAborted) {
+            throw signal!.reason !== undefined ? signal!.reason : cause;
+          }
           if (retriesLeft) {
             await this.backoff(attempt);
             continue;
@@ -172,9 +200,20 @@ export class SignetClient {
           }
           throw err;
         }
-        return (await res.json()) as T;
+
+        try {
+          return (await res.json()) as T;
+        } catch (cause) {
+          if (signal?.aborted || callerAborted) {
+            throw signal!.reason !== undefined ? signal!.reason : cause;
+          }
+          throw cause;
+        }
       } finally {
         clearTimeout(timer);
+        if (signal) {
+          signal.removeEventListener('abort', onCallerAbort);
+        }
       }
     }
   }
@@ -192,6 +231,8 @@ export class SignetClient {
     switch (res.status) {
       case 400:
         return new ValidationError(message, { code, parameter: body.error?.details?.parameter });
+      case 401:
+        return new UnauthorizedError(message, { code });
       case 404:
         return new NotFoundError(message, { code });
       case 429:
@@ -219,7 +260,7 @@ export class SignetClient {
       if (value !== undefined && value !== null) params.set(key, String(value));
     }
     const qs = params.toString() ? `?${params}` : '';
-    return this.send<V1Envelope<T, M>>(`/api/v1${path}${qs}`, path);
+    return this.send<V1Envelope<T, M>>(`/api/v1${path}${qs}`, path, options.signal);
   }
 
   /** As `request`, but a 404 is the answer `null`; every other error still throws. */
@@ -258,8 +299,12 @@ export class SignetClient {
    * `nextCursor` page by page. As with `iterateContracts`, `truncated` is true
    * once the iteration is done when the deployment's list was partial.
    */
-  iterateProfiles(options: { pageSize?: number } = {}): PageIterator<V1Schemas['ProfileListItem']> {
-    return new PageIterator((cursor) => this.listProfiles({ cursor, limit: options.pageSize }));
+  iterateProfiles(
+    options: { pageSize?: number; signal?: AbortSignal } = {},
+  ): PageIterator<V1Schemas['ProfileListItem']> {
+    return new PageIterator((cursor) =>
+      this.listProfiles({ cursor, limit: options.pageSize, signal: options.signal }),
+    );
   }
 
   /**
@@ -406,26 +451,27 @@ export class SignetClient {
    */
   iterateContracts(
     handle: Handle,
-    options: { pageSize?: number } = {},
+    options: { pageSize?: number; signal?: AbortSignal } = {},
   ): PageIterator<V1Schemas['ProfileContract']> {
     return new PageIterator((cursor) =>
-      this.listContracts(handle, { cursor, limit: options.pageSize }),
+      this.listContracts(handle, { cursor, limit: options.pageSize, signal: options.signal }),
     );
   }
 
   /** Every operation of a handle, as `iterateContracts` does for contracts. */
   iterateOperations(
     handle: Handle,
-    options: { pageSize?: number } = {},
+    options: { pageSize?: number; signal?: AbortSignal } = {},
   ): PageIterator<V1Schemas['Operation']> {
     return new PageIterator((cursor) =>
-      this.listOperations(handle, { cursor, limit: options.pageSize }),
+      this.listOperations(handle, { cursor, limit: options.pageSize, signal: options.signal }),
     );
   }
 
   private async page<T, M>(path: string, options: PageOptions): Promise<Page<T, M>> {
     const res = await this.request<T[], M>(path, {
       query: { limit: options.limit, cursor: options.cursor },
+      signal: options.signal,
     });
     return { data: res.data, meta: res.meta as M };
   }
@@ -436,6 +482,8 @@ export interface PageOptions {
   limit?: number;
   /** `meta.nextCursor` from the previous page. */
   cursor?: string | null;
+  /** Optional AbortSignal to cancel the request. */
+  signal?: AbortSignal;
 }
 
 /** One page of a list endpoint. */
