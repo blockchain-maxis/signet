@@ -330,7 +330,7 @@ has open shows as `in use` and is not removed.
 ### `signet visualise`
 
 ```sh
-signet visualise <address> [--wasm file.wasm] [--network testnet|mainnet] [--out file.svg] [--theme dark|light|auto] [--open]
+signet visualise <address> [--wasm file.wasm] [--network <name>] [--rpc-url <url>] [--out file.svg] [--theme dark|light|auto] [--open]
 ```
 
 Draws a contract's diagram as an SVG file (#578), with the visualiser the web
