@@ -478,11 +478,19 @@ export interface PagedOperations {
  * profile in it, or the query fails — callers fall back to `getOperations`
  * (Horizon) in that case, same as `safeDbOperations`.
  */
+export interface PagedOperationsOptions {
+  cursor?: { createdAt: string; id: string } | null;
+  offset?: number;
+  limit?: number;
+}
+
+export type PagedOperationsPagination = number | PagedOperationsOptions;
+
 export async function getPagedOperations(
   handle: string,
-  offset: number,
-  limit: number,
-): Promise<PagedOperations | null> {
+  pagination: PagedOperationsPagination,
+  limit = 25,
+): Promise<(PagedOperations & { hasMore?: boolean }) | null> {
   if (!process.env.DATABASE_URL || !isValidHandle(handle)) return null;
   try {
     const { prisma } = await import('@signet/db');
@@ -493,20 +501,48 @@ export async function getPagedOperations(
     if (!profile) return null;
 
     const walletIds = profile.wallets.map((w) => w.id);
-    if (walletIds.length === 0) return { data: [], total: 0 };
+    if (walletIds.length === 0) return { data: [], total: 0, hasMore: false };
 
-    const where = { walletId: { in: walletIds } };
+    let cursor: { createdAt: string; id: string } | null | undefined;
+    let offset: number | undefined;
+    let actualLimit = limit;
+
+    if (typeof pagination === 'number') {
+      offset = pagination;
+    } else if (typeof pagination === 'object' && pagination !== null) {
+      cursor = pagination.cursor;
+      offset = pagination.offset;
+      if (pagination.limit !== undefined) actualLimit = pagination.limit;
+    }
+
+    const walletWhere = { walletId: { in: walletIds } };
+    let whereClause: any = walletWhere;
+
+    if (cursor) {
+      const cursorDate = new Date(cursor.createdAt);
+      whereClause = {
+        ...walletWhere,
+        OR: [
+          { createdAt: { lt: cursorDate } },
+          { createdAt: cursorDate, id: { lt: cursor.id } },
+        ],
+      };
+    }
+
     const [rows, total] = await Promise.all([
       prisma.operation.findMany({
-        where,
-        orderBy: { createdAt: 'desc' },
-        skip: offset,
-        take: limit,
+        where: whereClause,
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+        ...(offset !== undefined && !cursor ? { skip: offset } : {}),
+        take: actualLimit + 1,
       }),
-      prisma.operation.count({ where }),
+      prisma.operation.count({ where: walletWhere }),
     ]);
 
-    return { data: rows.map(mapDbOperation), total };
+    const hasMore = rows.length > actualLimit;
+    const pageRows = hasMore ? rows.slice(0, actualLimit) : rows;
+
+    return { data: pageRows.map(mapDbOperation), total, hasMore };
   } catch {
     return null;
   }

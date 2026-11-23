@@ -193,8 +193,10 @@ not "this is everything that exists".
 
 - `data`: `[{ id, type, function, contract, sourceAccount, createdAt, txHash, successful }]`.
 - `asset_balance_changes` is dropped from v1: it is an internal Horizon representation rather than part of the stable Signet contract.
+- The database cursor is a keyset over `createdAt` and `id` (the tiebreak), so an operation indexed while a client pages never shifts or repeats a page. Version-1 `{ offset }` cursors remain accepted for backward compatibility until the next minor release.
 - When the database answered, `meta.total` is an exact count integer.
 - On the Horizon fallback, `meta.total` is `null` (never a lower bound presented as an exact total), and the cursor never promises pages beyond the cap.
+- Malformed cursors or cursors of the wrong shape return `400 bad_request` with `details.parameter: "cursor"`.
 
 ### The handle directory
 
