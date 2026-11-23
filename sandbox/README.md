@@ -152,8 +152,7 @@ it (`tests/lanes_manifest.rs` covers the check), and the weekly protocol check
 When a network announces protocol N:
 
 1. Add `soroban-env-host-pN` and `soroban-simulation-pN` pins to
-   `sandbox/Cargo.toml` (and `soroban-ledger-snapshot-pN` if the snapshot
-   reader moves with it), and a `lane-pN` feature to `simulator/Cargo.toml`,
+   `sandbox/Cargo.toml`, and a `lane-pN` feature to `simulator/Cargo.toml`,
    on by default.
 2. Add the `[[lane]]` to `simulator/lanes.toml` with the same versions.
 3. Add `simulator/src/lanes/pN/mod.rs` and its entry in `lanes/mod.rs`'s

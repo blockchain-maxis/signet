@@ -1,4 +1,4 @@
-//! `snapshot_read` (#554): a `stellar snapshot create` file, as the entries
+//! `snapshot_read` (#554, #935): a `stellar snapshot create` file, as the entries
 //! a fork holds.
 //!
 //! `stellar snapshot create --address <C…>` writes a consistent snapshot of
@@ -7,15 +7,16 @@
 //! stellar-xdr's serde JSON. Go keeps a fork's entries in the RPC form
 //! (`key_xdr`, `data_xdr`, `last_modified_ledger_seq`, `ext_xdr`,
 //! `live_until_ledger`) and never parses XDR, so this reads the file with the
-//! crate the CLI wrote it with and answers in that form, with the ledger the
-//! snapshot was taken at. It is stateless: no ledger needs to be open.
-//!
-//! The crate's release pins the p28 host, so a build without the p28 lane
-//! cannot read snapshots and says so.
+//! newest lane and answers in that form, with the ledger the snapshot was taken
+//! at. It is stateless: no ledger needs to be open.
 
+use base64::engine::general_purpose::STANDARD as BASE64;
+use base64::Engine;
 use serde_json::{json, Map, Value};
 
 use crate::dispatch::error_message;
+use crate::lanes::LaneRegistry;
+use crate::PROTOCOL_VERSION;
 
 pub fn snapshot_read(id: &Value, object: &Map<String, Value>) -> Value {
     let Some(text) = object.get("snapshot_json").and_then(Value::as_str) else {
@@ -29,14 +30,8 @@ pub fn snapshot_read(id: &Value, object: &Map<String, Value>) -> Value {
     read(id, text)
 }
 
-#[cfg(feature = "lane-p28")]
 fn read(id: &Value, text: &str) -> Value {
-    use base64::engine::general_purpose::STANDARD as BASE64;
-    use base64::Engine;
-
-    use crate::PROTOCOL_VERSION;
-
-    let snapshot = match crate::lanes::read_snapshot(text) {
+    let snapshot = match LaneRegistry::builtin().newest().read_snapshot(text) {
         Ok(s) => s,
         Err(e) => {
             return error_message(
@@ -74,15 +69,4 @@ fn read(id: &Value, text: &str) -> Value {
         "max_entry_ttl": snapshot.max_entry_ttl,
         "entries": entries,
     })
-}
-
-#[cfg(not(feature = "lane-p28"))]
-fn read(id: &Value, _text: &str) -> Value {
-    error_message(
-        id,
-        "unsupported_ledger_protocol",
-        "this simulator was built without the protocol 28 lane, which reads ledger snapshots"
-            .into(),
-        json!({ "kind": "ledger_protocol", "requested": 28 }),
-    )
 }
