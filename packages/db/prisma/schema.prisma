@@ -104,6 +104,7 @@ model Operation {
   type            String
   function        String?
   decodedFunction String?
+  contractAddress String?
   sourceAccount   String?
   createdAt       DateTime
   transactionHash String?
@@ -114,6 +115,7 @@ model Operation {
   wallet          Wallet   @relation(fields: [walletId], references: [id], onDelete: Cascade)
 
   @@index([walletId, createdAt])
+  @@index([contractAddress])
 }
 
 model Contract {

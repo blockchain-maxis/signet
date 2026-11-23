@@ -45,6 +45,7 @@ export type Operation = {
   type: string;
   function?: string;
   decoded_function?: string;
+  contract?: string;
   source_account?: string;
   created_at: string;
   transaction_hash?: string;

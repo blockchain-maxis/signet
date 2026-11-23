@@ -184,3 +184,31 @@ test('v1 route GET /api/v1/profiles/[handle]/operations handles requests and OPT
   assert.equal(optRes.status, 204);
   assert.equal(optRes.headers.get('Access-Control-Allow-Origin'), '*');
 });
+
+test('a database row with contractAddress produces a non-null contract, and function is the contract function', async () => {
+  const dbRow = {
+    id: 'op_db_1',
+    walletId: 'w1',
+    type: 'invoke_host_function',
+    function: 'HostFunctionTypeHostFunctionTypeInvokeContract',
+    decodedFunction: 'write_prices',
+    contractAddress: 'CD4KFB23CQLJ47RIPESVBTQ444R75M6QVEZULWXHHFYYZT7SS2VGXOPW',
+    sourceAccount: 'GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF',
+    createdAt: new Date('2026-11-21T07:02:11.000Z'),
+    transactionHash: '0x123',
+    successful: true,
+  };
+
+  const deps: V1ProfileOperationsDeps = {
+    getProfile: async () => mockProfile,
+    getPagedOperations: async () => ({
+      data: [dbRow],
+      total: 1,
+    }),
+  };
+
+  const res = await getV1ProfileOperations('alice', { offset: 0, limit: 10 }, deps);
+  assert.equal(res.data.length, 1);
+  assert.equal(res.data[0]?.contract, 'CD4KFB23CQLJ47RIPESVBTQ444R75M6QVEZULWXHHFYYZT7SS2VGXOPW');
+  assert.equal(res.data[0]?.function, 'write_prices');
+});

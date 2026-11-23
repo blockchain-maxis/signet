@@ -18,6 +18,7 @@ import {
   formatCount,
   getOperationsRetentionDays,
   formatStatsWindow,
+  type Operation,
 } from './profiles.ts';
 
 test('isValidHandle accepts the registry charset', () => {
@@ -272,4 +273,37 @@ test('getProfileStats loads its own operations when none are supplied', async ()
 
 test('safeDbProfileStats rejects invalid handles without a DB round trip', async () => {
   assert.equal(await safeDbProfileStats('../../etc/passwd'), null);
+});
+
+test('computeStats over three invocations of two different functions returns uniqueFunctions: 2', () => {
+  const operations: Operation[] = [
+    {
+      id: 'op1',
+      type: 'invoke_host_function',
+      function: 'HostFunctionTypeHostFunctionTypeInvokeContract',
+      decoded_function: 'fn_a',
+      created_at: '2026-11-21T07:00:00Z',
+      transaction_successful: true,
+    },
+    {
+      id: 'op2',
+      type: 'invoke_host_function',
+      function: 'HostFunctionTypeHostFunctionTypeInvokeContract',
+      decoded_function: 'fn_b',
+      created_at: '2026-11-21T07:01:00Z',
+      transaction_successful: true,
+    },
+    {
+      id: 'op3',
+      type: 'invoke_host_function',
+      function: 'HostFunctionTypeHostFunctionTypeInvokeContract',
+      decoded_function: 'fn_a',
+      created_at: '2026-11-21T07:02:00Z',
+      transaction_successful: true,
+    },
+  ];
+
+  const stats = computeStats(operations);
+  assert.equal(stats.invocations, 3);
+  assert.equal(stats.uniqueFunctions, 2);
 });

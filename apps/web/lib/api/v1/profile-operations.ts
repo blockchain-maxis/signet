@@ -51,7 +51,7 @@ function toV1Operation(op: any): V1Operation {
     id: String(op.id),
     type: String(op.type),
     function: op.decodedFunction ?? op.decoded_function ?? op.function ?? null,
-    contract: op.contract ?? null,
+    contract: op.contractAddress ?? op.contract ?? null,
     sourceAccount: op.sourceAccount ?? op.source_account ?? null,
     createdAt:
       op.createdAt instanceof Date
