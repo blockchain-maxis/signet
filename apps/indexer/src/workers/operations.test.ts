@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import type { Horizon } from '@stellar/stellar-sdk';
+import { Address, scValToNative, xdr, type Horizon } from '@stellar/stellar-sdk';
 import {
   runOperationsWorker,
   type OperationsStore,
@@ -9,6 +9,8 @@ import {
 } from './operations.ts';
 import { runPruningWorker, type PruningStore } from './prune.ts';
 import { logger } from '../logger.ts';
+import { loadFixtureEnvelope, replayHorizon, type HorizonOperationsPage } from '@signet/fixtures';
+import { createHorizonServer } from '../stellar.ts';
 
 /**
  * An in-memory `OperationsStore` that upserts keyed on the op id — the same
@@ -753,4 +755,110 @@ test('an operation exactly at the retention cutoff is kept, and the walk stops a
   assert.deepEqual([...rows.keys()].sort(), [records[0]!.id, records[1]!.id].sort());
   assert.equal(wallets[0]!.operationsCursor, records[1]!.paging_token);
   assert.deepEqual(wallets[0]!.operationsBackfilledAt, NOW);
+});
+
+// ---------------------------------------------------------------------------
+// Recorded Horizon responses (#974)
+//
+// The SDK's own `Horizon.Server` over `replayHorizon`: only the network is
+// replaced, by the recordings in `@signet/fixtures`.
+// ---------------------------------------------------------------------------
+
+test("recorded: a tick over the deployer's pages stores its host-function operations, with their contract and function", async () => {
+  const DEPLOYER = 'GC6IQQHUT4BXZYCJEM4AOKFD6ASWSXCEDXYPVA5NFKXSGOSRJX72KJMC';
+  const INVOKE = 'HostFunctionTypeHostFunctionTypeInvokeContract';
+  const newestPage = loadFixtureEnvelope<HorizonOperationsPage>('horizon-account-operations-page');
+  const firstPage = loadFixtureEnvelope<HorizonOperationsPage>(
+    'horizon-account-operations-first-page',
+  );
+  const end = loadFixtureEnvelope('horizon-account-operations-end');
+  const newestRecords = newestPage.payload._embedded.records;
+  const firstRecords = firstPage.payload._embedded.records;
+  const newest = newestRecords[0]!;
+  const funding = firstRecords[3]!;
+  assert.equal(funding.type, 'create_account');
+
+  // A wallet whose backward walk is four operations from the start of its
+  // history, with its newest operation already stored. The forward check
+  // reads the newest page, finds that operation in it and asks for no more;
+  // the walk then reads the last four operations and ends. Every request is
+  // one Horizon answered.
+  const cursor = new URL(firstPage.request.methodOrPath, 'https://h').searchParams.get('cursor')!;
+  const { store, rows, wallets } = memoryStore([
+    { id: 'deployer', pubkey: DEPLOYER, operationsCursor: cursor },
+  ]);
+  rows.set(newest.id, {
+    id: newest.id,
+    walletId: 'deployer',
+    type: newest.type,
+    function: newest.function ?? null,
+    sourceAccount: newest.source_account,
+    createdAt: new Date(newest.created_at),
+    transactionHash: newest.transaction_hash,
+    successful: true,
+  } as OperationCreate);
+
+  const replay = replayHorizon([newestPage, firstPage, end]);
+  let result;
+  try {
+    result = await runOperationsWorker(
+      createHorizonServer(replay.url),
+      store,
+      { operationsRetentionDays: 0 },
+      new Date(),
+      async () => {},
+    );
+  } finally {
+    replay.restore();
+  }
+
+  const older = (c: string) => `/accounts/${DEPLOYER}/operations?cursor=${c}&limit=50&order=desc`;
+  assert.deepEqual(replay.requests, [
+    `/accounts/${DEPLOYER}/operations?limit=50&order=desc`,
+    older(cursor),
+    older(funding.paging_token),
+  ]);
+  assert.deepEqual(replay.unanswered, []);
+
+  // Every host-function operation of both pages is stored: 50 and 3. The
+  // funding is a `create_account`, the one record of another type, and is not.
+  const hostFunctionOps = [...newestRecords, ...firstRecords].filter(
+    (op) => op.type === 'invoke_host_function',
+  );
+  assert.equal(hostFunctionOps.length, 53);
+  assert.deepEqual([...rows.keys()].sort(), hostFunctionOps.map((op) => op.id).sort());
+  assert.equal(rows.has(funding.id), false);
+  assert.equal(result.opsUpserted, 53);
+  assert.ok(wallets[0]!.operationsBackfilledAt);
+  assert.equal(wallets[0]!.operationsCursor, funding.paging_token);
+  // `function` stays what Horizon sent: the host function's type.
+  for (const op of hostFunctionOps) assert.equal(rows.get(op.id)!.function, op.function);
+
+  // #967: an invocation is stored with the contract and the function its
+  // parameters name; an operation that calls no contract function has neither.
+  const stored = (id: string) =>
+    rows.get(id) as unknown as { decodedFunction?: string | null; contractAddress?: string | null };
+  for (const op of hostFunctionOps) {
+    const expected =
+      op.function === INVOKE
+        ? [
+            scValToNative(xdr.ScVal.fromXDR(op.parameters![1]!.value, 'base64')) as string,
+            Address.fromScVal(xdr.ScVal.fromXDR(op.parameters![0]!.value, 'base64')).toString(),
+          ]
+        : [null, null];
+    assert.deepEqual(
+      [stored(op.id).decodedFunction, stored(op.id).contractAddress],
+      expected,
+      `operation ${op.id} (${op.function})`,
+    );
+  }
+  // Read off one record, so that the loop above is not the only witness: the
+  // deployer's second operation calls `deploy_pool` on the contract its first
+  // one created.
+  const pool = firstRecords[1]!;
+  assert.deepEqual(
+    [stored(pool.id).decodedFunction, stored(pool.id).contractAddress],
+    ['deploy_pool', 'CAII4K5S4GJPBSYXT4K2ZKYSEEAY6TA7GCTDIINFBATORY4N7PINPPPB'],
+  );
+  assert.equal(hostFunctionOps.filter((op) => op.function === INVOKE).length, 51);
 });
