@@ -447,7 +447,10 @@ export function encodeCursor<T>(payload: T, version = 1): string {
 /**
  * Decodes an opaque base64url cursor, checking the version prefix byte.
  */
-export function parseCursor<T = unknown>(raw: unknown, expectedVersion = 1): T | null {
+export function parseCursor<T = unknown>(
+  raw: unknown,
+  expectedVersion: number | number[] = 1,
+): T | null {
   if (raw === undefined || raw === null || raw === '') {
     return null;
   }
@@ -460,7 +463,10 @@ export function parseCursor<T = unknown>(raw: unknown, expectedVersion = 1): T |
       throw new Error('empty cursor buffer');
     }
     const version = buf.readUInt8(0);
-    if (version !== expectedVersion) {
+    const valid = Array.isArray(expectedVersion)
+      ? expectedVersion.includes(version)
+      : version === expectedVersion;
+    if (!valid) {
       throw new Error(`unsupported cursor version: ${version}`);
     }
     const jsonStr = buf.subarray(1).toString('utf8');
