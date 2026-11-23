@@ -112,3 +112,11 @@ test('/how-it-works states the limits of contract attribution', async ({ page })
   await expect(body).toContainText('Upgrade history starts when indexing began');
   await expect(body).toContainText("Nothing executes on Signet's servers");
 });
+
+test('/docs explains terminal linking and mentions /link approval', async ({ page }) => {
+  await page.goto('/docs');
+  const body = page.locator('main, body').first();
+  await expect(body).toContainText('/link');
+  await expect(body).toContainText('approve');
+  await expect(page.locator('a[href="/link"]')).toBeAttached();
+});

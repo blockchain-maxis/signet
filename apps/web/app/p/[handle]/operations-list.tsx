@@ -4,6 +4,7 @@ import { useState, useCallback, useEffect } from 'react';
 import type { Operation } from '@/lib/profiles';
 import { stellarExpertTxUrl } from '@/lib/network';
 import { formatDate } from '@/lib/format-date';
+import { CLI_LINK_COMMAND } from '@/lib/cli-command';
 
 function resolveFunction(op: Operation): string {
   if (op.decoded_function && op.decoded_function !== '?') return op.decoded_function;
@@ -107,7 +108,7 @@ export default function OperationsList({
               className="mt-4 block max-w-full overflow-x-auto bg-[#0a0908] px-4 py-2.5 text-[12px] text-[#f5f4ee] border border-[#1f1d19]"
               style={{ fontFamily: 'var(--font-mono)' }}
             >
-              npx @signet/cli link
+              {CLI_LINK_COMMAND}
             </code>
           </div>
         )
