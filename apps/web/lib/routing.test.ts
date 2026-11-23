@@ -161,6 +161,7 @@ test('/@{handle} with an invalid handle passes through', () => {
 
 test('/{handle} rewrites only as a single non-reserved segment', () => {
   assert.equal(resolveRewriteTarget('signet.dev', '/alice'), '/p/alice');
+  assert.equal(resolveRewriteTarget('signet.dev', '/Alice'), '/p/alice');
   assert.equal(resolveRewriteTarget('signet.dev', '/www'), null);
   // Bare-handle paths never nest — contract docs need /@{handle} or the
   // subdomain, so an arbitrary two-segment URL can't shadow future routes.

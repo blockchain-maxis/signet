@@ -1,4 +1,5 @@
-import { notFound } from 'next/navigation';
+import type { Metadata } from 'next';
+import { notFound, permanentRedirect } from 'next/navigation';
 import { SectionLabel } from './_components/section-label';
 import { SiteFooter } from './_components/site-footer';
 import { SiteNav } from './_components/site-nav';
@@ -8,6 +9,7 @@ import {
   getProfileStats,
   formatCount,
   formatStatsWindow,
+  isValidHandle,
 } from '@/lib/profiles';
 import { getProfileContracts } from '@/lib/profile-contracts';
 import { STELLAR_EXPLORER, STELLAR_NETWORK_NAME } from '@/lib/network';
@@ -28,16 +30,64 @@ function truncate(str: string, head: number, tail: number): string {
   return `${str.slice(0, head)}...${str.slice(-tail)}`;
 }
 
-export async function generateMetadata({ params }: { params: Promise<{ handle: string }> }) {
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ handle: string }>;
+}): Promise<Metadata> {
   const { handle } = await params;
+  if (handle.toLowerCase() !== handle && isValidHandle(handle.toLowerCase())) {
+    permanentRedirect(`/p/${handle.toLowerCase()}`);
+  }
+
+  const profile = await getProfile(handle);
+  if (!profile) {
+    return {
+      title: 'Profile not found · Signet',
+      description: 'Profile not found.',
+      openGraph: {
+        title: 'Profile not found · Signet',
+        description: 'Profile not found.',
+      },
+      twitter: {
+        title: 'Profile not found · Signet',
+        description: 'Profile not found.',
+      },
+    };
+  }
+
+  const title =
+    profile.name && profile.name.toLowerCase() !== handle.toLowerCase()
+      ? `${profile.name} (@${handle}) · Signet`
+      : `${handle} · Signet`;
+  const description =
+    profile.bio || `Verified Soroban activity and on-chain career record for ${handle}.`;
+
   return {
-    title: `${handle} · Signet`,
-    description: `Verified Soroban activity and on-chain career record for ${handle}.`,
+    title,
+    description,
+    alternates: {
+      canonical: `/p/${handle}`,
+    },
+    openGraph: {
+      title,
+      description,
+      url: `/p/${handle}`,
+      type: 'profile',
+    },
+    twitter: {
+      title,
+      description,
+    },
   };
 }
 
 export default async function ProfilePage({ params }: { params: Promise<{ handle: string }> }) {
   const { handle } = await params;
+
+  if (handle.toLowerCase() !== handle && isValidHandle(handle.toLowerCase())) {
+    permanentRedirect(`/p/${handle.toLowerCase()}`);
+  }
 
   const profile = await getProfile(handle);
   if (!profile) notFound();

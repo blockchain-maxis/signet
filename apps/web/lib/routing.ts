@@ -165,8 +165,11 @@ export function resolveRewriteTarget(host: string, pathname: string): string | n
   }
 
   // `/{handle}` where the segment isn't a reserved app route → canonical profile
-  if (first && !RESERVED.has(first) && segments.length === 1 && isValidHandle(first)) {
-    return `/p/${first}`;
+  if (first && segments.length === 1) {
+    const handle = first.toLowerCase();
+    if (!RESERVED.has(handle) && isValidHandle(handle)) {
+      return `/p/${handle}`;
+    }
   }
 
   // Otherwise → marketing root.
