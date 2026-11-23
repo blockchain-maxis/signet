@@ -198,6 +198,7 @@ const NOT_ENV_IDENTIFIERS = new Set([
   'NETWORK_PASSPHRASE', // stellar.toml key the CLI reads, not env
   'SIGNING_KEY', // stellar.toml key the CLI reads, not env
   'WEB_AUTH_ENDPOINT', // stellar.toml key the CLI reads, not env
+  'NOT_FOUND', // Soroban RPC getTransaction status
 ]);
 
 /** Backticked SCREAMING_SNAKE with an underscore — typical env var citation. */

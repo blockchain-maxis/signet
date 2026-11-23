@@ -36,7 +36,7 @@ pnpm --filter @signet/fixtures capture
 
 ## Retention
 
-Soroban RPC only serves `getTransaction` for a retention window (about 7 days). `claim-get-transaction`, `deploy-get-transaction` and the two `*-call-get-transaction` fixtures are pinned to transaction hashes in `scripts/capture.ts`; when a hash ages out, pick a newer one of the same kind and update the constant before re-running `capture`. To record only some fixtures, name them: `pnpm --filter @signet/fixtures capture sac-transfer-call-get-transaction`.
+Soroban RPC only serves `getTransaction` for a retention window (about 7 days). `claim-get-transaction`, `deploy-get-transaction` and the two `*-call-get-transaction` fixtures are pinned to transaction hashes in `scripts/capture.ts`. When a hash has aged out, RPC answers with a `NOT_FOUND` status: the capture script treats any status other than `SUCCESS` as an error, fails without overwriting good recordings, and leaves all files untouched. When a hash ages out, pick a newer one of the same kind and update the constant in `scripts/capture.ts` before re-running `capture`. To record only some fixtures, name them: `pnpm --filter @signet/fixtures capture sac-transfer-call-get-transaction`.
 
 ## Import guard
 
