@@ -6,6 +6,7 @@ import {
   NetworkError,
   NotFoundError,
   RateLimitedError,
+  UnauthorizedError,
   UnavailableError,
   ValidationError,
 } from './errors.ts';
@@ -354,4 +355,68 @@ test('the default fetch is called bound to globalThis, as browsers require', asy
     globalThis.fetch = original;
   }
   assert.deepEqual(seen, [globalThis]);
+});
+
+test('a 401 envelope throws UnauthorizedError with code: "unauthorized" after a single fetch', async () => {
+  const { fetchImpl, calls } = mockFetch({
+    status: 401,
+    body: v1Error('unauthorized', 'Invalid API key'),
+  });
+  await assert.rejects(
+    client(fetchImpl, { maxRetries: 2 }).getProfile('alice'),
+    (err: unknown) => {
+      assert.ok(err instanceof UnauthorizedError);
+      assert.equal(err.status, 401);
+      assert.equal(err.code, 'unauthorized');
+      assert.equal(err.message, 'Invalid API key');
+      return true;
+    },
+  );
+  assert.equal(calls.length, 1, 'a 401 must not be retried');
+});
+
+test('aborting mid-request rejects with the abort reason and no retry', async () => {
+  const controller = new AbortController();
+  const cancelReason = new Error('caller canceled');
+  let calls = 0;
+
+  const hanging = (async (_url: string | URL | Request, init?: RequestInit) => {
+    calls++;
+    return new Promise<Response>((_resolve, reject) => {
+      init?.signal?.addEventListener('abort', () => {
+        reject(init.signal?.reason);
+      });
+      setTimeout(() => controller.abort(cancelReason), 10);
+    });
+  }) as unknown as typeof fetch;
+
+  await assert.rejects(
+    client(hanging, { maxRetries: 2 }).request('/profiles/alice', { signal: controller.signal }),
+    (err: unknown) => {
+      assert.equal(err, cancelReason);
+      return true;
+    },
+  );
+  assert.equal(calls, 1, 'aborted request must not be retried');
+});
+
+test('an already-aborted signal makes no fetch', async () => {
+  const controller = new AbortController();
+  const cancelReason = new Error('already aborted');
+  controller.abort(cancelReason);
+
+  let calls = 0;
+  const mock = (async () => {
+    calls++;
+    return new Response(JSON.stringify({ data: {} }));
+  }) as unknown as typeof fetch;
+
+  await assert.rejects(
+    client(mock).request('/test', { signal: controller.signal }),
+    (err: unknown) => {
+      assert.equal(err, cancelReason);
+      return true;
+    },
+  );
+  assert.equal(calls, 0, 'an already-aborted signal must make no fetch calls');
 });
