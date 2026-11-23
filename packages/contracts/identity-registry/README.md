@@ -40,7 +40,7 @@ registry and migrating; budget for that rather than assuming a patch path.
 | `set_admin(new_admin)` | current `admin` | Rotate moderation authority. Emits `admin_changed`. |
 | `claim(handle, wallet)` | `wallet` | Bind `handle` ↔ `wallet`. Emits `claimed`. |
 | `release(handle)` | owning wallet | Remove your binding. Emits `released`. |
-| `transfer_handle(handle, new_wallet)` | current owner | Move a handle to another wallet. Emits `transferred`. |
+| `transfer_handle(handle, new_wallet)` | current owner and `new_wallet` | Move a handle to another wallet, with both wallets' consent. Emits `transferred`. |
 | `admin_revoke(handle)` | `admin` | Moderation force-remove. Emits `revoked`. |
 | `resolve(handle) -> Option<Address>` | — | Handle → wallet. |
 | `lookup(wallet) -> Option<String>` | — | Wallet → handle. |

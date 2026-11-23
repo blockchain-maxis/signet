@@ -73,7 +73,7 @@ callable at the next deployment, which will mint a new contract id.
 
 | Method | Auth | Returns | Notes |
 |--------|------|---------|-------|
-| `transfer_handle(handle: String, new_wallet: Address)` | current owner | `()` | Emits `transferred`. |
+| `transfer_handle(handle: String, new_wallet: Address)` | current owner **and** `new_wallet` | `()` | Emits `transferred`. Both wallets must sign the invocation. |
 | `resolve_batch(handles: Vec<String>)` | — | `Vec<Option<Address>>` | Positional; max 100 per call. |
 | `set_admin(new_admin: Address)` | current admin | `()` | Rotates moderation authority. Emits `admin_changed`. |
 
@@ -329,8 +329,14 @@ Notes:
   `curl "https://friendbot.stellar.org/?addr=<G…>"`.
 - `release(handle)` follows the identical build → simulate → sign → submit shape, and
   requires auth from the **current owner**, which the contract resolves from the handle
-  rather than from the transaction source. `transfer_handle(handle, new_wallet)` works the
-  same way but is not in the deployed wasm yet (§2).
+  rather than from the transaction source.
+- `transfer_handle(handle, new_wallet)` is not in the deployed wasm yet (§2), and when it
+  is it will require **two** signatures: the current owner gives the handle up and the new
+  wallet accepts it. Simulations produce an auth entry for each wallet, and the transaction
+  has to carry both signed entries — for example, the new wallet signs its own entry with
+  `authorizeEntry` and the old owner signs and submits the transaction. A transfer that
+  carries only the old owner's auth is rejected by `require_auth`; the binding is
+  unchanged.
 
 ---
 
