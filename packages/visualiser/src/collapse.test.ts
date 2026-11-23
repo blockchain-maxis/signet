@@ -41,6 +41,45 @@ function render(expand: string[] = []) {
   return { graph, model, svg: `${svg}\n` };
 }
 
+test('search query matches members inside a collapsed group', () => {
+  const graph = collapseGroups(axelar());
+  const model = layoutContractGraph(graph);
+  const svg = renderDiagramSvg(model, {
+    idPrefix: 'collapsed-',
+    hrefForNode: () => null,
+    title: 'test',
+    query: 'interchain_token_address',
+  });
+  assert.match(svg, /data-node-id="collapsed:interchain"[^>]*class="[^"]*viz-match[^"]*"/);
+  assert.doesNotMatch(svg, /data-node-id="collapsed:interchain"[^>]*class="[^"]*viz-dimmed[^"]*"/);
+  assert.match(svg, /data-node-id="collapsed:other"[^>]*class="[^"]*viz-dimmed[^"]*"/);
+});
+
+test('writes-only leaves collapsed group undimmed if any member writes', () => {
+  const graph = collapseGroups(axelar());
+  const model = layoutContractGraph(graph);
+  const svg = renderDiagramSvg(model, {
+    idPrefix: 'collapsed-',
+    hrefForNode: () => null,
+    title: 'test',
+    writesOnly: true,
+    overlays: {
+      mutability: {
+        marks: {
+          deploy_remote_interchain_token: { kind: 'writes' },
+        },
+        transactions: 1,
+        firstLedger: 1,
+        lastLedger: 2,
+        staleObservations: false,
+      },
+    },
+  });
+  assert.doesNotMatch(svg, /data-node-id="collapsed:deploy"[^>]*class="[^"]*viz-dimmed[^"]*"/);
+  assert.match(svg, /data-node-id="collapsed:deploy"[^>]*data-mark="write"/);
+  assert.match(svg, /data-node-id="collapsed:other"[^>]*class="[^"]*viz-dimmed[^"]*"/);
+});
+
 test('past the threshold every group collapses to one node, named for its members', () => {
   const graph = axelar();
   assert.ok(graph.nodes.filter((n) => n.kind === 'function').length > COLLAPSE_THRESHOLD);

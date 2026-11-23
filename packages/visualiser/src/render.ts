@@ -6,6 +6,7 @@
  */
 
 import { VIZ_CSS_VARIABLES, VIZ_TOKENS, type VizTheme, type VizTokenName } from './tokens.ts';
+import { groupFunctions } from './group.ts';
 import { HEAT_FONT_PX, MARK_SLOT, type PositionedDiagramModel, type PositionedEdge, type PositionedNode } from './layout.ts';
 import { routeEdges } from './route.ts';
 import { textWidth } from './metrics.ts';
@@ -165,6 +166,7 @@ interface DrawnNode extends DiagramNode {
   name?: string;
   collapsed?: PositionedNode['collapsed'];
   uses?: number;
+  hidden?: number;
 }
 
 const isPositioned = (n: DiagramNode): n is DrawnNode => {
@@ -205,6 +207,7 @@ function nodeKindOf(node: DrawnNode): NodeKind {
     case 'function':
       return node.collapsed ? 'collapsed-group' : 'function';
     case 'missing':
+    case 'stub':
       return 'stub';
     case 'callee':
     case 'callees-more':
@@ -270,21 +273,28 @@ export function renderDiagramSvg(model: DiagramModel, opts: RenderOptions): stri
 
   const functionNodes = model.nodes.filter((n) => n.id.startsWith('fn:'));
   const typeNodes = model.nodes.filter((n) => n.id.startsWith('type:'));
-  const groupCount = new Set(
-    functionNodes.map((n) => n.id.split(':')[1]?.split('_')[0] ?? 'default'),
-  ).size;
+  const collapsedGroups = nodes.flatMap((n) => (n.collapsed ? [n.collapsed] : []));
+  const functionNames = [
+    ...functionNodes.map((n) => n.name ?? n.id.replace(/^fn:/, '')),
+    ...collapsedGroups.flatMap((g) => g.members),
+  ];
+  const allGroups = groupFunctions(functionNames);
   const calls = (model as Partial<PositionedDiagramModel>).calls;
   const callEdges = edges.filter((e) => (e as Partial<PositionedEdge>).call);
   const calleeCount = nodes.filter((n) => n.kind === 'callee').length;
 
   // A collapsed group (issue 502) counts its members, and as a group.
-  const collapsedGroups = nodes.flatMap((n) => (n.collapsed ? [n.collapsed] : []));
   const functionCount =
     functionNodes.length + collapsedGroups.reduce((sum, g) => sum + g.members.length, 0);
-  const groupText = collapsedGroups.length
-    ? `${groupCount + collapsedGroups.length} groups (${collapsedGroups.length} collapsed)`
-    : `${groupCount} groups`;
-  let desc = `${functionCount} functions in ${groupText}, ${typeNodes.length} types, ${model.edges.length - callEdges.length} references`;
+  let groupPart: string;
+  if (allGroups.length === 0) {
+    groupPart = `${functionCount} functions, ungrouped`;
+  } else if (collapsedGroups.length > 0) {
+    groupPart = `${functionCount} functions in ${allGroups.length} groups (${collapsedGroups.length} collapsed)`;
+  } else {
+    groupPart = `${functionCount} functions in ${allGroups.length} groups`;
+  }
+  let desc = `${groupPart}, ${typeNodes.length} types, ${model.edges.length - callEdges.length} references`;
   if (calls) {
     desc += `; calls ${calleeCount} other contract${calleeCount === 1 ? '' : 's'}`;
     if (calls.hidden > 0) desc += ` and ${calls.hidden} more`;
@@ -473,14 +483,26 @@ export function renderDiagramSvg(model: DiagramModel, opts: RenderOptions): stri
 
     const cleanQuery = opts.query?.trim().toLowerCase();
     const isMatch = cleanQuery
-      ? node.id.toLowerCase().includes(cleanQuery) || node.label.toLowerCase().includes(cleanQuery)
+      ? node.id.toLowerCase().includes(cleanQuery) ||
+        node.label.toLowerCase().includes(cleanQuery) ||
+        (node.collapsed !== undefined &&
+          node.collapsed.members.some((m) => m.toLowerCase().includes(cleanQuery)))
       : true;
     // The function's read/write mark (issue 512), for the badge and the detail card.
     const markOf =
       mutability && kind === 'function' ? mutability.marks[node.name ?? node.label] : undefined;
     const markKind = mutability && kind === 'function' ? writeMarkOf(markOf) : null;
-    const hidden =
-      (cleanQuery && !isMatch) || (opts.writesOnly && mutability && markKind !== 'write');
+    const hasWritingMember =
+      node.collapsed !== undefined && mutability !== undefined
+        ? node.collapsed.members.some((m) => mutability.marks[m]?.kind === 'writes')
+        : false;
+    const writesHidden =
+      opts.writesOnly && mutability
+        ? node.collapsed !== undefined
+          ? !hasWritingMember
+          : markKind !== 'write'
+        : false;
+    const hidden = (cleanQuery && !isMatch) || writesHidden;
     const filterClass = hidden ? ' viz-dimmed' : cleanQuery ? ' viz-match' : '';
     const stateClass = focusClass + filterClass;
     const containerClass = stateClass ? ` class="${stateClass.trim()}"` : '';
@@ -494,10 +516,17 @@ export function renderDiagramSvg(model: DiagramModel, opts: RenderOptions): stri
         if (mutability!.txHref)
           markAttrs += ` data-mark-href="${escapeXml(mutability!.txHref(example.txHash))}"`;
       }
+    } else if (node.collapsed && hasWritingMember) {
+      markAttrs += ' data-mark="write"';
     }
 
     // A collapsed group (issue 502) says which group its link expands.
-    if (node.collapsed) markAttrs += ` data-group-toggle="${escapeXml(node.collapsed.group)}"`;
+    if (node.collapsed) {
+      markAttrs += ` data-group-toggle="${escapeXml(node.collapsed.group)}" data-members="${escapeXml(node.collapsed.members.join(','))}"`;
+    }
+    if (node.kind === 'stub' && (node.hidden ?? 0) > 0) {
+      markAttrs += ` data-type-toggle="${escapeXml(node.name ?? node.label)}"`;
+    }
     const diffKind = opts.diff?.[node.id];
     if (diffKind) markAttrs += ` data-diff="${diffKind}"`;
 
