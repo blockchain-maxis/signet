@@ -398,6 +398,10 @@ pub fn ledger_put(
 /// — so a surprising value is always traceable. An archived entry answers
 /// `entry_xdr: null` with its `live_until_ledger` still set, which is how a
 /// caller tells "expired" from "never existed" (`live_until_ledger: null`).
+/// A key a call deleted in the session, or an override unset, answers both
+/// as null with `deleted: true` and the provenance of the deletion
+/// (`source: session|override`, `lastModifiedLedgerSeq`), so "removed here"
+/// is told from "never existed" too (#934).
 pub fn ledger_get(ledger: &Option<OpenLedger>, id: &Value, object: &Map<String, Value>) -> Value {
     let Some(open) = ledger.as_ref() else {
         return no_open_ledger(id);
@@ -444,6 +448,16 @@ pub fn ledger_get(ledger: &Option<OpenLedger>, id: &Value, object: &Map<String, 
                 "provenance": {
                     "source": provenance.source.as_str(),
                     "fetchedAtLedger": provenance.fetched_at_ledger,
+                    "lastModifiedLedgerSeq": provenance.last_modified_ledger_seq,
+                },
+            }),
+            Lookup::Deleted { provenance } => json!({
+                "key_xdr": key_xdr,
+                "entry_xdr": Value::Null,
+                "live_until_ledger": Value::Null,
+                "deleted": true,
+                "provenance": {
+                    "source": provenance.source.as_str(),
                     "lastModifiedLedgerSeq": provenance.last_modified_ledger_seq,
                 },
             }),
@@ -793,5 +807,151 @@ mod tests {
         assert_eq!(reply["detail"]["kind"], "invalid_field");
         assert_eq!(reply["detail"]["path"], "entries[0].entry_xdr");
         assert!(ledger.is_none());
+    }
+
+    /// Deletes key `n` in the session layer, as a call's writes land there.
+    fn delete_in_session(ledger: &Option<OpenLedger>, n: u32) {
+        let open_ledger = ledger.as_ref().unwrap();
+        open_ledger
+            .store
+            .borrow_mut()
+            .apply_modified([crate::ledger::store::Write {
+                key: fixtures::data_key_xdr(n),
+                entry: None,
+                live_until: None,
+            }]);
+    }
+
+    #[test]
+    fn a_key_deleted_in_the_session_reads_as_deleted_by_the_session() {
+        let mut ledger = None;
+        open(&mut ledger);
+        let put = ledger_put(
+            &mut ledger,
+            &id(),
+            &obj(json!({ "entries": [
+                { "key_xdr": key_b64(1), "entry_xdr": entry_b64(1, 10), "live_until_ledger": 500 },
+            ] })),
+        );
+        assert_eq!(put["written"], 1, "{put}");
+        delete_in_session(&ledger, 1);
+
+        let got = ledger_get(
+            &ledger,
+            &id(),
+            &obj(json!({ "keys_xdr": [key_b64(1), key_b64(2)] })),
+        );
+        assert_eq!(got["type"], "result", "{got}");
+        // The whole answer, so a field added or dropped shows here.
+        assert_eq!(
+            got["entries"][0],
+            json!({
+                "key_xdr": key_b64(1),
+                "entry_xdr": null,
+                "live_until_ledger": null,
+                "deleted": true,
+                "provenance": { "source": "session", "lastModifiedLedgerSeq": 1 },
+            })
+        );
+        // A key that never existed is answered as before: nothing says deleted.
+        assert_eq!(
+            got["entries"][1],
+            json!({ "key_xdr": key_b64(2), "entry_xdr": null, "live_until_ledger": null })
+        );
+    }
+
+    #[test]
+    fn a_key_unset_by_an_override_reads_as_deleted_by_the_override() {
+        let mut ledger = None;
+        open(&mut ledger);
+        {
+            let open_ledger = ledger.as_ref().unwrap();
+            let mut store = open_ledger.store.borrow_mut();
+            store.insert_base(
+                &fixtures::data_key_xdr(1),
+                fixtures::data_entry_xdr(1, 10),
+                Some(500),
+                1,
+            );
+            // What `storage_override` does for `--unset-storage`.
+            store.remove_override(&fixtures::data_key_xdr(1));
+        }
+
+        let got = ledger_get(&ledger, &id(), &obj(json!({ "keys_xdr": [key_b64(1)] })));
+        assert_eq!(
+            got["entries"][0],
+            json!({
+                "key_xdr": key_b64(1),
+                "entry_xdr": null,
+                "live_until_ledger": null,
+                "deleted": true,
+                "provenance": { "source": "override", "lastModifiedLedgerSeq": 1 },
+            })
+        );
+    }
+
+    #[test]
+    fn a_rollback_past_the_delete_reads_the_entry_again() {
+        let mut ledger = None;
+        open(&mut ledger);
+        let put = ledger_put(
+            &mut ledger,
+            &id(),
+            &obj(json!({ "entries": [
+                { "key_xdr": key_b64(1), "entry_xdr": entry_b64(1, 10), "live_until_ledger": 500 },
+            ] })),
+        );
+        assert_eq!(put["written"], 1, "{put}");
+        let taken = ledger_checkpoint(&mut ledger, &id());
+        let handle = taken["checkpoint"].as_str().unwrap().to_string();
+
+        delete_in_session(&ledger, 1);
+        let gone = ledger_get(&ledger, &id(), &obj(json!({ "keys_xdr": [key_b64(1)] })));
+        assert_eq!(gone["entries"][0]["deleted"], true, "{gone}");
+
+        let rolled = ledger_rollback(&mut ledger, &id(), &obj(json!({ "checkpoint": handle })));
+        assert_eq!(rolled["type"], "result", "{rolled}");
+        let back = ledger_get(&ledger, &id(), &obj(json!({ "keys_xdr": [key_b64(1)] })));
+        let entry = &back["entries"][0];
+        assert_eq!(entry["entry_xdr"], entry_b64(1, 10), "{back}");
+        assert_eq!(entry["provenance"]["source"], "override", "{back}");
+        assert!(entry.get("deleted").is_none(), "{back}");
+    }
+
+    #[test]
+    fn only_a_deleted_key_says_deleted() {
+        let mut ledger = None;
+        open(&mut ledger);
+        {
+            let open_ledger = ledger.as_ref().unwrap();
+            let mut store = open_ledger.store.borrow_mut();
+            // Live, then archived once the sequence passes its TTL.
+            store.insert_base(
+                &fixtures::data_key_xdr(1),
+                fixtures::data_entry_xdr(1, 10),
+                Some(500),
+                1,
+            );
+            store.insert_base(
+                &fixtures::data_key_xdr(2),
+                fixtures::data_entry_xdr(2, 20),
+                Some(5),
+                1,
+            );
+            store.set_sequence(10);
+        }
+        let got = ledger_get(
+            &ledger,
+            &id(),
+            &obj(json!({ "keys_xdr": [key_b64(1), key_b64(2), key_b64(3)] })),
+        );
+        let entries = got["entries"].as_array().unwrap();
+        assert_eq!(entries[0]["entry_xdr"], entry_b64(1, 10), "live: {got}");
+        assert_eq!(entries[1]["entry_xdr"], Value::Null, "archived: {got}");
+        assert_eq!(entries[1]["live_until_ledger"], 5, "archived: {got}");
+        assert_eq!(entries[2]["entry_xdr"], Value::Null, "absent: {got}");
+        for entry in entries {
+            assert!(entry.get("deleted").is_none(), "{entry}");
+        }
     }
 }
