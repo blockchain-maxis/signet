@@ -34,6 +34,11 @@ export interface Account {
    * `updateAccount` has nothing to write to until the indexer syncs the claim.
    */
   editable: boolean;
+  /**
+   * Whether the signed-in wallet is the primary wallet for the handle.
+   * True for the on-chain owning wallet, false for secondary/deploy wallets.
+   */
+  isPrimary: boolean;
 }
 
 export interface AccountUpdate {
@@ -98,13 +103,20 @@ export async function getAccount(
 ): Promise<Account> {
   const prisma = await getPrisma();
   if (!prisma) {
+    const handle = await lookupWallet(address, options);
+    let isPrimary = false;
+    if (handle) {
+      const onChainOwner = await resolveHandle(handle, options);
+      isPrimary = onChainOwner ? onChainOwner === address : true;
+    }
     return {
       address,
-      handle: await lookupWallet(address, options),
+      handle,
       displayName: null,
       bio: null,
       dbConfigured: false,
       editable: false,
+      isPrimary,
     };
   }
 
@@ -113,13 +125,23 @@ export async function getAccount(
     include: { profile: true },
   });
   const profile = wallet?.profile;
+  const handle = profile?.handle ?? (await lookupWallet(address, options));
+  let isPrimary = false;
+  if (wallet) {
+    isPrimary = wallet.isPrimary;
+  } else if (handle) {
+    const onChainOwner = await resolveHandle(handle, options);
+    isPrimary = onChainOwner ? onChainOwner === address : true;
+  }
+
   return {
     address,
-    handle: profile?.handle ?? (await lookupWallet(address, options)),
+    handle,
     displayName: profile?.displayName ?? null,
     bio: profile?.bio ?? null,
     dbConfigured: true,
     editable: profile != null,
+    isPrimary,
   };
 }
 
@@ -460,7 +482,7 @@ export async function updateAccount(address: string, update: AccountUpdate): Pro
   }
   const wallet = await prisma.wallet.findUnique({
     where: { pubkey: address },
-    select: { profileId: true },
+    select: { profileId: true, isPrimary: true },
   });
   if (!wallet) {
     throw new Error('No profile is bound to this wallet yet — claim a handle on-chain first');
@@ -476,6 +498,7 @@ export async function updateAccount(address: string, update: AccountUpdate): Pro
     bio: profile.bio,
     dbConfigured: true,
     editable: true,
+    isPrimary: wallet.isPrimary,
   };
 }
 
