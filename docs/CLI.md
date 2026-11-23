@@ -479,6 +479,21 @@ involve a pairing:
   when a deployment older than that route answers it 404,
   `GET /api/cli/whoami?publicKey=G…` (which carries no `source` or `isPrimary`).
 
+#### Challenge verification before signing
+
+Before handing the challenge transaction envelope to `stellar tx sign`, `signet link` and `signet unlink` verify the transaction's shape and parameters (`link.VerifyChallenge`):
+
+- **Envelope version:** must be a v1 transaction envelope (`ENVELOPE_TYPE_TX`).
+- **Sequence number:** must be `0`.
+- **Operations:** every operation must be `manage_data`.
+- **First operation source:** the first operation's source account must match the local identity's public key being proved.
+- **Purpose and domain binding:** the first operation's data name must start with `<purpose>.cli.` (where purpose is `link` or `unlink`) and end with ` auth`.
+- **Server signing key:** when `stellar.toml` publishes a `SIGNING_KEY`, the transaction's source account must equal it.
+- **Time bounds:** time bounds must be present, and the current system time must fall within `[min_time, max_time]`.
+- **Network passphrase:** the passphrase must equal the one for the resolved `--network`, and the discovered passphrase from `stellar.toml` when present.
+
+Any verification failure aborts the flow immediately before invoking `stellar tx sign` and exits with code 5 (`signing failed`), reporting the failure reason without echoing the envelope.
+
 #### The approval URL and the loopback callback
 
 The CLI builds `<baseURL>/link?code=<state>` in `link.prepare`. When it could
