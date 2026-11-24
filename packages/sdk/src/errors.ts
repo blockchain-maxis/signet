@@ -31,6 +31,16 @@ export class NotFoundError extends SignetError {
   }
 }
 
+/** The API key is invalid, malformed or revoked (HTTP 401). Never retried. */
+export class UnauthorizedError extends SignetError {
+  readonly status = 401 as const;
+  readonly code: string | undefined;
+  constructor(message = 'Unauthorized', options?: ServerErrorOptions) {
+    super(message, options);
+    this.code = options?.code;
+  }
+}
+
 /** The request was malformed: a bad handle, address, cursor or limit (HTTP 400). */
 export class ValidationError extends SignetError {
   readonly status = 400 as const;
