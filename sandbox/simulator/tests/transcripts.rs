@@ -117,7 +117,10 @@ fn assert_replays(name: &str) {
     let (sent, expected) = load(name);
     let replay = run_simulator(&sent);
     assert_eq!(replay.stdout, expected, "replay mismatch for {name}");
-    assert!(replay.status.success(), "simulator exited with failure for {name}");
+    assert!(
+        replay.status.success(),
+        "simulator exited with failure for {name}"
+    );
 }
 
 #[test]
