@@ -20,8 +20,6 @@ import { clientIp } from './security.ts';
  *   • `GET /api/auth/sep10` builds and *signs* a challenge transaction. It is
  *     unauthenticated and serves `Access-Control-Allow-Origin: *`, so any web
  *     page in the world could drive ed25519 signing on this server.
- *   • `POST /api/auth/verify` runs an ed25519 verification per call.
- *   • `POST /api/auth/challenge` mints HMAC-tagged challenges.
  *
  * Buckets are namespaced per endpoint so a flood against one cannot exhaust
  * another's budget, and so the auth endpoints can be held to a much tighter
@@ -59,10 +57,6 @@ export const LIMITS = {
   cliPairStatus: 120,
   /** Builds/verifies a CLI-link challenge — same signing cost as `sep10`. */
   cliLink: 12,
-  /** Verifies a signature per call. */
-  authVerify: 15,
-  /** Cheap, but the entry point to the sign-in flow. */
-  authChallenge: 20,
   /** Sign-out-everywhere: authenticated and rare, so a tight bucket is plenty. */
   authRevoke: 10,
   /** Plain reads; generous, still bounded. */

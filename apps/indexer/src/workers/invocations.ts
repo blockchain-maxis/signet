@@ -484,7 +484,7 @@ export async function runInvocationsWorker(
         const successful =
           txRes.status === 'SUCCESS' || (txRes as any).status === rpc.Api.GetTransactionStatus.SUCCESS;
 
-        const id = `${txHash}:0`;
+        const id = `${txHash}:${contract.id}`;
 
         await store.contractInvocation.upsert({
           where: { id },

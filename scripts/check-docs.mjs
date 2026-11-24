@@ -198,6 +198,11 @@ const NOT_ENV_IDENTIFIERS = new Set([
   'NETWORK_PASSPHRASE', // stellar.toml key the CLI reads, not env
   'SIGNING_KEY', // stellar.toml key the CLI reads, not env
   'WEB_AUTH_ENDPOINT', // stellar.toml key the CLI reads, not env
+  'MAX_ACTIVE_API_KEYS', // apps/web/lib/server/account-api-keys.ts — limit constant, not config
+  'MAX_API_KEY_NAME', // apps/web/lib/server/account-api-keys.ts — limit constant, not config
+  'BAD_REQUEST', // tRPC error code the generated API reference cites, not env
+  'PRECONDITION_FAILED', // tRPC error code the generated API reference cites, not env
+  'NOT_FOUND', // tRPC error code the generated API reference cites, not env
 ]);
 
 /** Backticked SCREAMING_SNAKE with an underscore — typical env var citation. */

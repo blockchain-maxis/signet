@@ -15,14 +15,20 @@
  *    list, never a Horizon fallback.
  * 2. **Horizon, only when there is no database** (`DATABASE_URL` unset or the
  *    DB unreachable). The bound wallet's operations are walked for
- *    `invoke_host_function` records whose `function` is
- *    `HostFunctionTypeCreateContract` — the same filter the indexer's
+ *    `invoke_host_function` records whose `function` is recognized by
+ *    `isCreateContractFunction` — the same filter the indexer's
  *    deployment worker uses — and each created address is derived from the
  *    record's `address`/`salt` or decoded from result meta, the #444 walk.
  *    The walk stops at `HORIZON_MAX_RECORDS`, with `truncated` carried
  *    through so the section can say partial like the operations list does.
  */
-import { isValidHandle, networkPassphrase, normalizeNetwork, type Network } from '@signet/types';
+import {
+  isCreateContractFunction,
+  isValidHandle,
+  networkPassphrase,
+  normalizeNetwork,
+  type Network,
+} from '@signet/types';
 import { STELLAR_NETWORK } from './chain.ts';
 import { getConfiguredNetwork } from './cli-link.ts';
 import { deriveContractId } from './contract-address.ts';
@@ -132,8 +138,6 @@ export interface ProfileContractsDeps {
   horizon?: ProfileContractsHorizon;
 }
 
-const CREATE_CONTRACT_FUNCTION = 'HostFunctionTypeCreateContract';
-
 const defaultDb: ProfileContractsDb = {
   listContracts: async ({ handle }) => {
     if (!process.env.DATABASE_URL) return undefined;
@@ -177,7 +181,7 @@ const defaultDb: ProfileContractsDb = {
   },
 };
 
-const defaultHorizon: ProfileContractsHorizon = {
+export const defaultHorizon: ProfileContractsHorizon = {
   boundWallet: async (handle: string) => {
     const profile = await getProfile(handle);
     return profile?.wallet ? profile.wallet : null;
@@ -272,7 +276,7 @@ async function listFromHorizon(
       break;
     }
     scanned += 1;
-    if (op.type !== 'invoke_host_function' || op.function !== CREATE_CONTRACT_FUNCTION) {
+    if (op.type !== 'invoke_host_function' || !isCreateContractFunction(op.function)) {
       continue;
     }
     const address = await deriveCreatedAddress(op, wallet, passphrase, horizon);
