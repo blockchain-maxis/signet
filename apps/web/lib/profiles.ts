@@ -1,3 +1,4 @@
+import { cache } from 'react';
 import { isValidHandle } from '@signet/types';
 import {
   ALLOW_HTTP,
@@ -63,7 +64,7 @@ export type Operation = {
 // Re-exported here so existing callers keep importing it from this module.
 export { isValidHandle };
 
-export async function getProfile(handle: string): Promise<Profile | null> {
+export const getProfile = cache(async function getProfile(handle: string): Promise<Profile | null> {
   if (!isValidHandle(handle)) return null;
   // Prefer the database (indexer-synced bindings, plus the off-chain display
   // fields the other layers can't supply) when one is configured.
@@ -75,7 +76,7 @@ export async function getProfile(handle: string): Promise<Profile | null> {
   // database — or with no database at all. Ask the registry directly so it
   // renders instead of 404ing.
   return safeChainProfile(handle);
-}
+});
 
 /** Which layer answered an operations lookup; `none` when nothing did. */
 export type OperationsSource = 'database' | 'horizon' | 'none';
@@ -109,16 +110,30 @@ export function formatCount(value: number, truncated: boolean): string {
   return truncated ? `${value}+` : String(value);
 }
 
+export interface OperationsDeps {
+  profile?: Profile | null;
+  getProfile?: (handle: string) => Promise<Profile | null>;
+  fetchHorizonOperations?: (wallet: string) => Promise<{
+    operations: Operation[];
+    truncated: boolean;
+    cap: number;
+  } | null>;
+  safeDbOperationsResult?: (handle: string) => Promise<Omit<OperationsResult, 'source'> | null>;
+}
+
 /**
- * Resolve a handle's operations along with their completeness. Prefer this over
- * `getOperations` on any surface that shows the result to a person.
+ * Resolve a handle's operations along with their completeness, with optional injected seams.
  */
-export async function getOperationsResult(handle: string): Promise<OperationsResult> {
+export async function getOperationsResultWithDeps(
+  handle: string,
+  deps: OperationsDeps = {},
+): Promise<OperationsResult> {
   const empty: OperationsResult = { operations: [], source: 'none', truncated: false, cap: null };
   if (!isValidHandle(handle)) return empty;
 
   // 1. Prefer indexer-populated DB rows (fastest, richest data including decoded_function).
-  const fromDb = await safeDbOperationsResult(handle);
+  const dbFn = deps.safeDbOperationsResult ?? safeDbOperationsResult;
+  const fromDb = await dbFn(handle);
   if (fromDb && fromDb.operations.length > 0) return { ...fromDb, source: 'database' };
 
   // 2. Horizon fallback: fetch invoke_host_function ops for the bound wallet directly
@@ -127,10 +142,17 @@ export async function getOperationsResult(handle: string): Promise<OperationsRes
   //    already return an empty array because the profile genuinely has no ops yet.
   if (fromDb === null) {
     // DB is unavailable (no DATABASE_URL or connection failed) — try Horizon.
-    const profile = await getProfile(handle);
+    const profile =
+      deps.profile !== undefined
+        ? deps.profile
+        : await (deps.getProfile ?? getProfile)(handle);
     if (profile?.wallet) {
-      const { fetchHorizonOperations } = await import('./server/horizon.ts');
-      const fromHorizon = await fetchHorizonOperations(profile.wallet);
+      let fetchHorizon = deps.fetchHorizonOperations;
+      if (!fetchHorizon) {
+        const { fetchHorizonOperations: imported } = await import('./server/horizon.ts');
+        fetchHorizon = imported;
+      }
+      const fromHorizon = await fetchHorizon(profile.wallet);
       if (fromHorizon && fromHorizon.operations.length > 0) {
         return {
           operations: fromHorizon.operations,
@@ -143,6 +165,14 @@ export async function getOperationsResult(handle: string): Promise<OperationsRes
   }
 
   return empty;
+}
+
+/**
+ * Resolve a handle's operations along with their completeness. Prefer this over
+ * `getOperations` on any surface that shows the result to a person.
+ */
+export async function getOperationsResult(handle: string): Promise<OperationsResult> {
+  return getOperationsResultWithDeps(handle);
 }
 
 /**
@@ -478,11 +508,19 @@ export interface PagedOperations {
  * profile in it, or the query fails — callers fall back to `getOperations`
  * (Horizon) in that case, same as `safeDbOperations`.
  */
+export interface PagedOperationsOptions {
+  cursor?: { createdAt: string; id: string } | null;
+  offset?: number;
+  limit?: number;
+}
+
+export type PagedOperationsPagination = number | PagedOperationsOptions;
+
 export async function getPagedOperations(
   handle: string,
-  offset: number,
-  limit: number,
-): Promise<PagedOperations | null> {
+  pagination: PagedOperationsPagination,
+  limit = 25,
+): Promise<(PagedOperations & { hasMore?: boolean }) | null> {
   if (!process.env.DATABASE_URL || !isValidHandle(handle)) return null;
   try {
     const { prisma } = await import('@signet/db');
@@ -493,20 +531,48 @@ export async function getPagedOperations(
     if (!profile) return null;
 
     const walletIds = profile.wallets.map((w) => w.id);
-    if (walletIds.length === 0) return { data: [], total: 0 };
+    if (walletIds.length === 0) return { data: [], total: 0, hasMore: false };
 
-    const where = { walletId: { in: walletIds } };
+    let cursor: { createdAt: string; id: string } | null | undefined;
+    let offset: number | undefined;
+    let actualLimit = limit;
+
+    if (typeof pagination === 'number') {
+      offset = pagination;
+    } else if (typeof pagination === 'object' && pagination !== null) {
+      cursor = pagination.cursor;
+      offset = pagination.offset;
+      if (pagination.limit !== undefined) actualLimit = pagination.limit;
+    }
+
+    const walletWhere = { walletId: { in: walletIds } };
+    let whereClause: any = walletWhere;
+
+    if (cursor) {
+      const cursorDate = new Date(cursor.createdAt);
+      whereClause = {
+        ...walletWhere,
+        OR: [
+          { createdAt: { lt: cursorDate } },
+          { createdAt: cursorDate, id: { lt: cursor.id } },
+        ],
+      };
+    }
+
     const [rows, total] = await Promise.all([
       prisma.operation.findMany({
-        where,
-        orderBy: { createdAt: 'desc' },
-        skip: offset,
-        take: limit,
+        where: whereClause,
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+        ...(offset !== undefined && !cursor ? { skip: offset } : {}),
+        take: actualLimit + 1,
       }),
-      prisma.operation.count({ where }),
+      prisma.operation.count({ where: walletWhere }),
     ]);
 
-    return { data: rows.map(mapDbOperation), total };
+    const hasMore = rows.length > actualLimit;
+    const pageRows = hasMore ? rows.slice(0, actualLimit) : rows;
+
+    return { data: pageRows.map(mapDbOperation), total, hasMore };
   } catch {
     return null;
   }

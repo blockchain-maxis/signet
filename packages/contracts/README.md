@@ -18,7 +18,7 @@ Rust/Soroban smart contracts for Signet, managed as a Cargo workspace
   rustup target add wasm32v1-none
   ```
 
-- Stellar CLI v25.2.0 or newer (required: soroban-sdk 28 only builds through `stellar contract build`):
+- Stellar CLI v25.2.0 or newer (required: soroban-sdk 29 only builds through `stellar contract build`):
 
   ```bash
   cargo install --locked stellar-cli
@@ -36,7 +36,7 @@ cd packages/contracts && stellar contract build
 
 ## Testing
 
-Two layers, both in the `contracts` CI job's `cargo test` run:
+Three layers, in the `contracts` CI job's `cargo test` run:
 
 - **Unit tests** (`identity-registry/src/test.rs`) — known cases: each
   entrypoint's happy path, each error, and the auth requirements. Each one also
@@ -50,6 +50,15 @@ Two layers, both in the `contracts` CI job's `cargo test` run:
   `count` equals the number of live bindings after any sequence of
   claim / release / transfer / revoke. These run with snapshot capture off —
   a file per generated case would be hundreds of them, differing every run.
+- **Resource-cost tests** (`identity-registry/src/cost_test.rs`) — resource regression
+  tests measuring instructions, memory, read/write entries, read/write bytes, and event
+  bytes for each entry point against a committed baseline (`identity-registry/cost_baseline.json`).
+  The test allows a small tolerance (5% for CPU instructions and memory; 0% for entries).
+  To rewrite the baseline on purpose, run:
+
+  ```bash
+  UPDATE_GOLDEN=1 cargo test --manifest-path packages/contracts/Cargo.toml
+  ```
 
 `proptest` is a dev-dependency, so none of this reaches the deployment wasm.
 

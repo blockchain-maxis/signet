@@ -1,12 +1,14 @@
 import { Contract, xdr, type rpc } from '@stellar/stellar-sdk';
 import { logger } from '../logger.js';
 import type { IndexerConfig } from '../config.js';
+import { decodeInstanceExecutable, type LedgerEntryLike } from '../contract-executable.js';
 
 export interface ExecutableRefreshContract {
   id: string;
   address: string;
   wasmHash: string | null;
   wasmHashCheckedAt: Date | null;
+  executableType?: string | null;
 }
 
 export interface ExecutableRefreshStore {
@@ -20,6 +22,7 @@ export interface ExecutableRefreshStore {
         address: true;
         wasmHash: true;
         wasmHashCheckedAt: true;
+        executableType: true;
       };
     }) => Promise<ExecutableRefreshContract[]>;
     update: (args: {
@@ -27,6 +30,7 @@ export interface ExecutableRefreshStore {
       data: {
         wasmHash?: string | null;
         wasmHashCheckedAt: Date;
+        executableType?: string | null;
       };
     }) => Promise<unknown>;
   };
@@ -97,6 +101,7 @@ export async function runExecutableRefreshWorker(
       address: true,
       wasmHash: true,
       wasmHashCheckedAt: true,
+      executableType: true,
     },
   });
 
@@ -110,15 +115,15 @@ export async function runExecutableRefreshWorker(
   for (let i = 0; i < contracts.length; i += BATCH_SIZE) {
     const batch = contracts.slice(i, i + BATCH_SIZE);
 
-    // Map base64 ledger key -> contract item
-    const keyMap = new Map<string, ExecutableRefreshContract>();
+    // Map base64 ledger key -> contract item and footprint key
+    const keyMap = new Map<string, { contract: ExecutableRefreshContract; key: xdr.LedgerKey }>();
     const keys: xdr.LedgerKey[] = [];
 
     for (const item of batch) {
       try {
         const key = new Contract(item.address).getFootprint();
         const b64 = key.toXDR('base64');
-        keyMap.set(b64, item);
+        keyMap.set(b64, { contract: item, key });
         keys.push(key);
       } catch (err) {
         logger.warn(
@@ -156,68 +161,84 @@ export async function runExecutableRefreshWorker(
         continue;
       }
 
-      const contract = keyMap.get(keyB64);
-      if (!contract) continue;
+      const item = keyMap.get(keyB64);
+      if (!item) continue;
 
       foundKeys.add(keyB64);
-
-      let entryData: xdr.LedgerEntryData | null = null;
-      if (entry.val && typeof (entry.val as any).contractData === 'function') {
-        entryData = entry.val as unknown as xdr.LedgerEntryData;
-      } else if ((entry as any).xdr) {
-        try {
-          entryData = xdr.LedgerEntryData.fromXDR((entry as any).xdr, 'base64');
-        } catch {
-          entryData = null;
-        }
-      }
-
-      const newHash = entryData ? extractWasmHash(entryData) : null;
-      const oldHash = contract.wasmHash;
+      const { contract, key } = item;
+      const execInfo = decodeInstanceExecutable([entry as LedgerEntryLike], key);
 
       try {
-        if (newHash && newHash !== oldHash) {
-          logger.info(
-            { contract: contract.address, from: oldHash, to: newHash },
-            'deployments.wasmChanged',
-          );
+        const updateData: {
+          wasmHashCheckedAt: Date;
+          wasmHash?: string | null;
+          executableType?: string | null;
+        } = {
+          wasmHashCheckedAt: now,
+        };
 
-          // Version row first (idempotent upsert on the unique key, so a
-          // rollback to an earlier hash adds no row), then the Contract row.
-          // If the second write fails, the next tick still sees the old hash,
-          // re-detects the change and retries; the reverse order would lose
-          // the version permanently.
-          await store.contractWasmVersion.upsert({
-            where: {
-              contractId_wasmHash: {
+        if (execInfo?.type === 'wasm') {
+          const newHash = execInfo.wasmHash;
+          const oldHash = contract.wasmHash;
+          const hashChanged = newHash !== oldHash;
+          const typeChanged = contract.executableType !== 'wasm';
+
+          if (hashChanged) {
+            logger.info(
+              { contract: contract.address, from: oldHash, to: newHash },
+              'deployments.wasmChanged',
+            );
+
+            // Version row first (idempotent upsert on the unique key, so a
+            // rollback to an earlier hash adds no row), then the Contract row.
+            // If the second write fails, the next tick still sees the old hash,
+            // re-detects the change and retries; the reverse order would lose
+            // the version permanently.
+            await store.contractWasmVersion.upsert({
+              where: {
+                contractId_wasmHash: {
+                  contractId: contract.id,
+                  wasmHash: newHash,
+                },
+              },
+              update: {},
+              create: {
                 contractId: contract.id,
                 wasmHash: newHash,
+                observedLedger: latestLedger,
               },
-            },
-            update: {},
-            create: {
-              contractId: contract.id,
-              wasmHash: newHash,
-              observedLedger: latestLedger,
-            },
-          });
+            });
+
+            updateData.wasmHash = newHash;
+          }
+
+          if (typeChanged) {
+            updateData.executableType = 'wasm';
+          }
 
           await store.contract.update({
             where: { id: contract.id },
-            data: {
-              wasmHash: newHash,
-              wasmHashCheckedAt: now,
-            },
+            data: updateData,
           });
 
-          wasmChanged++;
+          if (hashChanged) {
+            wasmChanged++;
+          }
+        } else if (execInfo?.type === 'stellar_asset') {
+          const typeChanged = contract.executableType !== 'stellar_asset';
+          if (typeChanged) {
+            updateData.executableType = 'stellar_asset';
+          }
+
+          await store.contract.update({
+            where: { id: contract.id },
+            data: updateData,
+          });
         } else {
-          // Hash unchanged (or non-wasm executable) -> bump check timestamp
+          // Hash unchanged (or non-instance / archived executable) -> bump check timestamp
           await store.contract.update({
             where: { id: contract.id },
-            data: {
-              wasmHashCheckedAt: now,
-            },
+            data: updateData,
           });
         }
       } catch (err) {
@@ -231,19 +252,19 @@ export async function runExecutableRefreshWorker(
     }
 
     // Process missing entries (archived or not found)
-    for (const [keyB64, contract] of keyMap.entries()) {
+    for (const [keyB64, item] of keyMap.entries()) {
       if (!foundKeys.has(keyB64)) {
         missingEntries++;
         try {
           await store.contract.update({
-            where: { id: contract.id },
+            where: { id: item.contract.id },
             data: {
               wasmHashCheckedAt: now,
             },
           });
         } catch (err) {
           logger.error(
-            { contract: contract.address, error: String(err) },
+            { contract: item.contract.address, error: String(err) },
             'executableRefresh.contractFailed',
           );
         }

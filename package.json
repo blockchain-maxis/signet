@@ -33,6 +33,7 @@
     "indexer:dev": "pnpm --filter @signet/indexer dev",
     "dev:seed": "pnpm --filter @signet/indexer run dev:seed",
     "docs:generate": "pnpm --filter @signet/web run docs:generate",
+    "docs:check": "pnpm --filter @signet/web run docs:check",
     "openapi:export": "pnpm --filter @signet/web openapi:export",
     "openapi:check": "pnpm --filter @signet/web openapi:check",
     "openapi:breaking": "node scripts/check-openapi-breaking.mjs"
