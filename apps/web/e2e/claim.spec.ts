@@ -143,17 +143,25 @@ test('the open claim form has no serious accessibility violations', async ({ pag
     }),
   );
   await openClaimForm(page);
-  // The hero fades out while scrolled away; return to the top so axe scans the resting hero alongside the open claim form.
+  // The hero fades out while scrolled away, and its subtitle and claim row fade in after the
+  // heading. Return to the top and wait until every one of them rests at full opacity, so axe
+  // measures the real colours rather than a frame of the entrance animation.
   await page.evaluate(() => window.scrollTo(0, 0));
-  await expect
-    .poll(() =>
-      page.getByRole('heading', { level: 1 }).evaluate((el) => {
-        for (let node: Element | null = el; node; node = node.parentElement) {
-          if (Number(getComputedStyle(node).opacity) < 0.99) return false;
-        }
-        return true;
-      }),
-    )
-    .toBe(true);
+  for (const target of [
+    page.getByRole('heading', { level: 1 }),
+    page.getByText(/Signet aggregates every Soroban contract/),
+    page.getByPlaceholder('your-handle'),
+  ]) {
+    await expect
+      .poll(() =>
+        target.first().evaluate((el) => {
+          for (let node: Element | null = el; node; node = node.parentElement) {
+            if (Number(getComputedStyle(node).opacity) < 0.99) return false;
+          }
+          return true;
+        }),
+      )
+      .toBe(true);
+  }
   await expectNoSeriousA11yViolations(page, 'claim form open');
 });
