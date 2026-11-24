@@ -33,17 +33,21 @@ fn val_eq(env: &Env, a: &Val, b: &Val) -> bool {
 
 fn assert_single_event(env: &Env, expected_topics: Vec<Val>, expected_data: Val) {
     let events = last_events(env);
-    assert_eq!(events.len(), 1, "expected exactly one event to be published");
+    assert_eq!(
+        events.len(),
+        1,
+        "expected exactly one event to be published"
+    );
     let (topics, data) = events.get(0).unwrap();
-    assert_eq!(topics.len(), expected_topics.len(), "topics length mismatch");
+    assert_eq!(
+        topics.len(),
+        expected_topics.len(),
+        "topics length mismatch"
+    );
     for i in 0..topics.len() {
         let actual = topics.get(i).unwrap();
         let expected = expected_topics.get(i).unwrap();
-        assert!(
-            val_eq(env, &actual, &expected),
-            "topic[{}] mismatch",
-            i
-        );
+        assert!(val_eq(env, &actual, &expected), "topic[{}] mismatch", i);
     }
     assert!(val_eq(env, &data, &expected_data), "event data mismatch");
 }
@@ -66,7 +70,11 @@ fn initialize_publishes_no_events() {
     let client = IdentityRegistryClient::new(&env, &contract_id);
     let admin = Address::generate(&env);
     client.initialize(&admin);
-    assert_eq!(last_events(&env).len(), 0, "initialize must publish no events");
+    assert_eq!(
+        last_events(&env).len(),
+        0,
+        "initialize must publish no events"
+    );
 }
 
 #[test]
@@ -248,7 +256,10 @@ fn release_rejected_when_authorized_by_wrong_address() {
     }]);
 
     let res = client.try_release(&handle);
-    assert!(res.is_err(), "release must fail when authorized by wrong address");
+    assert!(
+        res.is_err(),
+        "release must fail when authorized by wrong address"
+    );
 }
 
 #[test]
@@ -715,10 +726,7 @@ fn set_admin_emits_event() {
     client.set_admin(&new_admin);
     assert_single_event(
         &env,
-        vec![
-            &env,
-            Symbol::new(&env, "admin_changed").into_val(&env),
-        ],
+        vec![&env, Symbol::new(&env, "admin_changed").into_val(&env)],
         (admin, new_admin).into_val(&env),
     );
 }

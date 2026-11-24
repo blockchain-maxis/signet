@@ -172,7 +172,8 @@ fn collect_current_costs() -> BTreeMap<StdString, CostMetrics> {
 }
 
 fn assert_within_tolerance(name: &str, current: &CostMetrics, baseline: &CostMetrics) {
-    let max_cpu = baseline.cpu_instructions + (baseline.cpu_instructions * INSTRUCTION_TOLERANCE_PERCENT / 100);
+    let max_cpu = baseline.cpu_instructions
+        + (baseline.cpu_instructions * INSTRUCTION_TOLERANCE_PERCENT / 100);
     assert!(
         current.cpu_instructions <= max_cpu,
         "entry point '{name}' cpu_instructions exceeded tolerance: current={}, baseline={}, max_allowed={}",
@@ -231,13 +232,14 @@ fn registry_costs_match_baseline() {
     let current = collect_current_costs();
     let baseline_path = Path::new(env!("CARGO_MANIFEST_DIR")).join("cost_baseline.json");
 
-    let should_update = std::env::var("UPDATE_GOLDEN").is_ok()
-        || std::env::var("UPDATE_COST_BASELINE").is_ok();
+    let should_update =
+        std::env::var("UPDATE_GOLDEN").is_ok() || std::env::var("UPDATE_COST_BASELINE").is_ok();
 
     if should_update || !baseline_path.exists() {
         let mut json = serde_json::to_string_pretty(&current).unwrap();
         json.push('\n');
-        fs::write(&baseline_path, json).unwrap_or_else(|e| panic!("writing {}: {e}", baseline_path.display()));
+        fs::write(&baseline_path, json)
+            .unwrap_or_else(|e| panic!("writing {}: {e}", baseline_path.display()));
         if should_update {
             return;
         }
