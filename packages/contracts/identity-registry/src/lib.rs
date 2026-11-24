@@ -249,6 +249,10 @@ impl IdentityRegistry {
     /// Resolve a handle to its owning wallet, if bound.
     pub fn resolve(env: Env, handle: String) -> Option<Address> {
         Self::bump_instance(&env);
+        Self::resolve_owner(&env, handle)
+    }
+
+    fn resolve_owner(env: &Env, handle: String) -> Option<Address> {
         let key = DataKey::Owner(handle);
         let res: Option<Address> = env.storage().persistent().get(&key);
         if res.is_some() {
@@ -304,7 +308,7 @@ impl IdentityRegistry {
         }
         let mut results: Vec<Option<Address>> = Vec::new(&env);
         for handle in handles.iter() {
-            let addr = Self::resolve(env.clone(), handle);
+            let addr = Self::resolve_owner(&env, handle);
             results.push_back(addr);
         }
         Ok(results)
@@ -403,5 +407,6 @@ fn is_reserved_handle(handle: &String) -> bool {
     false
 }
 
+mod cost_test;
 mod property_test;
 mod test;
