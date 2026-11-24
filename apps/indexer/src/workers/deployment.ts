@@ -1,4 +1,5 @@
 import type { Horizon } from '@stellar/stellar-sdk';
+import { isCreateContractFunction } from '@signet/types';
 import { logger } from '../logger.js';
 import { extractContractAddress, sleep } from '../stellar.js';
 import { withRetry } from '../retry.js';
@@ -175,7 +176,7 @@ async function handleOperation(
   // The SDK's operation type narrowing — use any to access function field
   // which is present on InvokeHostFunction operations from Horizon
   const opRecord = op as unknown as Record<string, unknown>;
-  if (opRecord['function'] !== 'HostFunctionTypeCreateContract') return;
+  if (!isCreateContractFunction(opRecord['function'] as string | undefined)) return;
 
   const txHash = op.transaction_hash;
   if (!txHash) return;

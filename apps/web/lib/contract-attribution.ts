@@ -18,7 +18,7 @@
  * 2. **Horizon, only when there is no database** (`DATABASE_URL` unset or the
  *    DB unreachable). The handle's wallets are resolved and each `G…` wallet's
  *    Horizon operations are walked for `invoke_host_function` records whose
- *    `function` is `HostFunctionTypeCreateContract` — the same filter the
+ *    `function` is recognized by `isCreateContractFunction` — the same filter the
  *    indexer's deployment worker uses. For each record the created contract ID
  *    is derived with `deriveContractId` from its `address`/`salt` fields; when
  *    those fields are missing the transaction is fetched and the return value
@@ -35,7 +35,7 @@
  *   `fetchHorizonOperations` refuses `C…` wallets.
  */
 import { cache } from 'react';
-import { isValidHandle, networkPassphrase, type Network } from '@signet/types';
+import { isCreateContractFunction, isValidHandle, networkPassphrase, type Network } from '@signet/types';
 import { STELLAR_NETWORK } from './chain.ts';
 import { deriveContractId, isContractAddress } from './contract-address.ts';
 import { getProfile } from './profiles.ts';
@@ -146,8 +146,6 @@ export interface AttributeContractDeps {
   /** Horizon seam. Defaults to live Horizon fetchers. */
   horizon?: AttributionHorizon;
 }
-
-const CREATE_CONTRACT_FUNCTION = 'HostFunctionTypeCreateContract';
 
 const prismaAttributionDb: AttributionDb = {
   findContract: async ({ address, handle, network }) => {
@@ -387,7 +385,7 @@ async function attributeFromHorizon(
         break;
       }
       scanned += 1;
-      if (op.type !== 'invoke_host_function' || op.function !== CREATE_CONTRACT_FUNCTION) {
+      if (op.type !== 'invoke_host_function' || !isCreateContractFunction(op.function)) {
         continue;
       }
       const created = await deriveCreatedAddress(op, wallet, passphrase, horizon);
