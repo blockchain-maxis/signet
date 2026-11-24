@@ -40,3 +40,26 @@ test('dashboard navigation appears only with a session', async ({ page }) => {
   }
   await expect(page.getByText('Not signed in')).toHaveCount(0);
 });
+
+test('mobile navigation is reachable and tracks current page at 390x844', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await apiSignIn(page);
+  await page.goto('/app');
+
+  for (const label of ['Overview', 'Profile', 'Wallets', 'API keys', 'Settings']) {
+    await expect(page.getByRole('link', { name: label })).toBeVisible();
+  }
+  await expect(page.getByRole('link', { name: 'Overview' })).toHaveAttribute(
+    'aria-current',
+    'page',
+  );
+  await expect(page.getByRole('link', { name: 'Settings' })).not.toHaveAttribute('aria-current');
+
+  await page.getByRole('link', { name: 'Settings' }).click();
+  await expect(page).toHaveURL('/app/settings');
+  await expect(page.getByRole('link', { name: 'Settings' })).toHaveAttribute(
+    'aria-current',
+    'page',
+  );
+  await expect(page.getByRole('link', { name: 'Overview' })).not.toHaveAttribute('aria-current');
+});
