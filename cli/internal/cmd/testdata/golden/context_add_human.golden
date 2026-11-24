@@ -1,4 +1,4 @@
-$ signet context add staging --url https://staging.example.com --network testnet --source charlie
+$ signet context add staging --url <deployment> --network testnet --source charlie
 -- stdout --
 Added context "staging".
 -- stderr --

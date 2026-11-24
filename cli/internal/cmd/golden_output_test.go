@@ -344,7 +344,7 @@ func TestGolden_Context(t *testing.T) {
 		{"list", []string{"context", "list"}},
 		{"show", []string{"context", "show"}},
 		{"use", []string{"context", "use", "prod"}},
-		{"add", []string{"context", "add", "staging", "--url", "https://staging.example.com", "--network", "testnet", "--source", "charlie"}},
+		{"add", []string{"context", "add", "staging", "--url", "<deployment>", "--network", "testnet", "--source", "charlie"}},
 		{"remove", []string{"context", "remove", "prod"}},
 	} {
 		for _, mode := range []string{"human", "json"} {
@@ -353,10 +353,27 @@ func TestGolden_Context(t *testing.T) {
 				isolateConfigDir(t)
 				seedGoldenContexts(t)
 				args := append([]string(nil), tc.args...)
+				// `context add` reads the deployment's stellar.toml, so it is pointed
+				// at a local testnet server, its address written as <deployment> so
+				// the golden does not depend on the port.
+				url := ""
+				for i, arg := range args {
+					if arg == "<deployment>" {
+						if url == "" {
+							url = testnetDiscoveryServer(t, testnetStellarTOML, http.StatusOK).URL
+						}
+						args[i] = url
+					}
+				}
 				if mode == "json" {
 					args = append(args, "--json")
 				}
-				assertGolden(t, name, runGolden(t, args...))
+				out := runGolden(t, args...)
+				if url != "" {
+					out = strings.ReplaceAll(out, url, "<deployment>")
+					out = strings.ReplaceAll(out, strings.TrimPrefix(url, "http://"), "<deployment>")
+				}
+				assertGolden(t, name, out)
 			})
 		}
 	}
