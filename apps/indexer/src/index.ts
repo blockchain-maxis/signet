@@ -15,6 +15,7 @@ import {
   runExecutableRefreshWorker,
   type ExecutableRefreshStore,
 } from './workers/executable-refresh.js';
+import { idleUntilNextTick, runTick } from './tick.js';
 
 let shuttingDown = false;
 let shuttingDownPrisma = false;
@@ -23,17 +24,16 @@ let lastPrunedAt = 0;
 /** Max time (ms) to wait for a graceful shutdown before force-exiting. */
 const SHUTDOWN_TIMEOUT_MS = 10_000;
 
-// Liveness marker, refreshed after every successful tick. The Docker
-// HEALTHCHECK reads its mtime and reports the worker unhealthy once it goes
-// stale, so a wedged loop (which never completes a tick) can't look healthy.
+// Liveness marker, refreshed at the end of every tick. The Docker HEALTHCHECK
+// reads its mtime and reports the worker unhealthy once it goes stale, so a
+// wedged loop (which never completes a tick) can't look healthy.
+//
+// Liveness means the loop is turning, and nothing more. A tick completes
+// whether or not its workers succeeded (see `runTick`), so a tick in which
+// every worker failed still refreshes the marker: a restart, which is what an
+// unhealthy container asks for, would not bring a database or an RPC endpoint
+// back. What failed is in `failedWorkers` on the `tick.summary` line.
 const LIVENESS_FILE = process.env.INDEXER_LIVENESS_FILE ?? '/tmp/indexer-alive';
-
-// How often the idle-sleep loop checks for a pending index request (see
-// hasPendingIndexRequest) — the worst-case delay before a just-linked wallet
-// gets scanned, once the current tick has already finished. Deliberately much
-// shorter than the tick interval itself (default 30s) and cheap: one indexed
-// lookup, not a full tick.
-const PENDING_CHECK_INTERVAL_MS = 2_000;
 
 /**
  * True when any wallet has a pending index request — apps/web/lib/server/
@@ -63,94 +63,40 @@ async function tick(
   soroban: ReturnType<typeof createSorobanRpcServer>,
   config: ReturnType<typeof loadConfig>,
 ): Promise<void> {
-  const start = Date.now();
-  logger.debug({}, 'tick.start');
-
-  // Attestations: ingest on-chain claim/release events into the DB
-  const { eventsDecoded } = await runAttestationWorker(soroban, config);
-
-  // Deployments: find new contract creations for all tracked wallets. Wallets
-  // are (re-)read fresh from the store on every call, so one linked mid-life
-  // — after the indexer started — is scanned starting the very next tick.
-  const { highestLedger, walletsScanned, contractsFound } = await runDeploymentWorker(
-    horizon,
-    config,
-    prisma as unknown as DeploymentStore,
-    createContractExecutableReader(soroban),
-  );
-
-  // Activity: refresh snapshots for tracked contracts. Same freshness
-  // guarantee as deployments — a contract the deployment worker just found
-  // this tick already shows up in this call's `contract.findMany()`.
-  const { snapshotsWritten } = await runActivityWorker(
-    prisma as unknown as ActivityStore,
-    config,
-  );
-
-  // Operations: pull recent Soroban invocations for tracked wallets
-  const { opsUpserted } = await runOperationsWorker(
-    horizon,
-    prisma as unknown as OperationsStore,
-    config,
-  );
-
-  // Invocations: capture per-contract invocations, footprints, and state mutations
-  let invocationsUpserted = 0;
-  if (config.captureInvocations) {
-    const res = await runInvocationsWorker(
-      soroban,
-      config,
-      prisma as unknown as InvocationsStore,
-    );
-    invocationsUpserted = res.invocationsUpserted;
-  }
-
-  // Executable refresh: backfill missing WASM hashes and detect on-chain contract upgrades
-  const { wasmChanged } = await runExecutableRefreshWorker(
-    soroban,
-    config,
-    prisma as unknown as ExecutableRefreshStore,
-  );
-
-  // Pruning: periodically prune historical operations, snapshots, and invocations beyond retention windows
-  let opsPruned = 0;
-  let snapshotsPruned = 0;
-  let invocationsPruned = 0;
-  if (Date.now() - lastPrunedAt >= config.pruneIntervalMs) {
-    const pruneRes = await runPruningWorker(prisma as unknown as PruningStore, config);
-    opsPruned = pruneRes.opsPruned;
-    snapshotsPruned = pruneRes.snapshotsPruned;
-    invocationsPruned = pruneRes.invocationsPruned;
-    lastPrunedAt = Date.now();
-  }
-
-  // Persist cursor
-  if (highestLedger > 0) {
-    await prisma.indexerCursor.upsert({
-      where:  { id: 'main' },
-      update: { lastLedger: highestLedger },
-      create: { id: 'main', lastLedger: highestLedger },
-    });
-  }
-
-  // One structured metrics line per tick. Per-record detail is logged at debug
-  // level inside each worker, so the default (info) output stays one line/tick.
-  logger.info(
-    {
-      walletsScanned,
-      eventsDecoded,
-      contractsFound,
-      opsUpserted,
-      invocationsUpserted,
-      snapshotsWritten,
-      wasmChanged,
-      opsPruned,
-      snapshotsPruned,
-      invocationsPruned,
-      durationMs: Date.now() - start,
+  // The order the workers run in, what each is for, and the isolation between
+  // them are in `runTick`. This only binds each one to its clients and store.
+  await runTick({
+    attestation: () => runAttestationWorker(soroban, config),
+    deployment: () =>
+      runDeploymentWorker(
+        horizon,
+        config,
+        prisma as unknown as DeploymentStore,
+        createContractExecutableReader(soroban),
+      ),
+    activity: () => runActivityWorker(prisma as unknown as ActivityStore, config),
+    operations: () => runOperationsWorker(horizon, prisma as unknown as OperationsStore, config),
+    invocations: config.captureInvocations
+      ? () => runInvocationsWorker(soroban, config, prisma as unknown as InvocationsStore)
+      : undefined,
+    executableRefresh: () =>
+      runExecutableRefreshWorker(soroban, config, prisma as unknown as ExecutableRefreshStore),
+    prune:
+      Date.now() - lastPrunedAt >= config.pruneIntervalMs
+        ? async () => {
+            const res = await runPruningWorker(prisma as unknown as PruningStore, config);
+            lastPrunedAt = Date.now();
+            return res;
+          }
+        : undefined,
+    saveCursor: async (highestLedger) => {
+      await prisma.indexerCursor.upsert({
+        where:  { id: 'main' },
+        update: { lastLedger: highestLedger },
+        create: { id: 'main', lastLedger: highestLedger },
+      });
     },
-    'tick.summary',
-  );
+  });
 }
 
 async function main(): Promise<void> {
@@ -192,6 +138,8 @@ async function main(): Promise<void> {
       try {
         await tick(horizon, soroban, config);
         // Only a completed tick refreshes liveness; a throw leaves it to go stale.
+        // A worker that fails no longer throws out of the tick, so this is every
+        // tick unless something outside the workers breaks.
         await markAlive();
       } catch (err) {
         logger.error({ error: String(err) }, 'tick.error');
@@ -199,22 +147,12 @@ async function main(): Promise<void> {
 
       if (shuttingDown) break;
 
-      // Sleep in small chunks so we can react to shutdown quickly, and — on
-      // a slower cadence than the shutdown check, since it costs a query —
-      // to a just-linked wallet's indexRequestedAt: start the next tick
-      // early rather than making it wait out the rest of this interval.
-      const end = Date.now() + config.tickIntervalMs;
-      let lastPendingCheck = 0;
-      while (!shuttingDown && Date.now() < end) {
-        await sleep(250);
-        if (Date.now() - lastPendingCheck >= PENDING_CHECK_INTERVAL_MS) {
-          lastPendingCheck = Date.now();
-          if (await hasPendingIndexRequest()) {
-            logger.debug({}, 'tick.pendingIndexRequest');
-            break;
-          }
-        }
-      }
+      await idleUntilNextTick({
+        intervalMs: config.tickIntervalMs,
+        isShuttingDown: () => shuttingDown,
+        hasPendingIndexRequest,
+        sleep,
+      });
     }
   } finally {
     await gracefulShutdown();

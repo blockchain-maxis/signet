@@ -113,6 +113,8 @@ KEEPALIVE_SECRET=S... node scripts/keepalive-contract.mjs alice bob
 there is no default id. Run it monthly — the entries expire after ~30 days.
 To keep every bound handle alive, take the list from a deployment's directory
 (`/handles`, or tRPC `profile.list`) and pass it in.
+To sweep every bound handle, take the list from a deployment's directory (`/handles`,
+or `GET /api/v1/profiles`) and pass it in.
 
 The script exits non-zero when an entry is archived — restore it first (§3) —
 or when a submission fails. To extend only the instance, `stellar contract

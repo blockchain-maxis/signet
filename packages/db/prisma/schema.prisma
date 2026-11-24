@@ -61,6 +61,25 @@ model Wallet {
   // examined, so the next tick resumes from there instead of from "now".
   deploymentWatermark    String?
 
+  // Per-wallet operations-worker backfill state: the same idea as the two
+  // deployment columns above, for the `Operation` rows behind a profile's
+  // activity list and counts.
+  //
+  // The operations worker reads a wallet newest-first and stops at the newest
+  // row it has already stored. On its own that never gets past the first
+  // tick's page cap (500 records of any type): every later tick stops on the
+  // first page, and whatever is older stays unread. So the worker also walks
+  // backwards from here, a bounded number of pages per tick.
+  //
+  // operationsCursor is the Horizon paging_token of the oldest operation that
+  // walk has read so far; null means it has not started. operationsBackfilledAt
+  // is set once the walk reached the retention cutoff or the end of the
+  // wallet's history, after which only the newest-first check runs. Setting it
+  // back to NULL resumes the walk from operationsCursor, which is what a
+  // longer retention window needs (docs/RETENTION.md).
+  operationsCursor       String?
+  operationsBackfilledAt DateTime?
+
   // Set when a wallet is (re-)linked (apps/web/lib/server/account.ts's
   // linkDeployWallet) so the indexer picks it up promptly instead of waiting
   // out the rest of the current tick interval — see index.ts's idle-sleep

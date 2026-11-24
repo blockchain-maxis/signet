@@ -439,6 +439,31 @@ export const schemas: Record<string, OpenApiSchema> = {
     additionalProperties: false,
   },
 
+  ProfileListItem: {
+    type: 'object',
+    required: ['handle', 'primaryWallet', 'joinedAt'],
+    properties: {
+      handle: {
+        type: 'string',
+        pattern: '^[a-z0-9_-]{1,32}$',
+        description: 'A handle this deployment can serve.',
+      },
+      primaryWallet: {
+        type: ['string', 'null'],
+        pattern: '^[GC][A-Z2-7]{55}$',
+        description:
+          'The Stellar address the handle is bound to; null when the profile has wallets but none is the primary.',
+      },
+      joinedAt: {
+        type: ['string', 'null'],
+        format: 'date-time',
+        description:
+          'ISO-8601 UTC time the profile was first seen; null when the list came from the chain, which does not know.',
+      },
+    },
+    additionalProperties: false,
+  },
+
   SuccessEnvelope: {
     type: 'object',
     required: ['data'],
@@ -982,6 +1007,91 @@ export const paths: Record<string, OpenApiPathItem> = {
             'application/json': {
               schema: { $ref: '#/components/schemas/ErrorEnvelope' },
             },
+          },
+        },
+      },
+    },
+  },
+  '/profiles': {
+    get: {
+      operationId: 'listProfiles',
+      summary: 'The handle directory',
+      description:
+        'The handles this deployment can serve, in handle order, with a keyset cursor on the handle. Only a handle with a wallet bound to it is listed: a profile whose wallets were all released is left out. meta.source is database, or chain when there is no database and the registry event stream answered; that stream only reaches back as far as the RPC keeps events, so the list is then truncated and has no total. A deployment that can answer from neither returns an empty list with source none and truncated true, never a list that reads as "no handles".',
+      tags: ['Profiles'],
+      parameters: [
+        {
+          name: 'cursor',
+          in: 'query',
+          required: false,
+          description: 'Opaque pagination cursor from meta.nextCursor.',
+          schema: { type: 'string' },
+        },
+        {
+          name: 'limit',
+          in: 'query',
+          required: false,
+          description: 'Number of handles to return (default 25, max 100).',
+          schema: { type: 'integer', minimum: 1, maximum: 100, default: 25 },
+        },
+      ],
+      responses: {
+        '200': {
+          description: 'A page of handles.',
+          headers: {
+            'Cache-Control': {
+              schema: { type: 'string' },
+              description:
+                'public, max-age=30, stale-while-revalidate=60; no-store when a fallback layer, or none, answered.',
+            },
+          },
+          content: {
+            'application/json': {
+              schema: {
+                type: 'object',
+                required: ['data', 'meta'],
+                properties: {
+                  data: { type: 'array', items: { $ref: '#/components/schemas/ProfileListItem' } },
+                  meta: {
+                    type: 'object',
+                    required: ['nextCursor', 'total', 'truncated', 'source'],
+                    properties: {
+                      nextCursor: { type: ['string', 'null'] },
+                      total: {
+                        type: ['integer', 'null'],
+                        description: 'Handles in the whole list; null when it is partial.',
+                      },
+                      truncated: {
+                        type: 'boolean',
+                        description:
+                          'True when the list may be incomplete (read from the chain, or no layer answered).',
+                      },
+                      source: { type: 'string', enum: ['database', 'chain', 'none'] },
+                    },
+                    additionalProperties: false,
+                  },
+                },
+                additionalProperties: false,
+              },
+            },
+          },
+        },
+        '400': {
+          description: 'Invalid cursor or limit.',
+          content: {
+            'application/json': { schema: { $ref: '#/components/schemas/ErrorEnvelope' } },
+          },
+        },
+        '429': {
+          description: 'Rate limit exceeded.',
+          content: {
+            'application/json': { schema: { $ref: '#/components/schemas/ErrorEnvelope' } },
+          },
+        },
+        '500': {
+          description: 'Internal server error.',
+          content: {
+            'application/json': { schema: { $ref: '#/components/schemas/ErrorEnvelope' } },
           },
         },
       },

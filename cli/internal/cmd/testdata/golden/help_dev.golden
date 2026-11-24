@@ -54,6 +54,7 @@ Flags:
       --junit string                with --ci, write a JUnit XML file here
       --localnet                    also run a local network (Stellar Quickstart, in Docker) with the current build deployed to it, redeployed after every successful build
       --localnet-bindings string    with --localnet, write TypeScript bindings for the contract into this directory after each deploy
+      --localnet-keep               with --localnet, leave a Quickstart container signet started running when the session ends
       --localnet-limits string      with --localnet, the resource limits a new local network starts with (stellar container start --limits)
       --localnet-seed               with --localnet, run the [[call]]s marked seed = true as real transactions after each fresh deploy
       --network-passphrase string   passphrase of a custom --network (checked against the RPC's getNetwork)

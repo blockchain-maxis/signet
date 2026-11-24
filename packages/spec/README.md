@@ -84,7 +84,10 @@ consumer.
 | Enum variant added, removed, or renumbered | Yes | Exhaustive handling or numeric values may change. |
 | Error case added | No | Existing error identifiers remain valid. |
 | Error case removed or renumbered | Yes | Existing error handling may break. |
+| Event added | No | Existing clients ignore unknown events. |
+| Event removed | Yes | Existing subscribers may miss expected events. |
+| Event prefix topics, data format, or parameter changed | Yes | Subscribers depend on event topic filtering, parameter types/locations, and data layout. |
 
 Storage-layout compatibility is outside the scope of this function and remains the responsibility of the storage compatibility checks.
 
-**Fallback behavior:** if both specs have no flattened functions, types, or errors, but their raw `entriesXdr` values differ, the diff reports a breaking `spec-entries-changed` entry. This preserves detection of raw specification changes that cannot be compared through the flattened interface views.
+**Fallback behavior:** if both specs have no flattened functions, types, errors, or events, but their raw `entriesXdr` values differ, the diff reports a breaking `spec-entries-changed` entry. This preserves detection of raw specification changes that cannot be compared through the flattened interface views.

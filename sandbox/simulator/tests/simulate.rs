@@ -574,6 +574,82 @@ fn hot_swap_keeps_storage_and_runs_the_new_code(lane: u32) {
     assert_eq!(info["wasm_hash"], v2, "{info}");
 }
 
+fn contract_max_size_entry(limit: u32) -> (String, Value) {
+    #[cfg(all(not(feature = "lane-p29"), feature = "lane-p28"))]
+    use soroban_env_host_p28::xdr;
+    #[cfg(feature = "lane-p29")]
+    use soroban_env_host_p29::xdr;
+    use xdr::WriteXdr;
+
+    let key = xdr::LedgerKey::ConfigSetting(xdr::LedgerKeyConfigSetting {
+        config_setting_id: xdr::ConfigSettingId::ContractMaxSizeBytes,
+    });
+    let entry = xdr::LedgerEntry {
+        last_modified_ledger_seq: 1,
+        data: xdr::LedgerEntryData::ConfigSetting(xdr::ConfigSettingEntry::ContractMaxSizeBytes(
+            limit,
+        )),
+        ext: xdr::LedgerEntryExt::V0,
+    };
+    let key_b64 = BASE64.encode(key.to_xdr(xdr::Limits::none()).unwrap());
+    let entry_b64 = BASE64.encode(entry.to_xdr(xdr::Limits::none()).unwrap());
+    (
+        key_b64.clone(),
+        json!({ "key_xdr": key_b64, "entry_xdr": entry_b64 }),
+    )
+}
+
+fn contract_install_checks_wasm_size_limit_and_flags_unchecked(lane: u32) {
+    let wasm = fixture_wasm("counter_v1");
+
+    // 1. Over the seeded limit -> resource_limit / wasm_size, nothing installed.
+    let (limit_key, over_entry) = contract_max_size_entry((wasm.len() - 1) as u32);
+    let mut entries = network_config_entries();
+    entries.push(over_entry);
+    let mut sim = Sim::start();
+    let open = sim.send(json!({
+        "type": "ledger_open", "network_passphrase": TESTNET, "ledger_protocol": lane, "sequence": 100, "entries": entries,
+    }));
+    assert_eq!(open["type"], "result", "{open}");
+    let refused = sim.send(json!({
+        "type": "contract_install", "wasm_base64": BASE64.encode(&wasm), "contract_id": REGISTRY,
+    }));
+    assert_eq!(refused["type"], "error", "{refused}");
+    assert_eq!(refused["code"], "resource_limit");
+    assert_eq!(refused["detail"]["kind"], "wasm_size");
+    assert_eq!(refused["detail"]["limit"], (wasm.len() - 1) as u64);
+    assert_eq!(refused["detail"]["used"], wasm.len() as u64);
+    assert_eq!(sim.send(json!({ "type": "status" }))["contracts"], 0);
+
+    // 2. Exactly at the limit (fetched from fork or seeded) -> installs without size_checked: false.
+    let (exact_key, exact_entry) = contract_max_size_entry(wasm.len() as u32);
+    assert_eq!(exact_key, limit_key);
+    let mut sim_exact = config_only(lane);
+    sim_exact.entries.insert(exact_key.clone(), exact_entry);
+    let installed = sim_exact.send(json!({
+        "type": "contract_install", "wasm_base64": BASE64.encode(&wasm),
+    }));
+    assert_eq!(installed["type"], "result", "{installed}");
+    assert!(installed.get("size_checked").is_none(), "{installed}");
+    assert!(
+        sim_exact.fetched.contains(&exact_key),
+        "{:?}",
+        sim_exact.fetched
+    );
+
+    // 3. Without ContractMaxSizeBytes and fetch: "deny" -> installs and marks size_checked: false.
+    let mut sim_deny = Sim::start();
+    let open_deny = sim_deny.send(json!({
+        "type": "ledger_open", "network_passphrase": TESTNET, "ledger_protocol": lane, "sequence": 100, "fetch": "deny", "entries": network_config_entries(),
+    }));
+    assert_eq!(open_deny["type"], "result", "{open_deny}");
+    let unchecked = sim_deny.send(json!({
+        "type": "contract_install", "wasm_base64": BASE64.encode(&wasm),
+    }));
+    assert_eq!(unchecked["type"], "result", "{unchecked}");
+    assert_eq!(unchecked["size_checked"], false, "{unchecked}");
+}
+
 fn a_wasm_for_a_newer_protocol_is_refused(lane: u32) {
     let mut sim = config_only(lane);
     let mut wasm = fixture_wasm("counter_v1");
@@ -2092,6 +2168,10 @@ macro_rules! on_lane {
             #[test]
             fn moving_past_a_ttl_archives_the_entry_and_the_call_restores_it() {
                 super::moving_past_a_ttl_archives_the_entry_and_the_call_restores_it($protocol)
+            }
+            #[test]
+            fn contract_install_checks_wasm_size_limit_and_flags_unchecked() {
+                super::contract_install_checks_wasm_size_limit_and_flags_unchecked($protocol)
             }
         }
     };

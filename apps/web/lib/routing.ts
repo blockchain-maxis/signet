@@ -20,23 +20,10 @@ import { CONTRACT_TABS } from './contract-tabs.ts';
 
 const ROOT_DOMAIN = process.env.NEXT_PUBLIC_ROOT_DOMAIN ?? 'signet.dev';
 
-// Infrastructure subdomains that are not developer handles. These are a
-// routing concern only — the contract has no opinion on them, so a wallet can
-// still claim e.g. `www` on-chain even though it will never route here.
-const INFRA_SUBDOMAINS = [
-  'www',
-  'status',
-  'support',
-  'mail',
-  'blog',
-  'static',
-  'assets',
-  'cdn',
-] as const;
-
 // Subdomains / first path segments that are NOT developer handles: everything
-// the registry refuses to hand out, plus the infrastructure names above.
-const RESERVED = new Set<string>([...RESERVED_HANDLES, ...INFRA_SUBDOMAINS]);
+// the registry refuses to hand out (including app routes and infrastructure
+// subdomains).
+const RESERVED = new Set<string>(RESERVED_HANDLES);
 
 /** The contract page's child segments (#445) — the only tabs that route. */
 const CONTRACT_TAB_SEGMENTS = new Set(
@@ -134,7 +121,7 @@ export function resolveRewriteTarget(host: string, pathname: string): string | n
       // tRPC handler lives at /api/trpc/* — pass requests straight through.
       return null;
     }
-    if (subdomain === 'www' || RESERVED.has(subdomain)) {
+    if (RESERVED.has(subdomain)) {
       // Reserved but non-functional → marketing root.
       return null;
     }
@@ -161,16 +148,6 @@ export function resolveRewriteTarget(host: string, pathname: string): string | n
     first === 'p' || // public profiles live at /p/{handle}
     first === 'how-it-works' || // static informational page
     first === 'handles' || // public handle directory
-    // The CLI's approval page. Without this, `link` is a valid handle shape,
-    // so /link?code=… is rewritten to /p/link and 404s — which makes the URL
-    // `signet link` prints unreachable on any deployment running this
-    // middleware, while working locally where nothing rewrites it.
-    //
-    // It is NOT in RESERVED_HANDLES: that list mirrors the identity-registry
-    // contract, which is immutable, so "link" can still be claimed on-chain.
-    // A profile with that handle stays reachable at /p/link and /@link; only
-    // the bare /link belongs to the approval page.
-    first === 'link' ||
     first === 'api' ||
     first === '_next'
   ) {

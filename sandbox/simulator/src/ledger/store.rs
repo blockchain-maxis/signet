@@ -268,7 +268,7 @@ impl LayeredStore {
     /// The checkpoint itself stays valid, so a replay can roll back to the
     /// same point repeatedly.
     pub fn rollback(&mut self, checkpoint: usize) -> Result<(), ()> {
-        if checkpoint > self.frozen.len() {
+        if checkpoint == 0 || checkpoint > self.frozen.len() {
             return Err(());
         }
         for patch in self.frozen.drain(checkpoint..) {

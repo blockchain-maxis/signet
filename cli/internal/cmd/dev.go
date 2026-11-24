@@ -309,6 +309,7 @@ func runDev(cmd *cobra.Command, args []string, path, pkg string, ci bool, deboun
 		if local, err = startLocalnet(ctx, ln, binary, m.Protocol, logDir, setup, session, printer.Out, printer.Progress); err != nil {
 			return err
 		}
+		defer local.stop()
 		if buildErr == nil {
 			local.deploy(ctx, built.Wasm)
 		}

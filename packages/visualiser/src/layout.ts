@@ -58,7 +58,7 @@
  */
 
 import type { SpecType } from '@signet/spec';
-import { groupFunctions, type FunctionGroup } from './group.ts';
+import { groupExpandKey, groupFunctions, type FunctionGroup } from './group.ts';
 import type { ContractGraph, GraphEdge, GraphEdgeKind, GraphNode } from './graph.ts';
 import type { DiagramModel } from './index.ts';
 import { MIN_TEXT_PX, textWidth, truncateLabel } from './metrics.ts';
@@ -484,7 +484,8 @@ function orderFunctions(
   const groupOf = new Map<string, string>();
   const members: GroupMembers[] = [];
   for (const group of groups) {
-    const collapsed = collapsedId.get(group.name);
+    const key = groupExpandKey(group, groups);
+    const collapsed = collapsedId.get(key);
     if (collapsed) {
       ids.push(collapsed);
       members.push({ group, ids: [collapsed], collapsed: true });
@@ -493,7 +494,7 @@ function orderFunctions(
     const memberIds = group.functions.map((name) => idByName.get(name)!);
     for (const id of memberIds) {
       ids.push(id);
-      groupOf.set(id, `group:${group.name}`);
+      groupOf.set(id, `group:${key}`);
     }
     members.push({ group, ids: memberIds });
   }
@@ -687,8 +688,9 @@ export function layoutContractGraph(
         y += geo.nodeHeight + geo.rowGap;
       }
       const height = geo.groupHeaderHeight + stackHeight(ids.length) + geo.groupPadding;
+      const allRawGroups = fnOrder.groups.map((m) => m.group);
       groups.push({
-        id: `group:${group.name}`,
+        id: `group:${groupExpandKey(group, allRawGroups)}`,
         name: group.name,
         kind: group.kind,
         nodeIds: ids,

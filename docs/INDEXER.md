@@ -27,17 +27,20 @@ for how the indexer fits the rest of the system see [`ARCHITECTURE.md`](../ARCHI
 
 ## 1. Workers
 
-Entry point: [`apps/indexer/src/index.ts`](../apps/indexer/src/index.ts). Workers run
-sequentially inside one tick, in this order. A worker that throws is caught per worker
-(deployment/activity/operations catch per wallet or per contract); anything that escapes
-is caught by the tick, logged as `tick.error`, and the loop continues.
+Entry point: [`apps/indexer/src/index.ts`](../apps/indexer/src/index.ts); the tick itself is
+`runTick` in [`apps/indexer/src/tick.ts`](../apps/indexer/src/tick.ts). Workers run
+sequentially inside one tick, in this order. A failure stays inside the worker it happened
+in: deployment, activity and operations catch per wallet or per contract, and anything
+that escapes a worker is caught around that worker, logged as `worker.failed`, and counted
+as zero in that tick. The workers after it still run, and `failedWorkers` on the
+`tick.summary` line names the ones that threw.
 
 | #   | Worker                 | Runs                                                                        | Input                                                                                                                                                                                                                                                                                                                                                                                        | Writes                                                                                                                                                                                                                                |
 | --- | ---------------------- | --------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | 1   | **attestation**        | Every tick, **skipped entirely** when no registry contract id is configured | Soroban RPC `getEvents` on the Identity Registry                                                                                                                                                                                                                                                                                                                                             | `Profile`, `Wallet` (`source: 'onchain'`), cursor `attestation`                                                                                                                                                                       |
 | 2   | **deployment**         | Every tick                                                                  | Horizon `/accounts/{pubkey}/operations` for every `Wallet` row — paginated backward from `Wallet.deploymentCursor` (50/page, up to 10 pages/tick) until fully backfilled, then paginated forward from `Wallet.deploymentWatermark` — plus a transaction fetch per contract-creation op, and one Soroban RPC `getLedgerEntries` per newly discovered contract to read its instance executable | `Contract` (incl. `wasmHash`/`executableType`/`wasmHashCheckedAt`), `ContractWasmVersion` (first hash of a WASM contract), `Wallet.deploymentCursor`/`deploymentBackfilledAt`/`deploymentWatermark`, clears `Wallet.indexRequestedAt` |
 | 3   | **activity**           | Every tick                                                                  | Postgres `ContractInvocation` rows (no network call) for every `Contract` whose newest snapshot is older than 5 min; a contract with no captured invocations gets no snapshot | `ContractSnapshot`                                                                                                                                                                                                                    |
-| 4   | **operations**         | Every tick                                                                  | Horizon `/accounts/{pubkey}/operations` for every `Wallet` (50 most recent, desc)                                                                                                                                                                                                                                                                                                            | `Operation`                                                                                                                                                                                                                           |
+| 4   | **operations**         | Every tick                                                                  | Horizon `/accounts/{pubkey}/operations` for every `Wallet` — newest-first until an operation that is already stored, plus a backward walk from `Wallet.operationsCursor` (50/page, up to 10 pages/tick) until the retention cutoff or the end of the wallet's history                                                                                                                        | `Operation` (invocations only); `Wallet.operationsCursor` after every page of the walk, and `Wallet.operationsBackfilledAt` when it ends                                                                                              |
 | 5   | **executable-refresh** | Periodic (`INDEXER_EXECUTABLE_REFRESH_MS`, default 6h)                      | Soroban RPC `getLedgerEntries` for contracts where `wasmHashCheckedAt` is null or older than the refresh interval (batched, at most 100 keys per call)                                                                                                                                                                                                                                       | `Contract.wasmHash`, `Contract.wasmHashCheckedAt`, `ContractWasmVersion`                                                                                                                                                              |
 | 6   | **prune**              | Periodic (`INDEXER_PRUNE_INTERVAL_MS`, default 1h)                          | `Operation`, `ContractSnapshot`, `PairingState`                                                                                                                                                                                                                                                                                                                                              | Deletes historical records and expired pairings older than retention windows                                                                                                                                                          |
 
@@ -126,6 +129,31 @@ A wallet with a deep history therefore backfills over several ticks rather than 
 being silently truncated at 200 operations or re-scanning its full history on every tick,
 and a busy wallet cannot outrun the forward scan afterwards.
 
+The operations worker tracks its own backfill on the `Wallet` row too, with
+`operationsCursor` and `operationsBackfilledAt`. Each tick it reads a wallet newest-first
+until it reaches an operation it has already stored, which picks up new activity. Then it
+resumes a backward walk from `operationsCursor`, up to 10 pages of 50 operations, and
+writes the cursor after every page. The walk ends at the first operation older than the
+retention cutoff (`INDEXER_OPERATIONS_RETENTION_DAYS`), or at the end of the wallet's
+history, and sets `operationsBackfilledAt`. From then on only the newest-first check runs.
+
+A wallet whose walk has not started (`operationsCursor` is `null`) gets the walk alone,
+since it starts at the newest operation anyway. That includes every wallet that was
+indexed before these columns existed, so the first ticks after that upgrade walk each
+wallet once more from the top.
+
+Without the walk a wallet's history stopped at the first tick's page cap: 500 operations
+of any type, of which only the invocations are stored. Every later tick stopped on its
+first page, at the newest stored row, so anything older was never read, even inside the
+retention window, and the profile's counts were short without saying so. Until
+`operationsBackfilledAt` is set a wallet's counts are still a lower bound.
+
+Two limits remain. The page cap counts operations of every type, so a wallet with many
+payments takes more ticks to walk than its invocation count suggests. And the
+newest-first check has no watermark of its own, unlike the deployment worker: it stops
+at the newest stored row or after 10 pages, so a wallet that gains more than 500
+operations between two ticks still loses the ones below that window.
+
 Consequences worth knowing before an incident:
 
 - **The attestation cursor is the only thing that must not be lost.** Delete it and the
@@ -170,9 +198,12 @@ this endpoint. If you need the complete history, replay it from an archive/full 
 the _public_ endpoint does not help, it just silently truncates further out. Otherwise, accept
 that older bindings are missing and let on-chain events accumulate from now on.
 
-Each `getEvents` call takes at most **200 events**. A window with more than 200 events in
-it yields the first 200; the cursor then jumps to `latestLedger`, so **the remainder of
-that window is skipped**. This only bites on a busy backfill, not in steady state.
+Each `getEvents` call returns at most **200 events**, so the worker pages: it follows the
+`cursor` in each response until a page comes back short, and only then moves its own cursor
+to `latestLedger`. One tick reads at most ten pages (2,000 events). If it stops at that cap
+it saves the ledger below the last event it read instead, and the next tick carries on from
+there. That re-reads one ledger, which is harmless, because applying an event twice changes
+nothing.
 
 ### Why the web app cares
 
@@ -234,7 +265,7 @@ A healthy first minute looks like this:
 ```json
 {"ts":"…","lvl":"info","msg":"indexer.starting","network":"testnet","horizon":"https://horizon-testnet.stellar.org","rpc":"https://soroban-testnet.stellar.org","registry":"(unset)","interval":30000}
 {"ts":"…","lvl":"info","msg":"db.connected"}
-{"ts":"…","lvl":"info","msg":"tick.summary","walletsScanned":0,"eventsDecoded":0,"contractsFound":0,"opsUpserted":0,"snapshotsWritten":0,"durationMs":1841}
+{"ts":"…","lvl":"info","msg":"tick.summary","walletsScanned":0,"eventsDecoded":0,"contractsFound":0,"opsUpserted":0,"snapshotsWritten":0,"failedWorkers":[],"durationMs":1841}
 ```
 
 ### In Docker
@@ -254,6 +285,16 @@ Point `DATABASE_URL` at a reachable host — `localhost` inside the container is
 container. The process logs to stdout/stderr and expects the platform to restart it; it
 does not daemonize or self-heal beyond the per-tick error handling.
 
+**Liveness.** The image's `HEALTHCHECK` reads the modification time of a marker file
+(`/tmp/indexer-alive`) that the loop rewrites at the end of every tick. The check fails
+once the file is more than 120 seconds old, and three failed checks in a row, 30 seconds
+apart, mark the container unhealthy. The marker says the loop is turning, and nothing
+more. A tick finishes whether or not its workers succeeded, so a tick in which every
+worker failed still refreshes it: a restart would not bring a database or an RPC endpoint
+back, and that kind of failure is in the logs instead (`worker.failed`, and
+`failedWorkers` on `tick.summary`). What the health check catches is a process wedged on a
+call that never returns, which a restart does fix.
+
 ---
 
 ## 5. Reading the logs
@@ -272,6 +313,7 @@ The heartbeat is one `tick.summary` line per tick:
   "contractsFound": 0,
   "opsUpserted": 0,
   "snapshotsWritten": 0,
+  "failedWorkers": [],
   "durationMs": 1841
 }
 ```
@@ -279,14 +321,22 @@ The heartbeat is one `tick.summary` line per tick:
 No `tick.summary` within ~`INDEXER_TICK_INTERVAL_MS + durationMs` means the process is
 wedged or dead. That line is the single best thing to alert on.
 
+`failedWorkers` lists the workers that threw during that tick, and is `[]` when none did. A
+worker in the list counted as zero on the same line, so a zero beside a non-empty
+`failedWorkers` is a failure and not a quiet tick. The names are `attestation`,
+`deployment`, `activity`, `operations`, `invocations`, `executable-refresh` and `prune`,
+plus `cursor` for the save of the `main` cursor at the end of the tick.
+
 | Line                                               | Level                         | Means                                                                                                                                                                          | Action                                                                                                                  |
 | -------------------------------------------------- | ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------- |
 | `indexer.starting`                                 | info                          | Boot. Echoes network, endpoints, registry id (`(unset)` if none), tick interval.                                                                                               | Check the echoed config is what you expect.                                                                             |
 | `db.connected` / `db.disconnected`                 | info                          | Prisma connected / clean shutdown.                                                                                                                                             | —                                                                                                                       |
 | `tick.summary`                                     | info                          | Healthy heartbeat.                                                                                                                                                             | Alert on absence, not on zeros.                                                                                         |
-| `attestation.done`                                 | debug                         | Event window processed; `throughLedger` is the new cursor.                                                                                                                     | Confirms the cursor is advancing.                                                                                       |
+| `attestation.done`                                 | debug                         | Event window processed; `throughLedger` is the new cursor, `pages` the `getEvents` pages read, and `moreToRead` is true when the page cap stopped the tick with events left.   | Confirms the cursor is advancing.                                                                                       |
+| `attestation.stalled`                              | warn                          | One ledger holds more registry events than a whole tick reads, so the cursor cannot advance past it.                                                                           | Should not happen at real volumes. If it does, the page cap in `attestation.ts` needs raising.                          |
 | `attestation.applied`                              | debug                         | One binding applied.                                                                                                                                                           | —                                                                                                                       |
 | `attestation.fetchFailed`                          | **error**                     | RPC call failed; cursor left in place, window retried next tick.                                                                                                               | Isolated → ignore. Repeating → §6.                                                                                      |
+| `attestation.latestLedgerFailed`                   | **error**                     | Soroban RPC did not answer `getLatestLedger`, even after retries. Nothing is read this tick, the cursor stays put, and the other workers still run.                            | Isolated → ignore. Repeating → the RPC endpoint is down or unreachable.                                                 |
 | `pairing.linkStarted`                              | info                          | A registry event named a handle↔wallet pairing and is about to be applied.                                                                                                     | The head of the audit trail for one binding.                                                                            |
 | `pairing.linkCompleted`                            | info                          | The binding was written. Carries `handle` and the public `wallet`.                                                                                                             | Retain these — this is how an account becomes attributed to a person.                                                   |
 | `pairing.unlinked`                                 | info                          | A binding was dropped. `reason` is `released`, `revoked`, `transferred` or `no-longer-bound`.                                                                                  | Expected after a release; unexpected ones are worth investigating with the `wallet` field.                              |
@@ -300,7 +350,9 @@ wedged or dead. That line is the single best thing to alert on.
 | `prune.operations_failed`                          | **error**                     | Deleting expired `Operation` records past retention cutoff failed.                                                                                                             | Check database connectivity and permissions. Retries next tick.                                                         |
 | `prune.snapshots_failed`                           | **error**                     | Deleting expired `ContractSnapshot` records past retention cutoff failed.                                                                                                      | Check database connectivity and permissions. Retries next tick.                                                         |
 | `activity.storeFailed` | **warn** | Reading invocations or writing the snapshot failed for one contract; **nothing is written** for it this tick. | Self-heals next tick; persistent means a database problem. |
-| `tick.error`                                       | **error**                     | An exception escaped a worker; this tick is abandoned, the loop continues.                                                                                                     | Read the `error` field; persistent → restart.                                                                           |
+| `worker.failed`                                    | **error**                     | A worker threw. Carries `worker` and `error`. It counts as zero this tick and is named in `failedWorkers`; the workers after it still run.                                     | Read `error`. It clears when the cause does; a repeat with no outage behind it is a bug.                                |
+| `tick.pendingCheckFailed`                          | **warn**                      | The check for a just-linked wallet, made every 2 s between ticks, could not query the database. The sleep carries on.                                                          | Isolated → ignore. Repeating → the database is unreachable; the next tick says so too.                                  |
+| `tick.error`                                       | **error**                     | Something outside the workers threw and the tick was abandoned; the loop continues. A worker's own failure is `worker.failed`, not this.                                       | Read the `error` field; persistent → restart.                                                                           |
 | `indexer.shutdown` / `indexer.stopping`            | info                          | Signal received / loop exited.                                                                                                                                                 | —                                                                                                                       |
 | `[indexer] fatal: …`                               | plain stderr                  | Startup failure. **The process exits 1.**                                                                                                                                      | §6.                                                                                                                     |
 
@@ -357,7 +409,7 @@ both.
 | Symptom                                                                                                     | Cause                                                                                                                                                             | Fix                                                                                                                                                                                                           |
 | ----------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `[indexer] fatal: Error: [indexer] DATABASE_URL is required`                                                | Env var not set.                                                                                                                                                  | Export `DATABASE_URL` before starting.                                                                                                                                                                        |
-| `[indexer] fatal: PrismaClientInitializationError: Can't reach database server at …` (`errorCode: 'P1001'`) | Postgres down, wrong host/port, or `localhost` used from inside a container.                                                                                      | `pnpm db:up`; check the host is reachable from where the process runs. **Startup only** — the process exits 1 and must be restarted; a mid-run outage surfaces as `tick.error` instead and self-heals.        |
+| `[indexer] fatal: PrismaClientInitializationError: Can't reach database server at …` (`errorCode: 'P1001'`) | Postgres down, wrong host/port, or `localhost` used from inside a container.                                                                                      | `pnpm db:up`; check the host is reachable from where the process runs. **Startup only** — the process exits 1 and must be restarted; a mid-run outage is logged as `worker.failed` instead and self-heals.    |
 | Table-not-found / column errors from Prisma                                                                 | Migrations not applied.                                                                                                                                           | `pnpm db:migrate` locally, `pnpm --filter @signet/db run migrate:deploy` in prod (the Docker image does this on boot).                                                                                        |
 | `eventsDecoded` always 0, no `attestation.*` lines even at `debug`                                          | No registry id configured — the worker returns immediately.                                                                                                       | Set `INDEXER_REGISTRY_CONTRACT_ID` (or `NEXT_PUBLIC_IDENTITY_REGISTRY_ID`) and restart. Confirm via the `registry` field on `indexer.starting`.                                                               |
 | `attestation.fetchFailed` every tick, `startLedger` far above the network's current ledger                  | Cursor ahead of the chain — a DB restored from another network, or a testnet reset. Note the `error` field currently renders as `[object Object]` for RPC errors. | Compare with the live ledger, then reset: `DELETE FROM "IndexerCursor" WHERE id = 'attestation';` (cold-starts one window back) or `UPDATE "IndexerCursor" SET "lastLedger" = <n> WHERE id = 'attestation';`. |
@@ -366,6 +418,7 @@ both.
 | `scanFailed` with a 429 / rate-limit error, worsening as wallets are added                                  | Horizon rate-limits the caller IP; the built-in throttle is only 100 ms between calls, and cost grows linearly with tracked wallets and contracts.                | Raise `INDEXER_TICK_INTERVAL_MS`, or move to a dedicated/authenticated Horizon instance. Transient — failed wallets are retried next tick.                                                                    |
 | `snapshotsWritten: 0` on every tick                                                                         | Every contract's snapshot is under 5 minutes old.                                                                                                                 | Normal. Only investigate if `ContractSnapshot` rows also stop appearing over a longer window.                                                                                                                 |
 | Profile page shows no indexed activity with the indexer running                                             | The web app falls back to a live Horizon read (or an empty record) when the DB has no rows for a handle.                                                          | Check the handle exists in `Profile` and that `Operation` rows were written for its wallet.                                                                                                                   |
+| The same worker in `failedWorkers` on every `tick.summary`                                                  | That worker throws before it can deal with the failure itself, usually on its first database read.                                                                | Read `error` on the `worker.failed` lines that name it. The other workers are unaffected, and it recovers by itself once the cause is gone.                                                                   |
 | No `tick.summary` for several intervals                                                                     | Process dead, or a worker is blocked on a hung HTTP call.                                                                                                         | Check liveness, then restart — the loop has no per-call timeout.                                                                                                                                              |
 
 ---
@@ -395,15 +448,30 @@ retains that history. Against the public testnet endpoint it does not degrade gr
 ~10,700 ledgers (~15h) behind the tip (see §Cold start), so a large window against the
 public RPC looks like it worked and silently skips the backfill entirely, then advances the
 cursor past the gap anyway. Point `INDEXER_RPC_URL` at an archival provider before raising
-this past the ~8000 default. Re-applying already-seen events is harmless. Remember the
-200-events-per-call ceiling too: for a busy backfill, step the cursor forward in chunks
-rather than one huge window.
+this past the ~8000 default. Re-applying already-seen events is harmless. A busy backfill
+needs no stepping by hand: the worker pages through the window, up to ten pages (2,000
+events) a tick, until it has caught up.
 
 Note that deleting the cursor is only needed to recover handles the database has **never
 seen**. For everything else — a worker that was simply down too long — the automatic
 reconcile sweep (see §Cold start) already rebuilds the bindings from contract state on the
 next tick, and its `count()` cross-check tells you whether an archival backfill is worth
 the trouble.
+
+**Backfill operations** — make the operations worker read a wallet's history again, for
+example after raising `INDEXER_OPERATIONS_RETENTION_DAYS`:
+
+```sql
+-- carry each walk on from where it stopped, down to the new cutoff
+UPDATE "Wallet" SET "operationsBackfilledAt" = NULL;
+
+-- or start every walk again from the newest operation
+UPDATE "Wallet" SET "operationsCursor" = NULL, "operationsBackfilledAt" = NULL;
+```
+
+No restart is needed, because wallets are read fresh on every tick. The walk then runs at
+10 pages per wallet per tick until it has finished again. Reading an operation twice is
+harmless: every write is an upsert on the Horizon operation id.
 
 **Full rebuild** (local only):
 

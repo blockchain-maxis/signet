@@ -98,7 +98,7 @@ discriminant as a numeric contract error. In a failed simulation it appears as
 | 5 | `NotOwner` | Reserved for ownership violations. Note that `release` and `transfer_handle` enforce ownership through `require_auth` on the resolved owner, so a non-owner fails with an **auth** error, not this code. |
 | 6 | `InvalidHandle` | `claim` with an empty handle, one longer than 32 bytes, or one containing anything outside `[a-z0-9_-]` (including uppercase). |
 | 7 | `WalletAlreadyBound` | `claim` (or `transfer_handle` to a target) for a wallet that already owns a handle. |
-| 8 † | `HandleReserved` | `claim` for a name that collides with a Signet app route (`p`, `api`, `app`, `admin`, `docs`, `handles`, `how-it-works`, `profile`, `robots`, `sitemap`). |
+| 8 † | `HandleReserved` | `claim` for a name that collides with a Signet app route or infrastructure subdomain (`p`, `api`, `app`, `admin`, `docs`, `handles`, `how-it-works`, `profile`, `robots`, `sitemap`; plus `link`, `www`, `status`, `support`, `mail`, `blog`, `static`, `assets`, `cdn` in `main`, not yet deployed). |
 | 9 † | `BatchTooLarge` | `resolve_batch` with more than 100 handles. |
 
 † Codes 8 and 9 are **not** in the deployed wasm — like `transfer_handle` and

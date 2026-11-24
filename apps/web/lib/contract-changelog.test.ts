@@ -146,3 +146,40 @@ test('ContractChanges: contract with one version shows no Changes section', () =
 
   assert.equal(html, '');
 });
+
+test('ContractChanges: renders added event non-breaking', () => {
+  const { v1, v2 } = makeSyntheticSpecs();
+  const v2WithEvent: SpecJson = {
+    ...v2,
+    events: [
+      {
+        name: 'Transfer',
+        doc: '',
+        prefixTopics: ['transfer'],
+        params: [],
+        dataFormat: 'single_value',
+      },
+    ],
+  };
+  const versions: VersionSpecItem[] = [
+    {
+      wasmHash: v2WithEvent.wasmHash,
+      observedAt: '2026-03-02T10:00:00Z',
+      spec: v2WithEvent,
+    },
+    {
+      wasmHash: v1.wasmHash,
+      observedAt: '2026-03-01T10:00:00Z',
+      spec: v1,
+    },
+  ];
+
+  const html = renderToStaticMarkup(
+    React.createElement(ContractChanges, {
+      versions,
+      network: 'testnet',
+    }),
+  );
+
+  assert.ok(html.includes('Added event Transfer'), html);
+});

@@ -158,33 +158,65 @@ func (s *Session) Deploy(ctx context.Context, wasm string, iface Interface) (Sta
 func (s *Session) seed(ctx context.Context) error {
 	accounts := map[string]SeedAccount{}
 	var mapErr error
-	mapValue := func(v string) string {
-		switch {
-		case v == s.ForkContract && s.ForkContract != "":
-			return s.state.ContractID
-		case accountRE.MatchString(v):
-			if a, ok := accounts[v]; ok {
-				return a.Address
-			}
-			name := fmt.Sprintf("seed-%d", len(accounts)+1)
-			addr, err := s.Net.Fund(ctx, name)
-			if err != nil && mapErr == nil {
-				mapErr = err
-			}
-			accounts[v] = SeedAccount{Identity: name, Address: addr}
-			return addr
+	ensureAccount := func(v string) SeedAccount {
+		if a, ok := accounts[v]; ok {
+			return a
 		}
-		return v
+		name := fmt.Sprintf("seed-%d", len(accounts)+1)
+		addr, err := s.Net.Fund(ctx, name)
+		if err != nil && mapErr == nil {
+			mapErr = err
+		}
+		a := SeedAccount{Identity: name, Address: addr}
+		accounts[v] = a
+		return a
 	}
 	for _, call := range s.Seed {
 		var args []string
+		callAccounts := map[string]SeedAccount{}
+		usedNested := false
+		mapNested := func(v string) string {
+			switch {
+			case v == s.ForkContract && s.ForkContract != "":
+				return s.state.ContractID
+			case accountRE.MatchString(v):
+				a := ensureAccount(v)
+				callAccounts[v] = a
+				usedNested = true
+				return a.Address
+			}
+			return v
+		}
 		for _, name := range sortedKeys(call.Args) {
-			args = append(args, "--"+name, argString(mapArg(call.Args[name], mapValue)))
+			raw := call.Args[name]
+			if str, ok := raw.(string); ok {
+				switch {
+				case str == s.ForkContract && s.ForkContract != "":
+					args = append(args, "--"+name, s.state.ContractID)
+				case accountRE.MatchString(str):
+					a := ensureAccount(str)
+					callAccounts[str] = a
+					args = append(args, "--"+name, a.Identity)
+				default:
+					args = append(args, "--"+name, str)
+				}
+				continue
+			}
+			args = append(args, "--"+name, argString(mapArg(raw, mapNested)))
 		}
 		if mapErr != nil {
 			return mapErr
 		}
-		if _, err := s.Net.Invoke(ctx, s.state.ContractID, Identity, call.Function, args); err != nil {
+		source := Identity
+		if usedNested && len(callAccounts) == 1 {
+			for _, a := range callAccounts {
+				source = a.Identity
+			}
+		}
+		if _, err := s.Net.Invoke(ctx, s.state.ContractID, source, call.Function, args); err != nil {
+			if signerHint := formatMissingSignerHint(err.Error(), callAccounts); signerHint != "" {
+				return fmt.Errorf("seed call %s (%s): %w", call.Name, signerHint, err)
+			}
 			return fmt.Errorf("seed call %s: %w", call.Name, err)
 		}
 		s.Net.o.Progress(fmt.Sprintf("localnet: seeded %s (%s)", call.Name, call.Function))
@@ -260,6 +292,42 @@ func plural(n int, one, many string) string {
 		return one
 	}
 	return many
+}
+
+func formatMissingSignerHint(errMsg string, callAccounts map[string]SeedAccount) string {
+	lower := strings.ToLower(errMsg)
+	if !strings.Contains(lower, "auth") && !strings.Contains(lower, "sign") {
+		return ""
+	}
+	for _, a := range callAccounts {
+		if strings.Contains(errMsg, a.Address) {
+			return fmt.Sprintf("account %s (%s) needed to sign", a.Identity, a.Address)
+		}
+	}
+	if len(callAccounts) > 0 {
+		var parts []string
+		for _, k := range sortedAccountKeys(callAccounts) {
+			a := callAccounts[k]
+			parts = append(parts, fmt.Sprintf("%s (%s)", a.Identity, a.Address))
+		}
+		return "account(s) needed to sign: " + strings.Join(parts, ", ")
+	}
+	return ""
+}
+
+func sortedAccountKeys(m map[string]SeedAccount) []string {
+	keys := make([]string, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	for i := 0; i < len(keys); i++ {
+		for j := i + 1; j < len(keys); j++ {
+			if keys[j] < keys[i] {
+				keys[i], keys[j] = keys[j], keys[i]
+			}
+		}
+	}
+	return keys
 }
 
 func short(hash string) string {
