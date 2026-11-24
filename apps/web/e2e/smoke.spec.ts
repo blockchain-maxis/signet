@@ -112,3 +112,22 @@ test('/how-it-works states the limits of contract attribution', async ({ page })
   await expect(body).toContainText('Upgrade history starts when indexing began');
   await expect(body).toContainText("Nothing executes on Signet's servers");
 });
+
+test('default OpenGraph image serves a PNG and the landing page og:image resolves to one', async ({
+  page,
+  request,
+}) => {
+  const directRes = await request.get('/opengraph-image');
+  expect(directRes.status()).toBe(200);
+  expect(directRes.headers()['content-type']).toContain('image/png');
+
+  await page.goto('/');
+  const ogImage = page.locator('meta[property="og:image"]');
+  await expect(ogImage).toHaveCount(1);
+  const content = await ogImage.getAttribute('content');
+  expect(content).toBeTruthy();
+
+  const ogRes = await request.get(content!);
+  expect(ogRes.status()).toBe(200);
+  expect(ogRes.headers()['content-type']).toContain('image/png');
+});
