@@ -5,6 +5,7 @@ import { forkAccounts } from './accounts.ts';
 import { CallForm, type CallRun } from './CallForm.tsx';
 import { ResultPanel } from '../results/ResultPanel.tsx';
 import type { CallResultView } from '../results/result.ts';
+import { SaveReplayForm } from './SaveReplayForm.tsx';
 
 /**
  * The Call view (#581): the spec-generated form over the deployed interface
@@ -82,6 +83,16 @@ export function CallView({
               </p>
             ),
           )}
+          {(() => {
+            const successful = runs.find((r) => r.result && !r.error);
+            return successful ? (
+              <SaveReplayForm
+                api={api}
+                run={successful}
+                spec={successful.target === 'local' ? specs.local : specs.deployed}
+              />
+            ) : null;
+          })()}
         </section>
       )}
     </>
