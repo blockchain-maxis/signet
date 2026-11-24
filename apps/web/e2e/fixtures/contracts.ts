@@ -200,10 +200,10 @@ export async function seedContractFixture(): Promise<void> {
       create: { wasmHash: WASM_HASH_2, schemaVersion: 1, sdkVersion: '16.1.0', specJson },
     });
 
-    // Fixture-only invocations (composite id `${txHash}:${opIndex}`, as the capture worker writes).
+    // Fixture-only invocations (composite id `${txHash}:${contractId}`, as the capture worker writes).
     for (let i = 0; i < 4; i++) {
       const txHash = `${(0xd0 + i).toString(16)}`.repeat(32);
-      const id = `${txHash}:0`;
+      const id = `${txHash}:${a.id}`;
       const data = {
         contractId: a.id,
         txHash,
