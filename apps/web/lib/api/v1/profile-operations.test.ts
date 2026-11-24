@@ -6,7 +6,7 @@ import {
   OPTIONS as v1Options,
 } from '../../../app/api/v1/profiles/[handle]/operations/route.ts';
 import { getV1ProfileOperations, type V1ProfileOperationsDeps } from './profile-operations.ts';
-import { parseCursor, V1Error } from './http.ts';
+import { encodeCursor, parseCursor, parseOperationsCursor, V1Error } from './http.ts';
 import type { Operation, Profile } from '../../profiles.ts';
 
 function createDummyOperation(i: number): any {
@@ -183,4 +183,80 @@ test('v1 route GET /api/v1/profiles/[handle]/operations handles requests and OPT
   );
   assert.equal(optRes.status, 204);
   assert.equal(optRes.headers.get('Access-Control-Allow-Origin'), '*');
+});
+
+test('keyset pagination: page 1 is read, a newer row is inserted into the fake, page 2 is read, and the two pages share no ids and skip none', async () => {
+  const ops = [
+    { ...createDummyOperation(1), id: 'op_1', created_at: '2026-11-21T07:04:00.000Z' },
+    { ...createDummyOperation(2), id: 'op_2', created_at: '2026-11-21T07:03:00.000Z' },
+    { ...createDummyOperation(3), id: 'op_3', created_at: '2026-11-21T07:02:00.000Z' },
+    { ...createDummyOperation(4), id: 'op_4', created_at: '2026-11-21T07:01:00.000Z' },
+  ];
+
+  const fakeStore = [...ops];
+
+  const deps: V1ProfileOperationsDeps = {
+    getProfile: async () => mockProfile,
+    getPagedOperations: async (_handle, pagination, limit) => {
+      let filtered = fakeStore;
+      if (typeof pagination === 'object' && pagination?.cursor) {
+        const cursor = pagination.cursor;
+        const cursorDate = new Date(cursor.createdAt).getTime();
+        filtered = fakeStore.filter((op) => {
+          const opDate = new Date(op.created_at ?? op.createdAt).getTime();
+          if (opDate !== cursorDate) return opDate < cursorDate;
+          return op.id < cursor.id;
+        });
+      }
+      const pageRows = filtered.slice(0, limit);
+      const hasMore = filtered.length > limit;
+      return { data: pageRows, total: fakeStore.length, hasMore } as any;
+    },
+  };
+
+  // Page 1 (limit: 2)
+  const page1 = await getV1ProfileOperations('alice', { limit: 2 }, deps);
+  assert.equal(page1.data.length, 2);
+  assert.equal(page1.data[0]?.id, 'op_1');
+  assert.equal(page1.data[1]?.id, 'op_2');
+  assert.ok(page1.meta.nextCursor);
+
+  // A newer row is inserted into the fake
+  fakeStore.unshift({
+    ...createDummyOperation(0),
+    id: 'op_0',
+    created_at: '2026-11-21T07:05:00.000Z',
+  });
+
+  // Page 2 is read using nextCursor
+  const cursor = parseOperationsCursor(page1.meta.nextCursor);
+  const page2 = await getV1ProfileOperations('alice', { cursor, limit: 2 }, deps);
+  assert.equal(page2.data.length, 2);
+  assert.equal(page2.data[0]?.id, 'op_3');
+  assert.equal(page2.data[1]?.id, 'op_4');
+
+  // Verify: the two pages share no ids and skip none
+  const page1Ids = page1.data.map((o) => o.id);
+  const page2Ids = page2.data.map((o) => o.id);
+  const sharedIds = page1Ids.filter((id) => page2Ids.includes(id));
+  assert.deepEqual(sharedIds, []);
+  assert.deepEqual([...page1Ids, ...page2Ids], ['op_1', 'op_2', 'op_3', 'op_4']);
+});
+
+test('v1 operations route rejects malformed cursors with 400 and parameter: cursor', async () => {
+  const badCursors = [
+    encodeCursor({ offset: 'x' }),
+    encodeCursor({ offset: -5 }),
+    encodeCursor({ createdAt: 'nope', id: 1 }, 2),
+  ];
+
+  for (const cursor of badCursors) {
+    const req = new Request(`http://localhost/api/v1/profiles/alice/operations?cursor=${cursor}`);
+    const ctx = { params: Promise.resolve({ handle: 'alice' }) };
+    const res = await v1Get(req, ctx);
+    assert.equal(res.status, 400);
+    const json = await res.json();
+    assert.equal(json.error.code, 'bad_request');
+    assert.equal(json.error.details?.parameter, 'cursor');
+  }
 });
