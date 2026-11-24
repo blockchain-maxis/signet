@@ -175,7 +175,7 @@ const defaultDb: ProfileContractsDb = {
   },
 };
 
-const defaultHorizon: ProfileContractsHorizon = {
+export const defaultHorizon: ProfileContractsHorizon = {
   boundWallet: async (handle: string) => {
     const profile = await getProfile(handle);
     return profile?.wallet ? profile.wallet : null;
