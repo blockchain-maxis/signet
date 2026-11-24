@@ -110,6 +110,19 @@ jobs:
       - name: Check OpenAPI snapshot freshness
         run: node --experimental-strip-types apps/web/scripts/export-openapi.mts --check
 
+      # The tRPC reference is generated from the router tree, which imports the
+      # web app's dependencies — unlike the checks above, this one needs them
+      # installed.
+      - uses: pnpm/action-setup@v6.1.1
+
+      - name: Install dependencies (tRPC docs freshness)
+        run: pnpm install --frozen-lockfile
+
+      # Fails when docs/api-reference.md is stale against the tRPC router, and
+      # when a procedure is added without a hand-written input/output entry.
+      - name: Check tRPC docs freshness
+        run: pnpm --filter @signet/web docs:check
+
       # Fails on breaking changes to OpenAPI v1 compared against main snapshot.
       - name: Check OpenAPI breaking changes
         run: node scripts/check-openapi-breaking.mjs

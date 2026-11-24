@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import test from 'node:test';
 import { GET as legacyGet } from '../../../app/api/p/[handle]/operations/route.ts';
 import {
@@ -151,6 +152,68 @@ test('unknown handle throws V1Error not_found', async () => {
       return true;
     },
   );
+});
+
+/**
+ * The worked pagination example in docs/API_V1.md is generated from this
+ * fixture. The test below fails when the documented body stops matching what
+ * the endpoint returns for it, so the first example an integrator copies cannot
+ * drift apart again.
+ */
+const DOC_HANDLE = 'ada';
+const DOC_OPS: any[] = [
+  {
+    id: '1884231',
+    type: 'invoke_host_function',
+    decoded_function: 'transfer',
+    contract: 'CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAM66',
+    source_account: 'GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF',
+    created_at: '2026-09-30T14:03:22.000Z',
+    transaction_hash: '5c1f0e6d9b3a2f8c4d7e1a0b9c8d7e6f5a4b3c2d1e0f9a8b7c6d5e4f3a2b1c0d',
+    transaction_successful: true,
+  },
+  {
+    id: '1884194',
+    type: 'invoke_host_function',
+    decoded_function: 'mint',
+    contract: 'CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAM66',
+    source_account: 'GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF',
+    created_at: '2026-09-29T08:41:10.000Z',
+    transaction_hash: '9a0701b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60718293a4b5c6d7e',
+    transaction_successful: true,
+  },
+  {
+    id: '1884001',
+    type: 'invoke_host_function',
+    decoded_function: 'transfer',
+    contract: 'CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAM66',
+    source_account: 'GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF',
+    created_at: '2026-09-27T19:55:03.000Z',
+    transaction_hash: 'e2d40a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60718293a4b5c6d7e',
+    transaction_successful: true,
+  },
+];
+
+test('the pagination examples in docs/API_V1.md match this fixture', async () => {
+  const deps: V1ProfileOperationsDeps = {
+    getPagedOperations: async (_handle, offset, limit) => ({
+      data: DOC_OPS.slice(offset, offset + limit),
+      total: DOC_OPS.length,
+    }),
+  };
+
+  const page1 = await getV1ProfileOperations(DOC_HANDLE, { offset: 0, limit: 2 }, deps);
+  const page2 = await getV1ProfileOperations(DOC_HANDLE, { offset: 2, limit: 2 }, deps);
+
+  const doc = readFileSync(new URL('../../../../../docs/API_V1.md', import.meta.url), 'utf8');
+  const section = doc.slice(doc.indexOf('## Pagination'), doc.indexOf('### Bounded reads'));
+  const examples = [...section.matchAll(/```json\n([\s\S]*?)```/g)].map((m) => JSON.parse(m[1]!));
+
+  assert.equal(examples.length, 2, 'the pagination section documents two pages');
+  assert.deepEqual(examples[0], page1);
+  assert.deepEqual(examples[1], page2);
+  assert.match(section, /GET \/api\/v1\/profiles\/ada\/operations\?limit=2/);
+  assert.match(section, /cursor=AXsib2Zmc2V0IjoyfQ/);
 });
 
 test('legacy /api/p/[handle]/operations still works and carries Deprecation header', async () => {
