@@ -89,6 +89,15 @@ and, for each handle, `DataKey::Owner(handle)` plus — once the owner is
 resolved — `DataKey::Handle(wallet)`, simulates it for resources, signs with
 `KEEPALIVE_SECRET`, submits, and waits for the result.
 
+Those keys must be the contract's own `DataKey` encoding: a `#[contracttype]`
+enum keys a tuple variant by **name**, so the entry is
+`vec[Symbol("Owner"), String(handle)]` (and
+`vec[Symbol("Handle"), Address(wallet)]`), not a `U32` variant index. A key
+built from an index matches nothing in storage, so the sweep would report
+success while extending only the instance. Entries are reported as extended
+only when their key is in the **submitted** footprint; a handle whose entry was
+not found (unbound, or archived) is never counted.
+
 ```bash
 # Report mode (no KEEPALIVE_SECRET): prints each entry's remaining ledgers and
 # any unbound handle or archived entry. Submits nothing, needs no key.

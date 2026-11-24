@@ -12,7 +12,7 @@ import {
   xdr,
 } from '@stellar/stellar-sdk';
 
-import { main } from './keepalive-contract.mjs';
+import { handleKeyScVal, main, ownerKeyScVal } from './keepalive-contract.mjs';
 
 const CONTRACT_ID = 'CASFJHI5PQSRWS7JV25CF7FOMRKIVBP3RXRP3E2GH2CV4BCAG7FUJRCN';
 const WALLET = Keypair.fromRawEd25519Seed(Buffer.alloc(32, 7)).publicKey();
@@ -20,7 +20,9 @@ const LATEST_LEDGER = 1_000_000;
 const HASH = 'a'.repeat(64);
 
 // Admission is built here from the raw XDR, independently of the script's own
-// helpers, so a key-encoding mistake cannot pass both sides alike.
+// helpers, so a key-encoding mistake cannot pass both sides alike: the keys are
+// exactly the shape apps/web/e2e/fixtures/contracts.ts builds for OWNER_KEY
+// (a `#[contracttype]` tuple variant keys by name, not by variant index).
 function ledgerKey(keyScVal) {
   return xdr.LedgerKey.contractData(
     new xdr.LedgerKeyContractData({
@@ -33,10 +35,13 @@ function ledgerKey(keyScVal) {
 
 const INSTANCE_KEY_SCVAL = xdr.ScVal.scvLedgerKeyContractInstance();
 const OWNER_KEY_SCVAL = xdr.ScVal.scvVec([
-  xdr.ScVal.scvU32(1),
-  nativeToScVal('alice', { type: 'string' }),
+  xdr.ScVal.scvSymbol('Owner'),
+  xdr.ScVal.scvString('alice'),
 ]);
-const HANDLE_KEY_SCVAL = xdr.ScVal.scvVec([xdr.ScVal.scvU32(2), new Address(WALLET).toScVal()]);
+const HANDLE_KEY_SCVAL = xdr.ScVal.scvVec([
+  xdr.ScVal.scvSymbol('Handle'),
+  new Address(WALLET).toScVal(),
+]);
 
 function entry(keyScVal, val, liveUntilLedgerSeq) {
   return {
@@ -122,6 +127,37 @@ function boundEntries() {
   ];
 }
 
+function submittedFootprint(tx) {
+  const footprint = tx.toEnvelope().v1().tx().ext().sorobanData().resources().footprint();
+  return [...footprint.readOnly(), ...footprint.readWrite()].map((key) => key.toXDR('base64'));
+}
+
+test('binding keys use the contracttype symbol encoding', () => {
+  // A `#[contracttype]` enum variant is a name, so `DataKey::Owner(handle)` is
+  // ScVec[Symbol("Owner"), String(handle)] — never ScVec[U32(1), ...]. A wrong
+  // key silently matches no stored entry, which is the bug behind #985.
+  assert.equal(ownerKeyScVal('alice').toXDR('base64'), OWNER_KEY_SCVAL.toXDR('base64'));
+  assert.equal(handleKeyScVal(WALLET).toXDR('base64'), HANDLE_KEY_SCVAL.toXDR('base64'));
+  assert.notEqual(
+    ownerKeyScVal('alice').toXDR('base64'),
+    xdr.ScVal.scvVec([xdr.ScVal.scvU32(1), xdr.ScVal.scvString('alice')]).toXDR('base64'),
+  );
+
+  // The read must name the real keys, or no binding is ever found.
+  const server = stubServer({ entries: boundEntries() });
+  const output = capture();
+  return main({
+    argv: ['alice'],
+    env: { REGISTRY_CONTRACT_ID: CONTRACT_ID },
+    server,
+    ...output,
+  }).then(() => {
+    const asked = new Set(server.calls.reads.flat().map((key) => key.toXDR('base64')));
+    assert.ok(asked.has(ledgerKey(OWNER_KEY_SCVAL).toXDR('base64')));
+    assert.ok(asked.has(ledgerKey(HANDLE_KEY_SCVAL).toXDR('base64')));
+  });
+});
+
 test('report mode prints remaining ledgers and submits nothing', async () => {
   const server = stubServer({ entries: boundEntries() });
   const output = capture();
@@ -138,6 +174,7 @@ test('report mode prints remaining ledgers and submits nothing', async () => {
   assert.match(output.out(), /owner:alice: 3000 ledgers remaining/);
   assert.match(output.out(), new RegExp(`handle:${WALLET}: 2000 ledgers remaining`));
   assert.doesNotMatch(output.out(), /bumped/);
+  assert.doesNotMatch(output.out(), /entries extended/);
   assert.equal(server.calls.submitted.length, 0);
 });
 
@@ -158,6 +195,39 @@ test('an unbound handle is reported as unbound', async () => {
   assert.equal(code, 0);
   assert.match(output.out(), /\[UNBOUND\] alice/);
   assert.equal(server.calls.submitted.length, 0);
+});
+
+test('a missing binding that resolve still answers for is never counted as extended', async () => {
+  const signer = Keypair.random();
+  const server = stubServer({
+    entries: [entry(INSTANCE_KEY_SCVAL, xdr.ScVal.scvVoid(), LATEST_LEDGER + 4000)],
+    resolveSimulation: () => ({
+      ...successSim(),
+      result: { retval: new Address(WALLET).toScVal() },
+    }),
+  });
+  const output = capture();
+
+  const code = await main({
+    argv: ['alice'],
+    env: { REGISTRY_CONTRACT_ID: CONTRACT_ID, KEEPALIVE_SECRET: signer.secret() },
+    server,
+    ...output,
+    sleep: async () => {},
+  });
+
+  assert.equal(code, 0, output.out());
+  assert.match(output.out(), /\[UNKNOWN\] alice/);
+  assert.equal(server.calls.submitted.length, 1);
+
+  // Only the instance exists, so only it may be extended and claimed.
+  assert.deepEqual(submittedFootprint(server.calls.submitted[0]), [
+    ledgerKey(INSTANCE_KEY_SCVAL).toXDR('base64'),
+  ]);
+  assert.match(
+    output.out(),
+    /Summary: 1 of 1 live entries in the submitted footprint \(0 unbound, 0 archived\)/,
+  );
 });
 
 test('a restore preamble is reported as archived and exits 1', async () => {
@@ -218,20 +288,16 @@ test('with a key, the submitted footprint holds the instance and both binding ke
   assert.equal(tx.operations[0].type, 'extendFootprintTtl');
   assert.equal(String(tx.source), signer.publicKey());
 
-  const footprint = tx
-    .toEnvelope()
-    .v1()
-    .tx()
-    .ext()
-    .sorobanData()
-    .resources()
-    .footprint()
-    .readOnly()
-    .map((key) => key.toXDR('base64'));
-
-  assert.deepEqual(new Set(footprint), new Set([
-    ledgerKey(INSTANCE_KEY_SCVAL).toXDR('base64'),
-    ledgerKey(OWNER_KEY_SCVAL).toXDR('base64'),
-    ledgerKey(HANDLE_KEY_SCVAL).toXDR('base64'),
-  ]));
+  assert.deepEqual(
+    new Set(submittedFootprint(tx)),
+    new Set([
+      ledgerKey(INSTANCE_KEY_SCVAL).toXDR('base64'),
+      ledgerKey(OWNER_KEY_SCVAL).toXDR('base64'),
+      ledgerKey(HANDLE_KEY_SCVAL).toXDR('base64'),
+    ]),
+  );
+  assert.match(
+    output.out(),
+    /Summary: 3 of 3 live entries in the submitted footprint \(0 unbound, 0 archived\)/,
+  );
 });

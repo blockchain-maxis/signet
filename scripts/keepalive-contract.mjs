@@ -16,7 +16,9 @@
  * `DataKey::Handle(wallet)`, then:
  *
  *   - with `KEEPALIVE_SECRET`: simulates the footprint for resources, signs an
- *     `ExtendFootprintTTL` operation, submits it and waits for the result;
+ *     `ExtendFootprintTTL` operation over the entries that actually exist,
+ *     submits it and waits for the result. Entries are only reported as
+ *     extended when their key is in the submitted footprint;
  *   - without it: reports only — each live entry's `liveUntilLedgerSeq` and
  *     ledgers remaining, handles that are unbound, and entries that need
  *     restoring. Nothing is submitted and nothing is called "bumped".
@@ -62,9 +64,6 @@ export const EXTEND_TO_LEDGERS = 518_400;
 
 export const DEFAULT_RPC_URL = 'https://soroban-testnet.stellar.org';
 
-/** `DataKey` variant indices, from packages/contracts/identity-registry/src/lib.rs. */
-const DATA_KEY = { Admin: 0, Owner: 1, Handle: 2, Count: 3 };
-
 /** Keys per `getLedgerEntries` call; the RPC caps the request size. */
 const READ_BATCH = 100;
 
@@ -89,18 +88,26 @@ Env:
 
 export class UsageError extends Error {}
 
-/** A `DataKey::Owner(handle)` ScVal. Non-unit `#[contracttype]` enums encode as
- * `ScVals: [U32(variant), ...payload]`. */
+/**
+ * A `DataKey::Owner(handle)` ScVal.
+ *
+ * `DataKey` in packages/contracts/identity-registry/src/lib.rs is a plain
+ * `#[contracttype]` enum, and Soroban keys a tuple variant by *name*, not by
+ * position: `ScVec[Symbol("Owner"), String(handle)]`. Numeric U32 variants are
+ * the encoding for a `#[repr(u32)]`-style enum and match no stored key, so a
+ * wrong guess here reads nothing and extends nothing (see
+ * apps/web/e2e/fixtures/contracts.ts, whose OWNER_KEY is this exact shape).
+ */
 export function ownerKeyScVal(handle) {
   return xdr.ScVal.scvVec([
-    xdr.ScVal.scvU32(DATA_KEY.Owner),
+    xdr.ScVal.scvSymbol('Owner'),
     nativeToScVal(handle, { type: 'string' }),
   ]);
 }
 
-/** A `DataKey::Handle(wallet)` ScVal. */
+/** A `DataKey::Handle(wallet)` ScVal: `ScVec[Symbol("Handle"), Address(wallet)]`. */
 export function handleKeyScVal(wallet) {
-  return xdr.ScVal.scvVec([xdr.ScVal.scvU32(DATA_KEY.Handle), new Address(wallet).toScVal()]);
+  return xdr.ScVal.scvVec([xdr.ScVal.scvSymbol('Handle'), new Address(wallet).toScVal()]);
 }
 
 /** A persistent `ContractData` ledger key for `keyScVal` in the registry. */
@@ -212,7 +219,9 @@ export async function runSweep({
   log('Signet Identity Registry keep-alive');
   log(`  RPC:      ${rpcUrl}`);
   log(`  Registry: ${contractId}`);
-  log(`  Mode:     ${keypair ? 'extend (KEEPALIVE_SECRET set)' : 'report (set KEEPALIVE_SECRET to extend)'}`);
+  log(
+    `  Mode:     ${keypair ? 'extend (KEEPALIVE_SECRET set)' : 'report (set KEEPALIVE_SECRET to extend)'}`,
+  );
   log(`  Targets:  ${targets.map((t) => t.label).join(', ')}`);
   log('');
 
@@ -342,22 +351,35 @@ export async function runSweep({
     return { exitCode: 1, live: 0, unbound: unbound.length, archived: archived.length };
   }
 
-  const liveCount = targets.filter((t) => live.has(keyId(t.key))).length;
+  // Only entries we actually read exist, so only those can be extended:
+  // `ExtendFootprintTTL` on an absent key extends nothing. The simulation above
+  // deliberately names every target so an archived one shows up in its restore
+  // preamble; the submitted footprint must not.
+  const extendable = targets.filter((t) => live.has(keyId(t.key)));
 
   if (!keypair) {
     log('');
     log(
-      `Summary: ${liveCount} live entries reported, ${unbound.length} unbound, 0 submitted ` +
+      `Summary: ${extendable.length} live entries reported, ${unbound.length} unbound, 0 submitted ` +
         '(report mode; nothing was extended).',
     );
-    return { exitCode: 0, live: liveCount, unbound: unbound.length, archived: 0 };
+    return { exitCode: 0, live: extendable.length, unbound: unbound.length, archived: 0 };
+  }
+
+  if (extendable.length === 0) {
+    log('');
+    log(`Summary: 0 entries to extend, ${unbound.length} unbound, 0 archived (nothing submitted).`);
+    return { exitCode: 0, live: 0, unbound: unbound.length, archived: 0 };
   }
 
   const source = await rpcServer.getAccount(keypair.publicKey());
   const simulated = sorobanDataOf(simulation.transactionData);
   const resources = simulated.resources();
   const sorobanData = new SorobanDataBuilder()
-    .setFootprint(footprintKeys, [])
+    .setFootprint(
+      extendable.map((t) => t.key),
+      [],
+    )
     .setResourceFee(simulated.resourceFee())
     .setResources(resources.instructions(), resources.diskReadBytes(), resources.writeBytes())
     .build();
@@ -390,15 +412,41 @@ export async function runSweep({
     return { exitCode: 1, live: liveCount, unbound: unbound.length, archived: 0 };
   }
 
-  log(`[OK]    ${sent.hash} confirmed; extended to at least ${EXTEND_TO_LEDGERS} ledgers.`);
+  log(`[OK]    ${sent.hash} confirmed.`);
+
+  // Count what the *submitted* footprint holds, not what we attempted: a key
+  // that was absent (unbound, or missing but unresolved) is not in it, and
+  // reporting it as extended is the false success this script exists to stop.
+  const submittedFootprint = new Set(
+    [
+      ...tx.toEnvelope().v1().tx().ext().sorobanData().resources().footprint().readOnly(),
+      ...tx.toEnvelope().v1().tx().ext().sorobanData().resources().footprint().readWrite(),
+    ].map((key) => keyId(key)),
+  );
+  const covered = targets.filter((t) => submittedFootprint.has(keyId(t.key)));
+  for (const target of covered) {
+    log(`[OK]    ${target.label}: in the submitted footprint.`);
+  }
+  for (const target of extendable) {
+    if (submittedFootprint.has(keyId(target.key))) continue;
+    warn(`[SKIP]  ${target.label}: live, but not in the submitted footprint.`);
+  }
 
   live.clear();
   await readTargets(targets);
   reportLive('[LIVE]  ');
 
   log('');
-  log(`Summary: ${liveCount} entries extended, ${unbound.length} unbound, 0 archived.`);
-  return { exitCode: 0, live: liveCount, unbound: unbound.length, archived: 0 };
+  log(
+    `Summary: ${covered.length} of ${extendable.length} live entries in the submitted footprint ` +
+      `(${unbound.length} unbound, 0 archived).`,
+  );
+  return {
+    exitCode: covered.length > 0 ? 0 : 1,
+    live: covered.length,
+    unbound: unbound.length,
+    archived: 0,
+  };
 }
 
 function buildExtendTransaction({ passphrase, source, footprint }) {
@@ -444,9 +492,7 @@ export async function main({
       instanceOnly,
       contractId,
       rpcUrl:
-        env.SOROBAN_RPC_URL?.trim() ||
-        env.NEXT_PUBLIC_SOROBAN_RPC_URL?.trim() ||
-        DEFAULT_RPC_URL,
+        env.SOROBAN_RPC_URL?.trim() || env.NEXT_PUBLIC_SOROBAN_RPC_URL?.trim() || DEFAULT_RPC_URL,
       secret: env.KEEPALIVE_SECRET?.trim() || undefined,
       server,
       log,
