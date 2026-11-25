@@ -1,5 +1,6 @@
-import { createHash } from 'node:crypto';
+import { TransactionBuilder } from '@stellar/stellar-sdk';
 import { consumeNonce } from '../nonce-store.ts';
+import { getNetworkPassphrase } from '../sep10.ts';
 
 /**
  * Single-use accounting for signed SEP-10 challenges, shared by every
@@ -24,10 +25,11 @@ export const CHALLENGE_REPLAY_TTL_MS = 10 * 60 * 1000;
 /**
  * Spend `challengeXdr`. Returns false if it has already been spent.
  *
- * Hashed rather than stored whole: the envelope is long, and the nonce store
- * only needs to recognise it again.
+ * The spend key is the transaction hash (not the envelope bytes) so that
+ * re-encoding the same signed transaction cannot produce a new key.
  */
 export async function spendChallenge(challengeXdr: string): Promise<boolean> {
-  const hash = createHash('sha256').update(challengeXdr).digest('hex');
+  const tx = TransactionBuilder.fromXDR(challengeXdr, getNetworkPassphrase());
+  const hash = tx.hash().toString('hex');
   return consumeNonce(`sep10-challenge:${hash}`, CHALLENGE_REPLAY_TTL_MS);
 }

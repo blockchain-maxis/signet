@@ -92,3 +92,32 @@ test('retired legacy auth endpoints return 404', async ({ request }) => {
     expect(res.status()).toBe(404);
   }
 });
+
+test.describe('SEP-10 replay protection', () => {
+  test('posting the same signed transaction twice returns 200 then 401', async ({ request }) => {
+    const account = Keypair.random();
+
+    // Get a fresh challenge
+    const chal = await request.get(`/api/auth/sep10?account=${account.publicKey()}`);
+    expect(chal.ok()).toBeTruthy();
+    const { transaction, network_passphrase } = (await chal.json()) as {
+      transaction: string;
+      network_passphrase: string;
+    };
+
+    // Sign the challenge
+    const signed = signChallenge(transaction, network_passphrase, account);
+
+    // First POST should succeed (200)
+    const first = await request.post('/api/auth/sep10', { data: { transaction: signed } });
+    expect(first.status()).toBe(200);
+    const firstBody = await first.json();
+    expect(firstBody.token).toBeDefined();
+
+    // Second POST with the same signed transaction should fail (401)
+    const second = await request.post('/api/auth/sep10', { data: { transaction: signed } });
+    expect(second.status()).toBe(401);
+    const secondBody = await second.json();
+    expect(secondBody.error).toBe('Challenge has already been used');
+  });
+});
