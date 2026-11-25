@@ -273,8 +273,9 @@ func (f *File) UseContext(name string) error {
 	return nil
 }
 
-// AddContext adds or updates a named context.
-func (f *File) AddContext(name string, ctx Context) error {
+// AddContext adds a named context, refusing to overwrite an existing one
+// unless force is true.
+func (f *File) AddContext(name string, ctx Context, force bool) error {
 	name = strings.TrimSpace(name)
 	if name == "" {
 		return &ContextError{
@@ -292,6 +293,14 @@ func (f *File) AddContext(name string, ctx Context) error {
 		return &ContextError{
 			Msg:  "--network is required",
 			Code: exitcode.InvalidInput,
+		}
+	}
+	if !force && f.Contexts != nil {
+		if _, exists := f.Contexts[name]; exists {
+			return &ContextError{
+				Msg:  fmt.Sprintf("context %q already exists; pass --force to replace it", name),
+				Code: exitcode.InvalidInput,
+			}
 		}
 	}
 	if f.Contexts == nil {

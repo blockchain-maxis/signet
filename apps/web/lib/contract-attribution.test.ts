@@ -129,7 +129,7 @@ function buildV4Meta(contractAddress: string): string {
 function createOp(overrides: Partial<AttributionHorizonOp> = {}): AttributionHorizonOp {
   return {
     type: 'invoke_host_function',
-    function: 'HostFunctionTypeCreateContract',
+    function: 'HostFunctionTypeHostFunctionTypeCreateContract',
     createdAt: '2026-09-20T12:00:00.000Z',
     ...overrides,
   };
@@ -334,6 +334,35 @@ test('no DB plus a Horizon create op deriving to the address attributes via hori
   });
   // Derived straight from the record's address/salt: no tx fetch needed.
   assert.equal(calls.meta, 0);
+});
+
+test('without a DB, HostFunctionTypeHostFunctionTypeCreateContractV2 attributes via Horizon', async () => {
+  const calls = freshCalls();
+  const horizon = makeHorizon(
+    { alice: [DEPLOYER] },
+    {
+      [DEPLOYER]: [
+        createOp({
+          function: 'HostFunctionTypeHostFunctionTypeCreateContractV2',
+          address: DEPLOYER,
+          salt: SALT_HEX,
+          transactionHash: 'tx-v2',
+        }),
+      ],
+    },
+    calls,
+  );
+
+  const res = await attributeContractWithDeps('alice', CONTRACT, {
+    network: NETWORK,
+    db: noDb,
+    horizon,
+  });
+
+  assert.equal(res.status, 'attributed');
+  if (res.status === 'attributed') {
+    assert.equal(res.contract.deployTxHash, 'tx-v2');
+  }
 });
 
 test('no DB plus a capped Horizon walk with no match misses with capped true', async () => {

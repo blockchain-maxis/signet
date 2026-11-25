@@ -55,6 +55,26 @@ fn invalid_field(id: &Value, path: &str, expected: &str) -> Value {
     )
 }
 
+/// Validate and extract `live_until_ledger` from an entry map.
+/// Absent or null means no TTL (`None`); anything else must be a non-negative integer in `0..=u32::MAX`.
+pub fn parse_live_until(
+    id: &Value,
+    path: &str,
+    item: &Map<String, Value>,
+) -> Result<Option<u32>, Value> {
+    match item.get("live_until_ledger") {
+        None | Some(Value::Null) => Ok(None),
+        Some(value) => match value.as_u64() {
+            Some(until) if until <= u64::from(u32::MAX) => Ok(Some(until as u32)),
+            _ => Err(invalid_field(
+                id,
+                &format!("{path}.live_until_ledger"),
+                "a non-negative integer",
+            )),
+        },
+    }
+}
+
 fn no_open_ledger(id: &Value) -> Value {
     error_message(
         id,
@@ -274,10 +294,10 @@ pub fn ledger_open(
             if let Err(error) = verify_entry_key(lane, id, &entry_path, &key, &entry) {
                 return error;
             }
-            let live_until = item
-                .get("live_until_ledger")
-                .and_then(Value::as_u64)
-                .and_then(|n| u32::try_from(n).ok());
+            let live_until = match parse_live_until(id, &at, item) {
+                Ok(live_until) => live_until,
+                Err(error) => return error,
+            };
             store.insert_base(&key, entry, live_until, sequence);
         }
     }
@@ -348,18 +368,9 @@ pub fn ledger_put(
             return invalid_field(id, &format!("entries[{index}].key_xdr"), "a string");
         };
         let at = format!("entries[{index}]");
-        let live_until = match item.get("live_until_ledger") {
-            None | Some(Value::Null) => None,
-            Some(value) => match value.as_u64() {
-                Some(until) if until <= u64::from(u32::MAX) => Some(until as u32),
-                _ => {
-                    return invalid_field(
-                        id,
-                        &format!("entries[{index}].live_until_ledger"),
-                        "a non-negative integer",
-                    )
-                }
-            },
+        let live_until = match parse_live_until(id, &at, item) {
+            Ok(live_until) => live_until,
+            Err(error) => return error,
         };
         let key = match decode_key(open.lane, id, &format!("entries[{index}].key_xdr"), key_xdr) {
             Ok(key) => key,
@@ -793,5 +804,63 @@ mod tests {
         assert_eq!(reply["detail"]["kind"], "invalid_field");
         assert_eq!(reply["detail"]["path"], "entries[0].entry_xdr");
         assert!(ledger.is_none());
+    }
+
+    #[test]
+    fn open_validates_live_until_ledger() {
+        let mut ledger = None;
+        let reply_str = ledger_open(
+            &mut ledger,
+            &id(),
+            &obj(json!({
+                "network_passphrase": "Test SDF Network ; September 2015",
+                "entries": [
+                    { "key_xdr": key_b64(1), "entry_xdr": entry_b64(1, 10), "live_until_ledger": "500" },
+                ],
+            })),
+        );
+        assert_eq!(reply_str["type"], "error");
+        assert_eq!(reply_str["detail"]["kind"], "invalid_field");
+        assert_eq!(reply_str["detail"]["path"], "entries[0].live_until_ledger");
+
+        let reply_neg = ledger_open(
+            &mut ledger,
+            &id(),
+            &obj(json!({
+                "network_passphrase": "Test SDF Network ; September 2015",
+                "entries": [
+                    { "key_xdr": key_b64(1), "entry_xdr": entry_b64(1, 10), "live_until_ledger": -1 },
+                ],
+            })),
+        );
+        assert_eq!(reply_neg["type"], "error");
+        assert_eq!(reply_neg["detail"]["kind"], "invalid_field");
+        assert_eq!(reply_neg["detail"]["path"], "entries[0].live_until_ledger");
+
+        // null and absent are accepted
+        let reply_null = ledger_open(
+            &mut ledger,
+            &id(),
+            &obj(json!({
+                "network_passphrase": "Test SDF Network ; September 2015",
+                "entries": [
+                    { "key_xdr": key_b64(1), "entry_xdr": entry_b64(1, 10), "live_until_ledger": null },
+                ],
+            })),
+        );
+        assert_eq!(reply_null["type"], "result");
+
+        let mut ledger2 = None;
+        let reply_absent = ledger_open(
+            &mut ledger2,
+            &id(),
+            &obj(json!({
+                "network_passphrase": "Test SDF Network ; September 2015",
+                "entries": [
+                    { "key_xdr": key_b64(1), "entry_xdr": entry_b64(1, 10) },
+                ],
+            })),
+        );
+        assert_eq!(reply_absent["type"], "result");
     }
 }
