@@ -1,7 +1,7 @@
 import { seedContractFixture } from './fixtures/contracts';
 import { seedDocsRegistryFixture } from './fixtures/docs-registry';
 import { seedGroupedFixture } from './fixtures/grouped';
-import { seedDocsFailureFixture, startMockRpc } from './fixtures/docs-failures';
+import { seedDocsFailureFixture, seedArchivedProfileFixture, startMockRpc } from './fixtures/docs-failures';
 
 /**
  * Playwright `globalSetup`: loads the contract-page fixture (#463) into the
@@ -9,12 +9,14 @@ import { seedDocsFailureFixture, startMockRpc } from './fixtures/docs-failures';
  * `DATABASE_URL`), so this is a no-op there and nothing touches a database.
  *
  * With a database it also stands up the mock Soroban RPC the docs failure
- * states read (#470) and returns its teardown.
+ * states read (#470) and the archived profile RPC (#896), and returns its
+ * teardown.
  */
 export default async function globalSetup(): Promise<() => Promise<void>> {
   if (!process.env.DATABASE_URL) return async () => {};
   await seedContractFixture();
   await seedDocsFailureFixture();
+  await seedArchivedProfileFixture();
   await seedDocsRegistryFixture();
   await seedGroupedFixture();
   return startMockRpc();

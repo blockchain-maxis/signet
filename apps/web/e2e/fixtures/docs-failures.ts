@@ -3,7 +3,8 @@ import { createServer, type Server } from 'node:http';
 import { Address, StrKey, xdr } from '@stellar/stellar-sdk';
 
 /**
- * Fixtures and a mock Soroban RPC for the docs failure-state e2e (#470).
+ * Fixtures and a mock Soroban RPC for the docs failure-state e2e (#470)
+ * and the archived profile e2e (#896).
  *
  * TEST-ONLY DATA, like `contracts.ts`. The docs tabs ask the RPC for a
  * contract's interface, so the failure states can only be reached
@@ -16,11 +17,17 @@ import { Address, StrKey, xdr } from '@stellar/stellar-sdk';
  *                 ├─ SAC            a Stellar Asset Contract instance
  *                 └─ RPC_DOWN       the RPC answers 503 for this contract
  *
+ *   e2e-archived (profile)
+ *     └─ wallet 4 ── the Identity Registry's `resolve` returns a restore
+ *                     preamble (simulation restore) so the page shows
+ *                     "Archived on-chain" instead of "Bound on-chain"
+ *
  * The profile is separate from `e2e-dev` so the contract-list specs on that
  * profile keep their counts.
  */
 
 export const DOCS_HANDLE = 'e2e-docs';
+export const ARCHIVED_HANDLE = 'e2e-archived';
 
 const contractId = (byte: number) => StrKey.encodeContract(Buffer.alloc(32, byte));
 
@@ -36,6 +43,7 @@ export const CALLEE_SAC = contractId(0x5c);
 export const CALLEE_SAC_ISSUER = StrKey.encodeEd25519PublicKey(Buffer.alloc(32, 0x5d));
 
 const WALLET_3 = StrKey.encodeEd25519PublicKey(Buffer.alloc(32, 0xe3));
+const ARCHIVED_WALLET = StrKey.encodeEd25519PublicKey(Buffer.alloc(32, 0xf4));
 
 /** `\0asm` + version 1, no sections: a valid module with no interface. */
 const EMPTY_WASM = Buffer.from([0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00]);
@@ -125,6 +133,62 @@ function answerFor(keyXdr: string): Answer {
   return { status: 200, entries: [] };
 }
 
+/** Build a `simulateTransaction` response with a restore preamble for the archived handle. */
+function archivedSimulateResponse(): { status: number; body: string } {
+  // A restore preamble is what triggers `rpc.Api.isSimulationRestore(sim)`.
+  // The SDK checks for a non-empty `restorePreamble` in the sorobanMeta.
+  const restorePreamble = xdr.SorobanTransactionMetaExt
+    .sorobanTransactionMetaExtV1(
+      new xdr.SorobanTransactionMetaExtV1({
+        transactionData: new xdr.SorobanTransactionData({
+          ext: new xdr.ExtensionPoint(0),
+          resources: new xdr.SorobanResources({
+            footprint: xdr.LedgerFootprint({
+              readOnly: [],
+              readWrite: [],
+            }),
+            instructions: 0,
+            readBytes: 0,
+            writeBytes: 0,
+          }),
+          resourceFee: xdr.Int64.fromString('0'),
+          extensible: new xdr.ExtensionPoint(0),
+        }),
+        events: [],
+        returnValue: xdr.ScVal.scvVoid(),
+        ext: new xdr.ExtensionPoint(0),
+      })
+    )
+    .toXDR('base64');
+
+  return {
+    status: 200,
+    body: JSON.stringify({
+      jsonrpc: '2.0',
+      id: 1,
+      result: {
+        result: xdr.TransactionMeta.v3(
+          new xdr.TransactionMetaV3({
+            ext: new xdr.ExtensionPoint(0),
+            txChanges: [],
+            operations: [],
+            sorobanMeta: new xdr.SorobanTransactionMeta({
+              ext: new xdr.ExtensionPoint(0),
+              events: [],
+              returnValue: xdr.ScVal.scvVoid(),
+              restorePreamble,
+            }),
+            diagnosticEvents: [],
+          })
+        ).toXDR('base64'),
+        events: [],
+        latestLedger: 1_000_001,
+        restorePreamble,
+      },
+    }),
+  };
+}
+
 /** Start the mock RPC. Returns a function that stops it. */
 export async function startMockRpc(): Promise<() => Promise<void>> {
   const server: Server = createServer((req, res) => {
@@ -139,6 +203,16 @@ export async function startMockRpc(): Promise<() => Promise<void>> {
           params?: { keys?: string[] };
         };
         id = rpc.id ?? 1;
+
+        if (rpc.method === 'simulateTransaction') {
+          // The Identity Registry's `resolve` call for the archived handle
+          // returns a restore preamble.
+          const { status, body: responseBody } = archivedSimulateResponse();
+          res.writeHead(status, { 'content-type': 'application/json' });
+          res.end(responseBody);
+          return;
+        }
+
         if (rpc.method !== 'getLedgerEntries') {
           res.writeHead(200, { 'content-type': 'application/json' });
           res.end(
@@ -222,6 +296,25 @@ export async function seedDocsFailureFixture(): Promise<void> {
         create: { address: row.address, ...data },
       });
     }
+  } finally {
+    await prisma.$disconnect();
+  }
+}
+
+/** Seed the e2e-archived profile. Idempotent. */
+export async function seedArchivedProfileFixture(): Promise<void> {
+  const { prisma } = await import('@signet/db');
+  try {
+    const profile = await prisma.profile.upsert({
+      where: { handle: ARCHIVED_HANDLE },
+      update: {},
+      create: { handle: ARCHIVED_HANDLE },
+    });
+    await prisma.wallet.upsert({
+      where: { pubkey: ARCHIVED_WALLET },
+      update: { profileId: profile.id },
+      create: { profileId: profile.id, pubkey: ARCHIVED_WALLET, source: 'cli', isPrimary: true },
+    });
   } finally {
     await prisma.$disconnect();
   }
