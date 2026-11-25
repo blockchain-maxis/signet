@@ -151,6 +151,7 @@ const ENV_ALLOW = new Set([
   'NETWORK', // shell override for deploy-contract.sh
   'STELLAR_ACCOUNT', // shell override for deploy-contract.sh
   'ADMIN_ADDRESS', // shell override for deploy-contract.sh
+  'RPC_URL', // shell override for deploy-contract.sh (NETWORK_PASSPHRASE is listed below as a stellar.toml key)
   'SIGNET_URL', // shell env for the cli/ Go module, not the pnpm workspace's .env
   'STELLAR_SIGN_WITH_KEY', // shell env the stellar CLI already reads; cli/ honours it, not app env
   'SIGNET_DEPLOY_KEY', // CI secret holding the deploy key, exported as STELLAR_SIGN_WITH_KEY
