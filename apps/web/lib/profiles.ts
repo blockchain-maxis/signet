@@ -64,7 +64,14 @@ export type Operation = {
 // Re-exported here so existing callers keep importing it from this module.
 export { isValidHandle };
 
-export const getProfile = cache(async function getProfile(handle: string): Promise<Profile | null> {
+/**
+ * Resolve a handle's profile with an optional injected database seam, so the
+ * released-handle rule is testable without Postgres.
+ */
+export async function getProfileWithDeps(
+  handle: string,
+  deps: ProfileDeps = {},
+): Promise<Profile | null> {
   if (!isValidHandle(handle)) return null;
   // Prefer the database (indexer-synced bindings, plus the off-chain display
   // fields the other layers can't supply) when one is configured.
@@ -76,7 +83,14 @@ export const getProfile = cache(async function getProfile(handle: string): Promi
   // database — or with no database at all. Ask the registry directly so it
   // renders instead of 404ing.
   return safeChainProfile(handle);
-});
+}
+
+/**
+ * Resolve a handle's profile, deduplicated across a single request. Cached on
+ * the handle alone: the deps seam lives on `getProfileWithDeps`, so a per-call
+ * deps object can never split the cache key.
+ */
+export const getProfile = cache((handle: string) => getProfileWithDeps(handle));
 
 /** Which layer answered an operations lookup; `none` when nothing did. */
 export type OperationsSource = 'database' | 'horizon' | 'none';
@@ -119,6 +133,66 @@ export interface OperationsDeps {
     cap: number;
   } | null>;
   safeDbOperationsResult?: (handle: string) => Promise<Omit<OperationsResult, 'source'> | null>;
+}
+
+/**
+ * A profile is live only while the chain still binds it. The attestation
+ * worker writes one `Wallet` row with `source: 'onchain'` and `isPrimary: true`
+ * on `claimed`/`transferred`, and deletes that row on `released`/`revoked` —
+ * but it never deletes the `Profile` row. Left behind are the handle, bio,
+ * display name and any CLI-linked deploy wallets, which would keep rendering
+ * (and keep attributing contracts) after a release or an impersonation
+ * revocation.
+ *
+ * Every database read of a profile is filtered on this fragment, so a handle
+ * with no on-chain primary falls through to the chain layer, which answers
+ * from `resolve` and 404s when the registry no longer binds it. Keeping it in
+ * one place is what stops the rule drifting between the profile, sitemap,
+ * operations, stats and attribution reads.
+ */
+const LIVE_PROFILE_FILTER = { wallets: { some: { isPrimary: true, source: 'onchain' } } };
+
+/** The shared Prisma `where` fragment for a live profile at `handle`. */
+export function liveProfileWhere(handle: string) {
+  return { handle: handle.toLowerCase(), ...LIVE_PROFILE_FILTER };
+}
+
+/**
+ * The database seam behind the profile reads. Every method applies
+ * `liveProfileWhere`; the default implementation is Prisma, gated on
+ * `DATABASE_URL`, and each method degrades to null/[] rather than throwing.
+ * Tests inject a stub, so the released-handle rule is covered without
+ * Postgres.
+ */
+export interface ProfilesDb {
+  /** The live profile at `handle`, or null when the database has none. */
+  findProfile: (handle: string) => Promise<Profile | null>;
+  /** Every handle in the database whose profile is live. */
+  listHandles: () => Promise<string[]>;
+  /** The newest DB_OPERATIONS_PER_WALLET rows per wallet, with truncation. */
+  findOperations: (handle: string) => Promise<Omit<OperationsResult, 'source'> | null>;
+  /** A page of operations, with the real total backing the handle. */
+  findPagedOperations: (
+    handle: string,
+    pagination: PagedOperationsPagination,
+    limit?: number,
+  ) => Promise<(PagedOperations & { hasMore?: boolean }) | null>;
+  /** The retention-scoped aggregate, or null when the handle has no live profile. */
+  findStats: (handle: string) => Promise<ProfileStats | null>;
+}
+
+/** The Prisma-backed reads; the function declarations are hoisted below. */
+const defaultProfilesDb: ProfilesDb = {
+  findProfile: dbFindProfile,
+  listHandles: dbListHandles,
+  findOperations: dbFindOperations,
+  findPagedOperations: dbFindPagedOperations,
+  findStats: dbFindStats,
+};
+
+export interface ProfileDeps {
+  /** Database seam. Defaults to the Prisma-backed reads, gated on `DATABASE_URL`. */
+  db?: ProfilesDb;
 }
 
 /**
@@ -535,10 +609,11 @@ export interface PagedOperations {
 
 /**
  * Paginated, DB-backed lookup of every operation for a handle — unlike
- * `safeDbOperations`, this is not capped at 100 rows. `offset`/`limit` are
- * pushed into the query via `skip`/`take` and `total` comes from a real
- * `count`, so a caller paging past the first 100 rows still gets its data and
- * an honest total instead of an empty page with a stale count.
+ * `safeDbOperations`, this is not capped at 100 rows. Paging is a keyset
+ * cursor on `(createdAt, id)`, with `offset`/`limit` still accepted for
+ * callers that page by position, and `total` comes from a real `count`, so a
+ * caller paging past the first 100 rows still gets its data and an honest
+ * total instead of an empty page with a stale count.
  *
  * Returns null when there's no database, the handle doesn't resolve to a
  * profile in it, or the query fails — callers fall back to `getOperations`
@@ -556,8 +631,23 @@ export async function getPagedOperations(
   handle: string,
   pagination: PagedOperationsPagination,
   limit = 25,
+  db: ProfilesDb = defaultProfilesDb,
 ): Promise<(PagedOperations & { hasMore?: boolean }) | null> {
-  if (!process.env.DATABASE_URL || !isValidHandle(handle)) return null;
+  if (!isValidHandle(handle)) return null;
+  try {
+    return await db.findPagedOperations(handle.toLowerCase(), pagination, limit);
+  } catch {
+    return null;
+  }
+}
+
+/** Prisma implementation of `ProfilesDb.findPagedOperations`; live profiles only. */
+async function dbFindPagedOperations(
+  handle: string,
+  pagination: PagedOperationsPagination,
+  limit = 25,
+): Promise<(PagedOperations & { hasMore?: boolean }) | null> {
+  if (!process.env.DATABASE_URL) return null;
   try {
     const { prisma } = await import('@signet/db');
     const profile = await prisma.profile.findFirst({

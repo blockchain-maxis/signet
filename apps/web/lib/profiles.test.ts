@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {
   isValidHandle,
   getProfile,
+  getProfileWithDeps,
   getOperations,
   getPagedOperations,
   listHandles,
@@ -355,7 +356,7 @@ test('a profile with only CLI-linked wallets is not returned', async () => {
   // A release deletes only the on-chain primary wallet row; the leftovers must
   // not render, so the lookup misses and `getProfile` falls through to chain.
   assert.equal(await safeDbProfile('alice', stubDb), null);
-  assert.equal(await getProfile('alice', { db: stubDb }), null);
+  assert.equal(await getProfileWithDeps('alice', { db: stubDb }), null);
 });
 
 test('a profile with an on-chain primary is unchanged', async () => {
