@@ -42,6 +42,7 @@ export default async function ProfilePage({ params }: { params: Promise<{ handle
   const {
     profile,
     operations,
+    total,
     truncated,
     cap,
     source,

@@ -25,6 +25,15 @@ export const PROFILE_OPERATIONS_PAGE_SIZE = 25;
 export interface ProfileOperationsView {
   /** The operations to render first, newest first (at most one page). */
   operations: Operation[];
+  /**
+   * The operations stats should aggregate when no database aggregate answers.
+   * On the Horizon path that is the whole fetched result, not the rendered
+   * page: `computeStats` over a page would silently report a 25-row sample as
+   * the account's totals whenever the cap did not cut the record short (#899).
+   * On the database path stats come from the database aggregate, so the page
+   * stands in for the rows.
+   */
+  statsOperations: Operation[];
   /** The real number of operations backing the handle, not the page size. */
   total: number;
   /** True when a cap cut the record short — only the Horizon path does this. */
@@ -59,6 +68,7 @@ export async function getProfileOperationsView(
   if (paged) {
     return {
       operations: paged.data,
+      statsOperations: paged.data,
       total: paged.total,
       truncated: false,
       cap: null,
@@ -69,6 +79,7 @@ export async function getProfileOperationsView(
   const result = await (deps.getOperationsResult ?? getOperationsResult)(handle);
   return {
     operations: result.operations.slice(0, PROFILE_OPERATIONS_PAGE_SIZE),
+    statsOperations: result.operations,
     total: result.operations.length,
     truncated: result.truncated,
     cap: result.cap,
