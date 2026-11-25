@@ -230,5 +230,3 @@ export function verifyJwt(token: string): string | null {
     return null;
   }
 }
-
-export { Sep10Error, Sep10ConfigError };
