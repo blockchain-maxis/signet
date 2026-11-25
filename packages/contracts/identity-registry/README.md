@@ -2,7 +2,10 @@
 
 Soroban contract that binds a Stellar wallet to a Signet handle on-chain.
 
-> **Status:** implemented. 30 unit tests, builds to a ~11 KB wasm.
+> **Status:** implemented. 47 tests (40 unit tests in `src/test.rs`, 6
+> property tests in `src/property_test.rs`, 1 cost test in `src/cost_test.rs`).
+> CI's `Wasm size budget` step logs the release wasm's current size against its
+> 20 KB budget (see [`../README.md`](../README.md#size-budget)).
 >
 > The source here is **ahead of the deployed testnet instance**; see
 > [`docs/REGISTRY_INTEGRATION.md`](../../../docs/REGISTRY_INTEGRATION.md) §2 for
@@ -45,19 +48,25 @@ registry and migrating; budget for that rather than assuming a patch path.
 | `resolve(handle) -> Option<Address>` | — | Handle → wallet. |
 | `lookup(wallet) -> Option<String>` | — | Wallet → handle. |
 | `is_bound(handle) -> bool` | — | Whether a handle is taken. |
-| `count() -> u32` | — | Number of bound handles (O(1)). |
+| `count() -> u32` | — | Binding counter (O(1)). An **upper bound**, not a live total: a binding whose entries archive unaccessed is never subtracted, so it only drifts upward. Use `resolve` to prove a specific binding is live. |
 | `resolve_batch(handles) -> Vec<Option<Address>>` | — | Positional multi-resolve, max 100. |
 
 ## Storage lifetime
 
-Bindings live in `persistent` storage and are bumped on every access; the admin
-and the counter live in `instance` storage, which every write path bumps too.
+Bindings live in `persistent` storage and are bumped on every access. The admin
+and the counter live in `instance` storage, which every entry point bumps,
+reads (`resolve`, `lookup`, `is_bound`, `count`, `resolve_batch`) included. A
+read only bumps when it is *invoked*: a simulated read discards its footprint
+and extends nothing, which is why the deployment runbook has a keep-alive.
 Both matter: if the instance were allowed to archive while bindings stayed
 alive, `initialize`-gated calls would start failing and the registry would look
 bricked with its data intact.
 
 Full enumeration of handles is intentionally **off-chain**: reconstruct the set
-from the `claimed` / `released` event stream (what the indexer does). The
+from the event stream, as the indexer and `/handles` do. `claimed` binds, both
+`released` and `revoked` unbind, and `transferred` rebinds the handle to its
+new wallet. Skip `admin_changed`, which carries no handle. Event shapes are in
+[`docs/REGISTRY_INTEGRATION.md`](../../../docs/REGISTRY_INTEGRATION.md) §4. The
 contract stores only an O(1) counter, so storage and per-call cost stay constant
 no matter how many handles exist.
 
