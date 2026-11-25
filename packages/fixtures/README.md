@@ -28,15 +28,33 @@ pnpm --filter @signet/fixtures capture
 - `sac-instance-entry`: Soroban `getLedgerEntries` response for the native XLM SAC contract instance entry.
 - `contract-wasm-entry`: Soroban `getLedgerEntries` response for the Identity Registry's WASM code entry (`ContractCodeEntry`).
 - `horizon-contract-deploy-tx`: Horizon `/transactions/{hash}` record for the same deployment as `deploy-get-transaction`, verbatim. Current Horizon does **not** return `result_meta_xdr`; the meta is in the RPC fixture.
-- `claim-get-transaction`: Soroban `getTransaction` response for an on-chain Identity Registry `claim` invocation.
+- `registry-claim-release-get-events`: Soroban `getEvents` page filtered to the Identity Registry, starting at the ledger of a fresh `claim`. It holds that claim's `claimed` event and the matching `released` event, both for an `fx-<8 hex>` handle and the same wallet. The page can also include events from other people's registry calls in the same ledgers. Topics and value are base64 `ScVal`s, the input the indexer's `decodeEvent` and `/handles` fold ([`REGISTRY_INTEGRATION.md` §5](../../docs/REGISTRY_INTEGRATION.md)).
+- `claim-get-transaction`: Soroban `getTransaction` response for the `claim` that produced the `claimed` event in `registry-claim-release-get-events`. The invocation's arguments name the same handle and wallet.
 - `deploy-get-transaction`: Soroban `getTransaction` response for a real create-contract (`HostFunctionTypeCreateContract`) deployment; `resultMetaXdr` is `TransactionMeta` v4 and returns the new contract address.
 
 - `sac-transfer-call-get-transaction`: Soroban `getTransaction` response for a lending contract's `repay_obligation_liquidity` whose auth tree names a sub-call to a Stellar Asset Contract `transfer` (an `auth-tree` call edge, #516).
 - `footprint-only-call-get-transaction`: Soroban `getTransaction` response for the same contract's `borrow_obligation_liquidity`, whose footprint holds a foreign contract instance that neither the auth tree nor any contract event names (a `footprint` call edge, #516).
 
+## Registry claim/release capture (submits real transactions)
+
+`registry-claim-release-get-events` and `claim-get-transaction` are recorded together from a claim made at capture time, not from a pinned hash. The capture step:
+
+1. generates a random keypair and funds it through Friendbot's HTTP endpoint;
+2. submits **two real testnet transactions** against the registry (`NEXT_PUBLIC_IDENTITY_REGISTRY_ID`, default: the reference testnet registry): `claim(fx-<8 hex>, wallet)` then `release(fx-<8 hex>)`;
+3. calls `getEvents` from the claim's ledger and checks that the page contains exactly that handle's `claimed` then `released` events, from those two transactions;
+4. only then writes both files.
+
+Re-record them from scratch (naming either fixture re-records both, so they always describe the same claim):
+
+```bash
+pnpm --filter @signet/fixtures capture registry-claim-release-get-events
+```
+
+Capturing any other fixture by name submits nothing. A bare `capture` with no names records everything, including these two, so it also submits the two transactions.
+
 ## Retention
 
-Soroban RPC only serves `getTransaction` for a retention window (about 7 days). `claim-get-transaction`, `deploy-get-transaction` and the two `*-call-get-transaction` fixtures are pinned to transaction hashes in `scripts/capture.ts`; when a hash ages out, pick a newer one of the same kind and update the constant before re-running `capture`. To record only some fixtures, name them: `pnpm --filter @signet/fixtures capture sac-transfer-call-get-transaction`.
+Soroban RPC only serves `getTransaction` and `getEvents` for a retention window (about 7 days). The registry pair above is re-made on every capture, so it never ages out. `deploy-get-transaction` and the two `*-call-get-transaction` fixtures are pinned to transaction hashes in `scripts/capture.ts`; when a hash ages out, pick a newer one of the same kind and update the constant before re-running `capture`. To record only some fixtures, name them: `pnpm --filter @signet/fixtures capture sac-transfer-call-get-transaction`.
 
 ## Import guard
 
