@@ -181,7 +181,6 @@ func TestDeploymentContextJSONExampleParsesWithConfigLoad(t *testing.T) {
 				continue
 			}
 			if inJSON && strings.HasPrefix(trimmed, "```") {
-				inJSON = false
 				break
 			}
 			if inJSON {
