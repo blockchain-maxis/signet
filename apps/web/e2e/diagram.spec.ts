@@ -53,6 +53,23 @@ test.describe('diagram embed mode e2e', () => {
     const embedFrame = page.frameLocator('#embed-frame');
     if (HAS_DB) {
       await expect(embedFrame.getByText(/View on Signet/)).toBeVisible();
+
+      // Clicking a function node in the framed embed opens a new page at /functions#fn-…,
+      // and the frame itself stays on the embed URL (#949).
+      const fnNode = embedFrame.locator('[data-node-id^="fn:"]').first();
+      await expect(fnNode).toBeVisible();
+      const [newPage] = await Promise.all([
+        page.context().waitForEvent('page'),
+        fnNode.click(),
+      ]);
+      await newPage.waitForLoadState();
+      expect(newPage.url()).toContain('/functions#fn-');
+      await newPage.close();
+
+      const frameUrl = await page
+        .locator('#embed-frame')
+        .evaluate((el: HTMLIFrameElement) => el.contentWindow?.location.href);
+      expect(frameUrl).toContain('/embed');
     } else {
       // In hermetic mode without database, it renders the 404 state within the frame
       await expect(embedFrame.getByRole('heading', { name: 'Contract not found' })).toBeVisible();
