@@ -330,7 +330,7 @@ has open shows as `in use` and is not removed.
 ### `signet visualise`
 
 ```sh
-signet visualise <address> [--wasm file.wasm] [--network testnet|mainnet] [--out file.svg] [--theme dark|light|auto] [--open]
+signet visualise <address> [--wasm file.wasm] [--network <name>] [--rpc-url <url>] [--out file.svg] [--theme dark|light|auto] [--open]
 ```
 
 Draws a contract's diagram as an SVG file (#578), with the visualiser the web
@@ -479,36 +479,31 @@ classes could apply. An error that matches neither mechanism maps to `1`.
 
 ## Configuration
 
-Every command reads two settings — which Signet deployment to talk to, and
-which local identity to sign as — resolved in this order, highest priority
-first:
+Every command resolves runtime settings (Signet deployment URL, Stellar network,
+signing identity, and sandbox RPC URL) per field across four layers, highest
+priority first:
 
-1. A command-line flag: `--url` / `--source` / `--sign-with-key`
-   (`--sign-with-key` outranks `--source`: it is the more specific statement
-   of intent)
-2. An environment variable: `SIGNET_URL` for the deployment URL,
-   `STELLAR_SIGN_WITH_KEY` for the identity
-3. The config file: `$XDG_CONFIG_HOME/signet/config.json` on Linux,
-   `~/Library/Application Support/signet/config.json` on macOS,
-   `%AppData%\signet\config.json` on Windows (`os.UserConfigDir()`)
-4. The built-in default deployment — no config file is required to use it
+1. Command-line flags: `--url` / `--network` / `--source` / `--sign-with-key` / `--rpc-url`
+2. Environment variables: `SIGNET_URL` / `SIGNET_NETWORK` / `STELLAR_SIGN_WITH_KEY`
+3. The active deployment context in `config.json` (or selected via `--context` / `SIGNET_CONTEXT`)
+4. Built-in defaults (`https://signet-web-pearl.vercel.app` on `testnet`)
 
-```json
-{
-  "baseUrl": "https://my-self-hosted-signet.example",
-  "source": "alice"
-}
-```
+Named deployment contexts bundle an endpoint `url`, a `network`, a default signing
+identity `source`, and an optional `rpcUrl`. Manage them with `signet context`
+(`add`, `list`, `show`, `use`, `remove`), inspect and update individual keys with
+`signet config` (`get`, `set`, `unset`, `path`), or override the active context for
+a single run using `--context <name>` or `SIGNET_CONTEXT`.
 
-Passing `--source` explicitly updates the config file's `source` so the next
-invocation doesn't have to repeat it. `--sign-with-key` and
-`STELLAR_SIGN_WITH_KEY` deliberately do not — `stellar tx sign` accepts key
-material for that setting, and persisting a secret to disk on your behalf is
-not signet's call — that's what makes repeat runs not
-re-ask which identity to use. `--url` is read from the config file but never
-written back by a flag; edit the file (or keep using `--url`/`SIGNET_URL`) to
-change the configured deployment. See `internal/config` for the resolution
-logic and its tests.
+Passing `--source` explicitly updates the active context's `source` in `config.json`
+so repeat runs do not re-ask which identity to use. `--sign-with-key` and
+`STELLAR_SIGN_WITH_KEY` deliberately do not — `stellar tx sign` accepts secret key
+material for that setting, and persisting a secret to disk is not signet's call.
+Flags like `--url` and `--network` do not rewrite config; use `signet context add`
+or `signet config set` to configure deployments.
+
+For full documentation on deployment contexts, schema v2, precedence rules, and
+transparent v1 migration, see [Deployment contexts](../docs/CLI.md#deployment-contexts)
+in the CLI guide. See `internal/config` for the resolution logic and its tests.
 
 ### Sandbox network and RPC
 
