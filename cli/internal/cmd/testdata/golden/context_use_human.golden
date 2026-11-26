@@ -1,0 +1,6 @@
+$ signet context use prod
+-- stdout --
+Switched to context "prod".
+-- stderr --
+(empty)
+-- exit 0 --

@@ -1,0 +1,6 @@
+$ signet context add staging --url <deployment> --network testnet --source charlie --json
+-- stdout --
+{"name":"staging","url":"<deployment>","network":"testnet","source":"charlie","rpcUrl":"","discovered":false}
+-- stderr --
+(empty)
+-- exit 0 --
