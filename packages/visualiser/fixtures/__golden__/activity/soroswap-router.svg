@@ -7,7 +7,7 @@
   font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="14"
 >
   <title id="activity-title">soroswap-router, observed use</title>
-  <desc id="activity-desc">20 functions in 9 groups, 4 types, 0 references</desc>
+  <desc id="activity-desc">20 functions in 4 groups, 4 types, 0 references</desc>
   <defs>
   </defs>
   <g id="diagram-fn-initialize" data-node-id="fn:initialize">

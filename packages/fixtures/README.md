@@ -80,7 +80,7 @@ Capturing any other fixture by name submits nothing. A bare `capture` with no na
 
 ## Retention
 
-Soroban RPC only serves `getTransaction` and `getEvents` for a retention window (about 7 days). The registry pair above is re-made on every capture, so it never ages out. `deploy-get-transaction` and the two `*-call-get-transaction` fixtures are pinned to transaction hashes in `scripts/capture.ts`; when a hash ages out, pick a newer one of the same kind and update the constant before re-running `capture`. To record only some fixtures, name them: `pnpm --filter @signet/fixtures capture sac-transfer-call-get-transaction`.
+Soroban RPC only serves `getTransaction` and `getEvents` for a retention window (about 7 days). The registry pair above is re-made on every capture, so it never ages out. `deploy-get-transaction` and the two `*-call-get-transaction` fixtures are pinned to transaction hashes in `scripts/capture.ts`. When a hash has aged out, RPC answers with a `NOT_FOUND` status: the capture script treats any `getTransaction` status other than `SUCCESS` as an error that names the fixture and the hash, exits non-zero, and writes no file at all, so the existing recordings stay as they are. Pick a newer transaction of the same kind, update the constant in `scripts/capture.ts`, and re-run `capture`. To record only some fixtures, name them: `pnpm --filter @signet/fixtures capture sac-transfer-call-get-transaction`.
 
 Horizon keeps an account's whole history, so the `horizon-*` recordings do not age out of a window. A testnet reset removes them. `capture` then fails on its own checks of what it fetched, and the account, the cursor and the ids pinned in `scripts/capture.ts` need replacing.
 
