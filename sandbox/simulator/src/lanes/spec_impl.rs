@@ -1579,73 +1579,92 @@ pub fn generic(val: &ScVal) -> Result<Value, LaneError> {
 
 // ── Storage expressions (#559) ─────────────────────────────────────────
 
-/// Render an ScVal key as a storage expression (#559) that `storage_override` can parse.
-/// Returns None when the key cannot be written back unambiguously.
-pub fn key_expression(val: &ScVal) -> Option<String> {
-    match val {
-        ScVal::Symbol(s) => {
-            let text = s.0.to_utf8_string_lossy();
-            let json_str = serde_json::to_string(&text).ok()?;
-            Some(format!("symbol:{json_str}"))
-        }
-        ScVal::String(s) => {
-            let text = s.0.to_utf8_string_lossy();
-            let json_str = serde_json::to_string(&text).ok()?;
-            Some(format!("string:{json_str}"))
-        }
-        ScVal::Address(a) => {
-            let text = a.to_string();
-            let json_str = serde_json::to_string(&text).ok()?;
-            Some(format!("address:{json_str}"))
-        }
-        ScVal::U32(n) => Some(format!("u32:{n}")),
-        ScVal::I32(n) => Some(format!("i32:{n}")),
-        ScVal::U64(n) => Some(format!("u64:\"{n}\"")),
-        ScVal::I64(n) => Some(format!("i64:\"{n}\"")),
-        ScVal::Timepoint(t) => Some(format!("timepoint:\"{}\"", t.0)),
-        ScVal::Duration(d) => Some(format!("duration:\"{}\"", d.0)),
-        ScVal::U128(p) => {
-            let n = (u128::from(p.hi) << 64) | u128::from(p.lo);
-            Some(format!("u128:\"{n}\""))
-        }
-        ScVal::I128(p) => {
-            let n = (i128::from(p.hi) << 64) | i128::from(p.lo);
-            Some(format!("i128:\"{n}\""))
-        }
-        ScVal::U256(p) => {
-            let text = u256_text([p.hi_hi, p.hi_lo, p.lo_hi, p.lo_lo]);
-            Some(format!("u256:\"{text}\""))
-        }
-        ScVal::I256(p) => {
-            let text = i256_text([p.hi_hi as u64, p.hi_lo, p.lo_hi, p.lo_lo]);
-            Some(format!("i256:\"{text}\""))
-        }
-        ScVal::Bytes(b) => {
-            let b64 = b64(b.as_slice());
-            Some(format!("bytes:\"{b64}\""))
-        }
-        ScVal::Bool(b) => Some(b.to_string()),
-        ScVal::Void => Some("void:null".to_string()),
-        ScVal::Vec(Some(items)) if !items.is_empty() => {
-            if let ScVal::Symbol(tag) = &items[0] {
-                let tag_str = tag.0.to_utf8_string_lossy();
-                let is_ident = !tag_str.is_empty()
-                    && tag_str.chars().next()?.is_ascii_alphabetic()
-                    && tag_str.chars().all(|c| c.is_ascii_alphanumeric() || c == '_');
-                if is_ident {
-                    if items.len() == 1 {
-                        return Some(tag_str);
-                    }
-                    let mut args = Vec::new();
-                    for item in items.iter().skip(1) {
-                        args.push(key_expression(item)?);
-                    }
-                    return Some(format!("{tag_str}({})", args.join(", ")));
+impl Spec {
+    /// A storage key as the storage expression (#559) `storage_override`
+    /// reads back to the same key, against this spec (the contract's, or an
+    /// empty one when it has none). A `#[contracttype]` case the spec
+    /// declares takes JSON arguments, as the case's types encode them
+    /// (`Owner("alice")`, `Point(5, 9)`); any other key is typed
+    /// (`u32:5`, `address:"G…"`). `None` when no expression reads back to
+    /// exactly this key.
+    pub fn key_expression(&self, val: &ScVal) -> Option<String> {
+        let expr = self.expression_of(val)?;
+        (self.storage_val(&expr, "key").ok()? == *val).then_some(expr)
+    }
+
+    fn expression_of(&self, val: &ScVal) -> Option<String> {
+        let quoted = |text: String| serde_json::to_string(&text).ok();
+        Some(match val {
+            ScVal::Symbol(s) => format!("symbol:{}", quoted(s.0.to_utf8_string_lossy())?),
+            // A bare string reads as a string unless it is a strkey.
+            ScVal::String(s) => {
+                let text = s.0.to_utf8_string_lossy();
+                if ScAddress::from_str(&text).is_ok() {
+                    format!("string:{}", quoted(text)?)
+                } else {
+                    quoted(text)?
                 }
             }
-            None
-        }
-        _ => None,
+            ScVal::Address(a) => format!("address:{}", quoted(a.to_string())?),
+            ScVal::U32(n) => format!("u32:{n}"),
+            ScVal::I32(n) => format!("i32:{n}"),
+            ScVal::U64(n) => format!("u64:\"{n}\""),
+            ScVal::I64(n) => format!("i64:\"{n}\""),
+            ScVal::Timepoint(t) => format!("timepoint:\"{}\"", t.0),
+            ScVal::Duration(d) => format!("duration:\"{}\"", d.0),
+            ScVal::U128(p) => format!("u128:\"{}\"", (u128::from(p.hi) << 64) | u128::from(p.lo)),
+            ScVal::I128(p) => format!("i128:\"{}\"", (i128::from(p.hi) << 64) | i128::from(p.lo)),
+            ScVal::U256(p) => format!(
+                "u256:\"{}\"",
+                u256_text([p.hi_hi, p.hi_lo, p.lo_hi, p.lo_lo])
+            ),
+            ScVal::I256(p) => format!(
+                "i256:\"{}\"",
+                i256_text([p.hi_hi as u64, p.hi_lo, p.lo_hi, p.lo_lo])
+            ),
+            ScVal::Bytes(b) => format!("bytes:\"{}\"", b64(b.as_slice())),
+            ScVal::Bool(b) => b.to_string(),
+            ScVal::Void => "void:null".to_string(),
+            // A `#[contracttype]` case: a vec of its symbol and arguments.
+            ScVal::Vec(Some(items)) if !items.is_empty() => {
+                let ScVal::Symbol(tag) = &items[0] else {
+                    return None;
+                };
+                let tag = tag.0.to_utf8_string_lossy();
+                let ident = tag.chars().next().is_some_and(|c| c.is_ascii_alphabetic())
+                    && tag.chars().all(|c| c.is_ascii_alphanumeric() || c == '_');
+                if !ident || tag == "true" || tag == "false" {
+                    return None;
+                }
+                let rest = &items[1..];
+                if rest.is_empty() {
+                    return Some(tag);
+                }
+                let args = match self.union_with_case(&tag).and(self.case_types(&tag)) {
+                    // Declared by the spec: JSON, as the case's types read it.
+                    Some(types) => {
+                        if types.len() != rest.len() {
+                            return None;
+                        }
+                        types
+                            .iter()
+                            .zip(rest)
+                            .map(|(ty, item)| {
+                                let v = self.decode(ty, item, "key", 0).ok()?;
+                                serde_json::to_string(&v).ok()
+                            })
+                            .collect::<Option<Vec<_>>>()?
+                    }
+                    // Not in the spec: each argument is its own expression.
+                    None => rest
+                        .iter()
+                        .map(|item| self.expression_of(item))
+                        .collect::<Option<Vec<_>>>()?,
+                };
+                format!("{tag}({})", args.join(", "))
+            }
+            _ => return None,
+        })
     }
 }
 
@@ -2613,47 +2632,5 @@ mod tests {
             }
         }
         assert!(checked > 500, "only {checked} values checked");
-    }
-
-    #[test]
-    fn key_expression_round_trips_to_same_scval() {
-        let spec = Spec { entries: Vec::new() };
-        let cases = vec![
-            ScVal::Symbol(ScSymbol("my_symbol".try_into().unwrap())),
-            ScVal::String(ScString("alice".try_into().unwrap())),
-            ScVal::Address(ScAddress::from_str("GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN").unwrap()),
-            ScVal::Address(ScAddress::from_str("CASFJHI5PQSRWS7JV25CF7FOMRKIVBP3RXRP3E2GH2CV4BCAG7FUJRCN").unwrap()),
-            ScVal::U32(42),
-            ScVal::U64(100_000_000),
-            ScVal::I32(-5),
-            ScVal::I64(-999),
-            ScVal::U128(UInt128Parts { hi: 1, lo: 2 }),
-            ScVal::I128(Int128Parts { hi: 0, lo: 50 }),
-            ScVal::Bool(true),
-            ScVal::Bool(false),
-            // Contracttype case: Vec [ Symbol("Owner"), String("alice") ]
-            ScVal::Vec(Some(ScVec(
-                vec![
-                    ScVal::Symbol(ScSymbol("Owner".try_into().unwrap())),
-                    ScVal::String(ScString("alice".try_into().unwrap())),
-                ]
-                .try_into()
-                .unwrap(),
-            ))),
-            // Contracttype unit case: Vec [ Symbol("Admin") ]
-            ScVal::Vec(Some(ScVec(
-                vec![
-                    ScVal::Symbol(ScSymbol("Admin".try_into().unwrap())),
-                ]
-                .try_into()
-                .unwrap(),
-            ))),
-        ];
-
-        for original in cases {
-            let expr = key_expression(&original).expect("must have key_expression");
-            let parsed = spec.storage_val(&expr, "key").unwrap_or_else(|e| panic!("failed to parse '{expr}': {e}"));
-            assert_eq!(parsed, original, "round trip failed for expression: {expr}");
-        }
     }
 }

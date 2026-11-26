@@ -580,7 +580,14 @@ pub trait Lane: Sync {
     /// A `LedgerEntry` in plain terms, for `signet sandbox state` (#554):
     /// contract data by contract, durability, key and value (decoded
     /// without a spec), an instance with its storage map, code by hash.
-    fn describe_entry(&self, entry_xdr: &[u8]) -> Result<serde_json::Value, LaneError>;
+    /// Each storage key also comes as the `storage_override` expression
+    /// for it, written against the spec of `wasm` (the contract's code,
+    /// when known), or `null` when none reads back to that key.
+    fn describe_entry(
+        &self,
+        entry_xdr: &[u8],
+        wasm: Option<&[u8]>,
+    ) -> Result<serde_json::Value, LaneError>;
 
     /// The contract (C...) whose instance a `LedgerKey` is; `None` for any
     /// other key (#552).

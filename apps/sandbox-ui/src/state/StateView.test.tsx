@@ -11,7 +11,8 @@ const REGISTRY = 'CASFJHI5PQSRWS7JV25CF7FOMRKIVBP3RXRP3E2GH2CV4BCAG7FUJRCN';
 const WALLET = 'GAAZI4TCR3TY5OJHCTJC2A4QSY6CJWJH5IAJTGKIN2ER7LBNVKOCCWN7';
 const LEDGER = 5_388_497;
 
-// The registry's fork as GET /api/state?layer=fork returns it (decoded by entries_describe).
+// The registry's fork as GET /api/state?layer=fork returns it (decoded by entries_describe;
+// the registry's spec does not declare its DataKey, so each case argument is its own expression).
 const fork: ForkEntry[] = [
   {
     key: 'AAAABgAAAAEkVJ0dfCUbS+muuiL8rmRUioX7jeL9k0Y+hV4EQDfLRAAAABQAAAAB',
@@ -47,7 +48,7 @@ const fork: ForkEntry[] = [
       contract: REGISTRY,
       durability: 'temporary',
       key: ['Nonce', 7],
-      key_expression: 'Nonce(7)',
+      key_expression: 'Nonce(u32:7)',
       value: true,
     },
   },
@@ -106,7 +107,7 @@ test('entries show decoded keys, TTLs against the fork ledger, and drift', async
   expect(owner).toHaveAttribute('data-drifted', 'true');
   expect(within(owner).getByText('drifted')).toBeInTheDocument();
   expect(owner).toHaveTextContent('live until 5509456, 120959 ledgers left');
-  const temp = within(table).getByText('temporary Nonce(7)').closest('tr')!;
+  const temp = within(table).getByText('temporary Nonce(u32:7)').closest('tr')!;
   expect(temp).toHaveTextContent('archived (live until 5000000)');
   expect(temp).not.toHaveAttribute('data-drifted');
 });
