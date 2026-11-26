@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { getProfileState, type ProfileState } from './profile-state.ts';
+import { getProfileState } from './profile-state.ts';
 import type { Profile } from './profiles.ts';
 
 test('getProfileState returns archived for an archived chain profile', () => {
@@ -52,19 +52,7 @@ test('getProfileState returns no-wallet for a null profile', () => {
   assert.equal(getProfileState(null), 'no-wallet');
 });
 
-test('getProfileState returns live for a chain profile with a wallet but no archived flag', () => {
-  const chainProfile: Profile = {
-    name: 'test-handle',
-    wallet: 'GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF',
-    bio: '',
-    joined: '',
-    source: 'chain',
-    archived: false,
-  };
-  assert.equal(getProfileState(chainProfile), 'live');
-});
-
-test('getProfileState returns live for a chain profile with a wallet and explicit archived: false', () => {
+test('getProfileState returns live for a chain profile with archived: false', () => {
   const chainProfile: Profile = {
     name: 'test-handle',
     wallet: 'GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF',

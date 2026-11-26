@@ -3,10 +3,11 @@ import { SectionLabel } from './_components/section-label';
 import { SiteFooter } from './_components/site-footer';
 import { SiteNav } from './_components/site-nav';
 import {
-  loadProfilePageData,
-  type ProfilePageData,
-} from '@/lib/profile-page';
-import { getProfileState, type ProfileState } from '@/lib/profile-state';
+  formatCount,
+  formatStatsWindow,
+} from '@/lib/profiles';
+import { loadProfilePageData } from '@/lib/profile-page';
+import { getProfileState } from '@/lib/profile-state';
 import { STELLAR_EXPLORER, STELLAR_NETWORK_NAME } from '@/lib/network';
 import { formatDate } from '@/lib/format-date';
 import OperationsList from './operations-list';
@@ -39,14 +40,20 @@ export default async function ProfilePage({ params }: { params: Promise<{ handle
   const data = await loadProfilePageData(handle);
   if (!data) notFound();
 
-  // Determine the profile's display state once; the page and OG image share this.
-  const state = getProfileState(data.profile);
-
-  // `truncated` says the record stops at a cap rather than at the end of this
-  // developer's history. Every claim below that would otherwise read as a total
-  // is qualified by it — a partial record shown as complete is the one thing a
-  // career record must never do.
-  const { profile, operations, truncated, cap, source, stats, contracts, contractsTruncated, contractsCap, multiWallet } = data;
+  const {
+    profile,
+    operations,
+    truncated,
+    cap,
+    source,
+    stats,
+    contracts,
+    contractsTruncated,
+    contractsCap,
+    multiWallet,
+  } = data;
+  // Live, archived or no wallet: shared with the social card (#896).
+  const state = getProfileState(profile);
 
   // The stats can outrun the capped operation list: database aggregates are
   // exact for their represented scope even when the list below stops at a cap.
@@ -105,25 +112,25 @@ export default async function ProfilePage({ params }: { params: Promise<{ handle
 
           <div className="mt-7 flex items-center gap-3">
             {state === 'archived' ? (
-              <span className="inline-flex items-center gap-2 border border-amber-800 bg-amber-950/30 px-3 py-1.5">
+              <span className="inline-flex items-center gap-2 border border-amber-900/60 bg-amber-950/20 px-3 py-1.5">
                 <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
                 <span
-                  className="text-[10px] uppercase tracking-[0.22em] text-amber-400"
+                  className="text-[10px] uppercase tracking-[0.22em] text-amber-300"
                   style={{ fontFamily: 'var(--font-mono)' }}
                 >
                   Archived on-chain · Identity Registry
                 </span>
               </span>
             ) : (
-              <span className="inline-flex items-center gap-2 border border-emerald-800 bg-emerald-950/30 px-3 py-1.5">
-                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-                <span
-                  className="text-[10px] uppercase tracking-[0.22em] text-emerald-400"
-                  style={{ fontFamily: 'var(--font-mono)' }}
-                >
-                  Bound on-chain · Identity Registry
-                </span>
+            <span className="inline-flex items-center gap-2 border border-emerald-800 bg-emerald-950/30 px-3 py-1.5">
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+              <span
+                className="text-[10px] uppercase tracking-[0.22em] text-emerald-400"
+                style={{ fontFamily: 'var(--font-mono)' }}
+              >
+                Bound on-chain · Identity Registry
               </span>
+            </span>
             )}
           </div>
         </div>
@@ -131,232 +138,232 @@ export default async function ProfilePage({ params }: { params: Promise<{ handle
 
       <div className="relative z-10 mx-auto max-w-5xl px-8 py-16 md:px-14">
 
+        {/* An archived binding has no wallet to show, so its wallet, contracts
+            and activity are hidden rather than rendered empty (#896). */}
         {state !== 'archived' && (
-          {/* Wallet */}
-          <section className="mb-16">
-            <SectionLabel>Linked wallet</SectionLabel>
-            <div className="mt-6 border border-[#1f1d19]">
-              <div className="flex flex-wrap items-center justify-between gap-4 px-5 py-4">
-                <CopyAddress
-                  address={profile.wallet}
-                  display={truncate(profile.wallet, 8, 6)}
-                />
-                {profile.wallet && (
-                  <a
-                    href={`https://stellar.expert/explorer/${STELLAR_EXPLORER}/account/${profile.wallet}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="text-[10px] uppercase tracking-[0.2em] text-[var(--text-accent)] transition-colors hover:text-[var(--text-accent)]"
-                    style={{ fontFamily: 'var(--font-mono)' }}
-                  >
-                    Stellar Expert ↗
-                  </a>
-                )}
-              </div>
-            </div>
-          </section>
-        )}
-
-        {state !== 'archived' && (
-          {/* Deployed contracts — summary list only, no interface detail (#455) */}
-          <section className="mb-16">
-            <SectionLabel>
-              Deployed contracts
-              <span className="ml-1 text-[var(--text-muted)]">
-                {contracts.length === 0
-                  ? '· none found'
-                  : contractsTruncated
-                  ? `· ${contracts.length} shown · partial record`
-                  : `· ${contracts.length} indexed`}
-              </span>
-            </SectionLabel>
-
-            {contracts.length === 0 ? (
-              <div className="mt-6 border border-[#1f1d19] bg-[#0e0d0b] px-5 py-6">
-                <p
-                  className="text-[13px] leading-[1.7] text-[#b8b5a8]"
-                  style={{ fontFamily: 'var(--font-mono)' }}
-                >
-                  No contracts are recorded for this profile&apos;s wallets yet.
-                </p>
-                <p
-                  className="mt-2 text-[12px] leading-[1.6] text-[var(--text-muted)]"
-                  style={{ fontFamily: 'var(--font-mono)' }}
-                >
-                  The wallet that claimed this handle is rarely the key used with{' '}
-                  <code className="text-[#8a8779]">stellar contract deploy</code>. Link your deploy
-                  wallet from the CLI to attribute its contracts:
-                </p>
-                <code
-                  className="mt-4 block max-w-fit bg-[#0a0908] px-4 py-2.5 text-[12px] text-[#f5f4ee] border border-[#1f1d19]"
-                  style={{ fontFamily: 'var(--font-mono)' }}
-                >
-                  npx @signet/cli link
-                </code>
-              </div>
-            ) : (
-              <div className="mt-6 border border-[#1f1d19]">
-                <div
-                  className="grid grid-cols-[1fr_auto] gap-4 border-b border-[#1f1d19] px-5 py-3 text-[9px] uppercase tracking-[0.22em] text-[var(--text-muted)]"
-                  style={{ fontFamily: 'var(--font-mono)' }}
-                >
-                  <span>Contract</span>
-                  <span>Deployed</span>
-                </div>
-                {contracts.map((c, i) => (
-                  <a
-                    key={c.address}
-                    href={`/p/${handle}/contract/${c.address}`}
-                    className={`group grid grid-cols-[1fr_auto] items-start gap-4 px-5 py-4 transition-colors hover:bg-[#0e0d0b] ${
-                      i < contracts.length - 1 ? 'border-b border-[#1f1d19]' : ''
-                    }`}
-                  >
-                    <div className="min-w-0">
-                      <span
-                        className="block font-medium text-[13px] text-[#b8b5a8] transition-colors group-hover:text-[#f5f4ee]"
-                        style={{ fontFamily: 'var(--font-mono)' }}
-                      >
-                        {truncate(c.address, 8, 6)}
-                      </span>
-                      {multiWallet && (
-                        <span
-                          className="block text-[11px] text-[var(--text-muted)] mt-1"
-                          style={{ fontFamily: 'var(--font-mono)' }}
-                        >
-                          by {truncate(c.deployerPubkey, 8, 6)}
-                        </span>
-                      )}
-                    </div>
-                    <span
-                      className="text-[11px] text-[var(--text-muted)] whitespace-nowrap"
-                      style={{ fontFamily: 'var(--font-mono)' }}
-                    >
-                      {formatDate(c.deployedAt)}
-                    </span>
-                  </a>
-                ))}
-              </div>
-            )}
-
-            {contractsTruncated && (
-              <div className="mt-6 border border-amber-900/60 bg-amber-950/20 px-5 py-4">
-                <p
-                  className="text-[12px] leading-[1.7] text-amber-300"
-                  style={{ fontFamily: 'var(--font-mono)' }}
-                >
-                  Partial record — this profile may have deployed more contracts than shown.{' '}
-                  Without an indexer, deployments are read straight from Horizon, which we page
-                  through only as far as the {contractsCap} most recent operations.
-                </p>
-              </div>
-            )}
-          </section>
-        )}
-
-        {state !== 'archived' && (
-          {/* Stats */}
-          <section className="mb-16">
-
-            <SectionLabel>
-              On-chain activity
-              {statsWindow ? <span className="text-[var(--text-muted)]">· {statsWindow}</span> : null}
-            </SectionLabel>
-            <div className="mt-6 grid grid-cols-2 gap-px border border-[#1f1d19] bg-[#1f1d19] md:grid-cols-5">
-              {[
-                {
-                  label: statsTruncated ? 'Reputation (partial)' : 'Reputation',
-                  value: `${stats.reputation}`,
-                },
-                {
-                  label: 'Soroban invocations',
-                  value: formatCount(stats.invocations, statsTruncated),
-                },
-                {
-                  label: 'Unique functions called',
-                  value: formatCount(stats.uniqueFunctions, statsTruncated),
-                },
-                {
-                  // Without the full history the earliest record we hold is not
-                  // the developer's first activity, so the label stops claiming it.
-                  label: truncated || historyWindowed ? 'Earliest shown' : 'First activity',
-                  value: oldest ? formatDate(oldest.created_at, { day: undefined }) : '—',
-                },
-                { label: 'Latest activity', value: newest ? formatDate(newest.created_at) : '—' },
-              ].map(({ label, value }) => (
-                <div key={label} className="flex flex-col justify-center bg-[#0a0908] px-6 py-6">
-                  <span
-                    className="text-[32px] font-bold leading-none tracking-[-0.025em] text-[#f5f4ee]"
-                    style={{ fontFamily: 'var(--font-display)' }}
-                  >
-                    {value}
-                  </span>
-                  <span
-                    className="mt-2 text-[9px] uppercase tracking-[0.22em] text-[var(--text-muted)]"
-                    style={{ fontFamily: 'var(--font-mono)' }}
-                  >
-                    {label}
-                  </span>
-                </div>
-              ))}
-            </div>
-            {statsWindow && (
-              <p
-                className="mt-3 text-[11px] leading-[1.7] text-[var(--text-muted)]"
-                style={{ fontFamily: 'var(--font-mono)' }}
-              >
-                Statistics above cover the {statsWindow} retained by the indexer. Older operations
-                age out of these totals as they are pruned.
-              </p>
-            )}
-          </section>
-
-          {/* Operations — paginated: first 25 rendered server-side */}
-          <section className="mb-16">
-            <SectionLabel>
-              Soroban invocations
-              <span className="ml-1 text-[var(--text-muted)]">
-                {truncated
-                  ? `· ${operations.length} shown · partial record`
-                  : `· ${operations.length} indexed`}
-              </span>
-            </SectionLabel>
-
-            {truncated && (
-              <div className="mt-6 border border-amber-900/60 bg-amber-950/20 px-5 py-4">
-                <p
-                  className="text-[12px] leading-[1.7] text-amber-300"
-                  style={{ fontFamily: 'var(--font-mono)' }}
-                >
-                  Partial record — this account has more history than is shown.{' '}
-                  {source === 'horizon'
-                    ? `Without an indexer, activity is read straight from Horizon, which we page through only as far as the ${cap} most recent operations.`
-                    : `The indexer read only the ${cap} most recent operations for this wallet.`}{' '}
-                  {statsTruncated
-                    ? 'Counts above are lower bounds, and older invocations are not listed.'
-                    : statsWindow
-                    ? `The counts above are exact for the ${statsWindow} retention window, but older invocations are not listed.`
-                    : 'The counts above are still exact — aggregated over the full indexed history — but older invocations are not listed.'}
-                </p>
+        <>
+        {/* Wallet */}
+        <section className="mb-16">
+          <SectionLabel>Linked wallet</SectionLabel>
+          <div className="mt-6 border border-[#1f1d19]">
+            <div className="flex flex-wrap items-center justify-between gap-4 px-5 py-4">
+              <CopyAddress
+                address={profile.wallet}
+                display={truncate(profile.wallet, 8, 6)}
+              />
+              {profile.wallet && (
                 <a
                   href={`https://stellar.expert/explorer/${STELLAR_EXPLORER}/account/${profile.wallet}`}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="mt-3 inline-block text-[10px] uppercase tracking-[0.2em] text-amber-400 transition-colors hover:text-amber-200"
+                  className="text-[10px] uppercase tracking-[0.2em] text-[var(--text-accent)] transition-colors hover:text-[var(--text-accent)]"
                   style={{ fontFamily: 'var(--font-mono)' }}
                 >
-                  Full history on Stellar Expert ↗
+                  Stellar Expert ↗
                 </a>
-              </div>
-            )}
+              )}
+            </div>
+          </div>
+        </section>
 
-            <OperationsList
-              handle={handle}
-              initialOperations={operations.slice(0, 25)}
-              total={operations.length}
-              truncated={truncated}
-              cap={cap}
-            />
-          </section>
+        {/* Deployed contracts — summary list only, no interface detail (#455) */}
+        <section className="mb-16">
+          <SectionLabel>
+            Deployed contracts
+            <span className="ml-1 text-[var(--text-muted)]">
+              {contracts.length === 0
+                ? '· none found'
+                : contractsTruncated
+                  ? `· ${contracts.length} shown · partial record`
+                  : `· ${contracts.length} indexed`}
+            </span>
+          </SectionLabel>
+
+          {contracts.length === 0 ? (
+            <div className="mt-6 border border-[#1f1d19] bg-[#0e0d0b] px-5 py-6">
+              <p
+                className="text-[13px] leading-[1.7] text-[#b8b5a8]"
+                style={{ fontFamily: 'var(--font-mono)' }}
+              >
+                No contracts are recorded for this profile&apos;s wallets yet.
+              </p>
+              <p
+                className="mt-2 text-[12px] leading-[1.6] text-[var(--text-muted)]"
+                style={{ fontFamily: 'var(--font-mono)' }}
+              >
+                The wallet that claimed this handle is rarely the key used with{' '}
+                <code className="text-[#8a8779]">stellar contract deploy</code>. Link your deploy
+                wallet from the CLI to attribute its contracts:
+              </p>
+              <code
+                className="mt-4 block max-w-fit bg-[#0a0908] px-4 py-2.5 text-[12px] text-[#f5f4ee] border border-[#1f1d19]"
+                style={{ fontFamily: 'var(--font-mono)' }}
+              >
+                npx @signet/cli link
+              </code>
+            </div>
+          ) : (
+            <div className="mt-6 border border-[#1f1d19]">
+              <div
+                className="grid grid-cols-[1fr_auto] gap-4 border-b border-[#1f1d19] px-5 py-3 text-[9px] uppercase tracking-[0.22em] text-[var(--text-muted)]"
+                style={{ fontFamily: 'var(--font-mono)' }}
+              >
+                <span>Contract</span>
+                <span>Deployed</span>
+              </div>
+              {contracts.map((c, i) => (
+                <a
+                  key={c.address}
+                  href={`/p/${handle}/contract/${c.address}`}
+                  className={`group grid grid-cols-[1fr_auto] items-start gap-4 px-5 py-4 transition-colors hover:bg-[#0e0d0b] ${
+                    i < contracts.length - 1 ? 'border-b border-[#1f1d19]' : ''
+                  }`}
+                >
+                  <div className="min-w-0">
+                    <span
+                      className="block font-medium text-[13px] text-[#b8b5a8] transition-colors group-hover:text-[#f5f4ee]"
+                      style={{ fontFamily: 'var(--font-mono)' }}
+                    >
+                      {truncate(c.address, 8, 6)}
+                    </span>
+                    {multiWallet && (
+                      <span
+                        className="block text-[11px] text-[var(--text-muted)] mt-1"
+                        style={{ fontFamily: 'var(--font-mono)' }}
+                      >
+                        by {truncate(c.deployerPubkey, 8, 6)}
+                      </span>
+                    )}
+                  </div>
+                  <span
+                    className="text-[11px] text-[var(--text-muted)] whitespace-nowrap"
+                    style={{ fontFamily: 'var(--font-mono)' }}
+                  >
+                    {formatDate(c.deployedAt)}
+                  </span>
+                </a>
+              ))}
+            </div>
+          )}
+
+          {contractsTruncated && (
+            <div className="mt-6 border border-amber-900/60 bg-amber-950/20 px-5 py-4">
+              <p
+                className="text-[12px] leading-[1.7] text-amber-300"
+                style={{ fontFamily: 'var(--font-mono)' }}
+              >
+                Partial record — this profile may have deployed more contracts than shown.{' '}
+                Without an indexer, deployments are read straight from Horizon, which we page
+                through only as far as the {contractsCap} most recent operations.
+              </p>
+            </div>
+          )}
+        </section>
+
+        {/* Stats */}
+        <section className="mb-16">
+
+          <SectionLabel>
+            On-chain activity
+            {statsWindow ? <span className="text-[var(--text-muted)]">· {statsWindow}</span> : null}
+          </SectionLabel>
+          <div className="mt-6 grid grid-cols-2 gap-px border border-[#1f1d19] bg-[#1f1d19] md:grid-cols-5">
+            {[
+              {
+                label: statsTruncated ? 'Reputation (partial)' : 'Reputation',
+                value: `${stats.reputation}`,
+              },
+              {
+                label: 'Soroban invocations',
+                value: formatCount(stats.invocations, statsTruncated),
+              },
+              {
+                label: 'Unique functions called',
+                value: formatCount(stats.uniqueFunctions, statsTruncated),
+              },
+              {
+                // Without the full history the earliest record we hold is not
+                // the developer's first activity, so the label stops claiming it.
+                label: truncated || historyWindowed ? 'Earliest shown' : 'First activity',
+                value: oldest ? formatDate(oldest.created_at, { day: undefined }) : '—',
+              },
+              { label: 'Latest activity', value: newest ? formatDate(newest.created_at) : '—' },
+            ].map(({ label, value }) => (
+              <div key={label} className="flex flex-col justify-center bg-[#0a0908] px-6 py-6">
+                <span
+                  className="text-[32px] font-bold leading-none tracking-[-0.025em] text-[#f5f4ee]"
+                  style={{ fontFamily: 'var(--font-display)' }}
+                >
+                  {value}
+                </span>
+                <span
+                  className="mt-2 text-[9px] uppercase tracking-[0.22em] text-[var(--text-muted)]"
+                  style={{ fontFamily: 'var(--font-mono)' }}
+                >
+                  {label}
+                </span>
+              </div>
+            ))}
+          </div>
+          {statsWindow && (
+            <p
+              className="mt-3 text-[11px] leading-[1.7] text-[var(--text-muted)]"
+              style={{ fontFamily: 'var(--font-mono)' }}
+            >
+              Statistics above cover the {statsWindow} retained by the indexer. Older operations
+              age out of these totals as they are pruned.
+            </p>
+          )}
+        </section>
+
+        {/* Operations — paginated: first 25 rendered server-side */}
+        <section className="mb-16">
+          <SectionLabel>
+            Soroban invocations
+            <span className="ml-1 text-[var(--text-muted)]">
+              {truncated
+                ? `· ${operations.length} shown · partial record`
+                : `· ${operations.length} indexed`}
+            </span>
+          </SectionLabel>
+
+          {truncated && (
+            <div className="mt-6 border border-amber-900/60 bg-amber-950/20 px-5 py-4">
+              <p
+                className="text-[12px] leading-[1.7] text-amber-300"
+                style={{ fontFamily: 'var(--font-mono)' }}
+              >
+                Partial record — this account has more history than is shown.{' '}
+                {source === 'horizon'
+                  ? `Without an indexer, activity is read straight from Horizon, which we page through only as far as the ${cap} most recent operations.`
+                  : `The indexer read only the ${cap} most recent operations for this wallet.`}{' '}
+                {statsTruncated
+                  ? 'Counts above are lower bounds, and older invocations are not listed.'
+                  : statsWindow
+                    ? `The counts above are exact for the ${statsWindow} retention window, but older invocations are not listed.`
+                    : 'The counts above are still exact — aggregated over the full indexed history — but older invocations are not listed.'}
+              </p>
+              <a
+                href={`https://stellar.expert/explorer/${STELLAR_EXPLORER}/account/${profile.wallet}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="mt-3 inline-block text-[10px] uppercase tracking-[0.2em] text-amber-400 transition-colors hover:text-amber-200"
+                style={{ fontFamily: 'var(--font-mono)' }}
+              >
+                Full history on Stellar Expert ↗
+              </a>
+            </div>
+          )}
+
+          <OperationsList
+            handle={handle}
+            initialOperations={operations.slice(0, 25)}
+            total={operations.length}
+            truncated={truncated}
+            cap={cap}
+          />
+        </section>
+        </>
         )}
 
         {/* Verification footer */}
@@ -368,35 +375,35 @@ export default async function ProfilePage({ params }: { params: Promise<{ handle
                 className="max-w-[680px] text-[13px] leading-[1.7] text-[var(--text-muted)]"
                 style={{ fontFamily: 'var(--font-mono)' }}
               >
-                This handle&apos;s binding is <strong className="text-amber-400">archived on-chain</strong> — the
-                ledger entry has expired and must be restored before the handle can be
-                resolved to a wallet again. The binding itself still exists in the
-                Identity Registry.
+                This handle&apos;s binding is{' '}
+                <strong className="text-amber-300">archived on-chain</strong>. The binding still
+                exists in the Identity Registry on Stellar {STELLAR_NETWORK_NAME}, but its ledger
+                entry has expired, so it no longer resolves to a wallet until it is restored.
               </p>
             ) : (
-              <p
-                className="max-w-[680px] text-[13px] leading-[1.7] text-[var(--text-muted)]"
-                style={{ fontFamily: 'var(--font-mono)' }}
-              >
-                This handle is{' '}
-                <strong className="text-[#8a8779]">bound on-chain</strong> — the handle→wallet
-                binding above was read live from the Identity Registry contract on Stellar{' '}
-                {STELLAR_NETWORK_NAME}, not curated. Any Soroban invocations listed come from the
-                indexed ledger and are independently verifiable on Stellar Expert.
-                {truncated ? (
-                  <>
-                    {' '}
-                    This particular record is{' '}
-                    <strong className="text-[#8a8779]">partial</strong>: it stops at the{' '}
-                    {cap} most recent operations
-                    {statsTruncated
-                      ? ', so the counts above are lower bounds rather than totals.'
-                      : statsWindow
+            <p
+              className="max-w-[680px] text-[13px] leading-[1.7] text-[var(--text-muted)]"
+              style={{ fontFamily: 'var(--font-mono)' }}
+            >
+              This handle is{' '}
+              <strong className="text-[#8a8779]">bound on-chain</strong> — the handle→wallet
+              binding above was read live from the Identity Registry contract on Stellar{' '}
+              {STELLAR_NETWORK_NAME}, not curated. Any Soroban invocations listed come from the
+              indexed ledger and are independently verifiable on Stellar Expert.
+              {truncated ? (
+                <>
+                  {' '}
+                  This particular record is{' '}
+                  <strong className="text-[#8a8779]">partial</strong>: it stops at the{' '}
+                  {cap} most recent operations
+                  {statsTruncated
+                    ? ', so the counts above are lower bounds rather than totals.'
+                    : statsWindow
                       ? `. The counts above are exact for the ${statsWindow} retention window.`
                       : '. The counts above are aggregated over the whole indexed history, so they stay exact totals.'}
-                  </>
-                ) : null}
-              </p>
+                </>
+              ) : null}
+            </p>
             )}
             <a
               href="/how-it-works"

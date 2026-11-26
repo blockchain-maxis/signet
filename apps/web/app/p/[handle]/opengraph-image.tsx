@@ -6,7 +6,7 @@ import {
   formatCount,
   formatStatsWindow,
 } from '@/lib/profiles';
-import { getProfileState, type ProfileState } from '@/lib/profile-state';
+import { getProfileState } from '@/lib/profile-state';
 
 export const runtime = 'nodejs';
 export const size = { width: 1200, height: 630 };
