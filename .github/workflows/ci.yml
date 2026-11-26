@@ -168,6 +168,12 @@ jobs:
       - name: Test
         run: pnpm test
 
+      # The keep-alive script must build a real ExtendFootprintTTL footprint
+      # (instance + both binding keys) and never claim a simulated read bumped
+      # anything. Stubbed rpc.Server, no network.
+      - name: Test the keep-alive script
+        run: node --test scripts/keepalive-contract.test.mjs
+
       - name: Smoke check generated TypeScript client stub
         run: pnpm --filter @signet/spec smoke:client
 
