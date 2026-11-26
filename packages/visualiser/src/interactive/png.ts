@@ -6,7 +6,7 @@
  * canvas without relying on system fallback fonts.
  */
 
-import { VIZ_TOKENS, type VizTheme } from '../tokens.ts';
+import { literalColourRules, type VizTheme } from '../tokens.ts';
 import { IBM_PLEX_MONO_BASE64 } from './font.ts';
 
 export { IBM_PLEX_MONO_BASE64 } from './font.ts';
@@ -86,17 +86,21 @@ text, .label, .footer, .group-label {
 }
 
 /**
- * Enforces an explicit theme ('dark' or 'light') by appending specific token fill/stroke rules.
+ * Forces one theme ('dark' or 'light') on a standalone export.
+ *
+ * The export writes every colour as a literal attribute in one theme, named
+ * on its root (`data-export-theme`; the light one for `auto`). So the forced
+ * theme is one pair of rules per token, matched on the colour written, and
+ * nothing here says which element takes which token: a rule per class would
+ * flatten what the vocabulary draws apart, such as an outline with no fill or
+ * an observed call's colour. The rules are `!important`, to hold against the
+ * dark block an `auto` export carries.
  */
 export function applyExplicitThemeToSvg(svgString: string, theme: VizTheme): string {
-  const t = VIZ_TOKENS[theme];
-  const themeRules = `.canvas { fill: ${t.ground} !important; }
-.node { fill: ${t.node} !important; stroke: ${t.edge} !important; }
-.group { fill: none !important; stroke: ${t.edge} !important; }
-.label { fill: ${t.nodeText} !important; }
-.footer, .group-label { fill: ${t.muted} !important; }
-.edge { fill: none !important; stroke: ${t.edge} !important; stroke-width: 1.5 !important; }
-.arrow { fill: ${t.edge} !important; }`;
+  const written = /<svg\b[^>]* data-export-theme="(dark|light)"/.exec(svgString)?.[1];
+  const themeRules = literalColourRules(written === 'dark' ? 'dark' : 'light', theme, {
+    important: true,
+  }).join('\n');
 
   if (/<style[^>]*>/i.test(svgString)) {
     return svgString.replace(/<style([^>]*)>/i, `<style$1>\n${themeRules}\n`);

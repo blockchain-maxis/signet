@@ -15,6 +15,9 @@ import {
   exportDiagramPng,
 } from './png.ts';
 import { IBM_PLEX_MONO_BASE64 } from './font.ts';
+import type { PositionedDiagramModel } from '../layout.ts';
+import { renderStandaloneSvg } from '../render.ts';
+import { VIZ_TOKEN_NAMES, VIZ_TOKENS, type VizTheme } from '../tokens.ts';
 
 test('parseSvgDimensions extracts dimensions from viewBox', () => {
   const svg = `<svg viewBox="0 0 1200 800" xmlns="http://www.w3.org/2000/svg"></svg>`;
@@ -67,13 +70,96 @@ test('embedFontInSvg creates defs and style when missing', () => {
   assert.ok(result.includes('</style></defs>'));
 });
 
-test('applyExplicitThemeToSvg injects explicit token rules for dark and light', () => {
-  const svg = `<svg viewBox="0 0 100 100"><style>.base { fill: red; }</style></svg>`;
-  const darkResult = applyExplicitThemeToSvg(svg, 'dark');
-  assert.ok(darkResult.includes('.canvas { fill: #0a0908 !important; }'));
+/** Every value of an attribute in the SVG. */
+const attributeValues = (svg: string, name: string) =>
+  [...svg.matchAll(new RegExp(` ${name}="([^"]*)"`, 'g'))].map(([, value]) => value!);
 
-  const lightResult = applyExplicitThemeToSvg(svg, 'light');
-  assert.ok(lightResult.includes('.canvas { fill: #ffffff !important; }'));
+/** A real export: a function with a struct argument, so shapes, an edge and an arrowhead are drawn. */
+function exported(theme: VizTheme | 'auto'): string {
+  const node = { column: 0, truncated: false, width: 100, height: 30 };
+  const model: PositionedDiagramModel = {
+    layoutVersion: 1,
+    width: 360,
+    height: 120,
+    groups: [],
+    nodes: [
+      { ...node, id: 'fn:pay', name: 'pay', label: 'pay', kind: 'function', x: 24, y: 24 },
+      {
+        ...node,
+        id: 'type:Order',
+        name: 'Order',
+        label: 'Order',
+        kind: 'type',
+        typeKind: 'struct',
+        column: 1,
+        x: 220,
+        y: 24,
+      },
+    ],
+    edges: [
+      { id: 'fn:pay->type:Order', from: 'fn:pay', to: 'type:Order', kinds: ['arg'], back: false },
+    ],
+  };
+  return renderStandaloneSvg(model, {
+    theme,
+    provenance: { address: 'C'.repeat(56), network: 'testnet', wasmHash: 'a'.repeat(64) },
+  });
+}
+
+test('applyExplicitThemeToSvg repaints each token of the export in the forced theme', () => {
+  const light = VIZ_TOKENS.light;
+  const dark = VIZ_TOKENS.dark;
+  const forcedDark = applyExplicitThemeToSvg(exported('auto'), 'dark');
+  assert.ok(forcedDark.includes(`[fill="${light.ground}"] { fill: ${dark.ground} !important; }`));
+  assert.ok(
+    forcedDark.includes(`[stroke="${light.observed}"] { stroke: ${dark.observed} !important; }`),
+  );
+
+  // Forcing the theme the file is already written in still pins every
+  // colour, against the dark block an `auto` export carries.
+  const forcedLight = applyExplicitThemeToSvg(exported('auto'), 'light');
+  assert.ok(forcedLight.includes('prefers-color-scheme: dark'));
+  assert.ok(forcedLight.includes(`[fill="${light.ground}"] { fill: ${light.ground} !important; }`));
+
+  // A file written in the dark theme is repainted from its dark colours.
+  const fromDark = applyExplicitThemeToSvg(exported('dark'), 'light');
+  assert.ok(fromDark.includes(`[fill="${dark.ground}"] { fill: ${light.ground} !important; }`));
+  assert.ok(!fromDark.includes(`[fill="${light.ground}"] {`));
+});
+
+test('a forced theme has a rule for every colour the export writes, and none by class', () => {
+  for (const written of ['auto', 'light', 'dark'] as const) {
+    const svg = exported(written);
+    const from = VIZ_TOKENS[written === 'dark' ? 'dark' : 'light'];
+    for (const forced of ['dark', 'light'] as const) {
+      const repainted = applyExplicitThemeToSvg(svg, forced);
+      // A rule per class would fill the outlines the vocabulary leaves empty
+      // and turn an observed call into a spec edge.
+      assert.doesNotMatch(repainted, /\.(node|edge|label|arrow|canvas) \{/);
+      for (const attribute of ['fill', 'stroke'] as const) {
+        const values = new Set(attributeValues(svg, attribute));
+        values.delete('none');
+        assert.ok(values.size > 0);
+        for (const value of values) {
+          const token = VIZ_TOKEN_NAMES.find((name) => from[name] === value);
+          assert.ok(token, `${value} is not a token of the ${written} export`);
+          assert.ok(
+            repainted.includes(
+              `[${attribute}="${value}"] { ${attribute}: ${VIZ_TOKENS[forced][token]} !important; }`,
+            ),
+            `${written} export forced ${forced}: no ${attribute} rule for ${token}`,
+          );
+        }
+      }
+    }
+  }
+});
+
+test('applyExplicitThemeToSvg leaves an SVG that is not an export without a matching rule', () => {
+  const svg = `<svg viewBox="0 0 100 100"><style>.base { fill: red; }</style><rect fill="red"/></svg>`;
+  const result = applyExplicitThemeToSvg(svg, 'dark');
+  assert.ok(result.includes('.base { fill: red; }'));
+  assert.ok(!result.includes('[fill="red"]'));
 });
 
 test('prepareSvgForPng embeds font and applies theme with dimensions', () => {
