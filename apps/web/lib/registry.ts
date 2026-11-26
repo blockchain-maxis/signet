@@ -12,26 +12,10 @@
  * state instead of a broken button.
  */
 
-import {
-  BASE_FEE,
-  Contract,
-  Operation,
-  Transaction,
-  TransactionBuilder,
-  Address,
-  nativeToScVal,
-  rpc,
-  xdr,
-} from '@stellar/stellar-sdk';
-import { signTransaction, NETWORK_PASSPHRASE } from './wallet.ts';
+import { signTransaction, NETWORK_PASSPHRASE } from './wallet';
 
-function getContractId(): string {
-  return process.env.NEXT_PUBLIC_IDENTITY_REGISTRY_ID ?? process.env.REGISTRY_CONTRACT_ID ?? '';
-}
-
-function getRpcUrl(): string {
-  return process.env.NEXT_PUBLIC_SOROBAN_RPC_URL ?? process.env.SOROBAN_RPC_URL ?? 'https://soroban-testnet.stellar.org';
-}
+const CONTRACT_ID = process.env.NEXT_PUBLIC_IDENTITY_REGISTRY_ID ?? '';
+const RPC_URL = process.env.NEXT_PUBLIC_SOROBAN_RPC_URL ?? 'https://soroban-testnet.stellar.org';
 
 export class RegistryNotConfiguredError extends Error {
   constructor() {
@@ -41,7 +25,7 @@ export class RegistryNotConfiguredError extends Error {
 }
 
 export function isRegistryConfigured(): boolean {
-  return getContractId().length > 0;
+  return CONTRACT_ID.length > 0;
 }
 
 export interface ClaimResult {
@@ -52,10 +36,12 @@ export interface ClaimResult {
 export async function claimHandle(handle: string, walletAddress: string): Promise<ClaimResult> {
   if (!isRegistryConfigured()) throw new RegistryNotConfiguredError();
 
-  const rpcUrl = getRpcUrl();
-  const server = new rpc.Server(rpcUrl, { allowHttp: rpcUrl.startsWith('http://') });
+  const sdk: any = await import('@stellar/stellar-sdk');
+  const { Contract, TransactionBuilder, BASE_FEE, Address, nativeToScVal, rpc } = sdk;
+
+  const server = new rpc.Server(RPC_URL, { allowHttp: RPC_URL.startsWith('http://') });
   const account = await server.getAccount(walletAddress);
-  const contract = new Contract(getContractId());
+  const contract = new Contract(CONTRACT_ID);
 
   const op = contract.call(
     'claim',
@@ -90,67 +76,41 @@ export interface RestoreResult {
 }
 
 /**
- * Pure function: build an unsigned restore footprint transaction from an account
- * and a simulation response that carries a `restorePreamble`.
+ * Restore the archived registry entry behind `handle`, paid for by the
+ * connected `walletAddress`. Any account may restore a ledger entry, and doing
+ * so changes no ownership.
  *
- * Adopts `restorePreamble.transactionData` and fee `BASE_FEE + minResourceFee`.
+ * `contractId` names the registry to restore against. The profile page passes
+ * the one its server read the archived state from, so the button restores
+ * exactly the entry the page reported; it falls back to the build's public id.
  */
-export function buildRestoreTransaction(
-  account: any,
-  sim: any,
-  networkPassphrase: string = NETWORK_PASSPHRASE,
-): Transaction {
-  if (!sim || !sim.restorePreamble || !sim.restorePreamble.transactionData) {
-    throw new Error('Simulation is not in an archived state; restore preamble missing.');
-  }
-
-  const { transactionData, minResourceFee } = sim.restorePreamble;
-  const fee = (BigInt(BASE_FEE) + BigInt(minResourceFee ?? '0')).toString();
-
-  const sorobanData =
-    typeof transactionData.build === 'function'
-      ? transactionData.build()
-      : typeof transactionData === 'string'
-        ? xdr.SorobanTransactionData.fromXDR(transactionData, 'base64')
-        : transactionData;
-
-  const restoreTx = new TransactionBuilder(account, {
-    fee,
-    networkPassphrase,
-  })
-    .setSorobanData(sorobanData)
-    .addOperation(Operation.restoreFootprint({}))
-    .setTimeout(60)
-    .build();
-
-  return restoreTx;
-}
-
-/** Restore archived storage footprint for `handle` using the connected `walletAddress`. */
 export async function restoreHandleBinding(
   handle: string,
   walletAddress: string,
+  options: { contractId?: string } = {},
 ): Promise<RestoreResult> {
-  if (!isRegistryConfigured()) throw new RegistryNotConfiguredError();
+  const contractId = options.contractId || CONTRACT_ID;
+  if (!contractId) throw new RegistryNotConfiguredError();
 
-  const rpcUrl = getRpcUrl();
-  const server = new rpc.Server(rpcUrl, { allowHttp: rpcUrl.startsWith('http://') });
+  // Both stay dynamic: the SDK must not enter the profile page's first load.
+  const [{ Account, Contract, TransactionBuilder, BASE_FEE, nativeToScVal, rpc }, { buildRestoreTransaction }] =
+    await Promise.all([import('@stellar/stellar-sdk'), import('./registry-transactions.ts')]);
+
+  const server = new rpc.Server(RPC_URL, { allowHttp: RPC_URL.startsWith('http://') });
   const account = await server.getAccount(walletAddress);
-  const contract = new Contract(getContractId());
+  const contract = new Contract(contractId);
 
-  const resolveTx = new TransactionBuilder(account, {
-    fee: BASE_FEE,
-    networkPassphrase: NETWORK_PASSPHRASE,
-  })
+  // Simulated from a copy: `build()` advances the source's sequence number,
+  // and the restore must carry the account's next one, not the one after it.
+  const resolveTx = new TransactionBuilder(
+    new Account(account.accountId(), account.sequenceNumber()),
+    { fee: BASE_FEE, networkPassphrase: NETWORK_PASSPHRASE },
+  )
     .addOperation(contract.call('resolve', nativeToScVal(handle, { type: 'string' })))
     .setTimeout(60)
     .build();
 
   const sim = await server.simulateTransaction(resolveTx);
-  if (!rpc.Api.isSimulationRestore(sim)) {
-    throw new Error(`Handle '${handle}' is not in an archived state.`);
-  }
-
   const restoreTx = buildRestoreTransaction(account, sim, NETWORK_PASSPHRASE);
 
   const signedXdr = await signTransaction(restoreTx.toXDR(), walletAddress);

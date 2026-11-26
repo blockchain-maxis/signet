@@ -10,6 +10,8 @@ import {
 } from '@/lib/profiles';
 import { LinkDeployWalletPrompt } from '../components/link-deploy-wallet-prompt';
 import { RestoreBinding } from '@/components/restore-binding';
+import { getProfileState } from '@/lib/profile-state';
+import { REGISTRY_CONTRACT_ID } from '@/lib/chain';
 
 function truncate(a: string): string {
   return a.length > 16 ? `${a.slice(0, 7)}…${a.slice(-5)}` : a;
@@ -22,7 +24,9 @@ export default async function DashboardPage() {
   const address = await currentAddress();
   const account = address ? await getAccount(address) : null;
   const profile = account?.handle ? await getProfile(account.handle) : null;
-  const isArchived = profile?.archived === true;
+  // The same state the public profile shows (#896): an archived binding gets
+  // the restore affordance here too (#897).
+  const isArchived = getProfileState(profile) === 'archived';
   const operations = account?.handle && !isArchived ? await getOperationsResult(account.handle) : null;
   const stats =
     account?.handle && operations && !isArchived
@@ -72,7 +76,7 @@ export default async function DashboardPage() {
                   Its ledger storage entry has expired.
                 </p>
                 <div className="mt-4">
-                  <RestoreBinding handle={account.handle} />
+                  <RestoreBinding handle={account.handle} registryContract={REGISTRY_CONTRACT_ID} />
                 </div>
               </div>
             ) : (

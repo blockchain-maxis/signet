@@ -3,145 +3,165 @@
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { connectWallet, getConnectedAddress } from '@/lib/wallet';
-import { restoreHandleBinding } from '@/lib/registry';
+import { RegistryNotConfiguredError, restoreHandleBinding } from '@/lib/registry';
 import { stellarExpertTxUrl } from '@/lib/network';
 
 interface RestoreBindingProps {
   handle: string;
+  /** The registry the server read the archived state from (#897). */
+  registryContract?: string;
   className?: string;
 }
 
-export function RestoreBinding({ handle, className }: RestoreBindingProps) {
+type Phase = 'idle' | 'connecting' | 'restoring' | 'polling' | 'restored' | 'unconfirmed' | 'error';
+
+const POLL_INTERVAL_MS = 1500;
+const POLL_TIMEOUT_MS = 60_000;
+
+const mono = { fontFamily: 'var(--font-mono)' } as const;
+
+/** Whether `/api/v1/resolve/{handle}` answers with a live binding again. */
+async function isLiveAgain(handle: string): Promise<boolean> {
+  try {
+    const resp = await fetch(`/api/v1/resolve/${encodeURIComponent(handle)}`, {
+      cache: 'no-store',
+    });
+    if (!resp.ok) return false;
+    // Every v1 answer is wrapped in `{ data }`.
+    const json = (await resp.json()) as { data?: { archived?: boolean; wallet?: string } };
+    return json.data?.archived !== true && Boolean(json.data?.wallet);
+  } catch {
+    return false;
+  }
+}
+
+/** A plain message for a failed restore. */
+function describeError(err: unknown): string {
+  if (err instanceof RegistryNotConfiguredError) {
+    return 'This deployment is not configured against an Identity Registry, so it cannot restore bindings.';
+  }
+  const msg = err instanceof Error ? err.message : String(err);
+  if (/reject|cancel|decline|denied/i.test(msg)) {
+    return 'The signature was rejected in your wallet. Nothing was submitted.';
+  }
+  if (/account not found|unfunded|underfunded|insufficient/i.test(msg)) {
+    return 'The connected account is not funded on this network, so it cannot pay the restore fee.';
+  }
+  return 'The restore could not be submitted. Try again in a moment.';
+}
+
+/**
+ * Restores an archived handle binding (#897). The connected wallet pays the
+ * fee; a restore changes no ownership, so any account may do it.
+ */
+export function RestoreBinding({ handle, registryContract, className }: RestoreBindingProps) {
   const router = useRouter();
-  const [state, setState] = useState<
-    'idle' | 'connecting' | 'restoring' | 'polling' | 'success' | 'error'
-  >('idle');
+  const [phase, setPhase] = useState<Phase>('idle');
   const [txHash, setTxHash] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   async function handleRestore() {
     setErrorMessage(null);
+    setTxHash(null);
     try {
       let wallet = await getConnectedAddress();
       if (!wallet) {
-        setState('connecting');
+        setPhase('connecting');
         wallet = await connectWallet();
       }
       if (!wallet) {
-        setState('idle');
+        setPhase('idle');
         return;
       }
 
-      setState('restoring');
-      const res = await restoreHandleBinding(handle, wallet);
-      setTxHash(res.hash);
-      setState('polling');
+      setPhase('restoring');
+      const { hash } = await restoreHandleBinding(handle, wallet, {
+        contractId: registryContract,
+      });
+      setTxHash(hash);
+      setPhase('polling');
 
-      // Poll GET /api/v1/resolve/{handle} until it no longer reports archived
-      const pollStart = Date.now();
-      const pollInterval = 1500;
-      const timeout = 60000;
-
-      while (Date.now() - pollStart < timeout) {
-        await new Promise((r) => setTimeout(r, pollInterval));
-        try {
-          const resp = await fetch(`/api/v1/resolve/${encodeURIComponent(handle)}`);
-          if (resp.ok) {
-            const data = (await resp.json()) as { archived?: boolean };
-            if (!data.archived) {
-              setState('success');
-              router.refresh();
-              return;
-            }
-          }
-        } catch {
-          // ignore transient poll error
+      const deadline = Date.now() + POLL_TIMEOUT_MS;
+      while (Date.now() < deadline) {
+        await new Promise((r) => setTimeout(r, POLL_INTERVAL_MS));
+        if (await isLiveAgain(handle)) {
+          setPhase('restored');
+          router.refresh();
+          return;
         }
       }
-
-      setState('success');
-      router.refresh();
+      // Submitted but not observed: never reported as a success.
+      setPhase('unconfirmed');
     } catch (err: unknown) {
-      setState('error');
-      const msg = err instanceof Error ? err.message : String(err);
-      if (/reject|cancel|decline|denied/i.test(msg)) {
-        setErrorMessage('Transaction signature was rejected.');
-      } else if (/unfunded|underfunded|insufficient|not found|404/i.test(msg)) {
-        setErrorMessage('Connected account is unfunded or has insufficient balance.');
-      } else {
-        setErrorMessage(`Restore submission failed: ${msg}`);
-      }
+      setPhase('error');
+      setErrorMessage(describeError(err));
     }
   }
 
-  const isBusy = state === 'connecting' || state === 'restoring' || state === 'polling';
+  const busy = phase === 'connecting' || phase === 'restoring' || phase === 'polling';
 
   return (
     <div className={className}>
-      <p
-        className="mb-3 text-[12px] leading-[1.6] text-[#b8b5a8]"
-        style={{ fontFamily: 'var(--font-mono)' }}
-      >
-        The connected wallet pays a small network fee. Ownership does not change.
+      <p className="mb-3 text-[12px] leading-[1.6] text-[#b8b5a8]" style={mono}>
+        Restoring is open to anyone. The connected wallet pays a small network fee, and ownership of
+        the handle does not change.
       </p>
 
       <button
         type="button"
         onClick={handleRestore}
-        disabled={isBusy || state === 'success'}
+        disabled={busy || phase === 'restored'}
         className="inline-flex items-center justify-center border border-[#3a352a] bg-[#1a1815] px-4 py-2 text-[12px] font-medium uppercase tracking-[0.18em] text-[#f5f4ee] transition-colors hover:border-[var(--text-accent)] hover:text-[var(--text-accent)] disabled:cursor-not-allowed disabled:opacity-50"
-        style={{ fontFamily: 'var(--font-mono)' }}
+        style={mono}
       >
-        {state === 'connecting'
+        {phase === 'connecting'
           ? 'Connecting wallet…'
-          : state === 'restoring'
+          : phase === 'restoring'
             ? 'Restoring binding…'
-            : state === 'polling'
+            : phase === 'polling'
               ? 'Confirming on-chain…'
-              : state === 'success'
+              : phase === 'restored'
                 ? 'Binding restored'
                 : 'Restore binding'}
       </button>
 
-      <div role="status" aria-live="polite" className="mt-3">
-        {state === 'restoring' && (
-          <p
-            className="text-[12px] text-[#8a8779]"
-            style={{ fontFamily: 'var(--font-mono)' }}
-          >
-            Restoring binding on-chain…
+      <div role="status" aria-live="polite" className="mt-3 space-y-1">
+        {phase === 'restoring' && (
+          <p className="text-[12px] text-[#8a8779]" style={mono}>
+            Waiting for your wallet to sign the restore…
           </p>
         )}
-        {(state === 'polling' || state === 'success') && (
-          <div className="space-y-1">
-            <p
-              className="text-[12px] text-emerald-400"
-              style={{ fontFamily: 'var(--font-mono)' }}
-            >
-              {state === 'success'
-                ? 'Binding restored successfully.'
-                : 'Restore submitted. Waiting for confirmation…'}
-            </p>
-            {txHash && (
-              <a
-                href={stellarExpertTxUrl(txHash)}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-block text-[11px] uppercase tracking-[0.18em] text-[var(--text-accent)] transition-colors hover:underline"
-                style={{ fontFamily: 'var(--font-mono)' }}
-              >
-                View transaction on Stellar Expert ↗
-              </a>
-            )}
-          </div>
+        {phase === 'polling' && (
+          <p className="text-[12px] text-[#8a8779]" style={mono}>
+            Restore submitted. Waiting for the registry to confirm it…
+          </p>
         )}
-        {state === 'error' && errorMessage && (
-          <p
-            className="text-[12px] text-red-400"
-            style={{ fontFamily: 'var(--font-mono)' }}
-          >
+        {phase === 'restored' && (
+          <p className="text-[12px] text-emerald-400" style={mono}>
+            Binding restored. @{handle} resolves to its wallet again.
+          </p>
+        )}
+        {phase === 'unconfirmed' && (
+          <p className="text-[12px] text-amber-300" style={mono}>
+            The restore was submitted, but the registry has not confirmed it yet. Check the
+            transaction, then reload this page.
+          </p>
+        )}
+        {phase === 'error' && errorMessage && (
+          <p className="text-[12px] text-red-400" style={mono}>
             {errorMessage}
           </p>
+        )}
+        {txHash && phase !== 'error' && (
+          <a
+            href={stellarExpertTxUrl(txHash)}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-block text-[11px] uppercase tracking-[0.18em] text-[var(--text-accent)] transition-colors hover:underline"
+            style={mono}
+          >
+            View transaction on Stellar Expert ↗
+          </a>
         )}
       </div>
     </div>
