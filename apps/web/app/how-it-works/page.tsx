@@ -3,6 +3,10 @@ import { SignetMonogram } from '../(marketing)/components/signet-monogram';
 export const metadata = {
   title: 'How it works · Signet',
   description: 'A verifiable career record for Soroban developers, built on Stellar.',
+  openGraph: {
+    title: 'How it works · Signet',
+    description: 'A verifiable career record for Soroban developers, built on Stellar.',
+  },
 };
 
 export default function HowItWorksPage() {
