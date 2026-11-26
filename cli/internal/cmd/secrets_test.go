@@ -106,7 +106,11 @@ func TestNoSecretShapedValueEverReachesOutput(t *testing.T) {
 		w.Header().Set("content-type", "application/json")
 		switch {
 		case strings.HasSuffix(r.URL.Path, "/api/cli-link"):
-			_, _ = fmt.Fprint(w, `{"transaction":"AAAAunsignedChallengeEnvelopeAAAA","network_passphrase":"Test SDF Network ; September 2015"}`)
+			purpose := r.URL.Query().Get("purpose")
+			if purpose == "" {
+				purpose = "unlink"
+			}
+			_, _ = fmt.Fprintf(w, `{"transaction":%q,"network_passphrase":"Test SDF Network ; September 2015"}`, testChallengeFor(purpose, publicKey))
 		case strings.HasSuffix(r.URL.Path, "/api/cli/unlink"):
 			_, _ = fmt.Fprintf(w, `{"wallet":%q,"handle":%q}`, secretCanary, secretCanary)
 		case strings.Contains(r.URL.Path, "/api/v1/lookup/"):

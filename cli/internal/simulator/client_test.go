@@ -2,6 +2,7 @@ package simulator
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -116,42 +117,87 @@ func TestStartRejectsAnythingButAHelloAck(t *testing.T) {
 	})
 }
 
+// transcriptParams returns the type and params of the nth request in a transcript,
+// omitting version, id, and type so the map can be passed directly to Client.Call.
+func transcriptParams(t *testing.T, name string, index int) (string, map[string]any) {
+	t.Helper()
+	raw, err := os.ReadFile(transcript(name))
+	if err != nil {
+		t.Fatalf("read transcript: %v", err)
+	}
+	var reqs []map[string]any
+	for _, line := range strings.Split(strings.TrimSpace(string(raw)), "\n") {
+		var m map[string]any
+		if err := json.Unmarshal([]byte(line), &m); err != nil {
+			t.Fatalf("unmarshal transcript line: %v", err)
+		}
+		typ, _ := m["type"].(string)
+		switch typ {
+		case "hello_ack", "result", "error", "contract_error", "ledger_fetch", "hello", "shutdown", "ledger_entries":
+			continue
+		default:
+			reqs = append(reqs, m)
+		}
+	}
+	if index >= len(reqs) {
+		t.Fatalf("transcript %s has only %d requests, wanted index %d", name, len(reqs), index)
+	}
+	req := reqs[index]
+	typ := req["type"].(string)
+	delete(req, "version")
+	delete(req, "id")
+	delete(req, "type")
+	return typ, req
+}
+
 func TestTranscriptSimulate(t *testing.T) {
 	c := startTranscript(t, "simulate")
+	c.HandleFetch(func([]string) ([]Entry, error) { return nil, nil })
 	ctx := context.Background()
 
 	var opened LedgerOpenResult
-	if _, err := c.Call(ctx, TypeLedgerOpen, LedgerOpenParams{NetworkPassphrase: "Test SDF Network ; September 2015"}, &opened); err != nil {
+	typ, params := transcriptParams(t, "simulate", 0)
+	if _, err := c.Call(ctx, typ, params, &opened); err != nil {
 		t.Fatalf("ledger_open: %v", err)
 	}
 	if opened.LedgerProtocol != 28 || opened.Sequence != 1 {
 		t.Fatalf("ledger_open = %+v", opened)
 	}
 	var installed ContractInstallResult
-	if _, err := c.Call(ctx, TypeContractInstall, ContractInstallParams{WasmBase64: "AGFzbQEAAAA=", ContractID: registry}, &installed); err != nil {
+	typ, params = transcriptParams(t, "simulate", 1)
+	if _, err := c.Call(ctx, typ, params, &installed); err != nil {
 		t.Fatalf("contract_install: %v", err)
 	}
 	var res SimulateResult
-	ce, err := c.Call(ctx, TypeSimulate, SimulateParams{ContractID: registry, Function: "count", Args: []any{}}, &res)
+	typ, params = transcriptParams(t, "simulate", 2)
+	ce, err := c.Call(ctx, typ, params, &res)
 	if err != nil || ce != nil {
 		t.Fatalf("simulate: ce=%v err=%v", ce, err)
 	}
-	if res.ReturnValueXDR != "AAAAAwAAAAE=" || res.Cost.CPUInsns != 1234 {
+	if res.ReturnValueXDR != "AAAAAwAAAAE=" || res.Cost.CPUInsns != 295262 {
 		t.Fatalf("simulate = %+v", res)
 	}
-	if ack := c.HelloAck(); ack.Commit != "fake" || len(ack.Lanes) != 2 || ack.Lanes[0].LedgerProtocol != 28 || ack.Lanes[1].LedgerProtocol != 29 {
+	if ack := c.HelloAck(); ack.Commit == "" || len(ack.Lanes) != 2 || ack.Lanes[0].LedgerProtocol != 28 || ack.Lanes[1].LedgerProtocol != 29 {
 		t.Fatalf("hello_ack = %+v", ack)
 	}
 }
 
 func TestContractErrorIsAValueNotAGoError(t *testing.T) {
 	c := startTranscript(t, "contract_error")
+	c.HandleFetch(func([]string) ([]Entry, error) { return nil, nil })
 	ctx := context.Background()
 
-	ce, err := c.Call(ctx, TypeSimulate, SimulateParams{
-		ContractID: registry, Function: "claim",
-		Args: []any{"alice", "GA5ZSEJYB37JRC5AVCIA5MOP4RHTM335X2KGX3IHOJAPP5RE34K4KZVN"},
-	}, nil)
+	// 0: ledger_open, 1: contract_install, 2: initialize, 3: claim (success)
+	for i := 0; i < 4; i++ {
+		typ, params := transcriptParams(t, "contract_error", i)
+		if _, err := c.Call(ctx, typ, params, nil); err != nil {
+			t.Fatalf("call %d (%s): %v", i, typ, err)
+		}
+	}
+
+	// 4: claim (HandleTaken error)
+	typ, params := transcriptParams(t, "contract_error", 4)
+	ce, err := c.Call(ctx, typ, params, nil)
 	if err != nil {
 		t.Fatalf("a contract_error must not be a Go error: %v", err)
 	}
@@ -159,7 +205,15 @@ func TestContractErrorIsAValueNotAGoError(t *testing.T) {
 		t.Fatalf("contract_error = %+v", ce)
 	}
 
-	ce, err = c.Call(ctx, TypeSimulate, SimulateParams{ContractID: registry, Function: "loop_forever", Args: []any{}}, nil)
+	// 5: contract_install looper
+	typ, params = transcriptParams(t, "contract_error", 5)
+	if _, err := c.Call(ctx, typ, params, nil); err != nil {
+		t.Fatalf("contract_install looper: %v", err)
+	}
+
+	// 6: simulate looper run (exceeded limit error)
+	typ, params = transcriptParams(t, "contract_error", 6)
+	ce, err = c.Call(ctx, typ, params, nil)
 	if err != nil || ce == nil || ce.Kind != "host" || ce.Code != "Error(Budget, ExceededLimit)" {
 		t.Fatalf("host error: ce=%+v err=%v", ce, err)
 	}
@@ -172,19 +226,19 @@ func TestNestedLedgerFetchDuringSimulate(t *testing.T) {
 	var asked []string
 	c.HandleFetch(func(keys []string) ([]Entry, error) {
 		asked = keys
-		entry := "AAAAAAAAAABBBBBBBBBBBBBBBBBBBB=="
-		live := uint32(1000)
-		return []Entry{{KeyXDR: keys[0], EntryXDR: &entry, LiveUntilLedger: &live}}, nil
+		return nil, nil
 	})
-	if _, err := c.Call(ctx, TypeLedgerOpen, LedgerOpenParams{NetworkPassphrase: "Test SDF Network ; September 2015"}, nil); err != nil {
+	typ, params := transcriptParams(t, "ledger_fetch", 0)
+	if _, err := c.Call(ctx, typ, params, nil); err != nil {
 		t.Fatalf("ledger_open: %v", err)
 	}
 	var res SimulateResult
-	ce, err := c.Call(ctx, TypeSimulate, SimulateParams{ContractID: registry, Function: "lookup", Args: []any{"alice"}}, &res)
+	typ, params = transcriptParams(t, "ledger_fetch", 1)
+	ce, err := c.Call(ctx, typ, params, &res)
 	if err != nil || ce != nil {
 		t.Fatalf("simulate: ce=%v err=%v", ce, err)
 	}
-	if len(asked) != 1 || asked[0] != "AAAABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA" {
+	if len(asked) != 1 || asked[0] != "AAAABgAAAAEkVJ0dfCUbS+muuiL8rmRUioX7jeL9k0Y+hV4EQDfLRAAAABAAAAABAAAAAgAAAA8AAAAFT3duZXIAAAAAAAAOAAAAEm5vLXN1Y2gtaGFuZGxlLXh5egAAAAAAAQ==" {
 		t.Fatalf("fetch handler asked for %v", asked)
 	}
 }
@@ -211,24 +265,31 @@ func TestTranscriptErrors(t *testing.T) {
 	c.HandleFetch(func([]string) ([]Entry, error) { return nil, exitcode.ErrNetwork })
 
 	cases := []struct {
-		typ    string
-		params any
-		code   string
+		code        string
+		expectError bool
 	}{
-		{"frobnicate", nil, "bad_request"},
-		{TypeLedgerOpen, map[string]any{"network_passphrase": 7}, "bad_request"},
-		{TypeLedgerOpen, map[string]any{"network_passphrase": "Test SDF Network ; September 2015", "ledger_protocol": 99}, "unsupported_ledger_protocol"},
-		{TypeSimulate, SimulateParams{ContractID: registry, Function: "lookup", Args: []any{"alice"}}, "fetch_failed"},
-		{TypeContractInstall, ContractInstallParams{WasmBase64: "AGFzbQEAAAA="}, "resource_limit"},
+		{code: "bad_request", expectError: true},
+		{code: "bad_request", expectError: true},
+		{code: "unsupported_ledger_protocol", expectError: true},
+		{code: "", expectError: false},
+		{code: "fetch_failed", expectError: true},
+		{code: "resource_limit", expectError: true},
 	}
-	for _, tc := range cases {
-		ce, err := c.Call(ctx, tc.typ, tc.params, nil)
+	for i, tc := range cases {
+		typ, params := transcriptParams(t, "errors", i)
+		ce, err := c.Call(ctx, typ, params, nil)
+		if !tc.expectError {
+			if err != nil || ce != nil {
+				t.Fatalf("step %d (%s): unexpected error ce=%v err=%v", i, typ, ce, err)
+			}
+			continue
+		}
 		var se *Error
 		if ce != nil || !errors.As(err, &se) || se.Code != tc.code {
-			t.Fatalf("%s: ce=%v err=%v, want code %s", tc.typ, ce, err, tc.code)
+			t.Fatalf("%s: ce=%v err=%v, want code %s", typ, ce, err, tc.code)
 		}
 		if !errors.Is(err, exitcode.ErrSimulator) {
-			t.Fatalf("%s: an error response is a simulator failure", tc.typ)
+			t.Fatalf("%s: an error response is a simulator failure", typ)
 		}
 	}
 }

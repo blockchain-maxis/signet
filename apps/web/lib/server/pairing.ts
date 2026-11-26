@@ -486,8 +486,7 @@ class PairingConflict extends Error {
  * Verify the CLI's signed SEP-10 challenge for an approved pairing and write
  * the `Wallet` row.
  *
- * Ordering is deliberate, same rationale as `auth.ts`'s `redeemChallenge`:
- * the pairing/network checks and signature verification happen first (they
+ * Ordering is deliberate: the pairing/network checks and signature verification happen first (they
  * are free — no state is spent by a failed attempt), and the nonce is
  * consumed only once a *valid* signature is in hand, immediately before the
  * write. Consuming it any earlier would let a bystander who only sees the

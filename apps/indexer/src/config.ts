@@ -90,7 +90,7 @@ export function loadConfig(): IndexerConfig {
     operationsRetentionDays: intEnv('INDEXER_OPERATIONS_RETENTION_DAYS', 90, { min: 0 }),
     snapshotsRetentionDays: intEnv('INDEXER_SNAPSHOTS_RETENTION_DAYS', 30, { min: 0 }),
     captureInvocations: process.env.INDEXER_CAPTURE_INVOCATIONS !== 'false',
-    invocationsMaxPerContract: intEnv('INDEXER_INVOCATIONS_MAX_PER_CONTRACT', 1_000, { min: 1 }),
+    invocationsMaxPerContract: intEnv('INDEXER_INVOCATIONS_MAX_PER_CONTRACT', 1_000, { min: 0 }),
     pruneIntervalMs: intEnv('INDEXER_PRUNE_INTERVAL_MS', 3_600_000, { min: 60_000 }),
     executableRefreshIntervalMs: intEnv('INDEXER_EXECUTABLE_REFRESH_MS', 21_600_000, {
       min: 60_000,

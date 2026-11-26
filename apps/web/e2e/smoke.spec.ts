@@ -54,6 +54,16 @@ test('the handle directory says so, and lists nothing, when no registry is confi
   await expect(page.getByText(/handles? currently bound on the Identity Registry/i)).toHaveCount(0);
 });
 
+test('/handles?q=zz renders search form and empty caption when no registry configured', async ({
+  page,
+}) => {
+  await page.goto('/handles?q=zz');
+  await expect(page.getByRole('heading', { name: 'Handles' })).toBeVisible();
+  await expect(page.getByRole('searchbox', { name: /search handles/i })).toBeVisible();
+  await expect(page.getByText(/No Identity Registry is configured/i)).toBeVisible();
+  await expect(page.locator('a[href^="/p/"]')).toHaveCount(0);
+});
+
 test('closing CTA is a real connect-wallet button, not a dead link', async ({ page }) => {
   await page.goto('/');
   // The closing section, anchored by its headline.
@@ -119,4 +129,23 @@ test('/docs explains terminal linking and mentions /link approval', async ({ pag
   await expect(body).toContainText('/link');
   await expect(body).toContainText('approve');
   await expect(page.locator('a[href="/link"]')).toBeAttached();
+});
+
+test('default OpenGraph image serves a PNG and the landing page og:image resolves to one', async ({
+  page,
+  request,
+}) => {
+  const directRes = await request.get('/opengraph-image');
+  expect(directRes.status()).toBe(200);
+  expect(directRes.headers()['content-type']).toContain('image/png');
+
+  await page.goto('/');
+  const ogImage = page.locator('meta[property="og:image"]');
+  await expect(ogImage).toHaveCount(1);
+  const content = await ogImage.getAttribute('content');
+  expect(content).toBeTruthy();
+
+  const ogRes = await request.get(content!);
+  expect(ogRes.status()).toBe(200);
+  expect(ogRes.headers()['content-type']).toContain('image/png');
 });

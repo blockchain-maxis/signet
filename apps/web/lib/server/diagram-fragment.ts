@@ -67,6 +67,7 @@ export async function exportDiagramFragment(
     activity,
     range,
     rankByFrequency: query.get('order') === 'use',
+    types: query.get('types'),
   });
   if (!view.regionHtml) return new Response('No diagram drawn', { status: 409, headers });
   return new Response(view.regionHtml, {

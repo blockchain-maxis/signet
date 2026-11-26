@@ -86,6 +86,77 @@
         ],
         "type": "object"
       },
+      "ContractInvocation": {
+        "additionalProperties": false,
+        "properties": {
+          "createdAt": {
+            "description": "ISO-8601 UTC timestamp of the invocation.",
+            "format": "date-time",
+            "type": "string"
+          },
+          "function": {
+            "description": "Contract function invoked, or null if invoked as a sub-call.",
+            "type": [
+              "string",
+              "null"
+            ]
+          },
+          "ledger": {
+            "description": "Ledger sequence number.",
+            "minimum": 1,
+            "type": "integer"
+          },
+          "sourceAccount": {
+            "description": "Stellar address that invoked the contract.",
+            "pattern": "^G[A-Z2-7]{55}$",
+            "type": "string"
+          },
+          "successful": {
+            "description": "Whether the invocation succeeded.",
+            "type": "boolean"
+          },
+          "txHash": {
+            "description": "Hex-encoded transaction hash.",
+            "pattern": "^[a-f0-9]{64}$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "txHash",
+          "ledger",
+          "createdAt",
+          "sourceAccount",
+          "function",
+          "successful"
+        ],
+        "type": "object"
+      },
+      "ContractWasmVersion": {
+        "additionalProperties": false,
+        "properties": {
+          "observedAt": {
+            "description": "ISO-8601 UTC timestamp when the indexer observed this WASM hash.",
+            "format": "date-time",
+            "type": "string"
+          },
+          "observedLedger": {
+            "description": "Ledger sequence number when the indexer observed this WASM hash.",
+            "minimum": 1,
+            "type": "integer"
+          },
+          "wasmHash": {
+            "description": "Hex-encoded SHA-256 hash of the contract WASM bytecode.",
+            "pattern": "^[a-f0-9]{64}$",
+            "type": "string"
+          }
+        },
+        "required": [
+          "wasmHash",
+          "observedAt",
+          "observedLedger"
+        ],
+        "type": "object"
+      },
       "Error": {
         "additionalProperties": false,
         "properties": {
@@ -2136,6 +2207,325 @@
           }
         },
         "summary": "Whether a handle deployed a contract",
+        "tags": [
+          "Profiles"
+        ]
+      }
+    },
+    "/profiles/{handle}/contracts/{address}/invocations": {
+      "get": {
+        "description": "Cursor-paginated calls to a contract deployed by the handle's wallets, newest first, with capture-window metadata.",
+        "operationId": "getContractInvocations",
+        "parameters": [
+          {
+            "description": "Handle to look up (case-insensitive).",
+            "in": "path",
+            "name": "handle",
+            "required": true,
+            "schema": {
+              "pattern": "^[a-z0-9_-]{1,32}$",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Soroban contract ID (C...).",
+            "in": "path",
+            "name": "address",
+            "required": true,
+            "schema": {
+              "pattern": "^C[A-Z2-7]{55}$",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Opaque pagination cursor from meta.nextCursor.",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "description": "Number of invocations to return (default 25, max 100).",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 25,
+              "maximum": 100,
+              "minimum": 1,
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Restrict results to invocations called from the handle's own wallets.",
+            "in": "query",
+            "name": "mine",
+            "required": false,
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "data": {
+                      "items": {
+                        "$ref": "#/components/schemas/ContractInvocation"
+                      },
+                      "type": "array"
+                    },
+                    "meta": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "countedSince": {
+                          "format": "date-time",
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "nextCursor": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "source": {
+                          "enum": [
+                            "database",
+                            "none"
+                          ],
+                          "type": "string"
+                        },
+                        "total": {
+                          "type": [
+                            "integer",
+                            "null"
+                          ]
+                        },
+                        "totalIsFloor": {
+                          "type": "boolean"
+                        }
+                      },
+                      "required": [
+                        "source",
+                        "countedSince",
+                        "totalIsFloor"
+                      ],
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Paginated list of contract invocations."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Invalid handle, contract ID, or pagination parameters."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "No contract with this address is attributed to this handle."
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Rate limit exceeded."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Internal server error."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Attribution is unavailable (neither the database nor Horizon answered)."
+          }
+        },
+        "summary": "Invocations of a contract attributed to a handle",
+        "tags": [
+          "Profiles"
+        ]
+      }
+    },
+    "/profiles/{handle}/contracts/{address}/versions": {
+      "get": {
+        "description": "WASM hashes observed for a contract deployed by the handle's wallets, newest first, with detection window metadata.",
+        "operationId": "getContractVersions",
+        "parameters": [
+          {
+            "description": "Handle to look up (case-insensitive).",
+            "in": "path",
+            "name": "handle",
+            "required": true,
+            "schema": {
+              "pattern": "^[a-z0-9_-]{1,32}$",
+              "type": "string"
+            }
+          },
+          {
+            "description": "Soroban contract ID (C...).",
+            "in": "path",
+            "name": "address",
+            "required": true,
+            "schema": {
+              "pattern": "^C[A-Z2-7]{55}$",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": false,
+                  "properties": {
+                    "data": {
+                      "items": {
+                        "$ref": "#/components/schemas/ContractWasmVersion"
+                      },
+                      "type": "array"
+                    },
+                    "meta": {
+                      "additionalProperties": false,
+                      "properties": {
+                        "detectionStartsAt": {
+                          "format": "date-time",
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "headerNote": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        },
+                        "source": {
+                          "enum": [
+                            "database",
+                            "none"
+                          ],
+                          "type": "string"
+                        },
+                        "windowSentence": {
+                          "type": [
+                            "string",
+                            "null"
+                          ]
+                        }
+                      },
+                      "required": [
+                        "source"
+                      ],
+                      "type": "object"
+                    }
+                  },
+                  "required": [
+                    "data",
+                    "meta"
+                  ],
+                  "type": "object"
+                }
+              }
+            },
+            "description": "WASM version history of the contract."
+          },
+          "400": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Invalid handle or contract ID."
+          },
+          "404": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "No contract with this address is attributed to this handle."
+          },
+          "429": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Rate limit exceeded."
+          },
+          "500": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Internal server error."
+          },
+          "503": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorEnvelope"
+                }
+              }
+            },
+            "description": "Attribution is unavailable (neither the database nor Horizon answered)."
+          }
+        },
+        "summary": "WASM upgrade history of a contract attributed to a handle",
         "tags": [
           "Profiles"
         ]

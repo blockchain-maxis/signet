@@ -40,3 +40,146 @@ test('dashboard navigation appears only with a session', async ({ page }) => {
   }
   await expect(page.getByText('Not signed in')).toHaveCount(0);
 });
+
+test('mobile navigation is reachable and tracks current page at 390x844', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await apiSignIn(page);
+  await page.goto('/app');
+
+  for (const label of ['Overview', 'Profile', 'Wallets', 'API keys', 'Settings']) {
+    await expect(page.getByRole('link', { name: label })).toBeVisible();
+  }
+  await expect(page.getByRole('link', { name: 'Overview' })).toHaveAttribute(
+    'aria-current',
+    'page',
+  );
+  await expect(page.getByRole('link', { name: 'Settings' })).not.toHaveAttribute('aria-current');
+
+  await page.getByRole('link', { name: 'Settings' }).click();
+  await expect(page).toHaveURL('/app/settings');
+  await expect(page.getByRole('link', { name: 'Settings' })).toHaveAttribute(
+    'aria-current',
+    'page',
+  );
+  await expect(page.getByRole('link', { name: 'Overview' })).not.toHaveAttribute('aria-current');
+});
+
+const HAS_DB = Boolean(process.env.DATABASE_URL);
+
+test.describe('release section in settings @db', () => {
+  test.skip(!HAS_DB, 'needs DATABASE_URL for profile and wallet records');
+
+  test('the release section is absent for a session whose wallet is not the primary', async ({
+    page,
+  }) => {
+    const { prisma } = await import('@signet/db');
+    const owner = Keypair.random();
+    const deploy = Keypair.random();
+    const handle = `sec${Date.now().toString(36)}${Math.random().toString(36).slice(2, 5)}`.slice(
+      0,
+      32,
+    );
+
+    await prisma.profile.create({
+      data: {
+        handle,
+        wallets: {
+          create: [
+            { pubkey: owner.publicKey(), source: 'onchain', isPrimary: true },
+            {
+              pubkey: deploy.publicKey(),
+              source: 'cli',
+              isPrimary: false,
+            },
+          ],
+        },
+      },
+    });
+
+    await apiSignIn(page, deploy);
+    await page.goto('/app/settings');
+
+    await expect(page.getByRole('heading', { name: 'Settings' })).toBeVisible();
+    await expect(page.getByRole('button', { name: `Release @${handle}` })).toHaveCount(0);
+
+    await prisma.$disconnect();
+  });
+
+  test('the button stays disabled until the handle is typed exactly', async ({ page }) => {
+    const { prisma } = await import('@signet/db');
+    const owner = Keypair.random();
+    const handle = `pri${Date.now().toString(36)}${Math.random().toString(36).slice(2, 5)}`.slice(
+      0,
+      32,
+    );
+
+    await prisma.profile.create({
+      data: {
+        handle,
+        wallets: {
+          create: [{ pubkey: owner.publicKey(), source: 'onchain', isPrimary: true }],
+        },
+      },
+    });
+
+    await apiSignIn(page, owner);
+    await page.goto('/app/settings');
+
+    await expect(page.getByRole('heading', { name: 'Settings' })).toBeVisible();
+
+    const releaseButton = page.getByRole('button', { name: `Release @${handle}` });
+    await expect(releaseButton).toBeVisible();
+    await expect(releaseButton).toBeDisabled();
+
+    const input = page.getByPlaceholder(handle);
+    await input.fill('wronghandle');
+    await expect(releaseButton).toBeDisabled();
+
+    await input.fill(handle.slice(0, -1));
+    await expect(releaseButton).toBeDisabled();
+
+    await input.fill(handle);
+    await expect(releaseButton).toBeEnabled();
+
+    await input.fill(`${handle}x`);
+    await expect(releaseButton).toBeDisabled();
+
+    await prisma.$disconnect();
+  });
+
+  test('after a release, the dashboard falls back to the unbound state', async ({ page }) => {
+    const { prisma } = await import('@signet/db');
+    const owner = Keypair.random();
+    const deploy = Keypair.random();
+    const handle = `rel${Date.now().toString(36)}${Math.random().toString(36).slice(2, 5)}`.slice(
+      0,
+      32,
+    );
+    await prisma.profile.create({
+      data: {
+        handle,
+        wallets: {
+          create: [
+            { pubkey: owner.publicKey(), source: 'onchain', isPrimary: true },
+            { pubkey: deploy.publicKey(), source: 'cli', isPrimary: false },
+          ],
+        },
+      },
+    });
+    // What the indexer does with a `released` event (#895): it drops the
+    // on-chain wallet row, and the profile and the linked deploy wallet stay.
+    await prisma.wallet.delete({ where: { pubkey: owner.publicKey() } });
+
+    for (const kp of [owner, deploy]) {
+      await apiSignIn(page, kp);
+      await page.goto('/app');
+      await expect(page.getByText('No handle is bound to this wallet yet.')).toBeVisible();
+      await expect(page.getByText(`@${handle}`)).toHaveCount(0);
+      await page.goto('/app/settings');
+      await expect(page.getByText('Not claimed')).toBeVisible();
+      await expect(page.getByRole('button', { name: `Release @${handle}` })).toHaveCount(0);
+    }
+
+    await prisma.$disconnect();
+  });
+});

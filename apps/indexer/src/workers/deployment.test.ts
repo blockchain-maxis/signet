@@ -8,6 +8,14 @@ import {
   type ContractCreate,
 } from './deployment.ts';
 import type { ContractExecutableInfo, ReadExecutable } from '../contract-executable.ts';
+import {
+  loadFixture,
+  loadFixtureEnvelope,
+  replayHorizon,
+  type HorizonOperationsPage,
+  type HorizonTransactionResult,
+} from '@signet/fixtures';
+import { createHorizonServer } from '../stellar.ts';
 
 const CONFIG = { network: 'testnet' } as Parameters<typeof runDeploymentWorker>[1];
 
@@ -266,10 +274,10 @@ function contractCreationMetaV4Xdr(contractAddress: string): string {
 
 const CONTRACT_ONE = 'CAAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQC526';
 
-function createContractOp(txHash: string, pagingToken: string) {
+function createContractOp(txHash: string, pagingToken: string, fn = 'HostFunctionTypeHostFunctionTypeCreateContract') {
   return {
     type: 'invoke_host_function',
-    function: 'HostFunctionTypeCreateContract',
+    function: fn,
     transaction_hash: txHash,
     paging_token: pagingToken,
   };
@@ -293,6 +301,46 @@ test('a create-contract op is detected and recorded during backfill (v3 meta)', 
 
   assert.equal(result.contractsFound, 1);
   assert.equal(contracts.get(CONTRACT_ONE)?.walletId, WALLET_A.id);
+});
+
+test('an operation with HostFunctionTypeHostFunctionTypeCreateContractV2 creates a Contract row', async () => {
+  const wallets = [{ ...WALLET_A }];
+  const { store, contracts } = memoryStore(wallets);
+  const { horizon } = horizonPages([[createContractOp('hash-v2', 'tok-1', 'HostFunctionTypeHostFunctionTypeCreateContractV2')]]);
+  horizon.transactions = (() => ({
+    transaction: () => ({
+      call: async () => ({
+        result_meta_xdr: contractCreationMetaV4Xdr(CONTRACT_ONE),
+        ledger_attr: 2,
+        created_at: '2026-01-01T00:00:00Z',
+      }),
+    }),
+  })) as unknown as Horizon.Server['transactions'];
+
+  const result = await runDeploymentWorker(horizon, CONFIG, store);
+
+  assert.equal(result.contractsFound, 1);
+  assert.equal(contracts.get(CONTRACT_ONE)?.walletId, WALLET_A.id);
+});
+
+test('an operation with HostFunctionTypeHostFunctionTypeUploadContractWasm does not create a Contract row', async () => {
+  const wallets = [{ ...WALLET_A }];
+  const { store, contracts } = memoryStore(wallets);
+  const { horizon } = horizonPages([[createContractOp('hash-wasm', 'tok-1', 'HostFunctionTypeHostFunctionTypeUploadContractWasm')]]);
+  horizon.transactions = (() => ({
+    transaction: () => ({
+      call: async () => ({
+        result_meta_xdr: contractCreationMetaV4Xdr(CONTRACT_ONE),
+        ledger_attr: 2,
+        created_at: '2026-01-01T00:00:00Z',
+      }),
+    }),
+  })) as unknown as Horizon.Server['transactions'];
+
+  const result = await runDeploymentWorker(horizon, CONFIG, store);
+
+  assert.equal(result.contractsFound, 0);
+  assert.equal(contracts.size, 0);
 });
 
 test('a create-contract op is detected and recorded during backfill (v4 meta)', async () => {
@@ -874,4 +922,482 @@ test('backfill persists its cursor per page, not once at the end', async () => {
 
   assert.deepEqual(writes, ['tok-3', 'tok-2', 'tok-1'], 'one write per page walked');
   assert.ok(wallets[0]!.deploymentBackfilledAt, 'and completion is still recorded');
+});
+
+// ---------------------------------------------------------------------------
+// Recorded Horizon responses (#974)
+//
+// The tests above stand in for Horizon with records written by hand. Below,
+// the server is the SDK's own `Horizon.Server` and only the network is
+// replaced, by `replayHorizon`, which answers from `@signet/fixtures`. So the
+// `function` value, the paging and the transaction record are what Horizon
+// sends, and a request this file has no recording for shows in `unanswered`.
+// ---------------------------------------------------------------------------
+
+const DEPLOYER = 'GC6IQQHUT4BXZYCJEM4AOKFD6ASWSXCEDXYPVA5NFKXSGOSRJX72KJMC';
+
+/** The backward walk's request for what is older than `cursor`, with the query in name order. */
+const operationsOlderThan = (account: string, cursor: string) =>
+  `/accounts/${account}/operations?cursor=${cursor}&limit=50&order=desc`;
+
+/**
+ * A Horizon page of `records`, linked to what is older than the last of them
+ * (or than `cursor`), with the links Horizon writes. The SDK follows them on
+ * the server it was given, whatever host they name.
+ */
+function pageOf(account: string, cursor: string, records: Array<{ paging_token: string }>) {
+  const older = records.length > 0 ? records[records.length - 1]!.paging_token : cursor;
+  const href = (c: string, order: string) =>
+    `https://horizon-testnet.stellar.org/accounts/${account}/operations?cursor=${c}&limit=50&order=${order}`;
+  return {
+    _links: {
+      self: { href: href(cursor, 'desc') },
+      next: { href: href(older, 'desc') },
+      prev: { href: href(records[0]?.paging_token ?? cursor, 'asc') },
+    },
+    _embedded: { records },
+  };
+}
+
+/** The contract address a recorded RPC transaction returned, read from its result meta. */
+function returnedContract(resultMetaXdr: string): string {
+  const returned = xdr.TransactionMeta.fromXDR(resultMetaXdr, 'base64')
+    .v4()
+    .sorobanMeta()!
+    .returnValue()!;
+  return StrKey.encodeContract(
+    Buffer.from(returned.address().contractId() as unknown as Uint8Array),
+  );
+}
+
+test('recorded: a create-contract operation becomes a Contract row at the address its transaction returned', async () => {
+  // The operation, its Horizon transaction and its RPC transaction are three
+  // recordings of one deployment (dd815593…).
+  const op = loadFixture('horizon-create-contract-operation');
+  const horizonTx = loadFixture('horizon-contract-deploy-tx');
+  const rpcTx = loadFixture('deploy-get-transaction');
+  assert.equal(op.transaction_hash, horizonTx.hash);
+  assert.equal(rpcTx.txHash, horizonTx.hash);
+  // Horizon prints the type name twice. The record is used as it was recorded.
+  assert.equal(op['function'], 'HostFunctionTypeHostFunctionTypeCreateContract');
+
+  // A wallet whose backward walk has reached this operation and has nothing
+  // older left. Two things here are put together from the recordings, not
+  // recorded as such:
+  // - the page holds this one record. On Horizon it is followed by 49 older
+  //   ones, which would each need their transaction recorded;
+  // - the transaction carries the result meta the RPC recorded for it.
+  //   Horizon itself sends none (see the last test in this file).
+  const cursor = String(BigInt(op.paging_token) + 1n);
+  const wallet: DeploymentWallet = {
+    ...WALLET_A,
+    id: 'deployer',
+    pubkey: DEPLOYER,
+    deploymentCursor: cursor,
+  };
+  const recorded = replayHorizon([
+    { path: operationsOlderThan(DEPLOYER, cursor), body: pageOf(DEPLOYER, cursor, [op]) },
+    {
+      path: operationsOlderThan(DEPLOYER, op.paging_token),
+      body: pageOf(DEPLOYER, op.paging_token, []),
+    },
+    {
+      path: `/transactions/${horizonTx.hash}`,
+      body: { ...horizonTx, result_meta_xdr: rpcTx.resultMetaXdr },
+    },
+  ]);
+  const { store, contracts } = memoryStore([wallet]);
+  let result;
+  try {
+    result = await runDeploymentWorker(createHorizonServer(recorded.url), CONFIG, store);
+  } finally {
+    recorded.restore();
+  }
+
+  assert.deepEqual(recorded.unanswered, []);
+  assert.equal(result.contractsFound, 1);
+  assert.equal(contracts.size, 1);
+  const [contract] = [...contracts.values()];
+  assert.equal(contract!.address, returnedContract(rpcTx.resultMetaXdr!));
+  assert.equal(contract!.deployTxHash, horizonTx.hash);
+  assert.equal(contract!.deployerPubkey, DEPLOYER);
+  assert.equal(contract!.walletId, 'deployer');
+  assert.equal(contract!.deployedAt.toISOString(), new Date(horizonTx.created_at).toISOString());
+  assert.equal(result.highestLedger, horizonTx.ledger);
+  assert.ok(wallet.deploymentBackfilledAt);
+});
+
+/** The deployer's first four operations and the empty page after them, as recorded. */
+function walkToTheStartOfTheDeployer() {
+  const firstPage = loadFixtureEnvelope<HorizonOperationsPage>(
+    'horizon-account-operations-first-page',
+  );
+  const end = loadFixtureEnvelope('horizon-account-operations-end');
+  const tx = loadFixtureEnvelope<HorizonTransactionResult>('horizon-create-contract-v2-tx');
+  const cursor = new URL(firstPage.request.methodOrPath, 'https://h').searchParams.get('cursor')!;
+  const wallet: DeploymentWallet = {
+    ...WALLET_A,
+    id: 'deployer',
+    pubkey: DEPLOYER,
+    deploymentCursor: cursor,
+  };
+  return { firstPage, end, tx, cursor, wallet };
+}
+
+test("recorded: the walk over the deployer's first operations asks for its create-contract (V2) transaction, and ends", async () => {
+  const { firstPage, end, tx, cursor, wallet } = walkToTheStartOfTheDeployer();
+  const records = firstPage.payload._embedded.records;
+  // Two invocations, the create-contract (V2), and the account's funding.
+  assert.deepEqual(
+    records.map((op) => op['function'] ?? op.type),
+    [
+      'HostFunctionTypeHostFunctionTypeInvokeContract',
+      'HostFunctionTypeHostFunctionTypeInvokeContract',
+      'HostFunctionTypeHostFunctionTypeCreateContractV2',
+      'create_account',
+    ],
+  );
+
+  const replay = replayHorizon([firstPage, end, tx]);
+  const { store } = memoryStore([wallet]);
+  let result;
+  try {
+    result = await runDeploymentWorker(createHorizonServer(replay.url), CONFIG, store);
+  } finally {
+    replay.restore();
+  }
+
+  const funding = records[3]!;
+  // One page, the transaction of the one deployment in it, then the empty
+  // page that ends the walk. Every request is one Horizon answered.
+  assert.deepEqual(replay.requests, [
+    operationsOlderThan(DEPLOYER, cursor),
+    `/transactions/${tx.payload.hash}`,
+    operationsOlderThan(DEPLOYER, funding.paging_token),
+  ]);
+  assert.deepEqual(replay.unanswered, []);
+  assert.equal(result.walletsScanned, 1);
+  assert.equal(wallet.deploymentCursor, funding.paging_token);
+  assert.ok(wallet.deploymentBackfilledAt);
+  // The highest ledger seen is the newest operation's: a paging token's upper 32 bits.
+  assert.equal(result.highestLedger, Number(BigInt(records[0]!.paging_token) >> 32n));
+  assert.ok(result.highestLedger > tx.payload.ledger);
+});
+
+test(
+  "recorded: the deployer's create-contract (V2) operation becomes a Contract row",
+  {
+    // Follow-up: #1099.
+    todo: 'Horizon sends no result_meta_xdr, so the worker has nowhere to read the new address from (#1099)',
+  },
+  async () => {
+    const { firstPage, end, tx, wallet } = walkToTheStartOfTheDeployer();
+    // Nothing is added to the transaction here: it is what Horizon returned.
+    assert.equal(tx.payload.result_meta_xdr, undefined);
+
+    const replay = replayHorizon([firstPage, end, tx]);
+    const { store, contracts } = memoryStore([wallet]);
+    let result;
+    try {
+      result = await runDeploymentWorker(createHorizonServer(replay.url), CONFIG, store);
+    } finally {
+      replay.restore();
+    }
+
+    // The address is the hash of the operation's deployer and salt, and it is
+    // the contract the deployer's next two operations call: `@signet/fixtures`
+    // checks both in `index.test.ts`.
+    assert.equal(result.contractsFound, 1);
+    assert.deepEqual(
+      [...contracts.keys()],
+      ['CAII4K5S4GJPBSYXT4K2ZKYSEEAY6TA7GCTDIINFBATORY4N7PINPPPB'],
+    );
+  },
+);
+
+// ── transient tx fetch failure stops walk and resumes (#962) ─────────────────
+
+const CONTRACT_THREE = StrKey.encodeContract(Buffer.alloc(32, 3));
+
+test('backfill stops at transient tx fetch failure and resumes on next tick', async () => {
+  const wallets = [{ ...WALLET_A }];
+  const { store, contracts } = memoryStore(wallets);
+
+  const ops = [
+    createContractOp('h1', 'tok-1'),
+    createContractOp('h2', 'tok-2'),
+    createContractOp('h3', 'tok-3'),
+  ];
+
+  let failH2 = true;
+  const horizon = {
+    operations: () => ({
+      forAccount: () => ({
+        order: () => ({
+          limit: () => ({
+            cursor: (c: string) => ({
+              call: async () => ({
+                records: c === 'tok-1' ? ops.slice(1) : [],
+                next: async () => ({ records: [] }),
+              }),
+            }),
+            call: async () => ({
+              records: ops,
+              next: async () => ({ records: [] }),
+            }),
+          }),
+        }),
+      }),
+    }),
+    transactions: () => ({
+      transaction: (hash: string) => ({
+        call: async () => {
+          if (hash === 'h1') {
+            return {
+              result_meta_xdr: contractCreationMetaXdr(CONTRACT_ONE),
+              ledger_attr: 1001,
+              created_at: '2026-01-01T00:00:00Z',
+            };
+          }
+          if (hash === 'h2') {
+            if (failH2) throw new Error('Horizon returned status 429');
+            return {
+              result_meta_xdr: contractCreationMetaXdr(CONTRACT_TWO),
+              ledger_attr: 1002,
+              created_at: '2026-01-02T00:00:00Z',
+            };
+          }
+          if (hash === 'h3') {
+            return {
+              result_meta_xdr: contractCreationMetaXdr(CONTRACT_THREE),
+              ledger_attr: 1003,
+              created_at: '2026-01-03T00:00:00Z',
+            };
+          }
+          throw new Error('unknown tx');
+        },
+      }),
+    }),
+  } as unknown as Horizon.Server;
+
+  // First tick: h2 throws transient error 429
+  const res1 = await runDeploymentWorker(horizon, CONFIG, store);
+  assert.equal(res1.walletsStopped, 1);
+  assert.equal(res1.contractsFound, 1);
+  assert.equal(wallets[0]!.deploymentCursor, 'tok-1', 'saved cursor is the first op token');
+  assert.equal(wallets[0]!.deploymentBackfilledAt, null, 'backfill has not finished');
+  assert.ok(contracts.has(CONTRACT_ONE));
+  assert.ok(!contracts.has(CONTRACT_TWO));
+
+  // Second tick: h2 succeeds
+  failH2 = false;
+  const res2 = await runDeploymentWorker(horizon, CONFIG, store);
+  assert.equal(res2.walletsStopped, 0);
+  assert.equal(res2.contractsFound, 2);
+  assert.equal(wallets[0]!.deploymentCursor, 'tok-3');
+  assert.ok(wallets[0]!.deploymentBackfilledAt, 'backfill finished');
+  assert.ok(contracts.has(CONTRACT_TWO));
+  assert.ok(contracts.has(CONTRACT_THREE));
+});
+
+test('forward scan stops at transient tx fetch failure and resumes on next tick', async () => {
+  const wallets = [{ ...BACKFILLED, deploymentWatermark: 'tok-0' }];
+  const { store, contracts } = memoryStore(wallets);
+
+  const ops = [
+    createContractOp('h1', 'tok-1'),
+    createContractOp('h2', 'tok-2'),
+    createContractOp('h3', 'tok-3'),
+  ];
+
+  let failH2 = true;
+  const horizon = {
+    operations: () => ({
+      forAccount: () => ({
+        order: () => ({
+          limit: () => ({
+            cursor: (c: string) => ({
+              call: async () => ({
+                records: c === 'tok-0' ? ops : c === 'tok-1' ? ops.slice(1) : [],
+                next: async () => ({ records: [] }),
+              }),
+            }),
+            call: async () => ({
+              records: ops,
+              next: async () => ({ records: [] }),
+            }),
+          }),
+        }),
+      }),
+    }),
+    transactions: () => ({
+      transaction: (hash: string) => ({
+        call: async () => {
+          if (hash === 'h1') {
+            return {
+              result_meta_xdr: contractCreationMetaXdr(CONTRACT_ONE),
+              ledger_attr: 1001,
+              created_at: '2026-01-01T00:00:00Z',
+            };
+          }
+          if (hash === 'h2') {
+            if (failH2) throw new Error('Horizon returned status 503');
+            return {
+              result_meta_xdr: contractCreationMetaXdr(CONTRACT_TWO),
+              ledger_attr: 1002,
+              created_at: '2026-01-02T00:00:00Z',
+            };
+          }
+          if (hash === 'h3') {
+            return {
+              result_meta_xdr: contractCreationMetaXdr(CONTRACT_THREE),
+              ledger_attr: 1003,
+              created_at: '2026-01-03T00:00:00Z',
+            };
+          }
+          throw new Error('unknown tx');
+        },
+      }),
+    }),
+  } as unknown as Horizon.Server;
+
+  // First tick: h2 throws transient error 503
+  const res1 = await runDeploymentWorker(horizon, CONFIG, store);
+  assert.equal(res1.walletsStopped, 1);
+  assert.equal(res1.contractsFound, 1);
+  assert.equal(wallets[0]!.deploymentWatermark, 'tok-1', 'saved watermark is the first op token');
+  assert.ok(contracts.has(CONTRACT_ONE));
+  assert.ok(!contracts.has(CONTRACT_TWO));
+
+  // Second tick: h2 succeeds
+  failH2 = false;
+  const res2 = await runDeploymentWorker(horizon, CONFIG, store);
+  assert.equal(res2.walletsStopped, 0);
+  assert.equal(res2.contractsFound, 2);
+  assert.equal(wallets[0]!.deploymentWatermark, 'tok-3');
+  assert.ok(contracts.has(CONTRACT_TWO));
+  assert.ok(contracts.has(CONTRACT_THREE));
+});
+
+test('seeding a watermark saves none when a transaction fetch fails transiently, and re-seeds next tick', async () => {
+  const wallets: DeploymentWallet[] = [{ ...BACKFILLED, deploymentWatermark: null }];
+  const { store, contracts } = memoryStore(wallets);
+
+  // The seed page is newest-first: h3 is the newest, h1 the oldest.
+  const ops = [
+    createContractOp('h3', 'tok-3'),
+    createContractOp('h2', 'tok-2'),
+    createContractOp('h1', 'tok-1'),
+  ];
+  const metaFor: Record<string, string> = {
+    h1: CONTRACT_ONE,
+    h2: CONTRACT_TWO,
+    h3: CONTRACT_THREE,
+  };
+
+  let failH2 = true;
+  const horizon = {
+    operations: () => ({
+      forAccount: () => ({
+        order: () => ({
+          limit: () => ({
+            cursor: () => ({
+              call: async () => ({ records: [], next: async () => ({ records: [] }) }),
+            }),
+            call: async () => ({ records: ops, next: async () => ({ records: [] }) }),
+          }),
+        }),
+      }),
+    }),
+    transactions: () => ({
+      transaction: (hash: string) => ({
+        call: async () => {
+          if (hash === 'h2' && failH2) throw new Error('Horizon returned status 503');
+          const address = metaFor[hash];
+          if (!address) throw new Error('unknown tx');
+          return {
+            result_meta_xdr: contractCreationMetaXdr(address),
+            ledger_attr: 1000,
+            created_at: '2026-01-01T00:00:00Z',
+          };
+        },
+      }),
+    }),
+  } as unknown as Horizon.Server;
+
+  // First tick: h3 is recorded, h2 fails. A watermark at tok-3 would make the
+  // next forward check start after h2 and lose it, so none is saved.
+  const res1 = await runDeploymentWorker(horizon, CONFIG, store);
+  assert.equal(res1.walletsStopped, 1);
+  assert.equal(res1.contractsFound, 1);
+  assert.ok(contracts.has(CONTRACT_THREE));
+  assert.ok(!contracts.has(CONTRACT_TWO));
+  assert.ok(!contracts.has(CONTRACT_ONE));
+  assert.equal(wallets[0]!.deploymentWatermark ?? null, null, 'no watermark after a stopped seed');
+
+  // Second tick: the seed runs again, h3 is deduped by deployTxHash, and the
+  // rest are recorded before the watermark is saved at the newest operation.
+  failH2 = false;
+  const res2 = await runDeploymentWorker(horizon, CONFIG, store);
+  assert.equal(res2.walletsStopped, 0);
+  assert.equal(res2.contractsFound, 2);
+  assert.ok(contracts.has(CONTRACT_TWO));
+  assert.ok(contracts.has(CONTRACT_ONE));
+  assert.equal(contracts.size, 3);
+  assert.equal(wallets[0]!.deploymentWatermark, 'tok-3');
+});
+
+test('a 404 on the transaction fetch still advances past the operation', async () => {
+  const wallets = [{ ...BACKFILLED, deploymentWatermark: 'tok-0' }];
+  const { store, contracts } = memoryStore(wallets);
+
+  const ops = [
+    createContractOp('h-404', 'tok-1'),
+    createContractOp('h-ok', 'tok-2'),
+  ];
+
+  const horizon = {
+    operations: () => ({
+      forAccount: () => ({
+        order: () => ({
+          limit: () => ({
+            cursor: () => ({
+              call: async () => ({
+                records: ops,
+                next: async () => ({ records: [] }),
+              }),
+            }),
+            call: async () => ({
+              records: ops,
+              next: async () => ({ records: [] }),
+            }),
+          }),
+        }),
+      }),
+    }),
+    transactions: () => ({
+      transaction: (hash: string) => ({
+        call: async () => {
+          if (hash === 'h-404') {
+            const err = new Error('Transaction not found: 404');
+            throw err;
+          }
+          if (hash === 'h-ok') {
+            return {
+              result_meta_xdr: contractCreationMetaXdr(CONTRACT_TWO),
+              ledger_attr: 1002,
+              created_at: '2026-01-02T00:00:00Z',
+            };
+          }
+          throw new Error('unknown tx');
+        },
+      }),
+    }),
+  } as unknown as Horizon.Server;
+
+  const res = await runDeploymentWorker(horizon, CONFIG, store);
+  assert.equal(res.walletsStopped, 0);
+  assert.equal(res.contractsFound, 1);
+  assert.equal(wallets[0]!.deploymentWatermark, 'tok-2', 'advances past the 404 op');
+  assert.ok(contracts.has(CONTRACT_TWO));
 });

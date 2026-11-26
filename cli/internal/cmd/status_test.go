@@ -31,7 +31,11 @@ func indexingDeployment(t *testing.T, pendingPolls int32) (*httptest.Server, *at
 		case "/api/cli/pair/status":
 			_, _ = w.Write([]byte(`{"status":"approved"}`))
 		case "/api/cli-link":
-			_, _ = w.Write([]byte(`{"transaction":"AAAAchallenge","network_passphrase":"Test SDF Network ; September 2015"}`))
+			purpose := r.URL.Query().Get("purpose")
+			if purpose == "" {
+				purpose = "link"
+			}
+			_, _ = fmt.Fprintf(w, `{"transaction":%q,"network_passphrase":"Test SDF Network ; September 2015"}`, testChallengeFor(purpose, aliceKey))
 		case "/api/cli/pair/complete":
 			_, _ = fmt.Fprintf(w, `{"ok":true,"wallet":%q,"handle":"alice","indexingPending":true,"status":"linked"}`, aliceKey)
 		case "/api/v1/health":

@@ -2,12 +2,16 @@ import Link from 'next/link';
 import { currentAddress } from '@/lib/server/session';
 import { getAccount, getAccountWallets } from '@/lib/server/account';
 import {
+  getProfile,
   getOperationsResult,
   getProfileStats,
   formatCount,
   formatStatsWindow,
 } from '@/lib/profiles';
 import { LinkDeployWalletPrompt } from '../components/link-deploy-wallet-prompt';
+import { RestoreBinding } from '@/components/restore-binding';
+import { getProfileState } from '@/lib/profile-state';
+import { REGISTRY_CONTRACT_ID } from '@/lib/chain';
 
 function truncate(a: string): string {
   return a.length > 16 ? `${a.slice(0, 7)}…${a.slice(-5)}` : a;
@@ -19,9 +23,13 @@ const display = { fontFamily: 'var(--font-display)' } as const;
 export default async function DashboardPage() {
   const address = await currentAddress();
   const account = address ? await getAccount(address) : null;
-  const operations = account?.handle ? await getOperationsResult(account.handle) : null;
+  const profile = account?.handle ? await getProfile(account.handle) : null;
+  // The same state the public profile shows (#896): an archived binding gets
+  // the restore affordance here too (#897).
+  const isArchived = getProfileState(profile) === 'archived';
+  const operations = account?.handle && !isArchived ? await getOperationsResult(account.handle) : null;
   const stats =
-    account?.handle && operations
+    account?.handle && operations && !isArchived
       ? await getProfileStats(account.handle, operations.operations)
       : null;
   // Counts drawn from a capped operation read are lower bounds; database
@@ -61,10 +69,22 @@ export default async function DashboardPage() {
         </div>
         <div className="border-t border-[#1f1d19] px-6 py-5">
           {account?.handle ? (
-            <p className="text-[13px] leading-[1.7] text-[#8a8779]" style={mono}>
-              Handle <span className="text-[#b8b5a8]">@{account.handle}</span> is bound to this
-              wallet on-chain via the Identity Registry.
-            </p>
+            isArchived ? (
+              <div>
+                <p className="text-[13px] leading-[1.7] text-amber-300" style={mono}>
+                  Handle <span className="text-[#f5f4ee]">@{account.handle}</span> is archived on-chain.
+                  Its ledger storage entry has expired.
+                </p>
+                <div className="mt-4">
+                  <RestoreBinding handle={account.handle} registryContract={REGISTRY_CONTRACT_ID} />
+                </div>
+              </div>
+            ) : (
+              <p className="text-[13px] leading-[1.7] text-[#8a8779]" style={mono}>
+                Handle <span className="text-[#b8b5a8]">@{account.handle}</span> is bound to this
+                wallet on-chain via the Identity Registry.
+              </p>
+            )
           ) : (
             <p className="text-[13px] leading-[1.7] text-[#8a8779]" style={mono}>
               No handle is bound to this wallet yet.{' '}
@@ -79,10 +99,10 @@ export default async function DashboardPage() {
 
       {/* Explains an empty-looking profile: the claiming wallet is rarely the
           deploy wallet, and nothing renders until one is linked. */}
-      {account?.handle && !hasDeployWallet && <LinkDeployWalletPrompt />}
+      {account?.handle && !hasDeployWallet && !isArchived && <LinkDeployWalletPrompt />}
 
       {/* On-chain stats (only once a handle is claimed) */}
-      {stats && (
+      {stats && !isArchived && (
         <div className="mt-6 grid max-w-[640px] grid-cols-3 gap-px border border-[#1f1d19] bg-[#1f1d19]">
           {[
             {
