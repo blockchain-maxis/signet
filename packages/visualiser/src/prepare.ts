@@ -16,7 +16,7 @@ import { diagramDecision, type DiagramDecision } from './decide.ts';
 import { buildContractGraph, type ContractGraph } from './graph.ts';
 import {
   layoutContractGraph,
-  type LayoutOptions,
+  type LayoutGeometryOptions,
   type LayoutOverlays,
   type PositionedDiagramModel,
 } from './layout.ts';
@@ -25,7 +25,7 @@ export interface PrepareDiagramOptions {
   /** Groups to draw expanded (#502, #946). Checked through {@link canonicalExpand}. */
   readonly expand?: string | readonly string[] | null;
   /** Layout options (direction, type depth, etc.). */
-  readonly layoutOptions?: LayoutOptions;
+  readonly layoutOptions?: LayoutGeometryOptions;
   /** Layout overlays (call graph, activity counts). */
   readonly overlays?: LayoutOverlays;
   /** Custom layout function (e.g. for caching). Receives the collapsed graph and canonical expanded groups. */

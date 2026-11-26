@@ -7,10 +7,10 @@
  * CLI gets the spec as `SpecJson` from `signet-simulator`'s `spec_extract`
  * (#545), so the bundle never parses WASM.
  *
- * The pipeline is the contract page's: spec, graph, layout, then the
- * worth-drawing decision. A `draw` decision renders the laid-out model; a
- * `too-simple` or `too-large` one renders the function list, column 0 alone,
- * as the page falls back to. The output is the self-contained standalone
+ * The pipeline is the contract page's (`prepareDiagram`, #946): spec, graph,
+ * collapsed groups, layout, then the worth-drawing decision. A `draw`
+ * decision renders the laid-out model; a `too-simple` or `too-large` one
+ * renders the function list, column 0 alone, as the page falls back to. The output is the self-contained standalone
  * SVG (#506), which needs no stylesheet. Synchronous and pure.
  */
 

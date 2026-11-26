@@ -75,7 +75,9 @@ export async function exportContractDiagram(
   if (!result.ok) return new Response('Contract interface unavailable', { status: 503, headers });
   try {
     const prepared = prepareDiagram(fromSpecJson(result.spec), { expand });
-    if (prepared.decision.kind === 'too-large') {
+    // Too large after collapsing (#946). An edge-less graph is `too-simple` to
+    // the tab, but it still cannot be exported past MAX_NODES.
+    if (prepared.decision.kind === 'too-large' || prepared.graph.nodes.length > MAX_NODES) {
       logger.warn(
         { address, limit: MAX_NODES, observed: prepared.graph.nodes.length },
         'spec.limit.exceeded',

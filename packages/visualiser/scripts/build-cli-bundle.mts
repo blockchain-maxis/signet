@@ -20,7 +20,7 @@
 import { execFileSync } from 'node:child_process';
 import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, join, relative } from 'node:path';
-import { fileURLToPath, pathToFileURL } from 'node:url';
+import { fileURLToPath } from 'node:url';
 import { build } from 'esbuild';
 
 const here = dirname(fileURLToPath(import.meta.url));
@@ -112,4 +112,4 @@ async function main(): Promise<void> {
   console.log(`wrote ${shown}: ${size} bytes (budget ${BUDGET_BYTES})`);
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) await main();
+if (import.meta.url === `file://${process.argv[1]}`) await main();
