@@ -1,0 +1,14 @@
+$ signet link --url http://127.0.0.1:<port> --source alice --no-browser --wait=30m --json
+-- stdout --
+{"handle":"alice","publicKey":"GASAAEJC6P5UZGRLYJ2I2KYLR7RXGF44JZXDYGCFBN7T5VIHECUUEMCD","network":"testnet","status":"linked","indexingPending":true,"indexing":{"done":false,"interrupted":true}}
+-- stderr --
+Approve this link in your browser:
+
+    http://127.0.0.1:<port>/link?callback=http%3A%2F%2F127.0.0.1%3A<port>%2Fcallback&callback_state=<state>&code=s&user_code=ABCD2345
+
+The approval page will show this code: ABCD2345
+
+Waiting for approval… 5m0s remaining
+Approved. Proving control of the deploy key…
+Waiting up to 30m0s for the indexer to scan GASAAEJC6P5UZGRLYJ2I2KYLR7RXGF44JZXDYGCFBN7T5VIHECUUEMCD…
+-- exit 0 --

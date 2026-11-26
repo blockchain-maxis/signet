@@ -191,3 +191,50 @@ test('run on both posts the call to the deployed code and to the build', async (
   await userEvent.click(within(form).getByRole('button', { name: 'Run on both' }));
   expect(callsTo(post, 'resolve').map((b) => (b as { wasm: string }).wasm)).toEqual(['deployed', 'local']);
 });
+
+test('Copy as command writes the equivalent CLI invocation to the clipboard and renders it read-only', async () => {
+  const { api } = fakeApi();
+  const writeText = vi.fn().mockResolvedValue(undefined);
+  Object.defineProperty(navigator, 'clipboard', {
+    value: { writeText },
+    configurable: true,
+  });
+
+  render(
+    <CallForm
+      api={api}
+      specs={{ deployed: registry as SpecJson, local: null }}
+      contract="CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD2KM"
+      network="testnet"
+    />,
+  );
+  await act(async () => {});
+  await userEvent.click(within(screen.getByRole('navigation', { name: 'Functions' })).getByRole('button', { name: 'claim' }));
+  const form = screen.getByRole('form', { name: 'Call claim' });
+  await userEvent.type(within(form).getByLabelText(/^handle/), 'alice');
+  await userEvent.type(within(form).getByLabelText(/^wallet/), WALLET);
+  await userEvent.click(within(form).getByRole('button', { name: 'Copy as command' }));
+
+  const expected = `signet sandbox call CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD2KM claim --arg 'handle="alice"' --arg 'wallet="${WALLET}"' --network testnet`;
+  expect(writeText).toHaveBeenCalledWith(expected);
+  const readonlyField = within(form).getByLabelText('CLI command') as HTMLTextAreaElement;
+  expect(readonlyField.readOnly).toBe(true);
+  expect(readonlyField.value).toBe(expected);
+});
+
+test('rerendering from null specs to a loaded spec does not violate Rules of Hooks', async () => {
+  const { api } = fakeApi();
+  const { rerender } = render(<CallForm api={api} specs={{ deployed: null, local: null }} />);
+  expect(screen.getByText(/No interface to call yet/)).toBeInTheDocument();
+
+  rerender(
+    <CallForm
+      api={api}
+      specs={{ deployed: registry as SpecJson, local: null }}
+      contract="CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAD2KM"
+      network="testnet"
+    />,
+  );
+  await act(async () => {});
+  expect(screen.getByRole('button', { name: 'Copy as command' })).toBeInTheDocument();
+});

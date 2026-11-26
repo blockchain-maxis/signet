@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { signIn } from '@/lib/wallet';
 
-/** Wallet sign-in wall for the dashboard (Sign-In With Stellar). */
+/** Wallet sign-in wall for the dashboard (SEP-10). */
 export function SignInGate() {
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState<string | null>(null);
@@ -30,8 +30,8 @@ export function SignInGate() {
         Sign in
       </h1>
       <p className="mt-6 text-[14px] leading-[1.7] text-[#8a8779]">
-        Connect your Stellar wallet and sign a one-time message to prove ownership. No
-        transaction, no fees — just a signature.
+        Connect your Stellar wallet and sign a SEP-10 challenge transaction to prove ownership. It
+        is never submitted to the network — no fees, just a signature.
       </p>
       <button
         type="button"

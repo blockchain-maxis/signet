@@ -70,6 +70,81 @@ Array of all registered handles.
 
 ---
 
+## `account.apiKeys.create`
+
+- **Type:** `mutation`
+- **Auth:** `protected`
+
+### Input
+
+```ts
+{ name: string }
+```
+Required and trimmed; at most 64 characters (`MAX_API_KEY_NAME`). An empty or longer name is `BAD_REQUEST`.
+
+### Output
+
+```ts
+{
+  key: string;
+  apiKey: {
+    id: string;
+    name: string;
+    prefix: string;
+    createdAt: string;
+    lastUsedAt: string | null;
+  };
+}
+```
+`key` is the full plaintext key (`sgk_<8 chars>_<43 chars>`), returned **once**: it is never shown or retrievable again, so store it now. `apiKey` is the listed record, with only the prefix. At most 5 keys are active at a time (`MAX_ACTIVE_API_KEYS`); creating another is `BAD_REQUEST` until one is revoked. A wallet with no profile gets `PRECONDITION_FAILED`.
+
+---
+
+## `account.apiKeys.list`
+
+- **Type:** `query`
+- **Auth:** `protected`
+
+### Input
+
+None (session cookie carries the identity)
+
+### Output
+
+```ts
+{
+  id: string;
+  name: string;
+  prefix: string;
+  createdAt: string;
+  lastUsedAt: string | null;
+}[]
+```
+The account's active keys, newest first. `prefix` is what the key starts with (`sgk_ab12cd34_`) so keys can be told apart; the secret itself is never listed. A wallet with no profile on this deployment gets `PRECONDITION_FAILED`.
+
+---
+
+## `account.apiKeys.revoke`
+
+- **Type:** `mutation`
+- **Auth:** `protected`
+
+### Input
+
+```ts
+{ id: string }
+```
+The id of one of the signed-in account's own keys.
+
+### Output
+
+```ts
+{ id: string }
+```
+The revoked key's id. A key belonging to another profile is `NOT_FOUND`, the same as an unknown id. A wallet with no profile gets `PRECONDITION_FAILED`.
+
+---
+
 ## `account.me`
 
 - **Type:** `query`

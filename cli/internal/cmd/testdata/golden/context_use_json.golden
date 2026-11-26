@@ -1,0 +1,6 @@
+$ signet context use prod --json
+-- stdout --
+{"current":"prod"}
+-- stderr --
+(empty)
+-- exit 0 --

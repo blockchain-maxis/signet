@@ -20,6 +20,7 @@ import (
 	"github.com/blockchain-maxis/signet/cli/internal/browser"
 	"github.com/blockchain-maxis/signet/cli/internal/exitcode"
 	"github.com/blockchain-maxis/signet/cli/internal/keys"
+	"github.com/blockchain-maxis/signet/cli/internal/networkcheck"
 	"github.com/blockchain-maxis/signet/cli/internal/simulator"
 	"github.com/blockchain-maxis/signet/cli/internal/visualise"
 )
@@ -33,8 +34,8 @@ func init() {
 // in-process.
 func newVisualiseCmd() *cobra.Command {
 	var (
-		wasmPath, network, out, theme string
-		open                          bool
+		wasmPath, out, theme string
+		open                 bool
 	)
 	cmd := &cobra.Command{
 		Use:   "visualise <address>",
@@ -66,9 +67,6 @@ contract instead, or says how to start one.`,
 			default:
 				return &inputError{"--theme must be dark, light or auto"}
 			}
-			if network != "testnet" && network != "mainnet" {
-				return &inputError{"--network must be testnet or mainnet"}
-			}
 			printer := printerFor(cmd)
 			if open {
 				return openInDevUI(cmd, address)
@@ -76,7 +74,7 @@ contract instead, or says how to start one.`,
 			ctx, stop := signal.NotifyContext(cmd.Context(), os.Interrupt)
 			defer stop()
 
-			wasm, err := readOrFetchWasm(ctx, deps, address, network, wasmPath)
+			wasm, err := readOrFetchWasm(ctx, cmd, deps, address, wasmPath)
 			if err != nil {
 				return err
 			}
@@ -95,7 +93,14 @@ contract instead, or says how to start one.`,
 			if len(extracted.SpecEntriesXDR) == 0 {
 				return fmt.Errorf("%w: %s's WASM carries no contractspecv0 section, so there is no interface to draw", exitcode.ErrNoSpec, shorten(address, 4, 3))
 			}
-			result, err := visualise.Render(visualise.Input{SpecJSON: extracted.Spec, Theme: theme, Address: address, Network: network})
+			renderNet := deps.Config.Network
+			if renderNet == "" {
+				renderNet = "testnet"
+			}
+			if canonical, ok := networkcheck.Normalize(renderNet); ok {
+				renderNet = canonical
+			}
+			result, err := visualise.Render(visualise.Input{SpecJSON: extracted.Spec, Theme: theme, Address: address, Network: renderNet})
 			if err != nil {
 				if errors.Is(err, visualise.ErrTimeout) {
 					return fmt.Errorf("%w: %v", exitcode.ErrTimeout, err)
@@ -125,16 +130,16 @@ contract instead, or says how to start one.`,
 		},
 	}
 	cmd.Flags().StringVar(&wasmPath, "wasm", "", "read the WASM from this file instead of fetching it")
-	cmd.Flags().StringVar(&network, "network", "testnet", "the network to fetch the WASM from: testnet or mainnet")
 	cmd.Flags().StringVar(&out, "out", "", "the SVG to write (default <address-short>.svg)")
 	cmd.Flags().StringVar(&theme, "theme", "auto", "dark, light, or auto (follows the viewer's colour scheme)")
 	cmd.Flags().BoolVar(&open, "open", false, "open the diagram in a running signet dev --ui session for this contract")
+	addRPCFlags(cmd)
 	return cmd
 }
 
 // readOrFetchWasm reads --wasm, or fetches the contract's WASM with the
 // stellar CLI.
-func readOrFetchWasm(ctx context.Context, deps Deps, address, network, path string) ([]byte, error) {
+func readOrFetchWasm(ctx context.Context, cmd *cobra.Command, deps Deps, address, path string) ([]byte, error) {
 	if path != "" {
 		wasm, err := os.ReadFile(path)
 		if err != nil {
@@ -155,7 +160,27 @@ func readOrFetchWasm(ctx context.Context, deps Deps, address, network, path stri
 	}
 	defer func() { _ = os.RemoveAll(dir) }()
 	target := filepath.Join(dir, "contract.wasm")
-	fetch := exec.CommandContext(ctx, binary, "contract", "fetch", "--id", address, "--network", network, "-o", target)
+
+	rpcURL, _ := cmd.Flags().GetString("rpc-url")
+	passphrase, _ := cmd.Flags().GetString("network-passphrase")
+	netName := deps.Config.Network
+	if netName == "" {
+		netName = "testnet"
+	}
+	_, isKnown := networkcheck.Normalize(netName)
+
+	var fetchArgs []string
+	if rpcURL != "" || deps.Config.RPCURL != "" || passphrase != "" || !isKnown {
+		net, err := sandboxNetwork(cmd, deps)
+		if err != nil {
+			return nil, err
+		}
+		fetchArgs = []string{"contract", "fetch", "--id", address, "--rpc-url", net.RPCURL, "--network-passphrase", net.Passphrase, "-o", target}
+	} else {
+		fetchArgs = []string{"contract", "fetch", "--id", address, "--network", netName, "-o", target}
+	}
+
+	fetch := exec.CommandContext(ctx, binary, fetchArgs...)
 	if output, err := fetch.CombinedOutput(); err != nil {
 		return nil, fmt.Errorf("%w: stellar contract fetch %s: %v\n%s", exitcode.ErrNetwork, shorten(address, 4, 3), err, strings.TrimSpace(string(output)))
 	}

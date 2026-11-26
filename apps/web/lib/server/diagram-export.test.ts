@@ -1,9 +1,11 @@
 import { xdr } from '@stellar/stellar-sdk';
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
 import { exportContractDiagram, type DiagramExportDeps } from './diagram-export.ts';
 import type { Attribution } from '../contract-attribution.ts';
-import type { SpecJson } from '@signet/spec';
+import { buildEvents, buildSpecViews, type SpecJson } from '@signet/spec';
 
 const address = 'CASFJHI5PQSRWS7JV25CF7FOMRKIVBP3RXRP3E2GH2CV4BCAG7FUJRCN';
 const hash = 'a'.repeat(64);
@@ -120,6 +122,38 @@ test('oversized diagrams are rejected before layout/export', async () => {
   const res = await exportContractDiagram(request(), params, deps);
   assert.equal(res.status, 422);
   assert.equal(res.headers.get('content-disposition'), null);
+});
+
+test('exporting axelar-its returns 200 with one collapsed: node per group', async () => {
+  const fixture = JSON.parse(
+    readFileSync(
+      fileURLToPath(new URL('../../../../packages/visualiser/fixtures/axelar-its.spec.json', import.meta.url)),
+      'utf8',
+    ),
+  );
+  const entries = fixture.entriesXdrBase64.map((b64: string) => xdr.ScSpecEntry.fromXDR(b64, 'base64'));
+  const axelarSpec: SpecJson = {
+    schemaVersion: 1,
+    wasmHash: fixture.wasmHash,
+    sdkVersion: '16.1.0',
+    entriesXdr: fixture.entriesXdrBase64,
+    ...buildSpecViews(entries),
+    events: buildEvents(entries),
+    warnings: [],
+  };
+  const deps = dependencies();
+  deps.loadSpec = async () => ({
+    ok: true,
+    spec: axelarSpec,
+    wasmHash: fixture.wasmHash,
+    source: 'memory',
+  });
+  const res = await exportContractDiagram(request(), params, deps);
+  assert.equal(res.status, 200);
+  const svg = await res.text();
+  assert.match(svg, /interchain_\* \(4\)/);
+  assert.match(svg, /token_\* \(3\)/);
+  assert.match(svg, /other \(26\)/);
 });
 
 // The storage view (#515) exports like the interface diagram.

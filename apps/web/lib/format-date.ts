@@ -17,3 +17,16 @@ export function formatDate(iso: string, options: Intl.DateTimeFormatOptions = {}
     ...options,
   });
 }
+
+const relativeTime = new Intl.RelativeTimeFormat('en-GB');
+
+/** Formats the remaining time in whole days, hours, or minutes. Both inputs are Unix milliseconds. */
+export function formatTimeUntil(expiresAt: number, now: number): string {
+  const minutes = Math.floor((expiresAt - now) / 60_000);
+  if (minutes < 1) return 'in under a minute';
+  if (minutes < 60) return relativeTime.format(minutes, 'minute');
+
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return relativeTime.format(hours, 'hour');
+  return relativeTime.format(Math.floor(hours / 24), 'day');
+}

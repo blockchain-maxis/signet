@@ -134,8 +134,16 @@ func runDoctor(deps Deps) []doctorCheck {
 func checkConfigFile(deps Deps) doctorCheck {
 	c := doctorCheck{Name: "config file"}
 	if deps.ConfigError != nil {
-		c.Status, c.Detail = statusFail, "does not parse: "+redact.Secrets(tildeError(deps.ConfigError))
+		c.Status = statusFail
+		c.Detail = "does not parse: " + redact.Secrets(tildeError(deps.ConfigError))
 		c.Fix = "fix the JSON in the config file, or move it aside to start from defaults"
+		// A context the run named but the file does not define is not a parse
+		// failure: report it as what it is, with the fix that fits.
+		var ctxErr *config.ContextError
+		if errors.As(deps.ConfigError, &ctxErr) {
+			c.Detail = redact.Secrets(ctxErr.Msg)
+			c.Fix = "signet context list, then pass --context with one of those names"
+		}
 		return c
 	}
 	path, err := config.Path()

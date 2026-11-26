@@ -94,7 +94,7 @@ jobs:
 
       # The local UI (#579) is embedded into the binary: build it before the
       # cross-compile, or every artifact would serve the placeholder page.
-      - uses: pnpm/action-setup@v6.1.0
+      - uses: pnpm/action-setup@v6.1.1
 
       - name: Build the sandbox UI
         run: |
