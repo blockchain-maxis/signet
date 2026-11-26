@@ -2,12 +2,13 @@ package cmd
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
-	"sync"
 	"testing"
 	"time"
 
@@ -18,31 +19,14 @@ import (
 	"github.com/blockchain-maxis/signet/cli/internal/simulator"
 )
 
-var (
-	watchToolsDir  string
-	watchToolsOnce sync.Once
-)
-
-func devToolsOnce(t *testing.T) string {
-	t.Helper()
-	watchToolsOnce.Do(func() {
-		watchToolsDir = devTools(t)
-	})
-	t.Setenv("PATH", watchToolsDir)
-	return watchToolsDir
-}
-
 type watchHarness struct {
-	e        *callEnv
 	crateDir string
 	libRs    string
-	devDir   string
 	devFile  string
 	setup    devSetup
 	builder  *dev.Builder
 	session  *devSession
 	events   <-chan devui.Event
-	cancelEv func()
 	progress chan string
 }
 
@@ -152,16 +136,13 @@ func newWatchHarness(t *testing.T) *watchHarness {
 	progressCh := make(chan string, 200)
 
 	return &watchHarness{
-		e:        e,
 		crateDir: crateDir,
 		libRs:    libRs,
-		devDir:   devDir,
 		devFile:  devFile,
 		setup:    setup,
 		builder:  builder,
 		session:  session,
 		events:   eventsCh,
-		cancelEv: cancelEv,
 		progress: progressCh,
 	}
 }
@@ -287,13 +268,27 @@ func TestDevWatch_TwoSavesSuperseded(t *testing.T) {
 	waitProgress(t, h.progress, 15*time.Second, "watching")
 	drainEvents(h.events)
 
+	h.session.mu.Lock()
+	cyclesBefore := len(h.session.cycles)
+	h.session.mu.Unlock()
+
 	// Save 1 starts a slow build
 	touchFile(t, h.libRs, "// save 1 slow\n")
 	waitEvent(t, h.events, 15*time.Second, "build.started")
 	waitFile(t, slowStarted, 15*time.Second)
 
-	// Next build should succeed immediately
+	// The next build succeeds immediately, with different code, so the
+	// replay can be traced to it.
 	t.Setenv("FAKESTELLAR_BUILD", "")
+	root, _ := filepath.Abs(filepath.Join("..", "..", ".."))
+	newerWasm := filepath.Join(root, "sandbox", "fixtures", "wasm", "counter_v2_return.wasm")
+	t.Setenv("FAKESTELLAR_BUILD_WASM", newerWasm)
+	newerRaw, err := os.ReadFile(newerWasm)
+	if err != nil {
+		t.Fatal(err)
+	}
+	newerSum := sha256.Sum256(newerRaw)
+	newerHash := hex.EncodeToString(newerSum[:])
 
 	// Save 2 arrives while save 1 is in-flight, superseding it
 	touchFile(t, filepath.Join(h.crateDir, "Cargo.toml"), "[package]\nname = \"counter\"\nversion = \"0.1.0\"\nedition = \"2021\"\n# save 2\n\n[lib]\ncrate-type = [\"cdylib\"]\n")
@@ -301,13 +296,29 @@ func TestDevWatch_TwoSavesSuperseded(t *testing.T) {
 	waitEvent(t, h.events, 15*time.Second, "build.started")
 	waitEvent(t, h.events, 15*time.Second, "cycle.completed")
 
-	// Ensure no extra cycle.completed was emitted (only 1 replay occurred)
-	select {
-	case ev := <-h.events:
-		if ev.Type == "cycle.completed" {
-			t.Fatal("unexpected second cycle.completed from superseded build")
+	// The replay ran on the newer build, not the superseded one.
+	h.session.mu.Lock()
+	cycles := append([]storedCycle(nil), h.session.cycles...)
+	h.session.mu.Unlock()
+	if len(cycles) != cyclesBefore+1 {
+		t.Fatalf("expected exactly one new cycle, got %d", len(cycles)-cyclesBefore)
+	}
+	if got := cycles[len(cycles)-1].Cycle.Local; got != newerHash {
+		t.Fatalf("replay ran on build %s, want the newer build %s", got, newerHash)
+	}
+
+	// No second cycle.completed arrives from the superseded build: wait a
+	// little for a stray one rather than only checking what is queued.
+	stray := time.After(500 * time.Millisecond)
+	for waiting := true; waiting; {
+		select {
+		case ev := <-h.events:
+			if ev.Type == "cycle.completed" {
+				t.Fatal("unexpected second cycle.completed from superseded build")
+			}
+		case <-stray:
+			waiting = false
 		}
-	default:
 	}
 
 	cancel()
