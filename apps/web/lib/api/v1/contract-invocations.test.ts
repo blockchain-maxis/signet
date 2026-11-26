@@ -3,6 +3,7 @@ import test from 'node:test';
 import { StrKey } from '@stellar/stellar-sdk';
 import { contractInvocationsHandler, INVOCATIONS_CACHE_CONTROL } from './contract-invocations.ts';
 import { NOT_ATTRIBUTED_MESSAGE } from './profile-contract.ts';
+import { encodeCursor } from './http.ts';
 import { expectMatchesSchema } from './test-utils.ts';
 
 const WALLET = 'GCQZFJACBU5UII4ZDTFVVE3EPSGPOZYHMY2THOYJ57WYX6D2AQNEQINU';
@@ -199,4 +200,69 @@ test('without database returns data: [] and meta.source: "none"', async () => {
   } finally {
     if (orig !== undefined) process.env.DATABASE_URL = orig;
   }
+});
+
+test('a newer invocation inserted between page 1 and page 2 neither shifts nor repeats a page', async () => {
+  const rows = [...mockInvocations];
+  const deps = { prisma: makeDb(rows), attribute: mockAttribute };
+
+  const res1 = await get('alice', CONTRACT, 'limit=2', deps);
+  assert.equal(res1.status, 200);
+  const page1 = await res1.json();
+  assert.deepEqual(
+    page1.data.map((inv: any) => inv.function),
+    ['swap', 'deposit'],
+  );
+  assert.ok(page1.meta.nextCursor);
+
+  // A newer invocation is indexed while the client pages.
+  rows.unshift({
+    id: 'inv-4',
+    contractId: 'c1',
+    txHash: TX,
+    ledger: 1004,
+    createdAt: new Date('2026-10-04T12:00:00.000Z'),
+    sourceAccount: WALLET,
+    function: 'withdraw',
+    successful: true,
+  });
+
+  const res2 = await get('alice', CONTRACT, `limit=2&cursor=${page1.meta.nextCursor}`, deps);
+  assert.equal(res2.status, 200);
+  const page2 = await res2.json();
+  assert.deepEqual(
+    page2.data.map((inv: any) => inv.function),
+    ['init'],
+  );
+  assert.equal(page2.meta.nextCursor, null);
+});
+
+test('the invocations cursor accepts only a v2 { createdAt, id } cursor; anything else is a 400 on cursor', async () => {
+  const badCursors = [
+    'not base64 at all!',
+    encodeCursor({ offset: 2 }),
+    encodeCursor({ createdAt: '2026-10-02T12:00:00.000Z', id: 'inv-2' }, 1),
+    encodeCursor({ offset: 2 }, 2),
+    encodeCursor({ createdAt: 'nope', id: 'inv-2' }, 2),
+    encodeCursor({ createdAt: '2026-10-02T12:00:00.000Z', id: 2 }, 2),
+    encodeCursor({ createdAt: '2026-10-02T12:00:00.000Z', id: '' }, 2),
+    encodeCursor('a string', 2),
+    encodeCursor(null, 2),
+  ];
+  for (const cursor of badCursors) {
+    const res = await get('alice', CONTRACT, `cursor=${encodeURIComponent(cursor)}`);
+    assert.equal(res.status, 400, `cursor ${cursor}`);
+    const body = await res.clone().json();
+    assert.equal(body.error.code, 'bad_request');
+    assert.equal(body.error.details?.parameter, 'cursor');
+    await expectMatchesSchema(res, 'getContractInvocations', 400);
+  }
+
+  const good = encodeCursor({ createdAt: '2026-10-02T12:00:00.000Z', id: 'inv-2' }, 2);
+  const ok = await get('alice', CONTRACT, `cursor=${good}`);
+  assert.equal(ok.status, 200);
+  assert.deepEqual(
+    (await ok.json()).data.map((inv: any) => inv.function),
+    ['init'],
+  );
 });

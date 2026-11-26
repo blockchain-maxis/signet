@@ -14,5 +14,9 @@
 {"code":"bad_request","detail":{"checkpoint":"cp-0","kind":"unknown_checkpoint"},"id":"rb-zero","message":"unknown checkpoint `cp-0`","type":"error","version":1}
 {"version":1,"id":"rb-missing","type":"ledger_rollback","checkpoint":"cp-99"}
 {"code":"bad_request","detail":{"checkpoint":"cp-99","kind":"unknown_checkpoint"},"id":"rb-missing","message":"unknown checkpoint `cp-99`","type":"error","version":1}
+{"version":1,"id":"delete","type":"ledger_apply","entries":[{"key_xdr":"AAAAB5NplsdLfTg8VuwXSFexWSfN0pR4xpCdozK03si2czX+","entry_xdr":null}]}
+{"applied":1,"id":"delete","type":"result","version":1}
+{"version":1,"id":"get-deleted","type":"ledger_get","keys_xdr":["AAAAB5NplsdLfTg8VuwXSFexWSfN0pR4xpCdozK03si2czX+","AAAABgAAAAEkVJ0dfCUbS+muuiL8rmRUioX7jeL9k0Y+hV4EQDfLRAAAABQAAAAB"]}
+{"entries":[{"deleted":true,"entry_xdr":null,"key_xdr":"AAAAB5NplsdLfTg8VuwXSFexWSfN0pR4xpCdozK03si2czX+","live_until_ledger":null,"provenance":{"lastModifiedLedgerSeq":1,"source":"session"}},{"entry_xdr":null,"key_xdr":"AAAABgAAAAEkVJ0dfCUbS+muuiL8rmRUioX7jeL9k0Y+hV4EQDfLRAAAABQAAAAB","live_until_ledger":null}],"id":"get-deleted","type":"result","version":1}
 {"version":1,"id":"bye","type":"shutdown"}
 {"id":"bye","type":"result","version":1}

@@ -35,7 +35,7 @@ use soroban_simulation::NetworkConfig;
 use super::{
     AuthMode, BudgetOverride, ByteSnapshotSource, DiffRules, DiffSide, DiffWrite, LayoutReplay, EffectiveBudget, BUDGET_CEILING_FACTOR, DecodeTarget, DerivedKey, EntryChangeBytes, ErrorCase, ExternalRef,
     Installed, InstanceInfo, InterfaceVersion, InvocationFailure, KeyRequest, Lane, LaneError,
-    SimulateBytes, SimulateResultBytes, StorageOverride, StorageWrite, Durability, SwapResultBytes, TraceCall, TransactionResources, WasmInspection,
+    SimulateBytes, SimulateResultBytes, SnapshotBytes, SnapshotEntryBytes, StorageOverride, StorageWrite, Durability, SwapResultBytes, TraceCall, TransactionResources, WasmInspection,
 };
 
 
@@ -1234,6 +1234,100 @@ impl Lane for HostLane {
             })
             .collect())
     }
+
+    fn read_snapshot(&self, text: &str) -> Result<SnapshotBytes, String> {
+        let raw: RawLedgerSnapshot = serde_json::from_str(text).map_err(|e| e.to_string())?;
+        let network_id = raw.network_id.to_bytes()?;
+        let items: Vec<(LedgerKey, Box<LedgerEntry>, Option<u32>)> = match raw.ledger_entries {
+            RawLedgerEntries::V2(entries) => entries
+                .into_iter()
+                .map(|ext| (ext.entry.to_key(), ext.entry, ext.live_until))
+                .collect(),
+            RawLedgerEntries::V1(entries) => entries
+                .into_iter()
+                .map(|(k, (e, live_until))| (*k, e, live_until))
+                .collect(),
+        };
+        let mut entries = Vec::with_capacity(items.len());
+        for (key, entry, live_until) in items {
+            let encode = |what: &str, r: Result<Vec<u8>, _>| {
+                r.map_err(|e: soroban_env_host::xdr::Error| format!("{what}: {e}"))
+            };
+            entries.push(SnapshotEntryBytes {
+                key_xdr: encode("key", key.to_xdr(Limits::none()))?,
+                data_xdr: encode("entry", entry.data.to_xdr(Limits::none()))?,
+                ext_xdr: encode("entry ext", entry.ext.to_xdr(Limits::none()))?,
+                last_modified_ledger_seq: entry.last_modified_ledger_seq,
+                live_until,
+            });
+        }
+        Ok(SnapshotBytes {
+            protocol_version: raw.protocol_version,
+            sequence_number: raw.sequence_number,
+            timestamp: raw.timestamp,
+            network_id,
+            base_reserve: raw.base_reserve,
+            min_persistent_entry_ttl: raw.min_persistent_entry_ttl,
+            min_temp_entry_ttl: raw.min_temp_entry_ttl,
+            max_entry_ttl: raw.max_entry_ttl,
+            entries,
+        })
+    }
+}
+
+#[derive(serde::Deserialize)]
+struct RawLedgerSnapshot {
+    protocol_version: u32,
+    sequence_number: u32,
+    timestamp: u64,
+    network_id: RawNetworkId,
+    base_reserve: u32,
+    min_persistent_entry_ttl: u32,
+    min_temp_entry_ttl: u32,
+    max_entry_ttl: u32,
+    ledger_entries: RawLedgerEntries,
+}
+
+#[derive(serde::Deserialize)]
+#[serde(untagged)]
+enum RawNetworkId {
+    Hex(String),
+    Bytes([u8; 32]),
+}
+
+impl RawNetworkId {
+    fn to_bytes(&self) -> Result<[u8; 32], String> {
+        match self {
+            RawNetworkId::Bytes(b) => Ok(*b),
+            RawNetworkId::Hex(s) => {
+                let s = s.trim();
+                if s.len() != 64 {
+                    return Err(format!("network_id must be 64 hex characters, got {}", s.len()));
+                }
+                let mut out = [0u8; 32];
+                for (i, chunk) in s.as_bytes().as_chunks::<2>().0.iter().enumerate() {
+                    let hex_str = std::str::from_utf8(chunk).map_err(|e| e.to_string())?;
+                    out[i] = u8::from_str_radix(hex_str, 16).map_err(|e| e.to_string())?;
+                }
+                Ok(out)
+            }
+        }
+    }
+}
+
+type RawLedgerEntryV1 = (Box<LedgerKey>, (Box<LedgerEntry>, Option<u32>));
+
+#[derive(serde::Deserialize)]
+#[serde(untagged)]
+enum RawLedgerEntries {
+    V2(Vec<RawLedgerEntryExt>),
+    V1(Vec<RawLedgerEntryV1>),
+}
+
+#[derive(serde::Deserialize)]
+struct RawLedgerEntryExt {
+    entry: Box<LedgerEntry>,
+    live_until: Option<u32>,
 }
 
 // ─── XDR helpers (#532) ────────────────────────────────────────────────────────

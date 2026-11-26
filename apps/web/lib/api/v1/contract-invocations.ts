@@ -3,7 +3,7 @@ import {
   encodeCursor,
   ok,
   parseAddress,
-  parseCursor,
+  parseCursorWithVersion,
   parseHandle,
   parseLimit,
   V1Error,
@@ -115,7 +115,9 @@ export async function getV1ContractInvocations(
       orderBy: { capturedAt: 'desc' },
     });
 
-    const countedSince = snapshot?.countedSince ? new Date(snapshot.countedSince).toISOString() : null;
+    const countedSince = snapshot?.countedSince
+      ? new Date(snapshot.countedSince).toISOString()
+      : null;
     const totalIsFloor = Boolean(snapshot?.totalIsFloor);
 
     let walletPubkeys: string[] = [];
@@ -162,7 +164,9 @@ export async function getV1ContractInvocations(
         ? encodeCursor(
             {
               createdAt:
-                last.createdAt instanceof Date ? last.createdAt.toISOString() : new Date(last.createdAt).toISOString(),
+                last.createdAt instanceof Date
+                  ? last.createdAt.toISOString()
+                  : new Date(last.createdAt).toISOString(),
               id: last.id,
             },
             2,
@@ -172,7 +176,10 @@ export async function getV1ContractInvocations(
     const data: V1ContractInvocation[] = pageRows.map((r: any) => ({
       txHash: r.txHash,
       ledger: r.ledger,
-      createdAt: r.createdAt instanceof Date ? r.createdAt.toISOString() : new Date(r.createdAt).toISOString(),
+      createdAt:
+        r.createdAt instanceof Date
+          ? r.createdAt.toISOString()
+          : new Date(r.createdAt).toISOString(),
       sourceAccount: r.sourceAccount,
       function: r.function ?? null,
       successful: Boolean(r.successful),
@@ -202,6 +209,32 @@ export async function getV1ContractInvocations(
   }
 }
 
+/**
+ * Decodes the invocations cursor. Only the version-2 keyset cursor this
+ * endpoint issues, `{ createdAt: ISO string, id: string }`, is accepted;
+ * anything else is a 400 with `details.parameter: "cursor"`.
+ */
+export function parseInvocationsCursor(raw: unknown): { createdAt: string; id: string } | null {
+  const result = parseCursorWithVersion<unknown>(raw, [2]);
+  if (!result) return null;
+  const payload = result.payload as { createdAt?: unknown; id?: unknown } | null;
+  if (
+    typeof payload !== 'object' ||
+    payload === null ||
+    typeof payload.createdAt !== 'string' ||
+    Number.isNaN(Date.parse(payload.createdAt)) ||
+    typeof payload.id !== 'string' ||
+    payload.id.length === 0
+  ) {
+    throw new V1Error(
+      'bad_request',
+      'Invalid cursor: createdAt must be a valid ISO timestamp and id must be a string.',
+      { parameter: 'cursor' },
+    );
+  }
+  return { createdAt: payload.createdAt, id: payload.id };
+}
+
 type Ctx = { params: Promise<{ handle: string; address: string }> };
 
 export function contractInvocationsHandler(deps: V1ContractInvocationsDeps = {}) {
@@ -214,8 +247,9 @@ export function contractInvocationsHandler(deps: V1ContractInvocationsDeps = {})
         const url = new URL(request.url);
         const limit = parseLimit(url.searchParams.get('limit'), 25, 100);
         const rawCursor = url.searchParams.get('cursor');
-        const cursor = parseCursor<{ createdAt: string; id: string }>(rawCursor, [1, 2]);
-        const mine = url.searchParams.get('mine') === 'true' || url.searchParams.get('mine') === '1';
+        const cursor = parseInvocationsCursor(rawCursor);
+        const mine =
+          url.searchParams.get('mine') === 'true' || url.searchParams.get('mine') === '1';
 
         const result = await getV1ContractInvocations(
           handle,

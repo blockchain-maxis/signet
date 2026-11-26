@@ -1,0 +1,6 @@
+$ signet version --json
+-- stdout --
+{"version":"<version>","commit":"abc1234"}
+-- stderr --
+(empty)
+-- exit 0 --

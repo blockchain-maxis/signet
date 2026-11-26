@@ -2,7 +2,8 @@
  * Generate API reference documentation from the tRPC router.
  *
  * Usage:
- *   pnpm run docs:generate
+ *   pnpm run docs:generate          # write docs/api-reference.md
+ *   pnpm run docs:check             # fail if it is stale, without writing
  *
  * Output: docs/api-reference.md
  *
@@ -15,7 +16,7 @@
  * rather than rendering as "Unknown".
  */
 
-import { writeFileSync } from 'fs';
+import { existsSync, readFileSync, writeFileSync } from 'fs';
 import { resolve, dirname } from 'path';
 import { fileURLToPath } from 'url';
 import { appRouter } from '../lib/server/trpc.ts';
@@ -138,6 +139,12 @@ function docForInput(path: string): string {
     'account.unlinkWallet':
       '```ts\n{ wallet: string }\n```\n' +
       'A Stellar public key (`G…`, 56 chars) for a non-primary wallet bound to the signed-in profile. Validated by `walletInput()`.',
+    'account.apiKeys.list': 'None (session cookie carries the identity)',
+    'account.apiKeys.create':
+      '```ts\n{ name: string }\n```\n' +
+      'Required and trimmed; at most 64 characters (`MAX_API_KEY_NAME`). An empty or longer name is `BAD_REQUEST`.',
+    'account.apiKeys.revoke':
+      '```ts\n{ id: string }\n```\n' + 'The id of one of the signed-in account\'s own keys.',
     'registry.resolve':
       '```ts\n{ handle: string }\n```\n' +
       'A well-formed handle: 1–32 chars of `[a-z0-9_-]`. Validated by `handleInput()`.',
@@ -193,6 +200,37 @@ function docForOutput(path: string): string {
       '```ts\nvoid\n```\n' +
       'Resolves to nothing on success. Refuses the primary wallet (unlinking it is a registry operation) ' +
       'and any wallet bound to another profile, which gets the same `Wallet not found` as an unknown key.',
+    'account.apiKeys.list':
+      '```ts\n{\n' +
+      '  id: string;\n' +
+      '  name: string;\n' +
+      '  prefix: string;\n' +
+      '  createdAt: string;\n' +
+      '  lastUsedAt: string | null;\n' +
+      '}[]\n```\n' +
+      'The account\'s active keys, newest first. `prefix` is what the key starts with ' +
+      '(`sgk_ab12cd34_`) so keys can be told apart; the secret itself is never listed. ' +
+      'A wallet with no profile on this deployment gets `PRECONDITION_FAILED`.',
+    'account.apiKeys.create':
+      '```ts\n{\n' +
+      '  key: string;\n' +
+      '  apiKey: {\n' +
+      '    id: string;\n' +
+      '    name: string;\n' +
+      '    prefix: string;\n' +
+      '    createdAt: string;\n' +
+      '    lastUsedAt: string | null;\n' +
+      '  };\n' +
+      '}\n```\n' +
+      '`key` is the full plaintext key (`sgk_<8 chars>_<43 chars>`), returned **once**: ' +
+      'it is never shown or retrievable again, so store it now. `apiKey` is the listed ' +
+      'record, with only the prefix. At most 5 keys are active at a time ' +
+      '(`MAX_ACTIVE_API_KEYS`); creating another is `BAD_REQUEST` until one is revoked. ' +
+      'A wallet with no profile gets `PRECONDITION_FAILED`.',
+    'account.apiKeys.revoke':
+      '```ts\n{ id: string }\n```\n' +
+      'The revoked key\'s id. A key belonging to another profile is `NOT_FOUND`, ' +
+      'the same as an unknown id. A wallet with no profile gets `PRECONDITION_FAILED`.',
     'registry.resolve':
       '```ts\n{ handle: string; wallet: string } | null\n```\n' +
       '`null` when the on-chain directory is unreachable or the handle is unclaimed.',
@@ -273,6 +311,8 @@ function render(procedures: ProcedureMeta[]): string {
 /* ------------------------------------------------------------------ */
 
 function main() {
+  const isCheck = process.argv.includes('--check');
+
   // The appRouter is a TRPCRouter.  Enumerate its keys.
   const router = appRouter as unknown as Record<string, unknown>;
   const procedures = collectProcedures(router, '');
@@ -297,7 +337,30 @@ function main() {
     process.exit(1);
   }
 
-  writeFileSync(OUT, render(documented), 'utf-8');
+  const rendered = render(documented);
+
+  if (isCheck) {
+    if (!existsSync(OUT)) {
+      console.error(
+        `${OUT} does not exist.\nRun 'pnpm run docs:generate' to generate it.`,
+      );
+      process.exit(1);
+    }
+
+    const current = readFileSync(OUT, 'utf-8');
+    if (current !== rendered) {
+      console.error(
+        `docs/api-reference.md is stale against the tRPC router.\n` +
+          'Run `pnpm run docs:generate` to update it.',
+      );
+      process.exit(1);
+    }
+
+    console.log(`docs/api-reference.md is up to date (${documented.length} procedures documented)`);
+    return;
+  }
+
+  writeFileSync(OUT, rendered, 'utf-8');
   console.log(`Wrote ${OUT} (${documented.length} procedures documented)`);
 }
 
