@@ -56,12 +56,12 @@ function fakeWorkers(): { workers: TickWorkers; ran: string[]; cursorSaves: numb
     };
   const workers: TickWorkers = {
     attestation: ok('attestation', { eventsDecoded: 2 }),
-    deployment: ok('deployment', { highestLedger: 5_000, walletsScanned: 3, contractsFound: 1 }),
+    deployment: ok('deployment', { highestLedger: 5_000, walletsScanned: 3, contractsFound: 1, walletsStopped: 0 }),
     activity: ok('activity', { snapshotsWritten: 4 }),
     operations: ok('operations', { opsUpserted: 7 }),
     invocations: ok('invocations', { invocationsUpserted: 6 }),
     executableRefresh: ok('executable-refresh', { wasmChanged: 5 }),
-    prune: ok('prune', { opsPruned: 9, snapshotsPruned: 8, invocationsPruned: 10 }),
+    prune: ok('prune', { opsPruned: 9, snapshotsPruned: 8, invocationsPruned: 10, pairingsPruned: 11 }),
     saveCursor: async (highestLedger) => {
       ran.push('cursor');
       cursorSaves.push(highestLedger);
@@ -75,6 +75,7 @@ const CLEAN_TOTALS = {
   walletsScanned: 3,
   eventsDecoded: 2,
   contractsFound: 1,
+  walletsStopped: 0,
   opsUpserted: 7,
   invocationsUpserted: 6,
   snapshotsWritten: 4,
@@ -82,17 +83,18 @@ const CLEAN_TOTALS = {
   opsPruned: 9,
   snapshotsPruned: 8,
   invocationsPruned: 10,
+  pairingsPruned: 11,
 };
 
 /** The totals a worker contributes, which fall back to zero when it fails. */
 const TOTALS_OF: Record<WorkerName, (keyof typeof CLEAN_TOTALS)[]> = {
   attestation: ['eventsDecoded'],
-  deployment: ['walletsScanned', 'contractsFound'],
+  deployment: ['walletsScanned', 'contractsFound', 'walletsStopped'],
   activity: ['snapshotsWritten'],
   operations: ['opsUpserted'],
   invocations: ['invocationsUpserted'],
   'executable-refresh': ['wasmChanged'],
-  prune: ['opsPruned', 'snapshotsPruned', 'invocationsPruned'],
+  prune: ['opsPruned', 'snapshotsPruned', 'invocationsPruned', 'pairingsPruned'],
 };
 
 const throwing = (message: string) => async (): Promise<never> => {
@@ -239,7 +241,7 @@ test('a failed save of the main cursor is reported without losing the tick', asy
 
 test('the main cursor is not saved when the deployment worker saw no ledger', async () => {
   const { workers, ran, cursorSaves } = fakeWorkers();
-  workers.deployment = async () => ({ highestLedger: 0, walletsScanned: 3, contractsFound: 0 });
+  workers.deployment = async () => ({ highestLedger: 0, walletsScanned: 3, contractsFound: 0, walletsStopped: 0 });
 
   const { result: summary } = await captureLogs(() => runTick(workers));
 
@@ -269,6 +271,7 @@ test('runTick leaves out the invocations and prune workers when they are not pas
     opsPruned: 0,
     snapshotsPruned: 0,
     invocationsPruned: 0,
+    pairingsPruned: 0,
   });
   assert.deepEqual(summary.failedWorkers, []);
 });

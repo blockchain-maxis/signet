@@ -80,7 +80,7 @@ export function calleeNodeId(address: string): string {
  * Bumped on any change to the algorithm or its defaults, so a cache keyed on
  * `wasmHash` (#497) can tell a stale layout from a current one.
  */
-export const LAYOUT_VERSION = 2;
+export const LAYOUT_VERSION = 3;
 
 /**
  * The room every function node keeps at its right end for its read/write
@@ -211,6 +211,8 @@ export interface PositionedNode extends RoutableNode {
   /** A function's calls in the activity range (#518), with the room `heatSlot` kept for it. */
   uses?: number;
   heatSlot?: number;
+  /** Hidden child edge count on a stub node (#490, #950). */
+  hidden?: number;
 }
 
 export interface PositionedEdge extends RoutableEdge {
@@ -604,22 +606,23 @@ export function layoutContractGraph(
   const activity = overlays.activity;
   const maxUses = activity ? Math.max(0, ...Object.values(activity.counts)) : 0;
   const heatSlot = activity ? Math.ceil(textWidth(String(maxUses), HEAT_FONT_PX)) + HEAT_GAP : 0;
-  const sizedNodes: { id: string; name: string; call?: true }[] = [
+  const sizedNodes: { id: string; name: string; label?: string; call?: true }[] = [
     ...graph.nodes,
     ...calls.callees.map((c) => ({ ...c, call: true as const })),
     ...(calls.anchor ? [{ id: CALL_ANCHOR_ID, name: ANCHOR_NAME, call: true as const }] : []),
   ];
   for (const node of sizedNodes) {
+    const rawLabel = node.label ?? node.name;
     const slot = node.id.startsWith('fn:') ? MARK_SLOT + heatSlot : 0;
     const cap = node.call ? callMaxWidth : geo.maxNodeWidth;
-    const fits = Math.ceil(textWidth(node.name, geo.fontSizePx)) + 2 * geo.nodePaddingX + slot;
+    const fits = Math.ceil(textWidth(rawLabel, geo.fontSizePx)) + 2 * geo.nodePaddingX + slot;
     const truncated = fits > cap;
     const label = truncated
       ? truncateLabel(
-          node.name,
+          rawLabel,
           node.call ? callMaxCells : Math.max(1, maxCells - Math.ceil(slot / cell)),
         )
-      : node.name;
+      : rawLabel;
     size.set(node.id, {
       label,
       width: Math.ceil(textWidth(label, geo.fontSizePx)) + 2 * geo.nodePaddingX + slot,
@@ -735,6 +738,7 @@ export function layoutContractGraph(
       column: columnOf.get(node.id)!,
     };
     if (node.kind === 'type') positioned.typeKind = node.typeKind;
+    if (node.kind === 'stub') positioned.hidden = node.hidden;
     if (node.kind === 'function' && node.collapsed) {
       positioned.collapsed = { group: node.collapsed.group, members: [...node.collapsed.members] };
     }

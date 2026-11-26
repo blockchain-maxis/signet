@@ -100,14 +100,33 @@ cargo test --manifest-path packages/contracts/Cargo.toml
 
 ## 4. Deploy with `infra/deploy-contract.sh`
 
-The script builds (again), optimizes when possible, deploys, and calls
-`initialize(admin)`.
+The script builds (again), optimizes, deploys the optimized file, calls
+`initialize(admin)`, then fetches the deployed code back and checks its sha256.
 
 ```bash
 chmod +x infra/deploy-contract.sh
 
 STELLAR_ACCOUNT=deployer NETWORK=testnet ./infra/deploy-contract.sh
 ```
+
+| Variable | Default | Notes |
+| --- | --- | --- |
+| `STELLAR_ACCOUNT` | `deployer` | stellar CLI identity that signs the deploy |
+| `NETWORK` | `testnet` | selects the two defaults below; not passed to the CLI |
+| `RPC_URL` | testnet: `https://soroban-testnet.stellar.org` | required for mainnet (no public host) and any other network |
+| `NETWORK_PASSPHRASE` | testnet / mainnet passphrase | required for any other network |
+| `ADMIN_ADDRESS` | the deployer's address | must be the deployer: `initialize` needs its signature |
+
+Every network call (`deploy`, `invoke`, `fetch`) passes `--rpc-url` and
+`--network-passphrase` explicitly. The script never uses the `--network`
+alias, which fails on stellar CLI 25.2.0
+([Troubleshooting §1](./TROUBLESHOOTING.md#1-rpc-url-is-used-but-network-passphrase-is-missing)).
+
+`stellar contract optimize` writes a separate file and leaves the original
+alone. The script names that output
+(`target/wasm32v1-none/release/identity_registry.optimized.wasm`) with
+`--wasm-out` and deploys it. If the optimize step fails, or the CLI has no such
+subcommand, the script stops before deploying anything.
 
 Override the admin (defaults to the deployer address):
 
@@ -118,16 +137,30 @@ NETWORK=testnet \
 ./infra/deploy-contract.sh
 ```
 
-### Capture the contract id
+### Capture the contract id and wasm hash
 
 On success the script prints:
 
 ```text
-NEXT_PUBLIC_IDENTITY_REGISTRY_ID=C…
-INDEXER_REGISTRY_CONTRACT_ID=C…
+   wasm sha256: <64 hex chars>
+   NEXT_PUBLIC_IDENTITY_REGISTRY_ID=C…
+   INDEXER_REGISTRY_CONTRACT_ID=C…
 ```
 
 Save the `C…` value. You will set both env vars (web + indexer) to that id.
+Record the sha256 too: it is the hash
+[`CONTRACT_MIGRATION.md`](./CONTRACT_MIGRATION.md) says to publish. Before
+printing it, the script runs `stellar contract fetch --id` and exits non-zero if
+the code on-chain hashes differently.
+
+### If `initialize` fails
+
+The contract is then deployed but has no admin, and whoever calls `initialize`
+first takes it. The script exits non-zero, prints a
+`DEPLOYED BUT NOT INITIALIZED` banner with the contract id, and prints the exact
+`stellar contract invoke … -- initialize --admin …` command to retry. Run that
+command straight away. If someone else got there first, drop that contract id
+and deploy again.
 
 **Reference testnet deployment** (maintainer-operated, 2026-07-09, admin alias
 `signet`):
@@ -143,19 +176,21 @@ than your own.
 
 ## 5. Manual deploy + `initialize` (script alternative)
 
-If the script is unavailable or the CLI network alias is broken:
+If you can't run the script, these are the same steps by hand:
 
 ```bash
 WASM=packages/contracts/target/wasm32v1-none/release/identity_registry.wasm
+WASM_OPT=packages/contracts/target/wasm32v1-none/release/identity_registry.optimized.wasm
 ACCOUNT=deployer
 RPC=https://soroban-testnet.stellar.org
 PASS="Test SDF Network ; September 2015"
 
-# Optimize when the subcommand exists (ignore failure)
-stellar contract optimize --wasm "$WASM" || true
+# optimize writes a separate file. Deploy that file, not $WASM.
+stellar contract optimize --wasm "$WASM" --wasm-out "$WASM_OPT"
+sha256sum "$WASM_OPT"   # record this hash
 
 CONTRACT_ID="$(stellar contract deploy \
-  --wasm "$WASM" \
+  --wasm "$WASM_OPT" \
   --source "$ACCOUNT" \
   --rpc-url "$RPC" \
   --network-passphrase "$PASS")"
@@ -181,6 +216,14 @@ stellar contract invoke \
   --network-passphrase "$PASS" \
   -- count
 # → 0 on a fresh registry
+```
+
+Check that the code on-chain is the file you built (the two hashes must match):
+
+```bash
+stellar contract fetch --id "$CONTRACT_ID" --out-file onchain.wasm \
+  --rpc-url "$RPC" --network-passphrase "$PASS"
+sha256sum onchain.wasm "$WASM_OPT"
 ```
 
 ---
@@ -349,7 +392,7 @@ stellar contract invoke \
 ## 10. Going to mainnet
 
 Everything above targets **testnet**. `infra/deploy-contract.sh` is
-network-agnostic, so `NETWORK=mainnet ./infra/deploy-contract.sh` works
+network-agnostic, so `NETWORK=mainnet RPC_URL=… ./infra/deploy-contract.sh` works
 mechanically — but mainnet moves **real value and real reputation**, and the
 Identity Registry is immutable, so clear these gates first.
 
@@ -385,27 +428,45 @@ The indexer equivalents (`INDEXER_NETWORK=mainnet`, `INDEXER_RPC_URL`,
 ### 10b. Deploy to mainnet
 
 The deploy key must be a **real, funded** account — mainnet has no Friendbot, so
-buy and transfer XLM to cover the deploy + `initialize` fees. Then:
+buy and transfer XLM to cover the deploy + `initialize` fees. Mainnet has no
+public Soroban RPC, so the script refuses to run without `RPC_URL`. The mainnet
+passphrase is filled in for you:
 
 ```bash
-STELLAR_ACCOUNT=deployer NETWORK=mainnet ./infra/deploy-contract.sh
+RPC_URL=https://your-mainnet-rpc-provider.example \
+STELLAR_ACCOUNT=deployer \
+NETWORK=mainnet \
+./infra/deploy-contract.sh
 ```
+
+Keep the printed `wasm sha256` with the contract id. It is checked against the
+on-chain code before the script reports success. If `initialize` fails, follow
+[If `initialize` fails](#if-initialize-fails) immediately, because on mainnet
+the race is for a registry holding real bindings.
 
 Manual variant (mirrors section 5 with the mainnet RPC + passphrase):
 
 ```bash
 WASM=packages/contracts/target/wasm32v1-none/release/identity_registry.wasm
+WASM_OPT=packages/contracts/target/wasm32v1-none/release/identity_registry.optimized.wasm
 ACCOUNT=deployer
 RPC=https://your-mainnet-rpc-provider.example   # your paid provider — no public host
 PASS="Public Global Stellar Network ; September 2015"
 
+stellar contract optimize --wasm "$WASM" --wasm-out "$WASM_OPT"
+sha256sum "$WASM_OPT"
+
 CONTRACT_ID="$(stellar contract deploy \
-  --wasm "$WASM" --source "$ACCOUNT" \
+  --wasm "$WASM_OPT" --source "$ACCOUNT" \
   --rpc-url "$RPC" --network-passphrase "$PASS")"
 
 stellar contract invoke --id "$CONTRACT_ID" --source "$ACCOUNT" \
   --rpc-url "$RPC" --network-passphrase "$PASS" \
   -- initialize --admin "$(stellar keys address "$ACCOUNT")"
+
+stellar contract fetch --id "$CONTRACT_ID" --out-file onchain.wasm \
+  --rpc-url "$RPC" --network-passphrase "$PASS"
+sha256sum onchain.wasm "$WASM_OPT"   # must match
 ```
 
 ### 10c. Rotate the admin to a multisig

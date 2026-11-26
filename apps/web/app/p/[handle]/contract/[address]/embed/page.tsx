@@ -6,7 +6,7 @@ export const dynamic = 'force-dynamic';
 
 export interface EmbedPageProps {
   params: Promise<{ handle: string; address: string }>;
-  searchParams: Promise<{ theme?: string; expand?: string; q?: string }>;
+  searchParams: Promise<{ theme?: string; expand?: string; q?: string; types?: string }>;
 }
 
 /**
@@ -17,7 +17,7 @@ export interface EmbedPageProps {
  */
 export default async function ContractEmbedPage({ params, searchParams }: EmbedPageProps) {
   const { handle, address } = await params;
-  const { theme, expand, q } = (await searchParams) ?? {};
+  const { theme, expand, q, types } = (await searchParams) ?? {};
 
   // Same 404 rule as the contract page
   const attribution = await attributeContract(handle, address);
@@ -52,6 +52,7 @@ export default async function ContractEmbedPage({ params, searchParams }: EmbedP
           theme={theme}
           expand={typeof expand === 'string' ? expand : undefined}
           query={typeof q === 'string' ? q : undefined}
+          types={typeof types === 'string' ? types : undefined}
         />
       </div>
 

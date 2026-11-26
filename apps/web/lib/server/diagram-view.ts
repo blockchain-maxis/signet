@@ -11,20 +11,17 @@
 
 import { fromSpecJson, type ContractSpec, type SpecJson } from '@signet/spec';
 import {
-  buildContractGraph,
+  ACTIVITY_RANGES,
   buildDiagramOutline,
   callersOnly,
-  canonicalExpand,
+  canonicalExpandTypes,
   CALLEES_MORE_ID,
-  collapseGroups,
-  diagramDecision,
-  functionGroupsOf,
   layoutContractGraph,
+  prepareDiagram,
   renderDiagramSvg,
   renderOutlineHtml,
   typeAnchor,
   withMarks,
-  COLLAPSE_THRESHOLD,
   LAYOUT_VERSION,
   type ActivityOverlay,
   type ActivityRange,
@@ -60,6 +57,8 @@ export interface DiagramViewInput {
   readonly embed?: boolean;
   /** Theme passed through in embed mode (#949). */
   readonly theme?: string;
+  /** The raw `?types=` list; checked against the spec's defined type names (#950). */
+  readonly types?: string | null;
 }
 
 export interface DiagramView {
@@ -72,6 +71,8 @@ export interface DiagramView {
   readonly writesOnly: boolean;
   /** Groups drawn expanded, canonical (sorted, known names only). */
   readonly expanded: readonly string[];
+  /** Types drawn expanded past depth 1, canonical (sorted, known names only). */
+  readonly expandedTypes?: readonly string[];
   /** Whether this contract has enough functions for its groups to collapse. */
   readonly collapsible: boolean;
   readonly totalFunctions: number;
@@ -123,12 +124,32 @@ export function diagramPath(handle: string, address: string, embed?: boolean): s
 export function diagramStateHref(
   input: Pick<
     DiagramViewInput,
-    'handle' | 'address' | 'query' | 'writesOnly' | 'expandCallees' | 'range' | 'rankByFrequency' | 'embed' | 'theme'
+    | 'handle'
+    | 'address'
+    | 'query'
+    | 'writesOnly'
+    | 'expandCallees'
+    | 'range'
+    | 'rankByFrequency'
+    | 'types'
+    | 'embed'
+    | 'theme'
   >,
   expand: readonly string[],
+  types?: readonly string[],
 ): string {
   const params = new URLSearchParams();
   if (expand.length) params.set('expand', [...expand].sort().join(','));
+  const typesToUse =
+    types !== undefined
+      ? types
+      : input.types
+        ? typeof input.types === 'string'
+          ? input.types.split(',')
+          : input.types
+        : [];
+  const cleanTypes = [...new Set(typesToUse.map((t) => t.trim()).filter(Boolean))].sort();
+  if (cleanTypes.length) params.set('types', cleanTypes.join(','));
   if (input.query) params.set('q', input.query);
   if (input.writesOnly) params.set('writes', '1');
   if (input.expandCallees) params.set('callees', 'all');
@@ -137,6 +158,36 @@ export function diagramStateHref(
   if (input.embed && input.theme) params.set('theme', input.theme);
   const query = params.toString();
   return `${diagramPath(input.handle, input.address, input.embed)}${query ? `?${query}` : ''}`;
+}
+
+/**
+ * The Activity panel's range links and its order toggle (#518), on the state
+ * the diagram is drawn in: its expanded groups and types, and, in embed mode,
+ * the embed path and theme, so a click inside a frame stays on `…/embed` (#949).
+ */
+export function activityLinks(
+  input: Pick<
+    DiagramViewInput,
+    | 'handle'
+    | 'address'
+    | 'query'
+    | 'writesOnly'
+    | 'expandCallees'
+    | 'range'
+    | 'rankByFrequency'
+    | 'embed'
+    | 'theme'
+  >,
+  expand: readonly string[],
+  types: readonly string[],
+): { ranges: { range: ActivityRange; href: string }[]; order: string } {
+  return {
+    ranges: ACTIVITY_RANGES.map((range) => ({
+      range,
+      href: diagramStateHref({ ...input, range }, expand, types),
+    })),
+    order: diagramStateHref({ ...input, rankByFrequency: !input.rankByFrequency }, expand, types),
+  };
 }
 
 /** Spec-only layouts by (wasmHash, layoutVersion, expanded groups): one entry per state. */
@@ -163,15 +214,16 @@ function cachedLayout(key: string, compute: () => PositionedDiagramModel): Posit
 /** Draws the Diagram tab's diagram for one URL state. */
 export function drawContractDiagram(input: DiagramViewInput): DiagramView {
   const spec = specForGraph(input.spec, input.address, input.network);
-  const full = buildContractGraph(spec);
-  const expanded = canonicalExpand(input.expand ?? null, full);
-  const graph = collapseGroups(full, { expand: expanded });
-  const collapsible =
-    full.nodes.filter((n) => n.kind === 'function').length > COLLAPSE_THRESHOLD &&
-    functionGroupsOf(full).some((g) => g.functions.length > 1);
-  const stateKey = `${input.spec.wasmHash}:${LAYOUT_VERSION}:${expanded.join(',')}`;
-  const specModel = cachedLayout(stateKey, () => layoutContractGraph(graph));
-  const decision = diagramDecision(graph, specModel);
+  const expandedTypes = canonicalExpandTypes(input.types ?? null, spec.types);
+  const prepared = prepareDiagram(spec, {
+    expand: input.expand,
+    expandTypes: expandedTypes,
+    layout: (graph, expanded) => {
+      const stateKey = `${input.spec.wasmHash}:${LAYOUT_VERSION}:${expanded.join(',')}:${expandedTypes.join(',')}`;
+      return cachedLayout(stateKey, () => layoutContractGraph(graph));
+    },
+  });
+  const { full, graph, model: specModel, decision, expanded, collapsible } = prepared;
 
   // The call graph (#543) rides on the spec diagram; when the interface is not
   // worth drawing, the calls are drawn alone, from the functions that made them.
@@ -201,9 +253,14 @@ export function drawContractDiagram(input: DiagramViewInput): DiagramView {
   const basePath = `/p/${encodeURIComponent(input.handle)}/contract/${encodeURIComponent(input.address)}`;
   const hrefForNode = (nodeId: string) => {
     const node = model.nodes.find((n) => n.id === nodeId);
-    if (node?.collapsed) return diagramStateHref(input, [...expanded, node.collapsed.group]);
+    if (node?.collapsed)
+      return diagramStateHref(input, [...expanded, node.collapsed.group], expandedTypes);
     if (node?.kind === 'function') return `${basePath}/functions#fn-${node.name}`;
-    if (node?.kind === 'type') return `${basePath}/types#${typeAnchor(node.name)}`;
+    if (node?.kind === 'stub' && (node.hidden ?? 0) > 0) {
+      return diagramStateHref(input, expanded, [...expandedTypes, node.name]);
+    }
+    if (node?.kind === 'type' || node?.kind === 'stub')
+      return `${basePath}/types#${typeAnchor(node.name)}`;
     if (node?.kind === 'callee' && node.address)
       return calls?.labels.get(node.address)?.href ?? null;
     if (node?.id === CALLEES_MORE_ID) {
@@ -218,7 +275,9 @@ export function drawContractDiagram(input: DiagramViewInput): DiagramView {
   const targetForNode = input.embed
     ? (nodeId: string) => {
         const node = model.nodes.find((n) => n.id === nodeId);
+        // Links that change the diagram's state stay in the frame, on the embed path.
         if (node?.collapsed) return null;
+        if (node?.kind === 'stub' && (node.hidden ?? 0) > 0) return null;
         if (node?.id === CALLEES_MORE_ID) return null;
         return '_blank';
       }
@@ -249,12 +308,37 @@ export function drawContractDiagram(input: DiagramViewInput): DiagramView {
   const outlineHtml = renderOutlineHtml(outline, hrefForNode, targetForNode);
 
   const cleanQuery = input.query?.trim().toLowerCase();
-  const isFunction = (n: PositionedDiagramModel['nodes'][number]) => n.id.startsWith('fn:');
-  const matches = (n: PositionedDiagramModel['nodes'][number]) =>
-    !cleanQuery || n.id.toLowerCase().includes(cleanQuery) || n.label.toLowerCase().includes(cleanQuery);
-  const totalFunctions = model.nodes.filter(isFunction).length;
-  const matchingFunctions = model.nodes.filter((n) => isFunction(n) && matches(n)).length;
-  const totalMatches = model.nodes.filter(matches).length;
+  let totalFunctions = 0;
+  let matchingFunctions = 0;
+  let totalMatches = 0;
+
+  for (const n of model.nodes) {
+    const isFunction = n.id.startsWith('fn:');
+    const members = n.collapsed?.members;
+    if (isFunction) totalFunctions += 1;
+    else if (members) totalFunctions += members.length;
+
+    if (!cleanQuery) {
+      totalMatches += 1;
+      if (isFunction) matchingFunctions += 1;
+      else if (members) matchingFunctions += members.length;
+      continue;
+    }
+
+    const matchedMembers = members
+      ? members.filter((m) => m.toLowerCase().includes(cleanQuery))
+      : [];
+    const isMatch =
+      n.id.toLowerCase().includes(cleanQuery) ||
+      n.label.toLowerCase().includes(cleanQuery) ||
+      matchedMembers.length > 0;
+
+    if (isMatch) {
+      totalMatches += 1;
+      if (isFunction) matchingFunctions += 1;
+      else if (members) matchingFunctions += matchedMembers.length;
+    }
+  }
 
   let regionHtml = '';
   if (decision.kind === 'draw' || callsAlone) {
@@ -273,7 +357,13 @@ export function drawContractDiagram(input: DiagramViewInput): DiagramView {
     const collapseLinks = expanded
       .map(
         (group) =>
-          `<a href="${escapeHtml(diagramStateHref(input, expanded.filter((g) => g !== group)))}" data-group-toggle="${escapeHtml(group)}" class="rounded border border-[#2b2721] px-2 py-1 text-[#f5f4ee] hover:border-[#e05a4b] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#e05a4b]">Collapse ${escapeHtml(group)}</a>`,
+          `<a href="${escapeHtml(
+            diagramStateHref(
+              input,
+              expanded.filter((g) => g !== group),
+              expandedTypes,
+            ),
+          )}" data-group-toggle="${escapeHtml(group)}" class="rounded border border-[#2b2721] px-2 py-1 text-[#f5f4ee] hover:border-[#e05a4b] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#e05a4b]">Collapse ${escapeHtml(group)}</a>`,
       )
       .join('');
     const controls = collapsible
@@ -294,6 +384,7 @@ export function drawContractDiagram(input: DiagramViewInput): DiagramView {
     hasWrites,
     writesOnly,
     expanded,
+    expandedTypes,
     collapsible,
     totalFunctions,
     matchingFunctions,

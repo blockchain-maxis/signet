@@ -1,8 +1,15 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import type { SpecJson } from '@signet/spec';
+import { toSpecJson, type SpecJson } from '@signet/spec';
+import { loadFixture } from '../../../../packages/visualiser/src/load-fixture.ts';
 import { aggregateActivity } from '@signet/visualiser';
-import { drawContractDiagram, __resetDiagramViewCache, type DiagramViewInput } from './diagram-view.ts';
+import {
+  activityLinks,
+  diagramStateHref,
+  drawContractDiagram,
+  __resetDiagramViewCache,
+  type DiagramViewInput,
+} from './diagram-view.ts';
 import { exportDiagramFragment, type DiagramFragmentDeps } from './diagram-fragment.ts';
 import type { Attribution } from '../contract-attribution.ts';
 
@@ -76,6 +83,32 @@ test('permuted expand lists draw the same state; unknown names are never echoed'
   const hostile = drawContractDiagram(input({ expand: '<script>alert(1)</script>' }));
   assert.equal(hostile.regionHtml, drawContractDiagram(input()).regionHtml);
   assert.doesNotMatch(hostile.regionHtml, /<script/);
+});
+
+test('?types=<unknown> is dropped and never echoed', () => {
+  const hostile = drawContractDiagram(input({ types: '<script>alert(1)</script>,UnknownType' }));
+  assert.equal(hostile.regionHtml, drawContractDiagram(input()).regionHtml);
+  assert.doesNotMatch(hostile.regionHtml, /<script/);
+  assert.doesNotMatch(hostile.regionHtml, /UnknownType/);
+  assert.deepEqual(hostile.expandedTypes, []);
+});
+
+test('state links keep the expanded types, as the activity range and order links pass them', () => {
+  const state = { handle: 'alice', address, range: '30d' as const, rankByFrequency: true };
+  const href = new URL(diagramStateHref(state, ['pool'], ['Pool', 'Config']), 'https://x.test');
+  assert.equal(href.searchParams.get('types'), 'Config,Pool');
+  assert.equal(href.searchParams.get('expand'), 'pool');
+  assert.equal(href.searchParams.get('range'), '30d');
+  assert.equal(href.searchParams.get('order'), 'use');
+});
+
+test('on axelar-its, query deploy reports matching functions and totalFunctions === 49', () => {
+  const axelarSpec = toSpecJson(loadFixture('axelar-its'));
+  const view = drawContractDiagram(input({ spec: axelarSpec, query: 'deploy' }));
+  assert.equal(view.totalFunctions, 49);
+  assert.equal(view.matchingFunctions, 4);
+  const deployPrefix = drawContractDiagram(input({ spec: axelarSpec, query: 'deploy_' }));
+  assert.equal(deployPrefix.matchingFunctions, 3);
 });
 
 test('a contract below the threshold has no group controls', () => {
@@ -169,4 +202,41 @@ test('in embed mode every href starts with the embed path or carries target="_bl
     }
   }
   assert.ok(count > 0, 'must have checked at least one anchor tag');
+});
+
+test('in embed mode the activity range and order links stay on the embed path with the theme', () => {
+  const embedPath = `/p/alice/contract/${address}/embed`;
+  const state = {
+    handle: 'alice',
+    address,
+    query: 'pool',
+    range: '7d' as const,
+    rankByFrequency: false,
+    embed: true,
+    theme: 'dark',
+  };
+  const links = activityLinks(state, ['pool'], ['Pool']);
+  const hrefs = [...links.ranges.map((r) => r.href), links.order];
+  assert.equal(links.ranges.length, 3);
+  for (const href of hrefs) {
+    assert.ok(href.startsWith(`${embedPath}?`), `${href} leaves the embed`);
+    const params = new URL(href, 'https://x.test').searchParams;
+    assert.equal(params.get('theme'), 'dark', `${href} drops the theme`);
+    assert.equal(params.get('expand'), 'pool');
+    assert.equal(params.get('types'), 'Pool');
+    assert.equal(params.get('q'), 'pool');
+  }
+  assert.deepEqual(
+    links.ranges.map((r) => new URL(r.href, 'https://x.test').searchParams.get('range')),
+    ['24h', null, '30d'],
+  );
+  assert.equal(new URL(links.order, 'https://x.test').searchParams.get('order'), 'use');
+
+  // Outside an embed the same links go to the Diagram tab and carry no theme.
+  for (const href of [
+    ...activityLinks({ ...state, embed: false }, [], []).ranges.map((r) => r.href),
+  ]) {
+    assert.ok(href.startsWith(`/p/alice/contract/${address}/diagram`), href);
+    assert.doesNotMatch(href, /theme=/);
+  }
 });

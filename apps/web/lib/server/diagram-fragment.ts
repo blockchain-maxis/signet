@@ -47,7 +47,10 @@ export async function exportDiagramFragment(
   if (!spec.ok) return new Response('Contract interface unavailable', { status: 503, headers });
   const requestUrl = new URL(request.url);
   const query = requestUrl.searchParams;
-  const isEmbed = requestUrl.pathname.includes('/embed/fragment') || query.get('embed') === '1' || query.get('embed') === 'true';
+  const isEmbed =
+    requestUrl.pathname.includes('/embed/fragment') ||
+    query.get('embed') === '1' ||
+    query.get('embed') === 'true';
   const theme = query.get('theme') ?? undefined;
   const range = parseActivityRange(query.get('range'));
   const [calls, mutability, activity] = await Promise.all([
@@ -72,6 +75,7 @@ export async function exportDiagramFragment(
     rankByFrequency: query.get('order') === 'use',
     embed: isEmbed,
     theme,
+    types: query.get('types'),
   });
   if (!view.regionHtml) return new Response('No diagram drawn', { status: 409, headers });
   return new Response(view.regionHtml, {

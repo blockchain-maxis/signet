@@ -67,12 +67,12 @@ function contractCreationMetaXdr(address: string): string {
  * One `invoke_host_function` operation, deploying a contract. Both workers read
  * the same operation — that is what a real deployment looks like to them — so
  * one stub serves both: `operations` stores it as profile activity, `deployment`
- * recognises `HostFunctionTypeCreateContract` and records the contract.
+ * recognises `HostFunctionTypeHostFunctionTypeCreateContract` and records the contract.
  */
 const deployOp = {
   id: OP_ID,
   type: 'invoke_host_function',
-  function: 'HostFunctionTypeCreateContract',
+  function: 'HostFunctionTypeHostFunctionTypeCreateContract',
   source_account: deployer,
   created_at: CREATED_AT,
   transaction_hash: TX_HASH,

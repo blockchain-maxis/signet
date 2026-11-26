@@ -43,6 +43,24 @@
     "fetchedAt": "2026-09-29T00:00:00Z",
     "covers": "two contracterror enums"
   },
+  "upgrade_v1": {
+    "file": "upgrade_v1.wasm",
+    "sourceContract": "local-build:fixture-contracts/upgrade_v1",
+    "network": "local",
+    "wasmHash": "fae2e5841cfb520ecbae4e993ad2717894f886c772e14da473062301ca661576",
+    "bytes": 1508,
+    "fetchedAt": "2026-11-22T00:00:00Z",
+    "covers": "baseline for a two-version contract upgrade"
+  },
+  "upgrade_v2": {
+    "file": "upgrade_v2.wasm",
+    "sourceContract": "local-build:fixture-contracts/upgrade_v2",
+    "network": "local",
+    "wasmHash": "256dce26aa51d0fbec8ca369185cff704de914f8a6ecbf48ef669602384f96f8",
+    "bytes": 2158,
+    "fetchedAt": "2026-11-22T00:00:00Z",
+    "covers": "function addition and argument retype, struct field and enum variant additions, an error case, new event and topic move, and a function doc edit"
+  },
   "no_spec": {
     "file": "no_spec.wasm",
     "sourceContract": "local-build:fixture-contracts/no_spec",

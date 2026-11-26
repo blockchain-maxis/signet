@@ -23,6 +23,4 @@ mod diff;
 #[path = "../layout_impl.rs"]
 mod layout;
 
-pub mod snapshot;
-
 include!("../host_lane.rs");

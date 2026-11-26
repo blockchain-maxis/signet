@@ -33,4 +33,6 @@ export interface ContractSlotProps {
   embed?: boolean;
   /** Embed theme (?theme=, #949). */
   theme?: string;
+  /** Types drawn expanded past depth 1 (?types=, #950), raw. */
+  types?: string;
 }

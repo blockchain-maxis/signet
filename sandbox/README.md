@@ -40,6 +40,13 @@ stdout (docs/CLI_RUST_BRIDGE.md §1-§3):
 echo '{"version":1,"id":"hello","type":"hello","client_protocol_version":1}'   | sandbox/target/release/signet-simulator
 ```
 
+Started with no arguments and no input the binary waits for a message, which
+looks like a hang. `signet-simulator --help` (or `-h`) says what it is, shows
+the line above, and lists `--version` and the two environment variables that
+change its behaviour, `SIGNET_SIMULATOR_LOG` and
+`SIGNET_SIMULATOR_MEMORY_LIMIT`, with their defaults. Any other argument is
+refused with exit code 2.
+
 ## Build and test
 
 Run from the repo root (or `cd sandbox` and drop `--manifest-path`):
@@ -122,6 +129,10 @@ build from a source tarball).
   A production host only runs at its own protocol, so the binary carries the
   current protocol (29, both public networks since October 2026) and the
   previous one (28). Bump a lane's pins together, deliberately.
+- Each lane also pins `soroban-env-common` (`soroban-env-common-p28` /
+  `-p29`, the same version as its host) with `features = ["serde"]`:
+  `read_snapshot` deserializes `stellar snapshot create`'s JSON through the
+  lane's own XDR types, so a lane without that pin doesn't build.
 
 ## Lanes
 
@@ -151,10 +162,10 @@ it (`tests/lanes_manifest.rs` covers the check), and the weekly protocol check
 
 When a network announces protocol N:
 
-1. Add `soroban-env-host-pN` and `soroban-simulation-pN` pins to
-   `sandbox/Cargo.toml` (and `soroban-ledger-snapshot-pN` if the snapshot
-   reader moves with it), and a `lane-pN` feature to `simulator/Cargo.toml`,
-   on by default.
+1. Add `soroban-env-host-pN`, `soroban-simulation-pN` and
+   `soroban-env-common-pN` (with `features = ["serde"]`, which the ledger
+   snapshot reader needs) pins to `sandbox/Cargo.toml`, and a `lane-pN`
+   feature to `simulator/Cargo.toml` that enables all three, on by default.
 2. Add the `[[lane]]` to `simulator/lanes.toml` with the same versions.
 3. Add `simulator/src/lanes/pN/mod.rs` and its entry in `lanes/mod.rs`'s
    `BUILTIN`.
