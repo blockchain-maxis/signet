@@ -146,4 +146,40 @@ test.describe('release section in settings @db', () => {
 
     await prisma.$disconnect();
   });
+
+  test('after a release, the dashboard falls back to the unbound state', async ({ page }) => {
+    const { prisma } = await import('@signet/db');
+    const owner = Keypair.random();
+    const deploy = Keypair.random();
+    const handle = `rel${Date.now().toString(36)}${Math.random().toString(36).slice(2, 5)}`.slice(
+      0,
+      32,
+    );
+    await prisma.profile.create({
+      data: {
+        handle,
+        wallets: {
+          create: [
+            { pubkey: owner.publicKey(), source: 'onchain', isPrimary: true },
+            { pubkey: deploy.publicKey(), source: 'cli', isPrimary: false },
+          ],
+        },
+      },
+    });
+    // What the indexer does with a `released` event (#895): it drops the
+    // on-chain wallet row, and the profile and the linked deploy wallet stay.
+    await prisma.wallet.delete({ where: { pubkey: owner.publicKey() } });
+
+    for (const kp of [owner, deploy]) {
+      await apiSignIn(page, kp);
+      await page.goto('/app');
+      await expect(page.getByText('No handle is bound to this wallet yet.')).toBeVisible();
+      await expect(page.getByText(`@${handle}`)).toHaveCount(0);
+      await page.goto('/app/settings');
+      await expect(page.getByText('Not claimed')).toBeVisible();
+      await expect(page.getByRole('button', { name: `Release @${handle}` })).toHaveCount(0);
+    }
+
+    await prisma.$disconnect();
+  });
 });

@@ -35,8 +35,9 @@ export interface Account {
    */
   editable: boolean;
   /**
-   * Whether the signed-in wallet is the primary wallet for the handle.
-   * True for the on-chain owning wallet, false for secondary/deploy wallets.
+   * Whether the signed-in wallet is the handle's on-chain owner: the wallet
+   * the registry binds it to, and so the only one that can release it (#898).
+   * False for linked deploy wallets and when there is no handle.
    */
   isPrimary: boolean;
 }
@@ -103,12 +104,8 @@ export async function getAccount(
 ): Promise<Account> {
   const prisma = await getPrisma();
   if (!prisma) {
+    // The registry's reverse lookup only answers for the bound wallet itself.
     const handle = await lookupWallet(address, options);
-    let isPrimary = false;
-    if (handle) {
-      const onChainOwner = await resolveHandle(handle, options);
-      isPrimary = onChainOwner ? onChainOwner === address : true;
-    }
     return {
       address,
       handle,
@@ -116,23 +113,33 @@ export async function getAccount(
       bio: null,
       dbConfigured: false,
       editable: false,
-      isPrimary,
+      isPrimary: handle !== null,
     };
   }
 
   const wallet = await prisma.wallet.findUnique({
     where: { pubkey: address },
-    include: { profile: true },
+    include: {
+      profile: {
+        include: {
+          wallets: { where: { isPrimary: true }, select: { pubkey: true, source: true }, take: 1 },
+        },
+      },
+    },
   });
-  const profile = wallet?.profile;
+  // A profile left without a primary wallet was released or revoked (#895):
+  // the indexer drops only the on-chain primary row, so the profile and any
+  // linked deploy wallets outlive the binding. It is no longer this wallet's
+  // handle, and the dashboard falls back to the registry, which reports it
+  // unbound.
+  const primary = wallet?.profile?.wallets[0] ?? null;
+  const profile = primary ? wallet?.profile : null;
   const handle = profile?.handle ?? (await lookupWallet(address, options));
-  let isPrimary = false;
-  if (wallet) {
-    isPrimary = wallet.isPrimary;
-  } else if (handle) {
-    const onChainOwner = await resolveHandle(handle, options);
-    isPrimary = onChainOwner ? onChainOwner === address : true;
-  }
+  // From the database, the owner is the on-chain primary; from the registry,
+  // a reverse lookup only answers for the bound wallet itself.
+  const isPrimary = profile
+    ? primary?.pubkey === address && primary.source === 'onchain'
+    : handle !== null;
 
   return {
     address,
@@ -482,7 +489,7 @@ export async function updateAccount(address: string, update: AccountUpdate): Pro
   }
   const wallet = await prisma.wallet.findUnique({
     where: { pubkey: address },
-    select: { profileId: true, isPrimary: true },
+    select: { profileId: true, isPrimary: true, source: true },
   });
   if (!wallet) {
     throw new Error('No profile is bound to this wallet yet — claim a handle on-chain first');
@@ -498,7 +505,7 @@ export async function updateAccount(address: string, update: AccountUpdate): Pro
     bio: profile.bio,
     dbConfigured: true,
     editable: true,
-    isPrimary: wallet.isPrimary,
+    isPrimary: wallet.isPrimary && wallet.source === 'onchain',
   };
 }
 

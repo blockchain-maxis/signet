@@ -1,71 +1,86 @@
-import { test, afterEach } from 'node:test';
+import test from 'node:test';
 import assert from 'node:assert/strict';
-import { Account, xdr } from '@stellar/stellar-sdk';
 import {
-  buildReleaseTransaction,
-  releaseHandle,
-  isRegistryConfigured,
-  RegistryNotConfiguredError,
-} from './registry.ts';
+  Account,
+  Address,
+  BASE_FEE,
+  Keypair,
+  Networks,
+  SorobanDataBuilder,
+  StrKey,
+  rpc,
+  xdr,
+} from '@stellar/stellar-sdk';
+import { buildReleaseTransaction, buildRestoreTransaction } from './registry-transactions.ts';
 
-const WALLET = 'GDWUSKGGFDI4FRXK5EBTRECZSVQSSWJHHJOGH6JWG3AUMFFMQ435DIAG';
-const CONTRACT_ID = 'CASFJHI5PQSRWS7JV25CF7FOMRKIVBP3RXRP3E2GH2CV4BCAG7FUJRCN';
+// The persistent entry an archived binding lives in, as the preamble names it.
+const ARCHIVED_KEY = xdr.LedgerKey.contractData(
+  new xdr.LedgerKeyContractData({
+    contract: new Address(StrKey.encodeContract(Buffer.alloc(32, 0x7e))).toScAddress(),
+    key: xdr.ScVal.scvString('alice'),
+    durability: xdr.ContractDataDurability.persistent(),
+  }),
+);
 
-afterEach(() => {
-  delete process.env.NEXT_PUBLIC_IDENTITY_REGISTRY_ID;
-});
+/** A simulation as the SDK parses it from the RPC's JSON. */
+function simulation(preamble: { minResourceFee: string } | null) {
+  const empty = new SorobanDataBuilder().build().toXDR('base64');
+  const footprint = new SorobanDataBuilder().setReadWrite([ARCHIVED_KEY]).build().toXDR('base64');
+  return rpc.parseRawSimulation({
+    id: '1',
+    latestLedger: 1,
+    transactionData: empty,
+    minResourceFee: '100',
+    results: [{ auth: [], xdr: xdr.ScVal.scvVoid().toXDR('base64') }],
+    ...(preamble
+      ? { restorePreamble: { transactionData: footprint, minResourceFee: preamble.minResourceFee } }
+      : {}),
+  } as rpc.Api.RawSimulateTransactionResponse);
+}
 
-test('buildReleaseTransaction builds one invokeHostFunction calling release with handle ScString', async () => {
-  const account = new Account(WALLET, '100');
-  const handle = 'alice';
+const account = () => new Account(Keypair.random().publicKey(), '100');
 
-  const tx = await buildReleaseTransaction(account, handle, {
-    contractId: CONTRACT_ID,
-    networkPassphrase: 'Test SDF Network ; September 2015',
-  });
-
-  // Verify on the built Transaction object: exactly one operation of type invokeHostFunction
-  assert.equal(tx.operations.length, 1);
-  const op = tx.operations[0];
-  assert.equal(op.type, 'invokeHostFunction');
-
-  const invokeArgs = op.func.invokeContract();
-  assert.equal(invokeArgs.functionName().toString(), 'release');
-  assert.equal(invokeArgs.args().length, 1);
-  const arg = invokeArgs.args()[0];
-  assert.equal(arg.switch().name, 'scvString');
-  assert.equal(arg.str().toString(), 'alice');
-
-  // Verify on the decoded XDR envelope
-  const env = xdr.TransactionEnvelope.fromXDR(tx.toXDR(), 'base64');
-  const opBody = env.v1().tx().operations()[0];
-  assert.ok(opBody);
-  const txOp = opBody.body();
-  assert.equal(txOp.switch().name, 'invokeHostFunction');
-
-  const hostFn = txOp.invokeHostFunctionOp().hostFunction();
-  assert.equal(hostFn.switch().name, 'hostFunctionTypeInvokeContract');
-
-  const xdrInvoke = hostFn.invokeContract();
-  assert.equal(xdrInvoke.functionName().toString(), 'release');
-  assert.equal(xdrInvoke.args().length, 1);
-
-  const xdrArg = xdrInvoke.args()[0];
-  assert.ok(xdrArg);
-  assert.equal(xdrArg.switch().name, 'scvString');
-  assert.equal(xdrArg.str().toString(), 'alice');
-});
-
-test('releaseHandle throws RegistryNotConfiguredError when registry is not configured', async () => {
-  delete process.env.NEXT_PUBLIC_IDENTITY_REGISTRY_ID;
-  assert.equal(isRegistryConfigured(), false);
-  await assert.rejects(
-    async () => {
-      await releaseHandle('alice', WALLET);
-    },
-    (err: unknown) => {
-      assert.ok(err instanceof RegistryNotConfiguredError);
-      return true;
-    },
+test('the restore carries the preamble footprint, its fee and one restoreFootprint', () => {
+  const tx = buildRestoreTransaction(
+    account(),
+    simulation({ minResourceFee: '5000' }),
+    Networks.TESTNET,
   );
+
+  assert.equal(tx.operations.length, 1);
+  assert.equal(tx.operations[0]?.type, 'restoreFootprint');
+  assert.equal(tx.fee, (BigInt(BASE_FEE) + 5000n).toString());
+
+  const data = tx.toEnvelope().v1().tx().ext().sorobanData();
+  const readWrite = data.resources().footprint().readWrite();
+  assert.equal(readWrite.length, 1);
+  assert.equal(readWrite[0]?.toXDR('base64'), ARCHIVED_KEY.toXDR('base64'));
+});
+
+test('the restore uses the account sequence it is given, once', () => {
+  const source = account();
+  const tx = buildRestoreTransaction(source, simulation({ minResourceFee: '1' }), Networks.TESTNET);
+  assert.equal(tx.sequence, '101');
+});
+
+test('a simulation without a restore preamble is not in an archived state', () => {
+  assert.throws(
+    () => buildRestoreTransaction(account(), simulation(null), Networks.TESTNET),
+    /not in an archived state/,
+  );
+});
+
+test('the release is one invokeHostFunction calling release with the handle as an ScString', () => {
+  const registry = StrKey.encodeContract(Buffer.alloc(32, 0x7e));
+  const tx = buildReleaseTransaction(account(), 'alice', registry, Networks.TESTNET);
+
+  assert.equal(tx.operations.length, 1);
+  const body = tx.toEnvelope().v1().tx().operations()[0]!.body();
+  assert.equal(body.switch().name, 'invokeHostFunction');
+  const call = body.invokeHostFunctionOp().hostFunction().invokeContract();
+  assert.equal(Address.fromScAddress(call.contractAddress()).toString(), registry);
+  assert.equal(call.functionName().toString(), 'release');
+  assert.equal(call.args().length, 1);
+  assert.equal(call.args()[0]!.switch().name, 'scvString');
+  assert.equal(call.args()[0]!.str().toString(), 'alice');
 });
