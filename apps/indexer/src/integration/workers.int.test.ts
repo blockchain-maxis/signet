@@ -226,7 +226,7 @@ test('Indexer workers integration with real migrated Postgres', { skip: !shouldR
       assert.equal(res.invocationsUpserted, 1);
 
       const inv = await prisma.contractInvocation.findUnique({
-        where: { id: `${txPayload.txHash}:0` },
+        where: { id: `${txPayload.txHash}:${contract.id}` },
       });
       assert.ok(inv, 'Invocation row should be created');
       assert.equal(inv.contractId, contract.id);
@@ -235,7 +235,7 @@ test('Indexer workers integration with real migrated Postgres', { skip: !shouldR
       // Verify via raw SQL that the column is truly SQL NULL in PostgreSQL
       const rawRows = await prisma.$queryRawUnsafe<Array<{ changed: unknown }>>(
         'SELECT "changed" FROM "ContractInvocation" WHERE id = $1',
-        `${txPayload.txHash}:0`,
+        `${txPayload.txHash}:${contract.id}`,
       );
       assert.equal(rawRows.length, 1);
       assert.equal(rawRows[0]!.changed, null, 'Postgres column must be SQL NULL');
