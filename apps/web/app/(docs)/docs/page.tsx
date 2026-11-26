@@ -349,10 +349,6 @@ const profile = await signet.getProfile('yourhandle');
             <code>/app</code>, and terminal deploy-wallet linking (<code>{CLI_LINK_COMMAND}</code>)
             populating full deployment history via the indexer.
           </li>
-          <li>
-            <strong>Phase 3 (in progress):</strong> contract verification badges,
-            reputation primitives, and ecosystem integrations.
-          </li>
         </ul>
 
         <div className="mt-16 border-t border-[#1f1d19] pt-6">

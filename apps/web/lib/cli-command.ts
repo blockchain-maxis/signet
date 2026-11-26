@@ -5,14 +5,15 @@
  */
 
 export const CLI_LINK_COMMAND = 'npx @signet/cli link';
-export const CLI_INSTALL_COMMAND = 'npm install -g @signet/cli';
 
 /** Where the CLI is documented. */
 export const CLI_DOCS_URL = 'https://github.com/blockchain-maxis/signet/blob/main/docs/CLI.md';
 
 /**
- * Single canonical sentence describing how to get and run the CLI.
- * Aligns with docs/RELEASING.md policy on gated npm publishing.
+ * The one sentence every surface uses for how to get the CLI (#909). npm
+ * publishing is gated (`docs/RELEASING.md`: `CLI_RELEASE_ENABLED`), so the npm
+ * route is conditional on a published release, and building from source
+ * (`docs/CLI.md`) is the route that always works.
  */
 export const CLI_INSTALL_SENTENCE =
-  'Run directly with npx @signet/cli, install globally with npm install -g @signet/cli, or build from source (see docs/CLI.md) until npm releases are published.';
+  'The CLI installs from npm (npx @signet/cli, or npm install -g @signet/cli) once a release is published there; npm publishing is gated, so until then build it from source as docs/CLI.md describes.';
