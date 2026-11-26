@@ -11,7 +11,7 @@
 use std::io::Write;
 use std::process::{Command, Stdio};
 
-const CLIENT_TYPES: [&str; 14] = [
+const CLIENT_TYPES: [&str; 15] = [
     "hello",
     "shutdown",
     "xdr_keys",
@@ -20,6 +20,7 @@ const CLIENT_TYPES: [&str; 14] = [
     "ledger_open",
     "ledger_put",
     "ledger_get",
+    "ledger_apply",
     "ledger_checkpoint",
     "ledger_rollback",
     "contract_install",
@@ -151,7 +152,8 @@ fn trace_transcript_replays_byte_for_byte() {
 #[test]
 fn ledger_transcript_replays_byte_for_byte() {
     // ledger_open (with network config), ledger_put, ledger_get, ledger_checkpoint,
-    // and ledger_rollback to a valid handle, cp-0, and cp-99 (#929).
+    // and ledger_rollback to a valid handle, cp-0, and cp-99 (#929); then a
+    // ledger_apply that deletes a key and the ledger_get that reports it (#934).
     assert_replays("ledger.ndjson");
 }
 
