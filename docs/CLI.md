@@ -642,7 +642,7 @@ Before handing the challenge transaction envelope to `stellar tx sign`, `signet 
 - **First operation source:** the first operation's source account must match the local identity's public key being proved.
 - **Purpose and domain binding:** the first operation's data name must start with `<purpose>.cli.` (where purpose is `link` or `unlink`) and end with ` auth`.
 - **Server signing key:** when `stellar.toml` publishes a `SIGNING_KEY`, the transaction's source account must equal it.
-- **Time bounds:** time bounds must be present, and the current system time must fall within `[min_time, max_time]`.
+- **Time bounds:** time bounds must be present, and the current system time must fall within `[min_time, max_time]`, allowing 5 minutes of clock skew on either side (the grace the Stellar SDK uses for SEP-10).
 - **Network passphrase:** the passphrase must equal the one for the resolved `--network`, and the discovered passphrase from `stellar.toml` when present.
 
 Any verification failure aborts the flow immediately before invoking `stellar tx sign` and exits with code 5 (`signing failed`), reporting the failure reason without echoing the envelope.

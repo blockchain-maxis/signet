@@ -272,22 +272,57 @@ func TestVerifyChallenge_RejectsMissingOrInvalidTimeBounds(t *testing.T) {
 		t.Fatalf("expected failure for missing time bounds, got %v", err)
 	}
 
-	// Expired (now = 1300, bounds = [900, 1200])
+	// Expired beyond the clock-skew grace (now = 1501, bounds = [900, 1200])
 	expired := buildRawChallenge(
 		2, testServerKey, 0, 1, 900, 1200, true, testClientKey, 10, "link.cli.signet.dev auth",
 	)
-	err = verifyChallengeAt(expired, testPassphrase, clientPub, spec.CliLinkPurposeLink, api.Discovery{}, time.Unix(1300, 0))
+	err = verifyChallengeAt(expired, testPassphrase, clientPub, spec.CliLinkPurposeLink, api.Discovery{}, time.Unix(1501, 0))
 	if !errors.Is(err, exitcode.ErrSigningFailure) {
 		t.Fatalf("expected failure for expired time bounds, got %v", err)
 	}
 
-	// Future (now = 800, bounds = [900, 1200])
+	// Not yet valid beyond the clock-skew grace (now = 599, bounds = [900, 1200])
 	future := buildRawChallenge(
 		2, testServerKey, 0, 1, 900, 1200, true, testClientKey, 10, "link.cli.signet.dev auth",
 	)
-	err = verifyChallengeAt(future, testPassphrase, clientPub, spec.CliLinkPurposeLink, api.Discovery{}, time.Unix(800, 0))
+	err = verifyChallengeAt(future, testPassphrase, clientPub, spec.CliLinkPurposeLink, api.Discovery{}, time.Unix(599, 0))
 	if !errors.Is(err, exitcode.ErrSigningFailure) {
 		t.Fatalf("expected failure for future time bounds, got %v", err)
+	}
+}
+
+func TestVerifyChallenge_AllowsClockSkewOnBothBounds(t *testing.T) {
+	serverPub := encodeAccountID(testServerKey)
+	clientPub := encodeAccountID(testClientKey)
+	discovery := api.Discovery{NetworkPassphrase: testPassphrase, SigningKey: serverPub}
+	envelope := buildRawChallenge(
+		2, testServerKey, 0, 1, 900, 1200, true, testClientKey, 10, "link.cli.signet.dev auth",
+	)
+
+	cases := []struct {
+		name string
+		now  int64
+		ok   bool
+	}{
+		// The server sets min_time to its own current second, so a client
+		// clock a few seconds behind sees a challenge that is not valid yet.
+		{"a few seconds before min_time", 897, true},
+		{"at the start of the grace", 600, true},
+		{"just before the grace", 599, false},
+		{"a few seconds after max_time", 1203, true},
+		{"at the end of the grace", 1500, true},
+		{"just after the grace", 1501, false},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			err := verifyChallengeAt(envelope, testPassphrase, clientPub, spec.CliLinkPurposeLink, discovery, time.Unix(tc.now, 0))
+			if tc.ok && err != nil {
+				t.Fatalf("now=%d: expected the challenge to pass, got %v", tc.now, err)
+			}
+			if !tc.ok && !errors.Is(err, exitcode.ErrSigningFailure) {
+				t.Fatalf("now=%d: expected a signing failure, got %v", tc.now, err)
+			}
+		})
 	}
 }
 

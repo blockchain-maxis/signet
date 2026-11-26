@@ -1,12 +1,12 @@
 package link
 
 import (
-	"bytes"
 	"encoding/base32"
 	"encoding/base64"
 	"encoding/binary"
 	"errors"
 	"fmt"
+	"math"
 	"strings"
 	"time"
 
@@ -25,6 +25,31 @@ func VerifyChallenge(
 	discovery api.Discovery,
 ) error {
 	return verifyChallengeAt(envelope, passphrase, publicKey, purpose, discovery, time.Now())
+}
+
+// ChallengeClockSkew is how far this machine's clock may differ from the
+// deployment's when checking a challenge's time bounds. The server sets
+// min_time to its own current second, so a client clock even slightly behind
+// would otherwise refuse a genuine challenge. Five minutes matches the grace
+// the Stellar SDK allows for SEP-10 challenges.
+const ChallengeClockSkew = 5 * time.Minute
+
+// withinTimeBounds reports whether now falls inside [minTime, maxTime],
+// widened by ChallengeClockSkew on both sides. A maxTime of 0 means no upper
+// bound.
+func withinTimeBounds(now time.Time, minTime, maxTime uint64) bool {
+	grace := uint64(ChallengeClockSkew / time.Second)
+	var nowUnix uint64
+	if now.Unix() > 0 {
+		nowUnix = uint64(now.Unix())
+	}
+	if nowUnix+grace < minTime {
+		return false
+	}
+	if maxTime != 0 && maxTime <= math.MaxUint64-grace && nowUnix > maxTime+grace {
+		return false
+	}
+	return true
 }
 
 func verifyChallengeAt(
@@ -121,14 +146,10 @@ func verifyChallengeAt(
 		return fmt.Errorf("%w: transaction has no time bounds", exitcode.ErrSigningFailure)
 	}
 
-	nowUnix := uint64(now.Unix())
-	if now.Unix() < 0 {
-		nowUnix = 0
-	}
-	if nowUnix < minTime || (maxTime != 0 && nowUnix > maxTime) {
+	if !withinTimeBounds(now, minTime, maxTime) {
 		return fmt.Errorf(
-			"%w: current time %s is outside transaction time bounds [%d, %d]",
-			exitcode.ErrSigningFailure, now.UTC().Format(time.RFC3339), minTime, maxTime,
+			"%w: current time %s is outside transaction time bounds [%d, %d] (allowing %s of clock skew)",
+			exitcode.ErrSigningFailure, now.UTC().Format(time.RFC3339), minTime, maxTime, ChallengeClockSkew,
 		)
 	}
 
@@ -368,69 +389,3 @@ func crc16XModem(data []byte) uint16 {
 	}
 	return crc
 }
-
-// BuildTestChallenge builds a valid base64-encoded XDR challenge transaction envelope
-// for testing link and unlink flows.
-func BuildTestChallenge(
-	serverKeyStr string,
-	clientKeyStr string,
-	purpose string,
-	homeDomain string,
-	minTime uint64,
-	maxTime uint64,
-) (string, error) {
-	serverRaw, err := decodeAccountID(serverKeyStr)
-	if err != nil {
-		return "", fmt.Errorf("invalid server key: %w", err)
-	}
-	clientRaw, err := decodeAccountID(clientKeyStr)
-	if err != nil {
-		return "", fmt.Errorf("invalid client key: %w", err)
-	}
-
-	var buf bytes.Buffer
-	// envelope_type = 2 (ENVELOPE_TYPE_TX)
-	_ = binary.Write(&buf, binary.BigEndian, uint32(2))
-	// tx: source_account = 0 (KEY_TYPE_ED25519) + 32-byte pubkey
-	_ = binary.Write(&buf, binary.BigEndian, uint32(0))
-	buf.Write(serverRaw[:])
-	// fee = 100
-	_ = binary.Write(&buf, binary.BigEndian, uint32(100))
-	// seq_num = 0
-	_ = binary.Write(&buf, binary.BigEndian, int64(0))
-	// cond = PRECOND_TIME (1)
-	_ = binary.Write(&buf, binary.BigEndian, uint32(1))
-	_ = binary.Write(&buf, binary.BigEndian, minTime)
-	_ = binary.Write(&buf, binary.BigEndian, maxTime)
-	// memo = MEMO_NONE (0)
-	_ = binary.Write(&buf, binary.BigEndian, uint32(0))
-	// operations count = 1
-	_ = binary.Write(&buf, binary.BigEndian, uint32(1))
-	// op source: present (1) + 0 (KEY_TYPE_ED25519) + 32-byte client pubkey
-	_ = binary.Write(&buf, binary.BigEndian, uint32(1))
-	_ = binary.Write(&buf, binary.BigEndian, uint32(0))
-	buf.Write(clientRaw[:])
-	// op body: MANAGE_DATA (10)
-	_ = binary.Write(&buf, binary.BigEndian, uint32(10))
-	// dataName
-	name := fmt.Sprintf("%s.cli.%s auth", purpose, homeDomain)
-	nameBytes := []byte(name)
-	_ = binary.Write(&buf, binary.BigEndian, uint32(len(nameBytes)))
-	buf.Write(nameBytes)
-	pad := (4 - (len(nameBytes) % 4)) % 4
-	if pad > 0 {
-		buf.Write(make([]byte, pad))
-	}
-	// dataValue: present (1) + 64 bytes
-	_ = binary.Write(&buf, binary.BigEndian, uint32(1))
-	dataVal := make([]byte, 64)
-	_ = binary.Write(&buf, binary.BigEndian, uint32(len(dataVal)))
-	buf.Write(dataVal)
-	// ext: 0
-	_ = binary.Write(&buf, binary.BigEndian, uint32(0))
-	// signatures count: 0
-	_ = binary.Write(&buf, binary.BigEndian, uint32(0))
-
-	return base64.StdEncoding.EncodeToString(buf.Bytes()), nil
-}
-
