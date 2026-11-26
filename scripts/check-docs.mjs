@@ -177,6 +177,8 @@ const ENV_ALLOW = new Set([
 const NOT_ENV_IDENTIFIERS = new Set([
   'RESERVED_HANDLES', // packages/types
   'HANDLE_MAX_LEN', // packages/types
+  'HANDLE_PATTERN', // packages/types
+  'FROZEN_CODES', // scripts/check-contract-errors.mjs append-only list
   'BASE_FEE', // @stellar/stellar-sdk constant
   'MAX_BATCH_SIZE', // identity-registry contract constant
   'MAX_HANDLE_LEN', // identity-registry contract constant

@@ -7,7 +7,11 @@ Rust/Soroban smart contracts for Signet, managed as a Cargo workspace
 
 - [`identity-registry`](./identity-registry) — binds a Stellar wallet to a
   Signet identity via signed, on-chain claims. Implemented; unit tests over
-  known cases plus property tests (see [Testing](#testing)).
+  known cases plus property tests (see [Testing](#testing)). Before changing
+  its `src/lib.rs`, read the properties a PR must keep true in
+  [`docs/SECURITY_REVIEW.md` §7](../../docs/SECURITY_REVIEW.md#7-identity-registry-contract):
+  auth matrix, admin powers, handle rules, storage/TTL, counter, events and
+  error codes.
 
 ## Prerequisites
 
