@@ -77,7 +77,9 @@ export const WASM_HASH_2 = '22'.repeat(32);
  * `e2e-dev` is what leaves that profile's contract pages untouched.
  */
 export const PROFILE_OPERATIONS_HANDLE = 'e2e-ops';
-export const OPERATIONS_WALLET = accountId(0xe3);
+// 0xe8: 0xe3 is `e2e-docs`'s wallet (`docs-failures.ts`), and reusing it would
+// move that wallet onto this profile.
+export const OPERATIONS_WALLET = accountId(0xe8);
 
 /** Indexed operations seeded for the #899 profile. More than one 100-row read. */
 export const FIXTURE_OPERATION_COUNT = 130;
@@ -346,8 +348,14 @@ export async function seedProfileOperationsFixture(): Promise<void> {
     });
     const wallet = await prisma.wallet.upsert({
       where: { pubkey: OPERATIONS_WALLET },
-      update: { profileId: profile.id },
-      create: { profileId: profile.id, pubkey: OPERATIONS_WALLET, source: 'cli', isPrimary: true },
+      // An on-chain primary, or the profile is not live (#895) and 404s.
+      update: { profileId: profile.id, source: 'onchain', isPrimary: true },
+      create: {
+        profileId: profile.id,
+        pubkey: OPERATIONS_WALLET,
+        source: 'onchain',
+        isPrimary: true,
+      },
     });
 
     for (let i = 0; i < FIXTURE_OPERATION_COUNT; i++) {

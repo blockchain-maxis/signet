@@ -16,10 +16,7 @@ import {
   type ProfileContractsDb,
 } from './profile-contracts.ts';
 import { fetchHorizonOperations, type HorizonOperationsResult } from './server/horizon.ts';
-import {
-  getProfileOperationsView,
-  type ProfileOperationsView,
-} from './profile-operations.ts';
+import { getProfileOperationsView, type ProfileOperationsView } from './profile-operations.ts';
 
 export interface ProfilePageData {
   profile: Profile;
