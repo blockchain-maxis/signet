@@ -604,31 +604,32 @@ GOOS=linux  GOARCH=amd64 go build -o bin/signet-linux-amd64  ./cmd/signet
 
 ## Layout
 
-| Path                 | Purpose                                                                                                               |
-| -------------------- | --------------------------------------------------------------------------------------------------------------------- |
-| `cmd/signet`         | `main.go` — the binary's entrypoint                                                                                   |
-| `internal/api`       | Shared HTTP client and transport layer for communicating with a Signet deployment's API                               |
-| `internal/browser`   | Cross-platform browser opener for interactive linking and authorization approval flows                                 |
-| `internal/bundle`    | Session log recorder and standalone reproduction bundle exporter for `signet dev`                                     |
-| `internal/cmd`       | Cobra command definitions, subcommands, and CLI flag bindings                                                         |
-| `internal/config`    | Resolves `--url`, `--source`, `--context`, configuration files, and environment variables                             |
-| `internal/dev`       | Development server orchestrator and live-reloading run loop for `signet dev`                                          |
-| `internal/devconfig` | Strict configuration parser for `signet.dev.toml` test suites and sandbox settings                                    |
-| `internal/devui`     | Embedded local web UI server and WebSocket communication for interactive development sessions                         |
-| `internal/exitcode`  | Standardized exit-code taxonomy shared across commands and packages without cycles                                    |
-| `internal/fork`      | On-disk bbolt fork cache and storage management under `os.UserCacheDir()/signet/forks/`                                |
-| `internal/jsonschema`| JSON schema validation for manifests, configs, and session recordings                                                 |
-| `internal/keys`      | Resolves identities, validates `stellar` CLI version requirements, and delegates transaction signing                  |
-| `internal/link`      | `signet link` orchestrator managing browser pairing, challenges, and deployment registration                          |
-| `internal/localnet`  | Local Stellar Quickstart network runner for deploying and testing against a local container RPC                       |
-| `internal/loopback`  | Ephemeral single-request 127.0.0.1 callback listener for browser authorization handoffs                               |
-| `internal/networkcheck` | Validates target Stellar network compatibility between requested commands and deployment stellar.toml              |
-| `internal/output`    | Standardized output layer with JSON support, diagnostics formatting, and progress reporting                          |
-| `internal/pair`      | Pairing protocol client for challenge negotiation, polling, and TTL-bounded wait cycles                               |
-| `internal/realtx`    | Discovers recent real contract transactions via RPC events, ledger scanning, and deployment indexers                  |
-| `internal/redact`    | Redacts secret keys, StrKey seeds, and API tokens from logs and output streams                                         |
-| `internal/render`    | Terminal formatting, colorization, and diff rendering for simulation results                                         |
-| `internal/rpc`       | Thin Stellar RPC client supporting pagination, retries, batching, and network discovery                               |
-| `internal/simulator` | Process lifecycle manager and IPC client for `signet-simulator`                                                       |
-| `internal/spec`      | Contract specification loader, parser, and type definitions                                                           |
-| `internal/visualise` | Runs the visualiser bundle in an embedded JavaScript engine to render contract SVG diagrams                           |
+| Path                    | Purpose                                                                                                                                                       |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `cmd/signet`            | `main.go` — the binary's entrypoint                                                                                                                           |
+| `internal/api`          | Shared HTTP client and transport layer for communicating with a Signet deployment's API                                                                       |
+| `internal/browser`      | Cross-platform browser opener for interactive linking and authorization approval flows                                                                        |
+| `internal/bundle`       | Session log recorder and standalone reproduction bundle exporter for `signet dev`                                                                             |
+| `internal/cmd`          | Cobra command definitions, subcommands, and CLI flag bindings                                                                                                 |
+| `internal/config`       | Resolves `--url`, `--source`, `--context`, configuration files, and environment variables                                                                     |
+| `internal/dev`          | Development server orchestrator and live-reloading run loop for `signet dev`                                                                                  |
+| `internal/devconfig`    | Strict configuration parser for `signet.dev.toml` test suites and sandbox settings                                                                            |
+| `internal/devui`        | Local web server behind `signet dev --ui`: embedded UI assets, a locked-down JSON API and an NDJSON event stream                                              |
+| `internal/exitcode`     | Standardized exit-code taxonomy shared across commands and packages without cycles                                                                            |
+| `internal/fork`         | On-disk bbolt fork cache and storage management under `os.UserCacheDir()/signet/forks/`                                                                       |
+| `internal/jsonschema`   | Validates JSON against the sandbox protocol schemas (`sandbox/protocol/schema/v1`); used mainly by tests                                                      |
+| `internal/keys`         | Resolves identities, validates `stellar` CLI version requirements, and delegates transaction signing                                                          |
+| `internal/link`         | `signet link` orchestrator managing browser pairing, challenges, and deployment registration                                                                  |
+| `internal/localnet`     | Local Stellar Quickstart network runner for deploying and testing against a local container RPC                                                               |
+| `internal/loopback`     | Ephemeral single-request 127.0.0.1 callback listener for browser authorization handoffs                                                                       |
+| `internal/networkcheck` | Validates target Stellar network compatibility between requested commands and deployment stellar.toml                                                         |
+| `internal/output`       | Standardized output layer with JSON support, diagnostics formatting, and progress reporting                                                                   |
+| `internal/pair`         | Pairing protocol client for challenge negotiation, polling, and TTL-bounded wait cycles                                                                       |
+| `internal/realtx`       | Discovers recent real contract transactions via RPC events, ledger scanning, and deployment indexers                                                          |
+| `internal/redact`       | Redacts secret keys, StrKey seeds, and API tokens from logs and output streams                                                                                |
+| `internal/render`       | Terminal formatting, colorization, and diff rendering for simulation results                                                                                  |
+| `internal/rpc`          | Thin Stellar RPC client supporting pagination, retries, batching, and network discovery                                                                       |
+| `internal/simulator`    | Process lifecycle manager and IPC client for `signet-simulator`                                                                                               |
+| `internal/spec`         | Typed request/response models and failure codes for a deployment's CLI HTTP routes (generated from `packages/types`), and the failure-code-to-exit-code table |
+| `internal/update`       | Release check behind `signet version --check` and the once-a-day upgrade notice                                                                               |
+| `internal/visualise`    | Runs the visualiser bundle in an embedded JavaScript engine to render contract SVG diagrams                                                                   |
