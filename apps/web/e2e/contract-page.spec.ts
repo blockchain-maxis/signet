@@ -11,6 +11,9 @@ import {
   MALFORMED_ADDRESS,
   OTHER_HANDLE,
   PROFILE_OPERATIONS_HANDLE,
+  REVOKED_CONTRACT,
+  REVOKED_HANDLE,
+  REVOKED_ONCHAIN_WALLET,
   WASM_HASH_1,
   WASM_HASH_2,
   seedProfileOperationsFixture,
@@ -368,6 +371,25 @@ test.describe('contract page @db', () => {
     // Every indexed operation is listed and the button is gone.
     await expect(rows).toHaveCount(FIXTURE_OPERATION_COUNT);
     await expect(page.getByRole('button', { name: /Load more/ })).toHaveCount(0);
+  });
+
+  test('a released handle whose Profile row survives is a 404 on the profile and its contract (#895)', async ({
+    request,
+  }) => {
+    // What the attestation worker leaves after `released`/`revoked`: it deletes
+    // the on-chain primary wallet row and nothing else. The Profile row, the
+    // CLI-linked deploy wallet and that wallet's contract all stay.
+    const { prisma } = await import('@signet/db');
+    try {
+      await prisma.wallet.deleteMany({ where: { pubkey: REVOKED_ONCHAIN_WALLET } });
+    } finally {
+      await prisma.$disconnect();
+    }
+
+    const profile = await request.get(`/p/${REVOKED_HANDLE}`);
+    expect(profile.status()).toBe(404);
+    const contract = await request.get(base(REVOKED_HANDLE, REVOKED_CONTRACT));
+    expect(contract.status()).toBe(404);
   });
 
   test('the profile page lists both attributed contracts, linked, and not the other-network one', async ({

@@ -75,7 +75,19 @@ callable at the next deployment, which will mint a new contract id.
 |--------|------|---------|-------|
 | `transfer_handle(handle: String, new_wallet: Address)` | current owner | `()` | Emits `transferred`. |
 | `resolve_batch(handles: Vec<String>)` | — | `Vec<Option<Address>>` | Positional; max 100 per call. |
-| `set_admin(new_admin: Address)` | current admin | `()` | Rotates moderation authority. Emits `admin_changed`. |
+| `set_admin(new_admin: Address)` | current admin | `()` | Rotates moderation authority. Emits `admin_changed` (§4). `NotInitialized` before `initialize`. |
+
+Changed in `main` but not yet deployed:
+
+- **`initialize(admin)` requires `admin`'s auth.** In `main` it calls
+  `admin.require_auth()` before recording the admin, so only the admin can
+  initialize and nobody can race the deployer between deploy and initialize. The
+  pinned wasm predates that check (it was added on 2026-08-11, after the
+  2026-07-09 deployment), so the table above lists no auth for it.
+- **Every entry point bumps the instance TTL, reads included.** In `main`,
+  `resolve`, `lookup`, `is_bound`, `count` and `resolve_batch` extend the
+  instance TTL when *invoked*, as the write paths do. A simulated read extends
+  nothing. This arrived on 2026-08-29, also after the deployment.
 
 Bindings are **1:1** — one handle per wallet, one wallet per handle. Handles are 1–32
 bytes of `[a-z0-9_-]`. There is no on-chain enumeration; see §5.
@@ -92,7 +104,7 @@ discriminant as a numeric contract error. In a failed simulation it appears as
 | # | Variant | Raised when |
 |---|---------|-------------|
 | 1 | `AlreadyInitialized` | `initialize` called on a registry that already has an admin. |
-| 2 | `NotInitialized` | Any of `claim`, `release`, `transfer_handle`, `admin_revoke` before `initialize`. |
+| 2 | `NotInitialized` | Any of `claim`, `release`, `transfer_handle`, `admin_revoke`, `set_admin` before `initialize` (`transfer_handle` and `set_admin` are in `main` only, see §2). |
 | 3 | `HandleTaken` | `claim` for a handle that is already bound. |
 | 4 | `HandleNotFound` | `release` / `transfer_handle` / `admin_revoke` for an unbound handle. |
 | 5 | `NotOwner` | Reserved for ownership violations. Note that `release` and `transfer_handle` enforce ownership through `require_auth` on the resolved owner, so a non-owner fails with an **auth** error, not this code. |
@@ -119,8 +131,11 @@ rather than re-deriving it.
 
 ## 4. Events
 
-Every state change publishes one event. The topic tuple is always
-`(Symbol(kind), String(handle))`; only the data payload varies.
+Every change to a binding publishes one event, with the topic tuple
+`(Symbol(kind), String(handle))`. Only the data payload varies. The one
+admin-side event, `admin_changed`, has a different shape: a **one-element**
+topic `(Symbol("admin_changed"),)` with no handle, and `(old_admin, new_admin)`
+as data. `initialize` publishes nothing.
 
 | Kind | Topics | Data | Emitted by |
 |------|--------|------|------------|
@@ -128,10 +143,12 @@ Every state change publishes one event. The topic tuple is always
 | `released` | `[ symbol("released"), string(handle) ]` | `address(wallet)` | `release` |
 | `revoked` | `[ symbol("revoked"), string(handle) ]` | `address(wallet)` | `admin_revoke` |
 | `transferred` † | `[ symbol("transferred"), string(handle) ]` | `[ address(from), address(to) ]` (a 2-tuple) | `transfer_handle` |
+| `admin_changed` † | `[ symbol("admin_changed") ]` (one element, no handle) | `[ address(old_admin), address(new_admin) ]` (a 2-tuple) | `set_admin` |
 
-† `transfer_handle` is not in the deployed wasm (see §2), so the pinned deployment never
-emits `transferred`. It is documented here so consumers written now keep working after the
-next deployment.
+† `transfer_handle` and `set_admin` are not in the deployed wasm (see §2), so the pinned
+deployment never emits `transferred` or `admin_changed`. They are documented here so
+consumers written now keep working after the next deployment. A consumer that folds
+bindings should skip `admin_changed`. Its `topics.length < 2` guard (below) already does.
 
 Decoding one event:
 
@@ -148,11 +165,12 @@ function decode(topics: xdr.ScVal[], value: xdr.ScVal) {
 ```
 
 > **`transferred` carries a different payload shape.** Both existing consumers
-> ([the indexer](../apps/indexer/src/workers/attestation.ts) and
-> [the `/handles` directory](../apps/web/lib/directory.ts)) only handle `claimed` /
-> `released` (/ `revoked`), so a transfer is currently ignored by both and their view of
-> the binding goes stale. Handle it explicitly in your own consumer: treat it as a
-> `released(from)` followed by a `claimed(to)`.
+> handle it.
+> [The indexer](../apps/indexer/src/workers/attestation.ts) reads the `(from, to)`
+> pair in `decodeEvent` and, when applying the event, unlinks `from` and links `to`.
+> [The `/handles` directory](../apps/web/lib/directory.ts) decodes the pair the same way
+> and `reduceBindings` rebinds the handle to `to`. Do the same in your own consumer:
+> treat it as a `released(from)` followed by a `claimed(to)`.
 
 ---
 
