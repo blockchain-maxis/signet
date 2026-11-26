@@ -10,14 +10,16 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/blockchain-maxis/signet/cli/internal/config"
 	"github.com/blockchain-maxis/signet/cli/internal/devconfig"
 )
 
 // guidePath is the sandbox user guide (#642), tutorialPath its tutorial
-// (#643).
+// (#643), cliGuidePath the CLI guide (#927).
 var (
 	guidePath    = filepath.Join("..", "..", "..", "docs", "SANDBOX.md")
 	tutorialPath = filepath.Join("..", "..", "..", "docs", "SANDBOX_TUTORIAL.md")
+	cliGuidePath = filepath.Join("..", "..", "..", "docs", "CLI.md")
 )
 
 // signetCommands are the `signet …` commands a markdown file cites: every
@@ -66,6 +68,18 @@ func TestTheSandboxGuideCitesRealCommandsAndFlags(t *testing.T) {
 		t.Fatalf("found only %d signet commands in %s", len(tutorial), tutorialPath)
 	}
 	commands = append(commands, tutorial...)
+	cliCmds := signetCommands(t, cliGuidePath)
+	var cliContextConfigCmds []string
+	for _, c := range cliCmds {
+		trimmed := strings.TrimSpace(c)
+		if strings.HasPrefix(trimmed, "signet context") || strings.HasPrefix(trimmed, "signet config") {
+			cliContextConfigCmds = append(cliContextConfigCmds, trimmed)
+		}
+	}
+	if len(cliContextConfigCmds) < 8 {
+		t.Fatalf("found only %d signet context/config commands in %s", len(cliContextConfigCmds), cliGuidePath)
+	}
+	commands = append(commands, cliContextConfigCmds...)
 	for _, line := range commands {
 		line, _, _ = strings.Cut(line, " #") // a trailing comment
 		fields := strings.Fields(line)[1:]
@@ -137,5 +151,81 @@ func TestTheSandboxGuideNamesEverySignetDevTomlKey(t *testing.T) {
 		if !regexp.MustCompile(`(?m)(^|[^a-z_])` + regexp.QuoteMeta(k) + `([^a-z_]|$)`).Match(raw) {
 			t.Errorf("signet.dev.toml's %q is not in %s", k, guidePath)
 		}
+	}
+}
+
+// TestDeploymentContextJSONExampleParsesWithConfigLoad ensures the v2 JSON
+// example in docs/CLI.md parses with config.Load (#927).
+func TestDeploymentContextJSONExampleParsesWithConfigLoad(t *testing.T) {
+	isolateConfigDir(t)
+	raw, err := os.ReadFile(cliGuidePath)
+	if err != nil {
+		t.Fatal(err)
+	}
+	lines := strings.Split(string(raw), "\n")
+	inContextSection := false
+	inJSON := false
+	var jsonLines []string
+	for _, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if strings.HasPrefix(trimmed, "## Deployment contexts") {
+			inContextSection = true
+			continue
+		}
+		if inContextSection && strings.HasPrefix(trimmed, "## ") {
+			break
+		}
+		if inContextSection {
+			if strings.HasPrefix(trimmed, "```json") {
+				inJSON = true
+				continue
+			}
+			if inJSON && strings.HasPrefix(trimmed, "```") {
+				break
+			}
+			if inJSON {
+				jsonLines = append(jsonLines, line)
+			}
+		}
+	}
+	if len(jsonLines) == 0 {
+		t.Fatalf("no json block found under ## Deployment contexts in %s", cliGuidePath)
+	}
+	jsonStr := strings.Join(jsonLines, "\n")
+
+	cfgPath, err := config.Path()
+	if err != nil {
+		t.Fatalf("config.Path: %v", err)
+	}
+	if err := os.MkdirAll(filepath.Dir(cfgPath), 0o700); err != nil {
+		t.Fatalf("MkdirAll: %v", err)
+	}
+	if err := os.WriteFile(cfgPath, []byte(jsonStr), 0o600); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+
+	f, err := config.Load()
+	if err != nil {
+		t.Fatalf("config.Load failed to parse JSON example from %s: %v", cliGuidePath, err)
+	}
+	if f.Version != 2 {
+		t.Errorf("f.Version = %d, want 2", f.Version)
+	}
+	if f.Current == "" {
+		t.Errorf("f.Current is empty, want a current context")
+	}
+	if len(f.Contexts) == 0 {
+		t.Errorf("f.Contexts is empty")
+	}
+	if _, ok := f.Contexts[f.Current]; !ok {
+		t.Errorf("current context %q not in f.Contexts", f.Current)
+	}
+
+	resolved, err := config.Resolve(config.ResolveOptions{}, f)
+	if err != nil {
+		t.Fatalf("config.Resolve: %v", err)
+	}
+	if resolved.BaseURL == "" || resolved.Network == "" {
+		t.Errorf("resolved = %+v, want non-empty BaseURL and Network", resolved)
 	}
 }

@@ -6,8 +6,9 @@ contract page that renders **attacker-authored doc strings**, a diagram drawn
 from untrusted names, a **localhost web UI** served by the CLI, a public
 **API**, and **terminal wallet linking**. This document is the one list to
 check a PR in epics B, C/D, E, F and H against — and the record of what the
-already-shipped linking surface enforces, so a change there can be checked for
-regressions rather than re-derived.
+already-shipped linking surface and the Identity Registry contract (§7)
+enforce, so a change there can be checked for regressions rather than
+re-derived.
 
 How to read an item:
 
@@ -215,3 +216,149 @@ test, not comfortable with the change.
       They never consult the optional registry fallback or attribution database.
       Proof: the by-hash tests in `packages/spec/src/fetch.test.ts` and the
       offline route tests in `apps/web/lib/api/v1/contract-spec.test.ts`.
+
+## 7. Identity Registry contract
+
+[`packages/contracts/identity-registry/src/lib.rs`](../packages/contracts/identity-registry/src/lib.rs)
+is the most security-critical code in the repo. The deployed wasm is
+**immutable**: a defect cannot be patched, only recovered by deploying a new
+contract and migrating
+([`CONTRACT_MIGRATION.md`](CONTRACT_MIGRATION.md)), and a third-party audit is
+a hard gate before mainnet
+([`DEPLOYMENT.md` §10](DEPLOYMENT.md#10-going-to-mainnet)). A PR touching
+`lib.rs` keeps every property below true. Test names refer to
+[`src/test.rs`](../packages/contracts/identity-registry/src/test.rs) unless
+another file is named. The contract in `main` can be ahead of the deployed
+wasm; which methods are live is in
+[`REGISTRY_INTEGRATION.md` §2](REGISTRY_INTEGRATION.md#2-interface).
+
+### Auth matrix
+
+- [ ] Every entry point requires exactly the signer below, checked with
+      `require_auth` on the address named. A new entry point gets a row here
+      and a test that it fails without that signature.
+
+| Entry point | Must sign | Proof |
+|---|---|---|
+| `initialize(admin)` | `admin` | `initialize_requires_admin_auth`; one-time: `initialize_is_one_time` |
+| `set_admin(new_admin)` | current admin | `set_admin_requires_current_admin_auth`, `set_admin_rotates_authority`, `set_admin_before_initialize_errors` |
+| `claim(handle, wallet)` | `wallet` | `claim_requires_wallet_auth`, `claim_before_initialize_errors` |
+| `release(handle)` | the handle's current owner (resolved on-chain, not passed in) | `release_requires_owner_auth`, `release_rejected_when_authorized_by_wrong_address` |
+| `transfer_handle(handle, new_wallet)` | current owner (see the `#978` item below) | `transfer_handle_requires_current_owner_auth` |
+| `admin_revoke(handle)` | admin | `admin_revoke_requires_admin_auth`, `admin_revoke_rejected_when_authorized_by_wrong_address` |
+| `resolve`, `lookup`, `is_bound`, `count`, `resolve_batch` | nobody (reads) | no `require_auth` in those functions |
+
+- [ ] `transfer_handle` must also require `new_wallet`'s signature, so a handle
+      cannot be pushed onto a wallet that never agreed to it. Today only the
+      current owner signs. `[registry: #978]`
+- [ ] Ownership checks authorize the **resolved** owner, never a caller-supplied
+      address: `release` and `transfer_handle` call `resolve` and then
+      `require_auth` on its result. A non-owner therefore fails with an auth
+      error, not `NotOwner`
+      ([`REGISTRY_INTEGRATION.md` §3](REGISTRY_INTEGRATION.md#3-errors)).
+
+### Admin powers
+
+- [ ] The admin can do exactly two things: `admin_revoke` (force-remove a
+      binding) and `set_admin` (rotate the admin key). The admin **cannot
+      create or redirect a binding**. Every write to `DataKey::Owner` /
+      `DataKey::Handle` is reached only through `claim` (signed by the wallet),
+      `transfer_handle` (signed by the owner) or `remove_binding`, which only
+      deletes. A compromised admin can censor but never impersonate
+      ([`identity-registry/README.md`](../packages/contracts/identity-registry/README.md#trust-model)).
+- [ ] The migration-only `admin_reserve` / `seal` entry points narrow **who may
+      claim** a reserved handle and never assign one. `admin_reserve` writes a
+      reservation, not a binding, and the reserved wallet still signs its own
+      `claim`. `seal` is one-way and turns the power off for good, so the extra
+      admin power is temporary
+      ([`CONTRACT_MIGRATION.md` §4](CONTRACT_MIGRATION.md#4-the-replacement-contract)).
+      `[registry: #982]`
+- [ ] There is no upgrade entry point (no `update_current_contract_wasm`
+      anywhere in `lib.rs`). Adding one is a change to the trust model, not a
+      feature, and needs its own design review.
+
+### Handle rules
+
+- [ ] Handles are 1–32 bytes of `[a-z0-9_-]` (uppercase rejected), enforced by
+      `validate_handle` in `lib.rs` (`MAX_HANDLE_LEN`). Proof:
+      `claim_rejects_invalid_handles`, `valid_handle_charset_is_accepted`, and
+      in [`src/property_test.rs`](../packages/contracts/identity-registry/src/property_test.rs)
+      `validate_handle_matches_the_spec_on_arbitrary_bytes`,
+      `validate_handle_rejects_non_ascii_text`,
+      `validate_handle_length_bound_is_inclusive_at_32` and
+      `claim_rejects_exactly_the_handles_validation_rejects`.
+- [ ] Reserved names (`RESERVED_HANDLES`) are refused by `is_reserved_handle`
+      in `claim`, as an exact match and not a prefix match. Proof:
+      `claim_rejects_reserved_handles`,
+      `claim_allows_handles_that_only_resemble_reserved_names`.
+- [ ] The off-chain mirror stays identical: `HANDLE_MAX_LEN`,
+      `HANDLE_PATTERN` and `RESERVED_HANDLES` in
+      [`packages/types/src/handle.ts`](../packages/types/src/handle.ts) are
+      parsed against `lib.rs` by
+      [`packages/types/src/handle.test.ts`](../packages/types/src/handle.test.ts)
+      ("HANDLE_MAX_LEN matches MAX_HANDLE_LEN in the contract", "RESERVED_HANDLES
+      matches the contract list exactly", "the contract enforces the same
+      charset this module encodes"). Change both sides in the same PR.
+
+### Storage and TTL
+
+- [ ] `DataKey::Admin` and `DataKey::Count` live in **instance** storage, and
+      `DataKey::Owner(handle)` / `DataKey::Handle(wallet)` in **persistent**
+      storage. Both directions of a binding are written, extended and removed
+      together (`claim`, `transfer_handle`, `remove_binding`). Proof:
+      `release_frees_handle_and_wallet`, `transfer_handle_happy_path`.
+- [ ] Every entry point calls `bump_instance`, reads included. If the instance
+      archives, `require_initialized` fails and every state-changing call
+      reverts until someone restores it, so the registry looks bricked while
+      its bindings are still alive (`bump_instance`'s doc comment in
+      `lib.rs`). Proof: `every_read_keeps_the_instance_alive`,
+      `a_missed_read_still_keeps_the_instance_alive`.
+- [ ] **Simulated reads extend nothing.** A simulation discards its
+      footprint, so a deployment whose traffic is all view-simulations still
+      needs the operator keep-alive
+      ([`DEPLOYMENT.md` §11](DEPLOYMENT.md#11-keeping-the-instance-alive-and-restoring-it-after-archival)).
+      Do not argue that "reads bump the instance" makes the keep-alive
+      optional.
+
+### Counter semantics
+
+- [ ] `count()` is an O(1) **upper bound**, not a live total. A binding whose
+      persistent entries archive unaccessed runs no contract code, so nothing
+      subtracts it, and the counter only drifts upward (`count`'s doc comment
+      in `lib.rs`). No consumer, doc or UI may present it as "currently bound",
+      and only `resolve` proves a binding is live. `remove_binding` uses
+      `saturating_sub`. Proof: `count_tracks_active_bindings`,
+      `count_never_underflows`, and
+      `count_equals_live_bindings_after_any_sequence` in `src/property_test.rs`
+      (exact there only because nothing archives in the test host).
+
+### Events are an API
+
+- [ ] The event layout is a public interface that the indexer
+      ([`apps/indexer/src/workers/attestation.ts`](../apps/indexer/src/workers/attestation.ts)),
+      `/handles` ([`apps/web/lib/directory.ts`](../apps/web/lib/directory.ts))
+      and third-party integrators fold
+      ([`REGISTRY_INTEGRATION.md` §4](REGISTRY_INTEGRATION.md#4-events)).
+      Binding events are topics `(Symbol(kind), String(handle))`:
+      `claimed` / `released` / `revoked` carry `address(wallet)`, and
+      `transferred` carries `(from, to)`. `admin_changed` has the one-element
+      topic `(Symbol("admin_changed"),)` with `(old_admin, new_admin)`, and
+      `initialize` publishes nothing. Each write emits exactly one event, and
+      the tests pin its exact topics and data (#980): `claim_emits_event`,
+      `release_emits_event`, `admin_revoke_emits_event`,
+      `transfer_handle_emits_event`, `set_admin_emits_event`,
+      `initialize_publishes_no_events`. Changing a topic, the order of a tuple
+      or a data shape breaks every consumer of the deployed registry. Add a
+      new kind rather than reshaping an old one.
+
+### Error codes
+
+- [ ] The `Error` enum is **append-only**. Integrators match on the number
+      (`Error(Contract, #N)`), and an immutable deployment keeps the old
+      numbering forever. Never renumber, rename or remove a variant. Add the
+      next free code instead.
+      [`scripts/check-contract-errors.mjs`](../scripts/check-contract-errors.mjs)
+      (CI `docs` job) fails if a code in its `FROZEN_CODES` list changes number
+      or name, if a new code is not appended there, or if
+      [`apps/web/lib/contract-errors.ts`](../apps/web/lib/contract-errors.ts)
+      drifts from the enum.
