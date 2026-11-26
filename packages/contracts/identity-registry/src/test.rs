@@ -1,5 +1,7 @@
 #![cfg(test)]
 
+extern crate std;
+
 use super::*;
 use soroban_sdk::{
     symbol_short,
@@ -63,17 +65,17 @@ fn setup() -> (Env, IdentityRegistryClient<'static>, Address) {
 }
 
 #[test]
-fn initialize_publishes_no_events() {
+fn initialize_emits_event() {
     let env = Env::default();
     env.mock_all_auths();
     let contract_id = env.register(IdentityRegistry, ());
     let client = IdentityRegistryClient::new(&env, &contract_id);
     let admin = Address::generate(&env);
     client.initialize(&admin);
-    assert_eq!(
-        last_events(&env).len(),
-        0,
-        "initialize must publish no events"
+    assert_single_event(
+        &env,
+        vec![&env, Symbol::new(&env, "initialized").into_val(&env)],
+        admin.into_val(&env),
     );
 }
 
@@ -849,4 +851,110 @@ fn a_missed_read_still_keeps_the_instance_alive() {
 
     assert_eq!(client.resolve(&String::from_str(&env, "nobody-here")), None);
     assert_eq!(instance_ttl(&env, &client), BUMP_LEDGERS);
+}
+
+// ── declared events (#981) ──────────────────────────────────────────────────
+
+/// One `eventV0` spec entry, reduced to what a consumer reads from the wasm.
+fn event_spec(
+    spec_xdr: &[u8],
+) -> (
+    std::string::String,
+    std::vec::Vec<std::string::String>,
+    xdr::ScSpecEventDataFormat,
+    std::vec::Vec<(std::string::String, xdr::ScSpecEventParamLocationV0)>,
+) {
+    use xdr::ReadXdr;
+    let entry = xdr::ScSpecEntry::from_xdr(spec_xdr, xdr::Limits::none()).unwrap();
+    let xdr::ScSpecEntry::EventV0(event) = entry else {
+        panic!("expected an eventV0 spec entry");
+    };
+    (
+        event.name.to_utf8_string().unwrap(),
+        event
+            .prefix_topics
+            .iter()
+            .map(|t| t.to_utf8_string().unwrap())
+            .collect(),
+        event.data_format,
+        event
+            .params
+            .iter()
+            .map(|p| (p.name.to_utf8_string().unwrap(), p.location))
+            .collect(),
+    )
+}
+
+/// The `#[contractevent]` structs are what put `eventV0` entries into the
+/// wasm's `contractspecv0` section, so these are the six events a spec reader
+/// (Signet's docs view, `stellar contract info interface`) lists for the
+/// registry. The names, prefix topics, data formats and param locations must
+/// match the published layout pinned by the `*_emits_event` tests above.
+#[test]
+fn contract_spec_declares_the_six_events() {
+    use xdr::ScSpecEventDataFormat::{SingleValue, Vec as VecFormat};
+    use xdr::ScSpecEventParamLocationV0::{Data, TopicList};
+    let s = |v: &str| std::string::String::from(v);
+
+    assert_eq!(
+        event_spec(&Claimed::spec_xdr()),
+        (
+            s("Claimed"),
+            vec_of(&["claimed"]),
+            SingleValue,
+            std::vec![(s("handle"), TopicList), (s("wallet"), Data)]
+        )
+    );
+    assert_eq!(
+        event_spec(&Released::spec_xdr()),
+        (
+            s("Released"),
+            vec_of(&["released"]),
+            SingleValue,
+            std::vec![(s("handle"), TopicList), (s("wallet"), Data)]
+        )
+    );
+    assert_eq!(
+        event_spec(&Revoked::spec_xdr()),
+        (
+            s("Revoked"),
+            vec_of(&["revoked"]),
+            SingleValue,
+            std::vec![(s("handle"), TopicList), (s("wallet"), Data)]
+        )
+    );
+    assert_eq!(
+        event_spec(&Transferred::spec_xdr()),
+        (
+            s("Transferred"),
+            vec_of(&["transferred"]),
+            VecFormat,
+            std::vec![(s("handle"), TopicList), (s("from"), Data), (s("to"), Data)]
+        )
+    );
+    assert_eq!(
+        event_spec(&AdminChanged::spec_xdr()),
+        (
+            s("AdminChanged"),
+            vec_of(&["admin_changed"]),
+            VecFormat,
+            std::vec![(s("old_admin"), Data), (s("new_admin"), Data)]
+        )
+    );
+    assert_eq!(
+        event_spec(&Initialized::spec_xdr()),
+        (
+            s("Initialized"),
+            vec_of(&["initialized"]),
+            SingleValue,
+            std::vec![(s("admin"), Data)]
+        )
+    );
+}
+
+fn vec_of(items: &[&str]) -> std::vec::Vec<std::string::String> {
+    items
+        .iter()
+        .map(|i| std::string::String::from(*i))
+        .collect()
 }

@@ -27,7 +27,7 @@
 //! and per-call cost stay constant regardless of how many handles exist.
 
 use soroban_sdk::{
-    contract, contracterror, contractimpl, contracttype, symbol_short, Address, Env, String, Vec,
+    contract, contracterror, contractevent, contractimpl, contracttype, Address, Env, String, Vec,
 };
 
 /// Maximum handle length in bytes. Handles are short, URL-safe identifiers.
@@ -94,6 +94,58 @@ pub enum Error {
     BatchTooLarge = 9,
 }
 
+/// A handle was claimed and bound to a wallet.
+#[contractevent(data_format = "single-value")]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct Claimed {
+    #[topic]
+    pub handle: String,
+    pub wallet: Address,
+}
+
+/// A handle was voluntarily released by its owning wallet.
+#[contractevent(data_format = "single-value")]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct Released {
+    #[topic]
+    pub handle: String,
+    pub wallet: Address,
+}
+
+/// A handle was force-unbound by the moderation admin.
+#[contractevent(data_format = "single-value")]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct Revoked {
+    #[topic]
+    pub handle: String,
+    pub wallet: Address,
+}
+
+/// A handle was transferred from one wallet to another.
+#[contractevent(data_format = "vec")]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct Transferred {
+    #[topic]
+    pub handle: String,
+    pub from: Address,
+    pub to: Address,
+}
+
+/// Moderation authority was rotated to a new admin.
+#[contractevent(data_format = "vec")]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct AdminChanged {
+    pub old_admin: Address,
+    pub new_admin: Address,
+}
+
+/// The registry was initialized with its initial moderation admin.
+#[contractevent(data_format = "single-value")]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct Initialized {
+    pub admin: Address,
+}
+
 #[contract]
 pub struct IdentityRegistry;
 
@@ -113,6 +165,7 @@ impl IdentityRegistry {
         }
         env.storage().instance().set(&DataKey::Admin, &admin);
         Self::bump_instance(&env);
+        Initialized { admin }.publish(&env);
         Ok(())
     }
 
@@ -133,14 +186,11 @@ impl IdentityRegistry {
         env.storage().instance().set(&DataKey::Admin, &new_admin);
         Self::bump_instance(&env);
 
-        // `Events::publish` is deprecated in favour of `#[contractevent]`.
-        // Moving the registry's events over is #981; until then the warning
-        // is allowed for this call only, so clippy can run with -D warnings.
-        #[allow(deprecated)]
-        env.events().publish(
-            (soroban_sdk::Symbol::new(&env, "admin_changed"),),
-            (admin, new_admin),
-        );
+        AdminChanged {
+            old_admin: admin,
+            new_admin,
+        }
+        .publish(&env);
         Ok(())
     }
 
@@ -178,10 +228,7 @@ impl IdentityRegistry {
         env.storage().instance().set(&DataKey::Count, &(count + 1));
         Self::bump_instance(&env);
 
-        // Deprecated in favour of `#[contractevent]`: see `set_admin`, and #981.
-        #[allow(deprecated)]
-        env.events()
-            .publish((symbol_short!("claimed"), handle), wallet);
+        Claimed { handle, wallet }.publish(&env);
         Ok(())
     }
 
@@ -217,12 +264,12 @@ impl IdentityRegistry {
             .extend_ttl(&new_wallet_key, BUMP_THRESHOLD, BUMP_LEDGERS);
         Self::bump_instance(&env);
 
-        // Deprecated in favour of `#[contractevent]`: see `set_admin`, and #981.
-        #[allow(deprecated)]
-        env.events().publish(
-            (soroban_sdk::Symbol::new(&env, "transferred"), handle),
-            (current_owner, new_wallet),
-        );
+        Transferred {
+            handle,
+            from: current_owner,
+            to: new_wallet,
+        }
+        .publish(&env);
 
         Ok(())
     }
@@ -232,7 +279,8 @@ impl IdentityRegistry {
         Self::require_initialized(&env)?;
         let wallet = Self::resolve(env.clone(), handle.clone()).ok_or(Error::HandleNotFound)?;
         wallet.require_auth();
-        Self::remove_binding(&env, &handle, &wallet, symbol_short!("released"));
+        Self::remove_binding(&env, &handle, &wallet);
+        Released { handle, wallet }.publish(&env);
         Ok(())
     }
 
@@ -245,7 +293,8 @@ impl IdentityRegistry {
             .ok_or(Error::NotInitialized)?;
         admin.require_auth();
         let wallet = Self::resolve(env.clone(), handle.clone()).ok_or(Error::HandleNotFound)?;
-        Self::remove_binding(&env, &handle, &wallet, symbol_short!("revoked"));
+        Self::remove_binding(&env, &handle, &wallet);
+        Revoked { handle, wallet }.publish(&env);
         Ok(())
     }
 
@@ -347,12 +396,7 @@ impl IdentityRegistry {
         }
     }
 
-    fn remove_binding(
-        env: &Env,
-        handle: &String,
-        wallet: &Address,
-        event_name: soroban_sdk::Symbol,
-    ) {
+    fn remove_binding(env: &Env, handle: &String, wallet: &Address) {
         env.storage()
             .persistent()
             .remove(&DataKey::Owner(handle.clone()));
@@ -365,11 +409,6 @@ impl IdentityRegistry {
             .instance()
             .set(&DataKey::Count, &count.saturating_sub(1));
         Self::bump_instance(env);
-
-        // Deprecated in favour of `#[contractevent]`: see `set_admin`, and #981.
-        #[allow(deprecated)]
-        env.events()
-            .publish((event_name, handle.clone()), wallet.clone());
     }
 }
 
