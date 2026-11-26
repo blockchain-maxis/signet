@@ -36,8 +36,8 @@
   },
   "devDependencies": {
     "buffer": "6.0.3",
-    "esbuild": "0.28.0",
-    "fast-check": "^4.10.2",
-    "typescript": "^5.6.3"
+    "esbuild": "0.28.2",
+    "fast-check": "^4.11.0",
+    "typescript": "^7.0.2"
   }
 }
