@@ -23,7 +23,10 @@ import {
   safeDbHandles,
   safeDbOperationsResult,
   liveProfileWhere,
+  findPagedOperationsWith,
+  type PagedOperationsClient,
   type ProfilesDb,
+  type Operation,
 } from './profiles.ts';
 
 test('isValidHandle accepts the registry charset', () => {
@@ -280,6 +283,39 @@ test('safeDbProfileStats rejects invalid handles without a DB round trip', async
   assert.equal(await safeDbProfileStats('../../etc/passwd'), null);
 });
 
+test('computeStats over three invocations of two different functions returns uniqueFunctions: 2', () => {
+  const operations: Operation[] = [
+    {
+      id: 'op1',
+      type: 'invoke_host_function',
+      function: 'HostFunctionTypeHostFunctionTypeInvokeContract',
+      decoded_function: 'fn_a',
+      created_at: '2026-11-21T07:00:00Z',
+      transaction_successful: true,
+    },
+    {
+      id: 'op2',
+      type: 'invoke_host_function',
+      function: 'HostFunctionTypeHostFunctionTypeInvokeContract',
+      decoded_function: 'fn_b',
+      created_at: '2026-11-21T07:01:00Z',
+      transaction_successful: true,
+    },
+    {
+      id: 'op3',
+      type: 'invoke_host_function',
+      function: 'HostFunctionTypeHostFunctionTypeInvokeContract',
+      decoded_function: 'fn_a',
+      created_at: '2026-11-21T07:02:00Z',
+      transaction_successful: true,
+    },
+  ];
+
+  const stats = computeStats(operations);
+  assert.equal(stats.invocations, 3);
+  assert.equal(stats.uniqueFunctions, 2);
+});
+
 /**
  * A stub `ProfilesDb` over in-memory rows. It applies the shared
  * `liveProfileWhere` fragment the Prisma reads use, so the released-handle rule
@@ -390,4 +426,33 @@ test('a profile with only CLI-linked wallets is not listed, paged, or aggregated
     uniqueFunctions: 0,
     reputation: 0,
   });
+});
+
+test('getPagedOperations maps a database row with contractAddress to contract and the decoded function', async () => {
+  const row = {
+    id: 'op_db_1',
+    type: 'invoke_host_function',
+    function: 'HostFunctionTypeHostFunctionTypeInvokeContract',
+    decodedFunction: 'write_prices',
+    contractAddress: 'CD4KFB23CQLJ47RIPESVBTQ444R75M6QVEZULWXHHFYYZT7SS2VGXOPW',
+    sourceAccount: BOB_ONCHAIN_WALLET,
+    createdAt: new Date('2026-11-21T07:02:11.000Z'),
+    transactionHash: 'abc',
+    successful: true,
+    balanceChanges: null,
+  };
+  const client: PagedOperationsClient = {
+    profile: { findFirst: async () => ({ wallets: [{ id: 'w2' }] }) },
+    operation: { findMany: async () => [row], count: async () => 1 },
+  };
+  const db: ProfilesDb = {
+    ...stubDb,
+    findPagedOperations: (handle, pagination, limit) =>
+      findPagedOperationsWith(client, handle, pagination, limit),
+  };
+
+  const page = await getPagedOperations('bob', 0, 25, db);
+  assert.equal(page?.total, 1);
+  assert.equal(page?.data[0]?.contract, 'CD4KFB23CQLJ47RIPESVBTQ444R75M6QVEZULWXHHFYYZT7SS2VGXOPW');
+  assert.equal(page?.data[0]?.decoded_function, 'write_prices');
 });

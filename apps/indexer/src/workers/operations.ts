@@ -1,4 +1,5 @@
 import type { Horizon } from '@stellar/stellar-sdk';
+import { decodeInvokeParameters } from '@signet/visualiser';
 import { logger } from '../logger.js';
 import { sleep } from '../stellar.js';
 import { withRetry } from '../retry.js';
@@ -64,6 +65,8 @@ export interface OperationCreate {
   walletId: string;
   type: string;
   function: string | null;
+  decodedFunction?: string | null;
+  contractAddress?: string | null;
   sourceAccount: string | null;
   createdAt: Date;
   transactionHash: string | null;
@@ -75,6 +78,8 @@ export interface OperationCreate {
 export interface OperationUpdate {
   successful: boolean;
   balanceChanges?: unknown;
+  decodedFunction?: string;
+  contractAddress?: string;
 }
 
 /**
@@ -145,18 +150,23 @@ async function storeInvocation(
 ): Promise<void> {
   // Horizon's SDK types don't expose the invoke-host-function fields.
   const r = op as any;
+  const decoded = decodeInvokeParameters(r.parameters);
 
   await store.operation.upsert({
     where: { id: op.id },
     update: {
       successful: op.transaction_successful ?? true,
       balanceChanges: r.asset_balance_changes ?? undefined,
+      decodedFunction: decoded.fn ?? undefined,
+      contractAddress: decoded.contract ?? undefined,
     },
     create: {
       id: op.id,
       walletId: wallet.id,
       type: op.type,
       function: r.function ?? null,
+      decodedFunction: decoded.fn ?? null,
+      contractAddress: decoded.contract ?? null,
       sourceAccount: op.source_account ?? null,
       createdAt: new Date(op.created_at),
       transactionHash: op.transaction_hash ?? null,

@@ -224,6 +224,7 @@ export {
 export {
   aggregateCallEdges,
   callEdgesFromTransaction,
+  decodeInvokeParameters,
   eventContractIds,
   invokedFunction,
 } from './observe/calls.ts';
