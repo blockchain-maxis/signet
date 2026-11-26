@@ -27,6 +27,7 @@ export interface CallResult {
 export interface CallRun {
   readonly target: Target;
   readonly function: string;
+  readonly args?: Record<string, unknown>;
   readonly result?: CallResult;
   readonly error?: string;
 }
@@ -166,13 +167,13 @@ export function CallForm({
       try {
         const result = await api.post<CallResult>('call', { ...body, wasm: target });
         seen.set(`${(target === 'deployed' ? specs.deployed : specs.local)?.wasmHash ?? ''}:${fn}`, classify(result));
-        runs.push({ target, function: fn, result });
+        runs.push({ target, function: fn, args: built.args, result });
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
         const field = err instanceof ApiError ? serverFieldError(message, args) : null;
         if (field) setErrors((prev) => ({ ...prev, [field.path]: field.message }));
         else setFormError(message);
-        runs.push({ target, function: fn, error: message });
+        runs.push({ target, function: fn, args: built.args, error: message });
       }
     }
     setPending(false);
