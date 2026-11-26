@@ -31,6 +31,7 @@ import {
 } from './server/registry-read.ts';
 import { getNonceStoreStatus } from './nonce-store.ts';
 import { getRateLimitStoreStatus } from './rate-limit.ts';
+import { logger } from './logger.ts';
 
 /** Per-dependency verdict. `skipped` means "not configured here", not "healthy". */
 export type CheckStatus = 'up' | 'down' | 'skipped';
@@ -44,6 +45,12 @@ export type StoreStatus = 'up' | 'down' | 'memory';
 
 /** How long any single dependency gets before it counts as down. */
 export const CHECK_TIMEOUT_MS = 2_000;
+
+export interface IndexerReport {
+  status: CheckStatus;
+  lastTickAt: string | null;
+  lagSeconds: number | null;
+}
 
 export interface HealthChecks {
   /** Postgres, via a `SELECT 1`. */
@@ -89,6 +96,7 @@ export interface HealthReport {
   ts: string;
   uptimeSeconds: number;
   checks: HealthChecks;
+  indexer: IndexerReport;
 }
 
 /** Resolve `promise`, or reject once `ms` have passed. */
@@ -140,17 +148,118 @@ export async function checkRegistry(options: RegistryReadOptions = {}): Promise<
   }
 }
 
+/** Default time after which the indexer is considered stale (10 minutes). */
+export const DEFAULT_INDEXER_STALE_AFTER_MS = 10 * 60 * 1000;
+
+export function getIndexerStaleAfterMs(): number {
+  const envVal = process.env.INDEXER_STALE_AFTER_MS;
+  if (!envVal) return DEFAULT_INDEXER_STALE_AFTER_MS;
+  const parsed = parseInt(envVal, 10);
+  return Number.isNaN(parsed) || parsed <= 0 ? DEFAULT_INDEXER_STALE_AFTER_MS : parsed;
+}
+
+export interface CheckIndexerOptions {
+  prisma?: {
+    indexerHeartbeat: {
+      findUnique?: (args: { where: { worker: string } }) => Promise<{
+        worker: string;
+        lastSuccessAt: Date | null;
+        lastFailureAt: Date | null;
+        lastError: string | null;
+      } | null>;
+      findMany?: () => Promise<Array<{
+        worker: string;
+        lastSuccessAt: Date | null;
+        lastFailureAt: Date | null;
+        lastError: string | null;
+      }>>;
+    };
+  };
+  now?: () => number;
+  staleAfterMs?: number;
+}
+
+/**
+ * Indexer freshness probe.
+ *
+ * Checks the `IndexerHeartbeat` table for the `tick` row.
+ * Returns `skipped` when running without a database, and `down` when the tick
+ * is missing or older than `INDEXER_STALE_AFTER_MS` (default 10 minutes).
+ */
+export async function checkIndexer(options: CheckIndexerOptions = {}): Promise<IndexerReport> {
+  if (!options.prisma && !process.env.DATABASE_URL) {
+    return { status: 'skipped', lastTickAt: null, lagSeconds: null };
+  }
+  try {
+    let client = options.prisma;
+    if (!client) {
+      const { prisma } = await import('@signet/db');
+      client = prisma as unknown as CheckIndexerOptions['prisma'];
+    }
+    if (!client) {
+      return { status: 'skipped', lastTickAt: null, lagSeconds: null };
+    }
+
+    let tickRow: { worker: string; lastSuccessAt: Date | null; lastFailureAt: Date | null; lastError: string | null } | null = null;
+    if (typeof client.indexerHeartbeat.findMany === 'function') {
+      const rows = await withTimeout(client.indexerHeartbeat.findMany(), CHECK_TIMEOUT_MS);
+      tickRow = rows.find((r) => r.worker === 'tick') ?? null;
+      const workerDetails = rows
+        .filter((r) => r.worker !== 'tick')
+        .map((r) => ({
+          worker: r.worker,
+          lastSuccessAt: r.lastSuccessAt?.toISOString() ?? null,
+          lastFailureAt: r.lastFailureAt?.toISOString() ?? null,
+          lastError: r.lastError,
+        }));
+      if (workerDetails.length > 0) {
+        logger.info({ workers: workerDetails }, 'indexer.workersHeartbeat');
+      }
+    } else if (typeof client.indexerHeartbeat.findUnique === 'function') {
+      tickRow = await withTimeout(
+        client.indexerHeartbeat.findUnique({ where: { worker: 'tick' } }),
+        CHECK_TIMEOUT_MS,
+      );
+    }
+
+    if (!tickRow || !tickRow.lastSuccessAt) {
+      return { status: 'down', lastTickAt: null, lagSeconds: null };
+    }
+
+    const now = options.now ? options.now() : Date.now();
+    const lastTickMs = new Date(tickRow.lastSuccessAt).getTime();
+    const lagMs = Math.max(0, now - lastTickMs);
+    const lagSeconds = Math.floor(lagMs / 1000);
+    const staleAfterMs = options.staleAfterMs ?? getIndexerStaleAfterMs();
+
+    const isStale = lagMs > staleAfterMs;
+    return {
+      status: isStale ? 'down' : 'up',
+      lastTickAt: new Date(tickRow.lastSuccessAt).toISOString(),
+      lagSeconds,
+    };
+  } catch {
+    return { status: 'down', lastTickAt: null, lagSeconds: null };
+  }
+}
+
 /**
  * `degraded` when a dependency whose failure users can feel is down.
  *
  * Every check is reported, but they do not all mean the same thing. Postgres,
- * the registry and the nonce store each break something a user is doing right
- * now. The rate-limit store failing open leaves the product fully functional
- * and merely unprotected — paging on it would train operators to ignore the
- * probe, so it is surfaced in `checks` and deliberately excluded here.
+ * the registry, the nonce store and the indexer each break something a user
+ * is doing or rely on fresh state. The rate-limit store failing open leaves
+ * the product fully functional and merely unprotected — paging on it would
+ * train operators to ignore the probe, so it is surfaced in `checks` and
+ * deliberately excluded here.
  */
-export function overallStatus(checks: HealthChecks): 'ok' | 'degraded' {
+export function overallStatus(
+  checks: HealthChecks,
+  indexer?: CheckStatus | IndexerReport,
+): 'ok' | 'degraded' {
   const degrading = [checks.db, checks.registry, checks.nonceStore, checks.pairing];
+  const indexerStatus = typeof indexer === 'string' ? indexer : indexer?.status;
+  if (indexerStatus === 'down') return 'degraded';
   return degrading.includes('down') ? 'degraded' : 'ok';
 }
 
@@ -172,6 +281,7 @@ export interface HealthProbes {
   registry?: () => Promise<CheckStatus>;
   nonceStore?: () => Promise<StoreStatus>;
   rateLimitStore?: () => Promise<StoreStatus>;
+  indexer?: () => Promise<IndexerReport>;
 }
 
 /**
@@ -182,11 +292,12 @@ export interface HealthProbes {
  * to give up on the request.
  */
 export async function collectHealth(probes: HealthProbes = {}): Promise<HealthReport> {
-  const [db, registry, nonceStore, rateLimitStore] = await Promise.all([
+  const [db, registry, nonceStore, rateLimitStore, indexer] = await Promise.all([
     (probes.db ?? checkDb)(),
     (probes.registry ?? checkRegistry)(),
     (probes.nonceStore ?? getNonceStoreStatus)(),
     (probes.rateLimitStore ?? getRateLimitStoreStatus)(),
+    (probes.indexer ?? checkIndexer)(),
   ]);
 
   const checks: HealthChecks = {
@@ -197,10 +308,11 @@ export async function collectHealth(probes: HealthProbes = {}): Promise<HealthRe
     pairing: pairingStatus(db, registry),
   };
   return {
-    status: overallStatus(checks),
+    status: overallStatus(checks, indexer),
     service: 'signet-web',
     ts: new Date().toISOString(),
     uptimeSeconds: Math.round(process.uptime()),
     checks,
+    indexer,
   };
 }

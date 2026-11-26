@@ -1400,6 +1400,42 @@
                           ],
                           "type": "object"
                         },
+                        "indexer": {
+                          "additionalProperties": false,
+                          "properties": {
+                            "lagSeconds": {
+                              "description": "Seconds since the last completed indexer tick, or null.",
+                              "minimum": 0,
+                              "type": [
+                                "integer",
+                                "null"
+                              ]
+                            },
+                            "lastTickAt": {
+                              "description": "ISO-8601 UTC timestamp of the last completed indexer tick, or null.",
+                              "format": "date-time",
+                              "type": [
+                                "string",
+                                "null"
+                              ]
+                            },
+                            "status": {
+                              "description": "Freshness verdict for the indexer background service.",
+                              "enum": [
+                                "up",
+                                "down",
+                                "skipped"
+                              ],
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "status",
+                            "lastTickAt",
+                            "lagSeconds"
+                          ],
+                          "type": "object"
+                        },
                         "network": {
                           "description": "The Stellar network this deployment is configured for.",
                           "type": "string"

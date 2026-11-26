@@ -63,40 +63,72 @@ async function tick(
   soroban: ReturnType<typeof createSorobanRpcServer>,
   config: ReturnType<typeof loadConfig>,
 ): Promise<void> {
-  // The order the workers run in, what each is for, and the isolation between
-  // them are in `runTick`. This only binds each one to its clients and store.
-  await runTick({
-    attestation: () => runAttestationWorker(soroban, config),
-    deployment: () =>
-      runDeploymentWorker(
-        horizon,
-        config,
-        prisma as unknown as DeploymentStore,
-        createContractExecutableReader(soroban),
-      ),
-    activity: () => runActivityWorker(prisma as unknown as ActivityStore, config),
-    operations: () => runOperationsWorker(horizon, prisma as unknown as OperationsStore, config),
-    invocations: config.captureInvocations
-      ? () => runInvocationsWorker(soroban, config, prisma as unknown as InvocationsStore)
-      : undefined,
-    executableRefresh: () =>
-      runExecutableRefreshWorker(soroban, config, prisma as unknown as ExecutableRefreshStore),
-    prune:
-      Date.now() - lastPrunedAt >= config.pruneIntervalMs
-        ? async () => {
-            const res = await runPruningWorker(prisma as unknown as PruningStore, config);
-            lastPrunedAt = Date.now();
-            return res;
-          }
-        : undefined,
-    saveCursor: async (highestLedger) => {
-      await prisma.indexerCursor.upsert({
-        where:  { id: 'main' },
-        update: { lastLedger: highestLedger },
-        create: { id: 'main', lastLedger: highestLedger },
+  const heartbeatStore = {
+    async upsertHeartbeat({
+      worker,
+      lastSuccessAt,
+      lastFailureAt,
+      lastError,
+    }: {
+      worker: string;
+      lastSuccessAt?: Date;
+      lastFailureAt?: Date;
+      lastError?: string | null;
+    }) {
+      await prisma.indexerHeartbeat.upsert({
+        where: { worker },
+        create: {
+          worker,
+          ...(lastSuccessAt ? { lastSuccessAt } : {}),
+          ...(lastFailureAt ? { lastFailureAt } : {}),
+          ...(lastError !== undefined ? { lastError } : {}),
+        },
+        update: {
+          ...(lastSuccessAt ? { lastSuccessAt } : {}),
+          ...(lastFailureAt ? { lastFailureAt } : {}),
+          ...(lastError !== undefined ? { lastError } : {}),
+        },
       });
     },
-  });
+  };
+
+  // The order the workers run in, what each is for, and the isolation between
+  // them are in `runTick`. This only binds each one to its clients and store.
+  await runTick(
+    {
+      attestation: () => runAttestationWorker(soroban, config),
+      deployment: () =>
+        runDeploymentWorker(
+          horizon,
+          config,
+          prisma as unknown as DeploymentStore,
+          createContractExecutableReader(soroban),
+        ),
+      activity: () => runActivityWorker(prisma as unknown as ActivityStore, config),
+      operations: () => runOperationsWorker(horizon, prisma as unknown as OperationsStore, config),
+      invocations: config.captureInvocations
+        ? () => runInvocationsWorker(soroban, config, prisma as unknown as InvocationsStore)
+        : undefined,
+      executableRefresh: () =>
+        runExecutableRefreshWorker(soroban, config, prisma as unknown as ExecutableRefreshStore),
+      prune:
+        Date.now() - lastPrunedAt >= config.pruneIntervalMs
+          ? async () => {
+              const res = await runPruningWorker(prisma as unknown as PruningStore, config);
+              lastPrunedAt = Date.now();
+              return res;
+            }
+          : undefined,
+      saveCursor: async (highestLedger) => {
+        await prisma.indexerCursor.upsert({
+          where:  { id: 'main' },
+          update: { lastLedger: highestLedger },
+          create: { id: 'main', lastLedger: highestLedger },
+        });
+      },
+    },
+    heartbeatStore,
+  );
 }
 
 async function main(): Promise<void> {

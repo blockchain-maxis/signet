@@ -338,3 +338,12 @@ model ApiKey {
   @@index([prefix])
 }
 
+// Indexer worker liveness and error reporting (#971).
+model IndexerHeartbeat {
+  worker        String    @id
+  lastSuccessAt DateTime?
+  lastFailureAt DateTime?
+  lastError     String?
+}
+
+

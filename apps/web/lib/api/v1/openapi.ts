@@ -663,6 +663,30 @@ export const paths: Record<string, OpenApiPathItem> = {
                         },
                         additionalProperties: false,
                       },
+                      indexer: {
+                        type: 'object',
+                        required: ['status', 'lastTickAt', 'lagSeconds'],
+                        properties: {
+                          status: {
+                            type: 'string',
+                            enum: ['up', 'down', 'skipped'],
+                            description: 'Freshness verdict for the indexer background service.',
+                          },
+                          lastTickAt: {
+                            type: ['string', 'null'],
+                            format: 'date-time',
+                            description:
+                              'ISO-8601 UTC timestamp of the last completed indexer tick, or null.',
+                          },
+                          lagSeconds: {
+                            type: ['integer', 'null'],
+                            minimum: 0,
+                            description:
+                              'Seconds since the last completed indexer tick, or null.',
+                          },
+                        },
+                        additionalProperties: false,
+                      },
                     },
                     additionalProperties: false,
                   },
