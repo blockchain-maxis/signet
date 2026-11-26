@@ -320,3 +320,38 @@ test('enhanceFilter: writes only is disabled, with the reason, on a diagram with
   }
   controller.destroy();
 });
+
+test('enhanceFilter: counts functions inside collapsed groups via data-members', () => {
+  const container = new FakeNode('DIV');
+  const liveRegion = new FakeNode('DIV');
+  const inputEl = new FakeNode('INPUT');
+  container.appendChild(liveRegion);
+  container.appendChild(inputEl);
+
+  const collapsed = new FakeNode('G');
+  collapsed.setAttribute('data-node-id', 'collapsed:deploy');
+  collapsed.setAttribute('data-members', 'deploy_token,deploy_remote,deploy_custom');
+  collapsed.textContent = 'deploy_* (3)';
+  container.appendChild(collapsed);
+
+  const standalone = new FakeNode('G');
+  standalone.setAttribute('data-node-id', 'fn:transfer');
+  standalone.textContent = 'transfer';
+  container.appendChild(standalone);
+
+  const controller = enhanceFilter({
+    container: container as unknown as HTMLElement,
+    liveRegion: liveRegion as unknown as HTMLElement,
+    input: inputEl as unknown as HTMLInputElement,
+  });
+
+  const res = controller.setQuery('remote');
+  assert.equal(res.matchingNodes, 1);
+  assert.equal(res.matchingFunctions, 1);
+  assert.equal(res.totalFunctions, 4);
+  assert.equal(liveRegion.textContent, '1 of 4 functions match');
+  assert.ok(collapsed.classList.contains(FILTER_CLASSES.match));
+  assert.ok(standalone.classList.contains(FILTER_CLASSES.dimmed));
+
+  controller.destroy();
+});

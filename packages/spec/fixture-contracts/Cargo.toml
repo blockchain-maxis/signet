@@ -1,6 +1,13 @@
 [workspace]
 resolver = "2"
-members = ["types_zoo", "undocumented", "events", "errors_multi"]
+members = [
+  "types_zoo",
+  "undocumented",
+  "events",
+  "errors_multi",
+  "upgrade_v1",
+  "upgrade_v2",
+]
 
 [workspace.dependencies]
 soroban-sdk = "28"
