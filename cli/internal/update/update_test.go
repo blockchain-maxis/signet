@@ -145,3 +145,68 @@ func TestUpgradeCommandDetection(t *testing.T) {
 		t.Fatalf("expected URL %s, got %s", expectedURL, cmd)
 	}
 }
+
+func TestNoticeAtMostOncePerDay(t *testing.T) {
+	cacheDir := t.TempDir()
+	now := time.Now()
+	if err := WriteCache(cacheDir, &Cache{CheckedAt: now.Add(-time.Hour), Latest: "1.5.0"}); err != nil {
+		t.Fatalf("WriteCache: %v", err)
+	}
+	opts := Options{
+		Now: func() time.Time { return now },
+		Fetch: func(context.Context, string) (*ReleaseInfo, error) {
+			t.Fatal("fresh cache must not trigger a lookup")
+			return nil, nil
+		},
+		Executable: func() (string, error) { return "/usr/local/bin/signet", nil },
+	}
+
+	if _, ok := PassiveCheck(context.Background(), "1.0.0", cacheDir, opts); !ok {
+		t.Fatal("expected the first notice")
+	}
+	now = now.Add(time.Hour)
+	if notice, ok := PassiveCheck(context.Background(), "1.0.0", cacheDir, opts); ok {
+		t.Fatalf("second notice within 24h: %q", notice)
+	}
+
+	// A day later the notice may show again (after a fresh lookup).
+	now = now.Add(CacheInterval)
+	opts.Fetch = func(context.Context, string) (*ReleaseInfo, error) {
+		return &ReleaseInfo{Version: "1.5.0", TagName: "cli-v1.5.0"}, nil
+	}
+	if _, ok := PassiveCheck(context.Background(), "1.0.0", cacheDir, opts); !ok {
+		t.Fatal("expected the notice again after 24h")
+	}
+}
+
+func TestFailedLookupIsCached(t *testing.T) {
+	cacheDir := t.TempDir()
+	now := time.Now()
+	calls := 0
+	opts := Options{
+		Now: func() time.Time { return now },
+		Fetch: func(context.Context, string) (*ReleaseInfo, error) {
+			calls++
+			return nil, context.DeadlineExceeded
+		},
+	}
+
+	for i := 0; i < 3; i++ {
+		if notice, ok := PassiveCheck(context.Background(), "1.0.0", cacheDir, opts); ok {
+			t.Fatalf("unexpected notice while offline: %q", notice)
+		}
+	}
+	if calls != 1 {
+		t.Fatalf("expected one lookup while offline, got %d", calls)
+	}
+	c, err := ReadCache(cacheDir)
+	if err != nil || !c.Failed {
+		t.Fatalf("expected a cached failure, got %+v (%v)", c, err)
+	}
+
+	now = now.Add(CacheInterval + time.Minute)
+	PassiveCheck(context.Background(), "1.0.0", cacheDir, opts)
+	if calls != 2 {
+		t.Fatalf("expected a retry after 24h, got %d lookups", calls)
+	}
+}

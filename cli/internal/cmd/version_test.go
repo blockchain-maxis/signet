@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
-	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -135,38 +134,57 @@ func TestVersionCheckFailurePrintsWarningAndExitsZero(t *testing.T) {
 	}
 }
 
-func setTestCache(t *testing.T) string {
+// passiveDeps returns Deps whose update check reads and writes a temporary
+// cache seeded with latest, and whose release lookup never reaches the
+// network: it counts its calls and returns fetchErr (or latest).
+func passiveDeps(t *testing.T, latest string, fetchErr error) (Deps, string, *int) {
 	t.Helper()
-	d := t.TempDir()
-	t.Setenv("XDG_CACHE_HOME", d)
-	t.Setenv("LOCALAPPDATA", d)
-	return filepath.Join(d, "signet")
+	dir := t.TempDir()
+	if latest != "" {
+		if err := updatecheck.WriteCache(dir, &updatecheck.Cache{CheckedAt: time.Now(), Latest: latest}); err != nil {
+			t.Fatalf("WriteCache: %v", err)
+		}
+	}
+	calls := 0
+	deps := defaultDeps()
+	deps.UpdateCacheDir = func() (string, error) { return dir, nil }
+	deps.FetchLatestRelease = func(context.Context, string) (*updatecheck.ReleaseInfo, error) {
+		calls++
+		if fetchErr != nil {
+			return nil, fetchErr
+		}
+		return &updatecheck.ReleaseInfo{Version: latest, TagName: "cli-v" + latest}, nil
+	}
+	return deps, dir, &calls
 }
+
+// runForNotice runs `signet <args>` through Run and returns its stderr.
+func runForNotice(t *testing.T, version string, deps Deps, args ...string) string {
+	t.Helper()
+	root := newRootCmdWithDeps(version, "abc1234", deps)
+	errOut := &bytes.Buffer{}
+	root.SetOut(&bytes.Buffer{})
+	root.SetErr(errOut)
+	root.SetArgs(args)
+	if err := Run(root); err != nil {
+		t.Fatalf("Run failed: %v", err)
+	}
+	return errOut.String()
+}
+
+const noticePrefix = "A new release of signet is available"
 
 func TestPassiveNoticeSkippedUnderJSON(t *testing.T) {
 	fakeTerminal(t)
 	t.Setenv("CI", "")
 	t.Setenv("SIGNET_NO_UPDATE_CHECK", "")
+	deps, _, calls := passiveDeps(t, "2.0.0", nil)
 
-	signetCache := setTestCache(t)
-	_ = updatecheck.WriteCache(signetCache, &updatecheck.Cache{
-		CheckedAt: time.Now(),
-		Latest:    "2.0.0",
-	})
-
-	root := newRootCmdWithDeps("1.0.0", "abc1234", defaultDeps())
-	out := &bytes.Buffer{}
-	errOut := &bytes.Buffer{}
-	root.SetOut(out)
-	root.SetErr(errOut)
-	root.SetArgs([]string{"version", "--json"})
-
-	if err := Run(root); err != nil {
-		t.Fatalf("Run failed: %v", err)
+	if got := runForNotice(t, "1.0.0", deps, "version", "--json"); strings.Contains(got, noticePrefix) {
+		t.Fatalf("expected no passive notice under --json, got: %s", got)
 	}
-
-	if strings.Contains(errOut.String(), "A new release of signet is available") {
-		t.Fatalf("expected no passive notice under --json, got: %s", errOut.String())
+	if *calls != 0 {
+		t.Fatalf("release lookup ran %d times under --json", *calls)
 	}
 }
 
@@ -174,26 +192,21 @@ func TestPassiveNoticeSkippedUnderCI(t *testing.T) {
 	fakeTerminal(t)
 	t.Setenv("CI", "1")
 	t.Setenv("SIGNET_NO_UPDATE_CHECK", "")
+	deps, _, _ := passiveDeps(t, "2.0.0", nil)
 
-	signetCache := setTestCache(t)
-	_ = updatecheck.WriteCache(signetCache, &updatecheck.Cache{
-		CheckedAt: time.Now(),
-		Latest:    "2.0.0",
-	})
-
-	root := newRootCmdWithDeps("1.0.0", "abc1234", defaultDeps())
-	out := &bytes.Buffer{}
-	errOut := &bytes.Buffer{}
-	root.SetOut(out)
-	root.SetErr(errOut)
-	root.SetArgs([]string{"version"})
-
-	if err := Run(root); err != nil {
-		t.Fatalf("Run failed: %v", err)
+	if got := runForNotice(t, "1.0.0", deps, "version"); strings.Contains(got, noticePrefix) {
+		t.Fatalf("expected no passive notice with CI=1, got: %s", got)
 	}
+}
 
-	if strings.Contains(errOut.String(), "A new release of signet is available") {
-		t.Fatalf("expected no passive notice with CI=1, got: %s", errOut.String())
+func TestPassiveNoticeSkippedWithOptOut(t *testing.T) {
+	fakeTerminal(t)
+	t.Setenv("CI", "")
+	t.Setenv("SIGNET_NO_UPDATE_CHECK", "1")
+	deps, _, _ := passiveDeps(t, "2.0.0", nil)
+
+	if got := runForNotice(t, "1.0.0", deps, "version"); strings.Contains(got, noticePrefix) {
+		t.Fatalf("expected no passive notice with SIGNET_NO_UPDATE_CHECK=1, got: %s", got)
 	}
 }
 
@@ -201,26 +214,10 @@ func TestPassiveNoticeSkippedForDevBuild(t *testing.T) {
 	fakeTerminal(t)
 	t.Setenv("CI", "")
 	t.Setenv("SIGNET_NO_UPDATE_CHECK", "")
+	deps, _, _ := passiveDeps(t, "2.0.0", nil)
 
-	signetCache := setTestCache(t)
-	_ = updatecheck.WriteCache(signetCache, &updatecheck.Cache{
-		CheckedAt: time.Now(),
-		Latest:    "2.0.0",
-	})
-
-	root := newRootCmdWithDeps("dev", "none", defaultDeps())
-	out := &bytes.Buffer{}
-	errOut := &bytes.Buffer{}
-	root.SetOut(out)
-	root.SetErr(errOut)
-	root.SetArgs([]string{"version"})
-
-	if err := Run(root); err != nil {
-		t.Fatalf("Run failed: %v", err)
-	}
-
-	if strings.Contains(errOut.String(), "A new release of signet is available") {
-		t.Fatalf("expected no passive notice for dev build, got: %s", errOut.String())
+	if got := runForNotice(t, "dev", deps, "version"); strings.Contains(got, noticePrefix) {
+		t.Fatalf("expected no passive notice for dev build, got: %s", got)
 	}
 }
 
@@ -228,26 +225,39 @@ func TestPassiveNoticePrintedOnTerminalWhenUpdateAvailable(t *testing.T) {
 	fakeTerminal(t)
 	t.Setenv("CI", "")
 	t.Setenv("SIGNET_NO_UPDATE_CHECK", "")
+	deps, _, calls := passiveDeps(t, "2.0.0", nil)
 
-	signetCache := setTestCache(t)
-	_ = updatecheck.WriteCache(signetCache, &updatecheck.Cache{
-		CheckedAt: time.Now(),
-		Latest:    "2.0.0",
-	})
-
-	root := newRootCmdWithDeps("1.0.0", "abc1234", defaultDeps())
-	out := &bytes.Buffer{}
-	errOut := &bytes.Buffer{}
-	root.SetOut(out)
-	root.SetErr(errOut)
-	root.SetArgs([]string{"version"})
-
-	if err := Run(root); err != nil {
-		t.Fatalf("Run failed: %v", err)
+	got := runForNotice(t, "1.0.0", deps, "version")
+	if !strings.Contains(got, noticePrefix+": 1.0.0 -> 2.0.0") {
+		t.Fatalf("expected passive notice on terminal, got: %s", got)
+	}
+	if *calls != 0 {
+		t.Fatalf("fresh cache should not trigger a release lookup, got %d", *calls)
 	}
 
-	if !strings.Contains(errOut.String(), "A new release of signet is available: 1.0.0 -> 2.0.0") {
-		t.Fatalf("expected passive notice on terminal, got: %s", errOut.String())
+	// At most once per 24h: the next command stays quiet.
+	if got := runForNotice(t, "1.0.0", deps, "version"); strings.Contains(got, noticePrefix) {
+		t.Fatalf("notice printed twice within 24h: %s", got)
+	}
+}
+
+func TestPassiveCheckCachesFailedLookup(t *testing.T) {
+	fakeTerminal(t)
+	t.Setenv("CI", "")
+	t.Setenv("SIGNET_NO_UPDATE_CHECK", "")
+	deps, dir, calls := passiveDeps(t, "", errors.New("offline"))
+
+	for i := 0; i < 3; i++ {
+		if got := runForNotice(t, "1.0.0", deps, "version"); strings.Contains(got, noticePrefix) {
+			t.Fatalf("run %d: unexpected notice: %s", i, got)
+		}
+	}
+	if *calls != 1 {
+		t.Fatalf("an offline machine should look up releases once a day, got %d lookups", *calls)
+	}
+	c, err := updatecheck.ReadCache(dir)
+	if err != nil || !c.Failed {
+		t.Fatalf("expected a cached failure, got %+v (%v)", c, err)
 	}
 }
 

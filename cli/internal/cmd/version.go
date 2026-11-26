@@ -48,10 +48,7 @@ func newVersionCmd() *cobra.Command {
 			if deps.CheckUpdate != nil {
 				res, err = deps.CheckUpdate(cmd.Context(), deps.Version)
 			} else {
-				dir, _ := cacheDir()
-				res, err = updatecheck.Check(cmd.Context(), deps.Version, updatecheck.Options{
-					CacheDir: dir,
-				})
+				res, err = updatecheck.Check(cmd.Context(), deps.Version, deps.updateOptions())
 			}
 
 			if err != nil {

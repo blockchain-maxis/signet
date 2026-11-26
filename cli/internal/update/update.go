@@ -37,11 +37,15 @@ type githubRelease struct {
 	HTMLURL    string `json:"html_url"`
 }
 
-// Cache holds the timestamp and latest version from the last update check.
+// Cache holds the outcome of the last update check and when the passive
+// notice was last shown. A failed check is recorded too (Failed), so an
+// offline machine waits for the network at most once per CacheInterval.
 type Cache struct {
-	CheckedAt time.Time `json:"checked_at"`
-	Latest    string    `json:"latest"`
-	URL       string    `json:"url,omitempty"`
+	CheckedAt  time.Time `json:"checked_at"`
+	Latest     string    `json:"latest,omitempty"`
+	URL        string    `json:"url,omitempty"`
+	Failed     bool      `json:"failed,omitempty"`
+	NotifiedAt time.Time `json:"notified_at,omitzero"`
 }
 
 // Semver represents a 3-component semantic version.
@@ -146,6 +150,36 @@ type Options struct {
 	CacheDir    string
 	Now         func() time.Time
 	Executable  func() (string, error)
+	// Fetch replaces the GitHub lookup (tests use it to stay off the
+	// network). When nil, FetchLatestRelease is called with ReleasesURL and
+	// HTTPClient.
+	Fetch func(ctx context.Context, currentVersion string) (*ReleaseInfo, error)
+}
+
+func (o Options) now() time.Time {
+	if o.Now != nil {
+		return o.Now()
+	}
+	return time.Now()
+}
+
+func (o Options) executable() string {
+	var exe string
+	if o.Executable != nil {
+		exe, _ = o.Executable()
+	} else {
+		exe, _ = os.Executable()
+	}
+	return exe
+}
+
+func (o Options) fetch(ctx context.Context, currentVersion string) (*ReleaseInfo, error) {
+	fetchCtx, cancel := context.WithTimeout(ctx, DefaultTimeout)
+	defer cancel()
+	if o.Fetch != nil {
+		return o.Fetch(fetchCtx, currentVersion)
+	}
+	return FetchLatestRelease(fetchCtx, o.ReleasesURL, currentVersion, o.HTTPClient)
 }
 
 // FetchLatestRelease queries the GitHub releases endpoint and finds the latest cli-v* release.
@@ -168,7 +202,7 @@ func FetchLatestRelease(ctx context.Context, releasesURL string, currentVersion 
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	if resp.StatusCode != http.StatusOK {
 		return nil, fmt.Errorf("unexpected status %d from releases API", resp.StatusCode)
@@ -252,85 +286,76 @@ type CheckResult struct {
 	Err             error
 }
 
-// Check performs an on-demand update check.
+// Check performs an on-demand update check. A successful lookup refreshes the
+// cache (keeping when the passive notice was last shown).
 func Check(ctx context.Context, currentVersion string, opts Options) (*CheckResult, error) {
-	fetchCtx, cancel := context.WithTimeout(ctx, DefaultTimeout)
-	defer cancel()
-
-	rel, err := FetchLatestRelease(fetchCtx, opts.ReleasesURL, currentVersion, opts.HTTPClient)
+	rel, err := opts.fetch(ctx, currentVersion)
 	if err != nil {
 		return nil, err
 	}
 
-	exe := ""
-	if opts.Executable != nil {
-		exe, _ = opts.Executable()
-	} else {
-		exe, _ = os.Executable()
-	}
-	upgradeCmd := UpgradeCommand(exe, rel.Version)
-
 	if opts.CacheDir != "" {
-		now := time.Now
-		if opts.Now != nil {
-			now = opts.Now
+		next := &Cache{CheckedAt: opts.now(), Latest: rel.Version, URL: rel.URL}
+		if prev, err := ReadCache(opts.CacheDir); err == nil {
+			next.NotifiedAt = prev.NotifiedAt
 		}
-		_ = WriteCache(opts.CacheDir, &Cache{
-			CheckedAt: now(),
-			Latest:    rel.Version,
-			URL:       rel.URL,
-		})
+		_ = WriteCache(opts.CacheDir, next)
 	}
 
 	return &CheckResult{
 		Current:         currentVersion,
 		Latest:          rel.Version,
 		UpdateAvailable: IsNewer(rel.Version, currentVersion),
-		UpgradeCommand:  upgradeCmd,
+		UpgradeCommand:  UpgradeCommand(opts.executable(), rel.Version),
 	}, nil
 }
 
-// PassiveCheck evaluates whether a passive update notice should be displayed to the user.
+// PassiveCheck decides whether to show the passive update notice, and returns
+// it. It looks the latest release up at most once per CacheInterval, caching
+// a failed lookup as well as a successful one, and returns a notice at most
+// once per CacheInterval; showing one is recorded in the cache.
 func PassiveCheck(ctx context.Context, currentVersion string, cacheDir string, opts Options) (string, bool) {
 	if IsDevOrPrerelease(currentVersion) {
 		return "", false
 	}
-	now := time.Now
-	if opts.Now != nil {
-		now = opts.Now
-	}
+	now := opts.now()
 
 	c, err := ReadCache(cacheDir)
-	var latestVersion string
-	if err == nil && now().Sub(c.CheckedAt) < CacheInterval {
-		latestVersion = c.Latest
-	} else {
-		fetchCtx, cancel := context.WithTimeout(ctx, DefaultTimeout)
-		defer cancel()
-
-		rel, err := FetchLatestRelease(fetchCtx, opts.ReleasesURL, currentVersion, opts.HTTPClient)
-		if err != nil {
-			return "", false
+	if err != nil {
+		c = nil
+	}
+	if c == nil || now.Sub(c.CheckedAt) >= CacheInterval || c.CheckedAt.After(now) {
+		next := &Cache{CheckedAt: now}
+		if c != nil {
+			next.NotifiedAt = c.NotifiedAt
 		}
-		latestVersion = rel.Version
-		_ = WriteCache(cacheDir, &Cache{
-			CheckedAt: now(),
-			Latest:    rel.Version,
-			URL:       rel.URL,
-		})
+		rel, err := opts.fetch(ctx, currentVersion)
+		if err != nil {
+			next.Failed = true
+			if c != nil {
+				next.Latest, next.URL = c.Latest, c.URL
+			}
+		} else {
+			next.Latest, next.URL = rel.Version, rel.URL
+		}
+		_ = WriteCache(cacheDir, next)
+		c = next
 	}
 
-	if !IsNewer(latestVersion, currentVersion) {
+	if c.Latest == "" || !IsNewer(c.Latest, currentVersion) {
+		return "", false
+	}
+	if !c.NotifiedAt.IsZero() && now.Sub(c.NotifiedAt) < CacheInterval && !c.NotifiedAt.After(now) {
+		return "", false
+	}
+	c.NotifiedAt = now
+	if err := WriteCache(cacheDir, c); err != nil {
+		// Without a record of having shown it, the notice would repeat on
+		// every command; stay quiet instead.
 		return "", false
 	}
 
-	exe := ""
-	if opts.Executable != nil {
-		exe, _ = opts.Executable()
-	} else {
-		exe, _ = os.Executable()
-	}
-	upgradeCmd := UpgradeCommand(exe, latestVersion)
-	notice := fmt.Sprintf("\nA new release of signet is available: %s -> %s\nTo upgrade: %s\n", currentVersion, latestVersion, upgradeCmd)
+	upgradeCmd := UpgradeCommand(opts.executable(), c.Latest)
+	notice := fmt.Sprintf("\nA new release of signet is available: %s -> %s\nTo upgrade: %s\n", currentVersion, c.Latest, upgradeCmd)
 	return notice, true
 }

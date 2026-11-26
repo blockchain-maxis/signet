@@ -204,12 +204,14 @@ func maybeNotifyUpdate(root *cobra.Command) {
 	if !writerIsTerminal(stderr) {
 		return
 	}
-	dir, err := cacheDir()
-	if err != nil {
+	opts := deps.updateOptions()
+	if opts.CacheDir == "" {
+		// Without a cache the check would run, and the notice print, on
+		// every command.
 		return
 	}
-	notice, ok := updatecheck.PassiveCheck(context.Background(), deps.Version, dir, updatecheck.Options{})
+	notice, ok := updatecheck.PassiveCheck(context.Background(), deps.Version, opts.CacheDir, opts)
 	if ok && notice != "" {
-		fmt.Fprint(stderr, notice)
+		_, _ = fmt.Fprint(stderr, notice)
 	}
 }

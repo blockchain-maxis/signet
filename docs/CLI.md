@@ -45,10 +45,12 @@ signet --version
 
 ### Update checks
 
-signet checks once per day whether a newer release exists, caching the result
-in your user cache directory (`update-check.json`). When a newer release is
-available, an upgrade notice is printed to stderr after interactive commands
-finish.
+signet checks at most once per day whether a newer release exists, caching the
+result in your user cache directory (`update-check.json`). A failed check (for
+example, when offline) is cached too, so it is not retried until the next day.
+When a newer release is available, an upgrade notice is printed to stderr after
+an interactive command finishes, at most once per day. It never changes the exit
+code.
 
 To check manually:
 
