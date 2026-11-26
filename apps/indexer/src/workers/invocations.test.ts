@@ -14,10 +14,27 @@ import {
   type ContractInvocationUpdate,
   type SorobanInvocationsRpc,
 } from './invocations.js';
-import { xdr } from '@stellar/stellar-sdk';
+import { scValToNative, xdr } from '@stellar/stellar-sdk';
 import claimFixture from '../../../../packages/fixtures/data/claim-get-transaction.json' with { type: 'json' };
 import deployFixture from '../../../../packages/fixtures/data/deploy-get-transaction.json' with { type: 'json' };
 import sacTransferFixture from '../../../../packages/fixtures/data/sac-transfer-call-get-transaction.json' with { type: 'json' };
+
+// The recorded claim is re-made on every capture (packages/fixtures README) by a
+// fresh account that claims for itself, so the source account is whatever
+// wallet the claim names rather than a constant.
+const CLAIM_WALLET = String(
+  scValToNative(
+    xdr.TransactionEnvelope.fromXDR(claimFixture.payload.envelopeXdr, 'base64')
+      .v1()
+      .tx()
+      .operations()[0]!
+      .body()
+      .invokeHostFunctionOp()
+      .hostFunction()
+      .invokeContract()
+      .args()[1]!,
+  ),
+);
 
 function createMockStore(contracts: InvocationsContract[] = []) {
   const contractInvocations: Map<string, ContractInvocationCreate> = new Map();
@@ -58,7 +75,7 @@ test('extracts sourceAccount, footprint, functionName, changedKeys, and eventsCo
   const regAddress = 'CASFJHI5PQSRWS7JV25CF7FOMRKIVBP3RXRP3E2GH2CV4BCAG7FUJRCN';
 
   const sourceAccount = extractSourceAccount(claimEnv);
-  assert.equal(sourceAccount, 'GCWEY5SG6LEGTI6MJ7BTS5FF22DDBZN3E6BS4AFFB44BNOAE4A5V4PWE');
+  assert.equal(sourceAccount, CLAIM_WALLET);
 
   const { readOnly, readWrite } = extractFootprint(claimTx);
   assert.equal(readOnly.length, 1);
@@ -160,7 +177,7 @@ test('runInvocationsWorker upserts invocations idempotently', async () => {
   const record = contractInvocations.get(`${claimFixture.payload.txHash}:${contract.id}`);
   assert.ok(record);
   assert.equal(record.contractId, 'contract-1');
-  assert.equal(record.sourceAccount, 'GCWEY5SG6LEGTI6MJ7BTS5FF22DDBZN3E6BS4AFFB44BNOAE4A5V4PWE');
+  assert.equal(record.sourceAccount, CLAIM_WALLET);
   assert.equal(record.function, 'claim');
   assert.equal(record.successful, true);
   assert.equal(record.wasmHash, 'abc123wasmhash');

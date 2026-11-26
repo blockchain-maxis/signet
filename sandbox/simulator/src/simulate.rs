@@ -539,7 +539,8 @@ fn related_contracts(
                     | crate::ledger::store::Lookup::Archived { entry, .. } => {
                         lane.instance_info(&entry).ok()
                     }
-                    crate::ledger::store::Lookup::Absent => None,
+                    crate::ledger::store::Lookup::Deleted { .. }
+                    | crate::ledger::store::Lookup::Absent => None,
                 });
             if let Some(info) = info {
                 item["executable"] = json!(info.executable);

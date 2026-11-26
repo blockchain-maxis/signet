@@ -33,7 +33,7 @@ import { STELLAR_NETWORK } from './chain.ts';
 import { getConfiguredNetwork } from './cli-link.ts';
 import { deriveContractId } from './contract-address.ts';
 import { decodeContractAddressFromMeta } from './contract-attribution.ts';
-import { getProfile } from './profiles.ts';
+import { getProfile, liveProfileWhere } from './profiles.ts';
 import { HORIZON_MAX_RECORDS } from './server/horizon.ts';
 
 /** A deployed contract row, ready for the profile section to render. */
@@ -84,7 +84,9 @@ export interface ProfileContractsDbRow {
  * count (needed for the multi-wallet display rule even when there are no
  * contracts), or `undefined` when there is no database at all
  * (`DATABASE_URL` unset or unreachable) — and when the handle resolves to no
- * profile row, so the Horizon fallback still gets its chance.
+ * live profile row, so the Horizon fallback still gets its chance. A profile
+ * whose on-chain primary wallet is gone (released or revoked, #895) counts as
+ * no profile: its leftover CLI wallets and their contracts are not served.
  */
 export interface ProfileContractsDb {
   listContracts: (args: {
@@ -141,8 +143,8 @@ const defaultDb: ProfileContractsDb = {
     if (!process.env.DATABASE_URL) return undefined;
     try {
       const { prisma } = await import('@signet/db');
-      const profile = await prisma.profile.findUnique({
-        where: { handle: handle.toLowerCase() },
+      const profile = await prisma.profile.findFirst({
+        where: liveProfileWhere(handle),
         include: {
           wallets: {
             include: { contracts: { orderBy: { deployedAt: 'desc' } } },
