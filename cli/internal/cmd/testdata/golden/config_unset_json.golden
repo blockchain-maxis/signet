@@ -1,0 +1,6 @@
+$ signet config unset source --json
+-- stdout --
+{"context":"default","key":"source","unset":true}
+-- stderr --
+(empty)
+-- exit 0 --

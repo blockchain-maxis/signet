@@ -1,10 +1,19 @@
 import { SignetMonogram } from '../(marketing)/components/signet-monogram';
 import { listDirectory } from '@/lib/directory';
 
-export const metadata = {
-  title: 'Handles · Signet',
-  description: 'Every handle recorded on the Signet Identity Registry.',
-};
+export async function generateMetadata({
+  searchParams,
+}: {
+  searchParams: Promise<{ page?: string; q?: string }>;
+}) {
+  const { q } = await searchParams;
+  const hasQuery = typeof q === 'string' && q.trim().length > 0;
+  return {
+    title: 'Handles · Signet',
+    description: 'Every handle recorded on the Signet Identity Registry.',
+    ...(hasQuery ? { robots: { index: false } } : {}),
+  };
+}
 
 const PAGE_SIZE = 24;
 
@@ -16,23 +25,28 @@ function truncateWallet(wallet: string): string {
 export default async function HandlesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ page?: string }>;
+  searchParams: Promise<{ page?: string; q?: string }>;
 }) {
-  const { page: pageParam } = await searchParams;
+  const { page: pageParam, q: qParam } = await searchParams;
   const requestedPage = Number(pageParam ?? '1');
   const page = Number.isInteger(requestedPage) && requestedPage > 0 ? requestedPage : 1;
+  const q = (qParam ?? '').trim();
 
-  const { registryConfigured, entries, boundTotal, source } = await listDirectory();
+  const {
+    registryConfigured,
+    entries,
+    boundTotal,
+    source,
+    totalCandidates,
+    unconfirmedOnPage,
+    totalPages,
+    page: currentPage,
+  } = await listDirectory({ page, pageSize: PAGE_SIZE, q });
 
   // Only handles the contract confirmed just now may be presented as bound.
   // A discovered candidate that does not resolve is stale and is not shown.
   const bound = entries.filter((e) => e.bound);
-
-  // Pagination applies to the bound list, the only one that can grow.
-  const totalPages = Math.max(1, Math.ceil(bound.length / PAGE_SIZE));
-  const currentPage = Math.min(page, totalPages);
-  const start = (currentPage - 1) * PAGE_SIZE;
-  const pageEntries = bound.slice(start, start + PAGE_SIZE);
+  const pageEntries = bound;
 
   // `boundTotal` is null when the registry could not be read at all. Saying
   // "0 handles" there would assert an on-chain fact we never observed. And when
@@ -55,7 +69,7 @@ export default async function HandlesPage({
   // without limit as the registry ages. The copy must not collapse those into
   // one sentence, and must not report "nobody has claimed a handle" over a
   // registry whose counter says otherwise.
-  const unlisted = boundTotal === null ? 0 : Math.max(0, boundTotal - bound.length);
+  const unlisted = boundTotal === null || q ? 0 : Math.max(0, boundTotal - totalCandidates);
   const windowed = source === 'events';
   const shortfallReason = windowed
     ? "claimed before the registry's event window, or lapsed from storage without the counter noticing"
@@ -64,14 +78,23 @@ export default async function HandlesPage({
     ? { message: 'No registry is configured for this deployment.', invite: false }
     : boundTotal === null
       ? { message: 'The registry is unreachable right now. Try again shortly.', invite: false }
-      : boundTotal === 0
-        ? { message: 'Nobody has bound a handle yet.', invite: true }
-        : {
-            message: windowed
-              ? `The registry's counter records ${boundTotal} handle${boundTotal === 1 ? '' : 's'}, but ${boundTotal === 1 ? 'it was not' : 'none were'} claimed recently enough to appear in the event window. Resolve a handle directly to confirm a live binding.`
-              : `The registry's counter records ${boundTotal} handle${boundTotal === 1 ? '' : 's'}, but none of them resolve right now. Resolve a handle directly to confirm a live binding.`,
-            invite: false,
-          };
+      : q && totalCandidates === 0
+        ? { message: `No handles matching "${q}" were found.`, invite: false }
+        : boundTotal === 0
+          ? { message: 'Nobody has bound a handle yet.', invite: true }
+          : {
+              message: windowed
+                ? `The registry's counter records ${boundTotal} handle${boundTotal === 1 ? '' : 's'}, but ${boundTotal === 1 ? 'it was not' : 'none were'} claimed recently enough to appear in the event window. Resolve a handle directly to confirm a live binding.`
+                : `The registry's counter records ${boundTotal} handle${boundTotal === 1 ? '' : 's'}, but none of them resolve right now. Resolve a handle directly to confirm a live binding.`,
+              invite: false,
+            };
+
+  const pageHref = (p: number) => {
+    const params = new URLSearchParams();
+    if (q) params.set('q', q);
+    params.set('page', String(p));
+    return `/handles?${params.toString()}`;
+  };
 
   return (
     <div className="relative min-h-screen bg-[#0a0908] text-[#f5f4ee]">
@@ -116,11 +139,42 @@ export default async function HandlesPage({
       </header>
 
       <div className="mx-auto max-w-5xl px-8 py-16 md:px-14">
+        <form method="GET" action="/handles" className="mb-8 flex flex-wrap items-center gap-3">
+          <label
+            htmlFor="q"
+            className="text-[11px] uppercase tracking-[0.22em] text-[#8a8779]"
+            style={{ fontFamily: 'var(--font-mono)' }}
+          >
+            Search handles
+          </label>
+          <input
+            id="q"
+            name="q"
+            type="search"
+            defaultValue={q}
+            placeholder="Search handles..."
+            className="min-w-[240px] flex-1 border border-[#1f1d19] bg-[#0e0d0b] px-4 py-2 text-[14px] text-[#f5f4ee] placeholder-[#8a8779] focus:border-[#8b1a1a] focus:outline-none"
+            style={{ fontFamily: 'var(--font-mono)' }}
+          />
+          <button
+            type="submit"
+            className="border border-[#1f1d19] bg-[#1a1816] px-4 py-2 text-[11px] uppercase tracking-[0.22em] text-[#f5f4ee] transition-colors hover:border-[#8b1a1a] hover:bg-[#8b1a1a]"
+            style={{ fontFamily: 'var(--font-mono)' }}
+          >
+            Search
+          </button>
+        </form>
+
         {bound.length === 0 ? (
           <div className="border border-[#1f1d19] px-6 py-10 text-center">
             <p className="mx-auto max-w-[460px] text-[14px] leading-[1.7] text-[#8a8779]">
               {emptyState.message}
             </p>
+            {unconfirmedOnPage > 0 && (
+              <p className="mt-2 text-[12px] leading-[1.7] text-[var(--text-muted)]">
+                {unconfirmedOnPage} candidate{unconfirmedOnPage === 1 ? '' : 's'} on this page could not be confirmed on-chain.
+              </p>
+            )}
             {emptyState.invite && (
               <a
                 href="/#claim"
@@ -159,6 +213,12 @@ export default async function HandlesPage({
               ))}
             </div>
 
+            {unconfirmedOnPage > 0 && (
+              <p className="mt-4 text-[12px] leading-[1.7] text-[var(--text-muted)]">
+                {unconfirmedOnPage} candidate{unconfirmedOnPage === 1 ? '' : 's'} on this page could not be confirmed on-chain.
+              </p>
+            )}
+
             {unlisted > 0 && (
               <p className="mt-4 text-[12px] leading-[1.7] text-[var(--text-muted)]">
                 The registry&apos;s counter records {unlisted} further binding
@@ -173,7 +233,7 @@ export default async function HandlesPage({
                 style={{ fontFamily: 'var(--font-mono)' }}
               >
                 {currentPage > 1 ? (
-                  <a href={`/handles?page=${currentPage - 1}`} className="hover:text-[#f5f4ee]">
+                  <a href={pageHref(currentPage - 1)} className="hover:text-[#f5f4ee]">
                     ← Previous
                   </a>
                 ) : (
@@ -183,7 +243,7 @@ export default async function HandlesPage({
                   Page {currentPage} of {totalPages}
                 </span>
                 {currentPage < totalPages ? (
-                  <a href={`/handles?page=${currentPage + 1}`} className="hover:text-[#f5f4ee]">
+                  <a href={pageHref(currentPage + 1)} className="hover:text-[#f5f4ee]">
                     Next →
                   </a>
                 ) : (
