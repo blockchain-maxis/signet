@@ -1157,9 +1157,9 @@ checksum = "b6d2cec3eae94f9f509c767b45932f1ada8350c4bdb85af2fcab4a3c14807981"
 
 [[package]]
 name = "log"
-version = "0.4.34"
+version = "0.4.35"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "f9f8bd3e56ce4dfc153cf470fffbfa98c7620958b312ca5c3a4b8d5181fd13c6"
+checksum = "5d15f86d12da44cd8d4ec3c73984537eb7f4cadcb9776a575a0a8a05ca11005c"
 
 [[package]]
 name = "matchers"
@@ -1651,9 +1651,10 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2 0.11.1",
+ "soroban-env-common 28.0.2",
+ "soroban-env-common 29.0.2",
  "soroban-env-host 28.0.2",
  "soroban-env-host 29.0.2",
- "soroban-ledger-snapshot",
  "soroban-simulation 28.0.2",
  "soroban-simulation 29.0.2",
  "thiserror 2.0.21",
@@ -1733,6 +1734,7 @@ dependencies = [
  "ethnum",
  "num-derive",
  "num-traits",
+ "serde",
  "soroban-env-macros 29.0.2",
  "soroban-wasmi 29.0.0",
  "static_assertions",
@@ -1842,20 +1844,6 @@ dependencies = [
  "serde_json",
  "stellar-xdr",
  "syn 2.0.119",
-]
-
-[[package]]
-name = "soroban-ledger-snapshot"
-version = "28.0.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b5caeb0a4c8af6d04dc1dfbf96199e0d50ae086c7d54c9001abe78bb891fc44f"
-dependencies = [
- "serde",
- "serde_json",
- "serde_with",
- "soroban-env-common 28.0.2",
- "soroban-env-host 28.0.2",
- "thiserror 1.0.69",
 ]
 
 [[package]]

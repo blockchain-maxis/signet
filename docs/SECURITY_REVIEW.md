@@ -244,13 +244,14 @@ wasm; which methods are live is in
 | `set_admin(new_admin)` | current admin | `set_admin_requires_current_admin_auth`, `set_admin_rotates_authority`, `set_admin_before_initialize_errors` |
 | `claim(handle, wallet)` | `wallet` | `claim_requires_wallet_auth`, `claim_before_initialize_errors` |
 | `release(handle)` | the handle's current owner (resolved on-chain, not passed in) | `release_requires_owner_auth`, `release_rejected_when_authorized_by_wrong_address` |
-| `transfer_handle(handle, new_wallet)` | current owner (see the `#978` item below) | `transfer_handle_requires_current_owner_auth` |
+| `transfer_handle(handle, new_wallet)` | current owner **and** `new_wallet` | `transfer_handle_requires_current_owner_auth`, `transfer_handle_requires_new_wallet_auth`, `transfer_handle_happy_path` (asserts both auths) |
 | `admin_revoke(handle)` | admin | `admin_revoke_requires_admin_auth`, `admin_revoke_rejected_when_authorized_by_wrong_address` |
 | `resolve`, `lookup`, `is_bound`, `count`, `resolve_batch` | nobody (reads) | no `require_auth` in those functions |
 
-- [ ] `transfer_handle` must also require `new_wallet`'s signature, so a handle
-      cannot be pushed onto a wallet that never agreed to it. Today only the
-      current owner signs. `[registry: #978]`
+- [ ] `transfer_handle` requires `new_wallet`'s signature as well as the
+      current owner's, so a handle cannot be pushed onto a wallet that never
+      agreed to it. Proof: `transfer_handle_requires_new_wallet_auth` (owner-only
+      auth fails and leaves `resolve`, `lookup` and `count` unchanged).
 - [ ] Ownership checks authorize the **resolved** owner, never a caller-supplied
       address: `release` and `transfer_handle` call `resolve` and then
       `require_auth` on its result. A non-owner therefore fails with an auth
@@ -263,7 +264,7 @@ wasm; which methods are live is in
       binding) and `set_admin` (rotate the admin key). The admin **cannot
       create or redirect a binding**. Every write to `DataKey::Owner` /
       `DataKey::Handle` is reached only through `claim` (signed by the wallet),
-      `transfer_handle` (signed by the owner) or `remove_binding`, which only
+      `transfer_handle` (signed by the owner and the new wallet) or `remove_binding`, which only
       deletes. A compromised admin can censor but never impersonate
       ([`identity-registry/README.md`](../packages/contracts/identity-registry/README.md#trust-model)).
 - [ ] The migration-only `admin_reserve` / `seal` entry points narrow **who may

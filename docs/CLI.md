@@ -43,6 +43,31 @@ npm install -g @signet/cli
 signet --version
 ```
 
+### Update checks
+
+signet checks at most once per day whether a newer release exists, caching the
+result in your user cache directory (`update-check.json`). A failed check (for
+example, when offline) is cached too, so it is not retried until the next day.
+When a newer release is available, an upgrade notice is printed to stderr after
+an interactive command finishes, at most once per day. It never changes the exit
+code.
+
+To check manually:
+
+```bash
+signet version --check
+signet version --check --json
+```
+
+To disable the automatic once-a-day check:
+
+```bash
+export SIGNET_NO_UPDATE_CHECK=1
+```
+
+The check is also automatically skipped in CI environments (`CI` environment variable set),
+under `--json`, when stderr is not a terminal, or when running a `dev` or prerelease build.
+
 Building from source needs Go (see `cli/go.mod` for the version) and a stable
 Rust toolchain for the simulator:
 
@@ -497,8 +522,13 @@ pipeline can parse the result without scraping human text. Without `--json`,
 { "handle": "alice", "publicKey": "GCKI…", "network": "testnet", "status": "linked" }
 ```
 
-On failure stdout stays empty and the error goes to stderr, so stdout is always
-either the one object or nothing.
+On failure stdout stays empty and a structured error object is written as exactly one line to stderr ([`sandbox/protocol/schema/v1/cli-error.json`](../sandbox/protocol/schema/v1/cli-error.json)):
+
+```json
+{ "error": { "kind": "approval_rejected", "exitCode": 8, "message": "approval rejected: the approval was refused in the browser; nothing was linked" } }
+```
+
+`kind` is a stable name per exit code, so scripts can branch on `kind` or `exitCode` without parsing free-form English message text. When known, `code` carries the machine-readable server failure code or simulator code, and `detail` carries extra structured fields (such as `detail.stderr` for the simulator's stderr tail). Without `--json`, errors write plain text to stderr as before.
 
 ## Exit codes
 

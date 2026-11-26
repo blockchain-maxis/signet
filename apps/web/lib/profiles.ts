@@ -46,6 +46,7 @@ export type Operation = {
   type: string;
   function?: string;
   decoded_function?: string;
+  contract?: string;
   source_account?: string;
   created_at: string;
   transaction_hash?: string;
@@ -516,23 +517,28 @@ export async function safeChainProfile(handle: string): Promise<Profile | null> 
   }
 }
 
-/** Maps a Prisma `Operation` row to the Horizon-shaped `Operation` the UI uses. */
-function mapDbOperation(op: {
+/** The `Operation` row columns `mapDbOperation` reads. */
+export interface DbOperationRow {
   id: string;
   type: string;
   function: string | null;
   decodedFunction: string | null;
+  contractAddress?: string | null;
   sourceAccount: string | null;
   createdAt: Date;
   transactionHash: string | null;
   successful: boolean;
   balanceChanges: unknown;
-}): Operation {
+}
+
+/** Maps a Prisma `Operation` row to the Horizon-shaped `Operation` the UI uses. */
+function mapDbOperation(op: DbOperationRow): Operation {
   return {
     id: op.id,
     type: op.type,
     function: op.function ?? undefined,
     decoded_function: op.decodedFunction ?? undefined,
+    contract: op.contractAddress ?? undefined,
     source_account: op.sourceAccount ?? undefined,
     created_at: op.createdAt.toISOString(),
     transaction_hash: op.transactionHash ?? undefined,
@@ -650,58 +656,84 @@ async function dbFindPagedOperations(
   if (!process.env.DATABASE_URL) return null;
   try {
     const { prisma } = await import('@signet/db');
-    const profile = await prisma.profile.findFirst({
-      where: liveProfileWhere(handle),
-      include: { wallets: { select: { id: true } } },
-    });
-    if (!profile) return null;
-
-    const walletIds = profile.wallets.map((w) => w.id);
-    if (walletIds.length === 0) return { data: [], total: 0, hasMore: false };
-
-    let cursor: { createdAt: string; id: string } | null | undefined;
-    let offset: number | undefined;
-    let actualLimit = limit;
-
-    if (typeof pagination === 'number') {
-      offset = pagination;
-    } else if (typeof pagination === 'object' && pagination !== null) {
-      cursor = pagination.cursor;
-      offset = pagination.offset;
-      if (pagination.limit !== undefined) actualLimit = pagination.limit;
-    }
-
-    const walletWhere = { walletId: { in: walletIds } };
-    let whereClause: any = walletWhere;
-
-    if (cursor) {
-      const cursorDate = new Date(cursor.createdAt);
-      whereClause = {
-        ...walletWhere,
-        OR: [
-          { createdAt: { lt: cursorDate } },
-          { createdAt: cursorDate, id: { lt: cursor.id } },
-        ],
-      };
-    }
-
-    const [rows, total] = await Promise.all([
-      prisma.operation.findMany({
-        where: whereClause,
-        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
-        ...(offset !== undefined && !cursor ? { skip: offset } : {}),
-        take: actualLimit + 1,
-      }),
-      prisma.operation.count({ where: walletWhere }),
-    ]);
-
-    const hasMore = rows.length > actualLimit;
-    const pageRows = hasMore ? rows.slice(0, actualLimit) : rows;
-
-    return { data: pageRows.map(mapDbOperation), total, hasMore };
+    return await findPagedOperationsWith(
+      prisma as unknown as PagedOperationsClient,
+      handle,
+      pagination,
+      limit,
+    );
   } catch {
     return null;
   }
+}
+
+/** The slice of the Prisma client `findPagedOperationsWith` reads through. */
+export interface PagedOperationsClient {
+  profile: {
+    findFirst(args: unknown): Promise<{ wallets: Array<{ id: string }> } | null>;
+  };
+  operation: {
+    findMany(args: unknown): Promise<DbOperationRow[]>;
+    count(args: unknown): Promise<number>;
+  };
+}
+
+/**
+ * The query behind `dbFindPagedOperations`, over an injected client so tests
+ * can drive the row mapping without Postgres.
+ */
+export async function findPagedOperationsWith(
+  prisma: PagedOperationsClient,
+  handle: string,
+  pagination: PagedOperationsPagination,
+  limit = 25,
+): Promise<(PagedOperations & { hasMore?: boolean }) | null> {
+  const profile = await prisma.profile.findFirst({
+    where: liveProfileWhere(handle),
+    include: { wallets: { select: { id: true } } },
+  });
+  if (!profile) return null;
+
+  const walletIds = profile.wallets.map((w) => w.id);
+  if (walletIds.length === 0) return { data: [], total: 0, hasMore: false };
+
+  let cursor: { createdAt: string; id: string } | null | undefined;
+  let offset: number | undefined;
+  let actualLimit = limit;
+
+  if (typeof pagination === 'number') {
+    offset = pagination;
+  } else if (typeof pagination === 'object' && pagination !== null) {
+    cursor = pagination.cursor;
+    offset = pagination.offset;
+    if (pagination.limit !== undefined) actualLimit = pagination.limit;
+  }
+
+  const walletWhere = { walletId: { in: walletIds } };
+  let whereClause: any = walletWhere;
+
+  if (cursor) {
+    const cursorDate = new Date(cursor.createdAt);
+    whereClause = {
+      ...walletWhere,
+      OR: [{ createdAt: { lt: cursorDate } }, { createdAt: cursorDate, id: { lt: cursor.id } }],
+    };
+  }
+
+  const [rows, total] = await Promise.all([
+    prisma.operation.findMany({
+      where: whereClause,
+      orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+      ...(offset !== undefined && !cursor ? { skip: offset } : {}),
+      take: actualLimit + 1,
+    }),
+    prisma.operation.count({ where: walletWhere }),
+  ]);
+
+  const hasMore = rows.length > actualLimit;
+  const pageRows = hasMore ? rows.slice(0, actualLimit) : rows;
+
+  return { data: pageRows.map(mapDbOperation), total, hasMore };
 }
 
 /**

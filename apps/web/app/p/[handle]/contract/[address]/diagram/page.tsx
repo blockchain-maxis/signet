@@ -14,19 +14,26 @@ export default async function DiagramPage({
   const { q, focus, callees, writes, storage, expand, range, order } = (await searchParams) ?? {};
   const props = await loadSlotProps(handle, address);
   if (!props) return null;
+  const svgParams = new URLSearchParams({ theme: 'auto' });
+  if (typeof expand === 'string' && expand) svgParams.set('expand', expand);
+  const svgHref = `/p/${encodeURIComponent(handle)}/contract/${encodeURIComponent(address)}/diagram.svg?${svgParams.toString()}`;
   return (
     <>
       <div className="mb-6 flex flex-wrap items-center gap-6">
         {props.spec.kind === 'spec' && (
           <>
             <a
-              href={`/p/${encodeURIComponent(handle)}/contract/${encodeURIComponent(address)}/diagram.svg?theme=auto`}
+              href={svgHref}
               className="inline-block text-sm underline underline-offset-4 focus-visible:outline focus-visible:outline-2"
               download
             >
               Download SVG
             </a>
-            <ExportPngButton handle={handle} address={address} />
+            <ExportPngButton
+              handle={handle}
+              address={address}
+              expand={typeof expand === 'string' ? expand : undefined}
+            />
           </>
         )}
         <EmbedButton handle={handle} address={address} />
