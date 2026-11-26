@@ -4,4 +4,6 @@
 
 use libfuzzer_sys::fuzz_target;
 
-fuzz_target!(|data: &[u8]| signet_simulator::fuzzing::xdr_params(data));
+fuzz_target!(|data: &[u8]| {
+    let _ = signet_simulator::fuzzing::xdr_params(data);
+});
