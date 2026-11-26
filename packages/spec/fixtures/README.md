@@ -18,6 +18,8 @@ sets) and on unhappy paths (no spec section, truncated spec section):
 | `undocumented.wasm` | Functions with no doc comments |
 | `events.wasm` | `#[contractevent]` types with topics and data |
 | `errors_multi.wasm` | Two `#[contracterror]` enums in one spec |
+| `upgrade_v1.wasm` | Baseline of a real two-version contract upgrade |
+| `upgrade_v2.wasm` | Upgrade with function, argument, type, error, event, and doc changes |
 | `no_spec.wasm` | A module with no `contractspecv0` section, from hand-written WAT |
 | `corrupt_section.wasm` | The registry fixture's `contractspecv0` section truncated mid-entry |
 
@@ -27,7 +29,7 @@ reproducible ones: the fixture workspace pins its Rust toolchain
 `Cargo.lock`), and its release profile, and `stellar contract optimize` is
 deliberately never run (optimization would tie every fixture to the CLI
 version that ran it; the committed bytes are exactly what the SDK emitted).
-The `spec-fixtures` CI job rebuilds all six from source and fails on any
+The `spec-fixtures` CI job rebuilds all eight from source and fails on any
 byte difference, so no fixture is ever a hand-edited binary.
 
 ## Manifest
@@ -61,7 +63,7 @@ Prerequisites: a Rust toolchain honouring
 `stellar-cli` (only `contract build` is used), `wabt` (`wat2wasm`), and node.
 
 ```bash
-# Rebuild and refresh the six committed WASMs in place:
+# Rebuild and refresh the eight committed WASMs in place:
 bash ../fixture-contracts/build-fixtures.sh
 
 # Verify without writing (what CI runs):
