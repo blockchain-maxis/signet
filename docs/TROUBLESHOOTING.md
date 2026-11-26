@@ -284,17 +284,30 @@ Soroban smart contracts enforce a Time-To-Live (TTL) of ~30 days on persistent s
 
 **Fix**
 
-Restore the binding footprint via the web app or Stellar CLI, or run the keep-alive sweep script:
+An archived entry must be restored before anything can extend it
+(`stellar contract restore --id "$REGISTRY_CONTRACT_ID" …`, `DEPLOYMENT.md` §11).
+For entries that are still live, refresh their TTL with a **real** transaction:
+a simulated read extends nothing, so view calls cannot do it.
 
 ```bash
-# Keep-alive sweep to bump active bindings (pass the handles to sweep)
+# Set the registry id first; the script has no default.
+export REGISTRY_CONTRACT_ID=<deployed registry id>
+
+# Report each entry's remaining ledgers (no submission, no key needed):
+node scripts/keepalive-contract.mjs --instance-only
 node scripts/keepalive-contract.mjs <handle> [handle ...]
 
-# Detailed runbook:
-# See docs/ARCHIVAL_AND_RESTORATION.md
+# Extend instance + bindings (~30 days); needs a funded S... key:
+KEEPALIVE_SECRET=S... node scripts/keepalive-contract.mjs --instance-only
+KEEPALIVE_SECRET=S... node scripts/keepalive-contract.mjs <handle> [handle ...]
 ```
 
-See [`docs/ARCHIVAL_AND_RESTORATION.md`](ARCHIVAL_AND_RESTORATION.md) for full restoration procedures.
+The same TTL window applies to the contract **instance**, and an archived
+instance fails every call including `claim`. See
+[`docs/ARCHIVAL_AND_RESTORATION.md`](ARCHIVAL_AND_RESTORATION.md) §4 and
+[`DEPLOYMENT.md`](DEPLOYMENT.md) §11 for the `restore`/`extend` commands, and
+[`docs/ARCHIVAL_AND_RESTORATION.md`](ARCHIVAL_AND_RESTORATION.md) for the full
+restoration procedures.
 
 ---
 

@@ -61,8 +61,8 @@ export async function seedGroupedFixture(): Promise<void> {
     });
     const wallet = await prisma.wallet.upsert({
       where: { pubkey: WALLET_5 },
-      update: { profileId: profile.id },
-      create: { profileId: profile.id, pubkey: WALLET_5, source: 'cli', isPrimary: true },
+      update: { profileId: profile.id, source: 'onchain', isPrimary: true },
+      create: { profileId: profile.id, pubkey: WALLET_5, source: 'onchain', isPrimary: true },
     });
     const data = {
       walletId: wallet.id,

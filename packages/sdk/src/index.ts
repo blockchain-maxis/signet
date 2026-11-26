@@ -12,6 +12,7 @@ export {
   SignetError,
   NotFoundError,
   ValidationError,
+  UnauthorizedError,
   RateLimitedError,
   UnavailableError,
   NetworkError,

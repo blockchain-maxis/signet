@@ -232,7 +232,10 @@ impl ByteSnapshotSource for FetchingSource {
             Lookup::Live {
                 entry, live_until, ..
             } => Ok(Some((entry, live_until))),
-            Lookup::Absent => Ok(None),
+            // A key the session deleted or an override unset is known to
+            // the store, so it was not fetched above: the entry stays hidden
+            // and the network is not asked for it again (#934).
+            Lookup::Deleted { .. } | Lookup::Absent => Ok(None),
         }
     }
 }
@@ -282,5 +285,39 @@ mod tests {
             "unexpected failure message: {}",
             failure.message
         );
+    }
+
+    #[test]
+    fn a_key_the_session_deleted_reads_as_no_entry_and_is_not_fetched() {
+        // In `deny` mode a miss is an error, so an answer of "no entry" with
+        // no failure recorded means the network was not asked (#934).
+        let (deleted, unset) = (fixtures::data_key_xdr(1), fixtures::data_key_xdr(2));
+        let store = Rc::new(RefCell::new(LayeredStore::new(1)));
+        {
+            let mut store = store.borrow_mut();
+            store.insert_base(&deleted, fixtures::data_entry_xdr(1, 10), Some(500), 1);
+            store.insert_base(&unset, fixtures::data_entry_xdr(2, 20), Some(500), 1);
+            store.apply_modified([crate::ledger::store::Write {
+                key: deleted.clone(),
+                entry: None,
+                live_until: None,
+            }]);
+            store.remove_override(&unset);
+        }
+        let channel = Rc::new(RefCell::new(Channel::new(
+            Box::new(Cursor::new(Vec::new())),
+            Box::new(std::io::sink()),
+            1 << 20,
+        )));
+        let lane = LaneRegistry::builtin().newest();
+        let src = FetchingSource::new(store, channel, lane, FetchMode::Deny);
+
+        assert!(src.get(&deleted).unwrap().is_none());
+        assert!(src.get(&unset).unwrap().is_none());
+        assert!(src.failure().is_none(), "{:?}", src.failure());
+
+        // The same source does refuse a key nobody knows.
+        assert!(src.get(&fixtures::data_key_xdr(3)).is_err());
+        assert_eq!(src.failure().expect("a denied fetch").kind, "denied");
     }
 }

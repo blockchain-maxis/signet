@@ -4,6 +4,7 @@
 package cmd
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"strings"
@@ -13,6 +14,7 @@ import (
 	"github.com/blockchain-maxis/signet/cli/internal/config"
 	"github.com/blockchain-maxis/signet/cli/internal/exitcode"
 	"github.com/blockchain-maxis/signet/cli/internal/keys"
+	updatecheck "github.com/blockchain-maxis/signet/cli/internal/update"
 )
 
 func newRootCmd(version, commit string) *cobra.Command {
@@ -36,6 +38,7 @@ instance) over its HTTP API.`,
 		SilenceUsage:  true,
 		SilenceErrors: true,
 	}
+	root.SetContext(withDeps(context.Background(), base))
 
 	// --json is defined once, here, for every command. It promises exactly one
 	// JSON object on stdout, or nothing; see internal/output.
@@ -171,14 +174,58 @@ func Execute(version, commit string) error {
 	return Run(newRootCmd(version, commit))
 }
 
+var lastRunJSON bool
+
+// LastRunJSON reports whether the most recent Run execution had --json requested.
+func LastRunJSON() bool {
+	return lastRunJSON
+}
+
 // Run executes root and, when it returns an error, records that error for
 // `signet bug-report` before returning it unchanged. Recording is best-effort
 // and never alters the error. It is Execute's body and the seam a test uses to
 // exercise last-error persistence without a real process exit.
+//
+// Under --json, Run writes the structured error to stderr on failure so scripts
+// receive machine-readable output rather than human text.
 func Run(root *cobra.Command) error {
 	err := root.Execute()
+	lastRunJSON = jsonRequested(root)
 	if err != nil {
 		recordLastError(err)
+		if lastRunJSON {
+			_ = WriteErrorJSON(root.ErrOrStderr(), err)
+		}
 	}
+	maybeNotifyUpdate(root)
 	return err
+}
+
+// maybeNotifyUpdate checks whether a newer signet release exists and prints a
+// once-a-day notice to stderr for interactive terminal users.
+func maybeNotifyUpdate(root *cobra.Command) {
+	if jsonRequested(root) {
+		return
+	}
+	if os.Getenv("CI") != "" || os.Getenv("SIGNET_NO_UPDATE_CHECK") == "1" {
+		return
+	}
+	deps, err := depsFor(root)
+	if err != nil || updatecheck.IsDevOrPrerelease(deps.Version) {
+		return
+	}
+	stderr := root.ErrOrStderr()
+	if !writerIsTerminal(stderr) {
+		return
+	}
+	opts := deps.updateOptions()
+	if opts.CacheDir == "" {
+		// Without a cache the check would run, and the notice print, on
+		// every command.
+		return
+	}
+	notice, ok := updatecheck.PassiveCheck(context.Background(), deps.Version, opts.CacheDir, opts)
+	if ok && notice != "" {
+		_, _ = fmt.Fprint(stderr, notice)
+	}
 }

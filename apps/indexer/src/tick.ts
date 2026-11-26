@@ -23,7 +23,9 @@ export interface TickWorkers {
   invocations?: () => Promise<Pick<InvocationsResult, 'invocationsUpserted'>>;
   executableRefresh: () => Promise<Pick<ExecutableRefreshResult, 'wasmChanged'>>;
   /** Left out on a tick where pruning is not due. */
-  prune?: () => Promise<Pick<PruningResult, 'opsPruned' | 'snapshotsPruned' | 'invocationsPruned'>>;
+  prune?: () => Promise<
+    Pick<PruningResult, 'opsPruned' | 'snapshotsPruned' | 'invocationsPruned' | 'pairingsPruned'>
+  >;
   /** Saves the `main` cursor. Called only when the deployment worker saw a ledger. */
   saveCursor: (highestLedger: number) => Promise<void>;
 }
@@ -33,6 +35,7 @@ export interface TickSummary {
   walletsScanned: number;
   eventsDecoded: number;
   contractsFound: number;
+  walletsStopped: number;
   opsUpserted: number;
   invocationsUpserted: number;
   snapshotsWritten: number;
@@ -40,6 +43,7 @@ export interface TickSummary {
   opsPruned: number;
   snapshotsPruned: number;
   invocationsPruned: number;
+  pairingsPruned: number;
   /**
    * The workers that threw this tick, in the order they ran; empty when none
    * did. `cursor` is the save of the `main` cursor at the end of the tick.
@@ -91,10 +95,10 @@ export async function runTick(workers: TickWorkers): Promise<TickSummary> {
   // Deployments: find new contract creations for all tracked wallets. Wallets
   // are (re-)read fresh from the store on every call, so one linked mid-life
   // — after the indexer started — is scanned starting the very next tick.
-  const { highestLedger, walletsScanned, contractsFound } = await run(
+  const { highestLedger, walletsScanned, contractsFound, walletsStopped } = await run(
     'deployment',
     workers.deployment,
-    { highestLedger: 0, walletsScanned: 0, contractsFound: 0 },
+    { highestLedger: 0, walletsScanned: 0, contractsFound: 0, walletsStopped: 0 },
   );
 
   // Activity: refresh snapshots for tracked contracts. Same freshness
@@ -116,8 +120,8 @@ export async function runTick(workers: TickWorkers): Promise<TickSummary> {
   });
 
   // Pruning: periodically prune historical operations, snapshots, and invocations beyond retention windows
-  const notPruned = { opsPruned: 0, snapshotsPruned: 0, invocationsPruned: 0 };
-  const { opsPruned, snapshotsPruned, invocationsPruned } = workers.prune
+  const notPruned = { opsPruned: 0, snapshotsPruned: 0, invocationsPruned: 0, pairingsPruned: 0 };
+  const { opsPruned, snapshotsPruned, invocationsPruned, pairingsPruned } = workers.prune
     ? await run('prune', workers.prune, notPruned)
     : notPruned;
 
@@ -132,6 +136,7 @@ export async function runTick(workers: TickWorkers): Promise<TickSummary> {
     walletsScanned,
     eventsDecoded,
     contractsFound,
+    walletsStopped,
     opsUpserted,
     invocationsUpserted,
     snapshotsWritten,
@@ -139,6 +144,7 @@ export async function runTick(workers: TickWorkers): Promise<TickSummary> {
     opsPruned,
     snapshotsPruned,
     invocationsPruned,
+    pairingsPruned,
     failedWorkers,
     durationMs: Date.now() - start,
   };

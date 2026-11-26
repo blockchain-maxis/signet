@@ -90,16 +90,17 @@ is merged.** Prefer scoping to the package you changed for a faster loop.
 | Format check | `make check-fmt` | — | `cargo fmt --all --check --manifest-path sandbox/Cargo.toml` |
 
 Those `pnpm` commands only cover the TypeScript workspace. **The CLI (`cli/`,
-Go) and the sandbox simulator (`sandbox/`, Rust) have their own CI jobs.** The root
+Go), the sandbox simulator (`sandbox/`, Rust) and the Soroban contracts
+(`packages/contracts`, Rust) have their own CI jobs.** The root
 `Makefile` is the one entrypoint that covers them, so a contributor who runs it
 cannot skip a toolchain by not knowing about it:
 
 ```bash
-make build       # ts-build + go-build + sandbox-build
-make test        # ts-test + go-test + sandbox-test
-make lint        # ts-lint + go-lint (needs golangci-lint on PATH) + sandbox-lint
+make build       # ts-build + go-build + sandbox-build + contracts-build
+make test        # ts-test + go-test + sandbox-test + contracts-test
+make lint        # ts-lint + go-lint (needs golangci-lint on PATH) + sandbox-lint + contracts-lint
 make fmt         # gofmt -w cli/
-make check-fmt   # fails if cli/ or sandbox/ isn't formatted, without rewriting anything
+make check-fmt   # fails if cli/, sandbox/ or packages/contracts isn't formatted, without rewriting anything
 ```
 
 `pnpm build:all` / `test:all` / `lint:all` / `fmt` / `check-fmt` delegate to the
@@ -114,13 +115,22 @@ cargo test --locked --manifest-path sandbox/Cargo.toml
 ```
 
 **Soroban contracts** (`packages/contracts`) have a separate CI job — run it
-locally when you touch Rust:
+locally when you touch Rust. From the repo root:
 
 ```bash
-cd packages/contracts
-cargo test
-stellar contract build
+make check-fmt-contracts   # cargo fmt --all --check
+make contracts-lint        # cargo clippy --locked --all-targets -- -D warnings
+make contracts-test        # cargo test --locked
+make contracts-build       # stellar contract build (needs the stellar CLI)
 ```
+
+Each target skips with a one-line notice when `cargo` is missing, and they are
+folded into `make check-fmt` / `lint` / `test` / `build`. The same commands run
+directly from `packages/contracts`.
+
+`cargo test` rewrites the snapshots under `identity-registry/test_snapshots/`.
+Commit what changed, and delete the snapshot of a test you removed: the CI job
+fails when the directory differs from the commit after the tests have run.
 
 ### Bumping a budget
 
