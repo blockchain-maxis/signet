@@ -11,6 +11,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/blockchain-maxis/signet/cli/internal/config"
 	"github.com/blockchain-maxis/signet/cli/internal/pair"
 )
 
@@ -264,4 +265,155 @@ func TestGolden_NetworkMismatch(t *testing.T) {
 	srv := goldenServer(t, "", pair.Identity{})
 	assertGolden(t, "network_mismatch",
 		runGolden(t, "link", "--url", srv.URL, "--network", "mainnet", "--source", "alice", "--no-browser"))
+}
+
+func statusGoldenServer(t *testing.T, identity pair.Identity, indexingPending bool) *httptest.Server {
+	t.Helper()
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		switch r.URL.Path {
+		case "/.well-known/stellar.toml":
+			w.Header().Set("Content-Type", "text/plain")
+			_, _ = w.Write([]byte(testnetStellarTOML))
+		case "/api/v1/health":
+			_, _ = w.Write([]byte(`{"data":{"status":"ok","network":"testnet","apiVersion":"1","checks":{"db":"up","registry":"up","pairing":"up","nonceStore":"up","rateLimitStore":"up"}}}`))
+		case "/api/v1/lookup/" + identity.PublicKey:
+			serveLookup(w, identity)
+		case "/api/v1/profiles/alice/wallets":
+			_, _ = fmt.Fprintf(w, `{"data":[{"address":%q,"isPrimary":false,"source":"cli","indexingPending":%t}],"meta":{"source":"database"}}`, aliceKey, indexingPending)
+		case "/api/v1/profiles/alice/contracts":
+			if indexingPending {
+				_, _ = w.Write([]byte(`{"data":[],"meta":{"nextCursor":null,"total":0,"truncated":false,"cap":null,"source":"database"}}`))
+			} else {
+				_, _ = w.Write([]byte(`{"data":[{},{},{}],"meta":{"nextCursor":null,"total":3,"truncated":false,"cap":null,"source":"database"}}`))
+			}
+		default:
+			http.Error(w, "unexpected request "+r.URL.Path, http.StatusTeapot)
+		}
+	}))
+	t.Cleanup(srv.Close)
+	return srv
+}
+
+func TestGolden_Status(t *testing.T) {
+	buildFakeStellarOnPath(t)
+
+	for _, tc := range []struct {
+		name            string
+		identity        pair.Identity
+		indexingPending bool
+	}{
+		{"linked", pair.Identity{PublicKey: aliceKey, Handle: "alice", Linked: true, Network: "testnet", Source: "onchain", IsPrimary: true}, false},
+		{"indexing", pair.Identity{PublicKey: aliceKey, Handle: "alice", Linked: true, Network: "testnet", Source: "cli"}, true},
+		{"not_linked", pair.Identity{PublicKey: aliceKey, Network: "testnet"}, false},
+	} {
+		for _, mode := range []string{"human", "json"} {
+			name := "status_" + tc.name + "_" + mode
+			t.Run(name, func(t *testing.T) {
+				isolateConfigDir(t)
+				srv := statusGoldenServer(t, tc.identity, tc.indexingPending)
+				args := []string{"status", "--url", srv.URL, "--source", "alice"}
+				if mode == "json" {
+					args = append(args, "--json")
+				}
+				assertGolden(t, name, runGolden(t, args...))
+			})
+		}
+	}
+}
+
+func seedGoldenContexts(t *testing.T) {
+	t.Helper()
+	if err := config.Save(config.File{
+		Version: 2,
+		Current: "default",
+		Contexts: map[string]config.Context{
+			"default": {URL: "https://signet.example.com", Network: "testnet", Source: "alice"},
+			"prod":    {URL: "https://prod.example.com", Network: "mainnet", Source: "bob"},
+		},
+	}); err != nil {
+		t.Fatalf("seeding config: %v", err)
+	}
+}
+
+func TestGolden_Context(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		args []string
+	}{
+		{"list", []string{"context", "list"}},
+		{"show", []string{"context", "show"}},
+		{"use", []string{"context", "use", "prod"}},
+		{"add", []string{"context", "add", "staging", "--url", "<deployment>", "--network", "testnet", "--source", "charlie"}},
+		{"remove", []string{"context", "remove", "prod"}},
+	} {
+		for _, mode := range []string{"human", "json"} {
+			name := "context_" + tc.name + "_" + mode
+			t.Run(name, func(t *testing.T) {
+				isolateConfigDir(t)
+				seedGoldenContexts(t)
+				args := append([]string(nil), tc.args...)
+				// `context add` reads the deployment's stellar.toml, so it is pointed
+				// at a local testnet server, its address written as <deployment> so
+				// the golden does not depend on the port.
+				url := ""
+				for i, arg := range args {
+					if arg == "<deployment>" {
+						if url == "" {
+							url = testnetDiscoveryServer(t, testnetStellarTOML, http.StatusOK).URL
+						}
+						args[i] = url
+					}
+				}
+				if mode == "json" {
+					args = append(args, "--json")
+				}
+				out := runGolden(t, args...)
+				if url != "" {
+					out = strings.ReplaceAll(out, url, "<deployment>")
+					out = strings.ReplaceAll(out, strings.TrimPrefix(url, "http://"), "<deployment>")
+				}
+				assertGolden(t, name, out)
+			})
+		}
+	}
+}
+
+func TestGolden_Config(t *testing.T) {
+	for _, tc := range []struct {
+		name string
+		args []string
+	}{
+		{"get", []string{"config", "get", "url"}},
+		{"set", []string{"config", "set", "source", "carol"}},
+		{"unset", []string{"config", "unset", "source"}},
+		{"path", []string{"config", "path"}},
+	} {
+		for _, mode := range []string{"human", "json"} {
+			name := "config_" + tc.name + "_" + mode
+			t.Run(name, func(t *testing.T) {
+				isolateConfigDir(t)
+				seedGoldenContexts(t)
+				args := append([]string(nil), tc.args...)
+				if mode == "json" {
+					args = append(args, "--json")
+				}
+				assertGolden(t, name, runGolden(t, args...))
+			})
+		}
+	}
+}
+
+func TestGolden_Version(t *testing.T) {
+	for _, mode := range []string{"human", "json"} {
+		name := "version_" + mode
+		t.Run(name, func(t *testing.T) {
+			isolateConfigDir(t)
+			args := []string{"version"}
+			if mode == "json" {
+				args = append(args, "--json")
+			}
+			assertGolden(t, name, runGolden(t, args...))
+		})
+	}
 }

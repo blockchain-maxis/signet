@@ -67,6 +67,48 @@ const [rustSource, tsSource] = await Promise.all([
 const rustVariants = parseRustEnum(rustSource, rustPath);
 const tsCodes = parseTsMap(tsSource, tsPath);
 
+// Error codes are part of the deployed contract's ABI: integrators match on
+// the number (`Error(Contract, #N)`), and an immutable deployment keeps the old
+// numbering forever. So the enum is append-only. Every code below must keep its
+// number and name. Add new codes, never renumber, rename or remove one
+// (docs/SECURITY_REVIEW.md §7). Append each new variant here when it lands.
+const FROZEN_CODES = new Map([
+  [1, 'AlreadyInitialized'],
+  [2, 'NotInitialized'],
+  [3, 'HandleTaken'],
+  [4, 'HandleNotFound'],
+  [5, 'NotOwner'],
+  [6, 'InvalidHandle'],
+  [7, 'WalletAlreadyBound'],
+  [8, 'HandleReserved'],
+  [9, 'BatchTooLarge'],
+]);
+
+const broken = [...FROZEN_CODES.entries()].filter(
+  ([code, name]) => rustVariants.get(code) !== name,
+);
+if (broken.length > 0) {
+  console.error('contract-errors check failed — the Error enum is append-only:\n');
+  for (const [code, name] of broken) {
+    const now = rustVariants.get(code);
+    console.error(
+      `  code ${code} was ${name}, is now ${now === undefined ? 'missing' : now}`,
+    );
+  }
+  console.error(
+    '\nRestore the original number and name and add the new variant with the next free code.',
+  );
+  process.exit(1);
+}
+const unfrozen = [...rustVariants.keys()].filter((code) => !FROZEN_CODES.has(code));
+if (unfrozen.length > 0) {
+  console.error(
+    `contract-errors check failed — new Error code(s) ${unfrozen.join(', ')} are not in FROZEN_CODES.\n` +
+      'Append them to FROZEN_CODES in scripts/check-contract-errors.mjs so they cannot be renumbered later.',
+  );
+  process.exit(1);
+}
+
 const missing = [...rustVariants.entries()]
   .filter(([code]) => !tsCodes.has(code))
   .sort((a, b) => a[0] - b[0]);

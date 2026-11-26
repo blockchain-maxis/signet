@@ -23,10 +23,22 @@ export interface CycleDiff {
   readonly resources?: { metric: string; a: number; b: number; delta: number; percent: number | null; class: DiffClass }[];
 }
 
+export interface RealOutcome {
+  readonly hash: string;
+  readonly ledger: number;
+  readonly function: string;
+  readonly link?: string;
+  readonly fidelity: {
+    readonly high: boolean;
+    readonly reason?: string;
+  };
+}
+
 export interface DiffOutcome {
   readonly name: string;
   readonly diff?: CycleDiff | null;
   readonly verdict?: { expect: string; pass: boolean; reason?: string };
+  readonly real?: RealOutcome;
 }
 
 export interface DiffCycle {
@@ -91,6 +103,9 @@ function Side({ label, children }: { label: string; children: React.ReactNode })
   );
 }
 
+const short = (s: string, head = 4, tail = 3) =>
+  s.length > head + tail + 1 ? `${s.slice(0, head)}…${tail > 0 ? s.slice(-tail) : ''}` : s;
+
 function Detail({ outcome }: { outcome: DiffOutcome }) {
   const d = outcome.diff;
   if (!d) return <p className="text-sm text-muted">This call was not compared.</p>;
@@ -99,6 +114,31 @@ function Detail({ outcome }: { outcome: DiffOutcome }) {
   const maxResource = Math.max(1, ...(d.resources ?? []).flatMap((r) => [r.a, r.b]));
   return (
     <div className="grid gap-4 text-xs">
+      {outcome.real && (
+        <section aria-label="Real transaction" className="rounded border border-line bg-raised/30 p-2.5">
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="inline-flex items-center rounded border border-line px-1 font-mono text-xs text-muted">
+              real tx
+            </span>
+            <span className="font-mono text-faint">ledger {outcome.real.ledger}</span>
+            {outcome.real.link ? (
+              <a
+                href={outcome.real.link}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="font-mono text-accent underline hover:text-ink"
+              >
+                {short(outcome.real.hash)}
+              </a>
+            ) : (
+              <span className="font-mono text-muted">{short(outcome.real.hash)}</span>
+            )}
+          </div>
+          {outcome.real.fidelity.reason && (
+            <p className="mt-1 text-xs text-muted">{outcome.real.fidelity.reason}</p>
+          )}
+        </section>
+      )}
       {d.outcome && (
         <section aria-label="Outcome">
           <h4 className="flex items-center gap-2 text-muted">Outcome <ClassBadge value={d.outcome.class} /></h4>
@@ -219,20 +259,35 @@ function Detail({ outcome }: { outcome: DiffOutcome }) {
  * them. Up and Down move between calls.
  */
 export function DiffView({ cycle }: { cycle: DiffCycle }) {
+  const counted = cycle.outcomes.filter((o) => !(o.real && !o.real.fidelity.high));
+  const lowFidelity = cycle.outcomes.filter((o) => Boolean(o.real && !o.real.fidelity.high));
+  const ordered = [...counted, ...lowFidelity];
+
   // The selection is by name, so a new cycle keeps the call that was open.
   const [selectedName, setSelectedName] = useState<string | null>(null);
   const items = useRef<(HTMLLIElement | null)[]>([]);
-  const selected = Math.max(0, cycle.outcomes.findIndex((o) => o.name === selectedName));
-  const setSelected = (i: number) => setSelectedName(cycle.outcomes[i]?.name ?? null);
-  const outcome = cycle.outcomes[selected];
+  const selected = Math.max(0, ordered.findIndex((o) => o.name === selectedName));
+  const setSelected = (i: number) => setSelectedName(ordered[i]?.name ?? null);
+  const outcome = ordered[selected];
 
-  const totals = Object.fromEntries(CLASSES.map((c) => [c, cycle.outcomes.reduce((n, o) => n + (o.diff?.summary[c] ?? 0), 0)])) as Record<DiffClass, number>;
+  const totals = Object.fromEntries(
+    CLASSES.map((c) => [c, counted.reduce((n, o) => n + (o.diff?.summary[c] ?? 0), 0)])
+  ) as Record<DiffClass, number>;
 
   function onKey(e: React.KeyboardEvent) {
-    const next = e.key === 'ArrowDown' ? selected + 1 : e.key === 'ArrowUp' ? selected - 1 : e.key === 'Home' ? 0 : e.key === 'End' ? cycle.outcomes.length - 1 : null;
+    const next =
+      e.key === 'ArrowDown'
+        ? selected + 1
+        : e.key === 'ArrowUp'
+          ? selected - 1
+          : e.key === 'Home'
+            ? 0
+            : e.key === 'End'
+              ? ordered.length - 1
+              : null;
     if (next === null) return;
     e.preventDefault();
-    const clamped = Math.max(0, Math.min(cycle.outcomes.length - 1, next));
+    const clamped = Math.max(0, Math.min(ordered.length - 1, next));
     setSelected(clamped);
     items.current[clamped]?.focus();
   }
@@ -246,7 +301,7 @@ export function DiffView({ cycle }: { cycle: DiffCycle }) {
       </p>
       <div className="grid gap-4 lg:grid-cols-[16rem_1fr]">
         <ul role="listbox" aria-label="Calls in this cycle" onKeyDown={onKey} className="grid content-start gap-1">
-          {cycle.outcomes.map((o, i) => {
+          {counted.map((o, i) => {
             const w = worst(o.diff);
             return (
               <li
@@ -261,13 +316,60 @@ export function DiffView({ cycle }: { cycle: DiffCycle }) {
                 className={`cursor-pointer rounded border px-2 py-1 text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent ${i === selected ? 'border-accent bg-raised' : 'border-line hover:bg-raised'}`}
               >
                 <div className="flex items-center justify-between gap-2">
-                  <span className="font-mono text-ink">{o.name}</span>
+                  <div className="flex items-center gap-1.5">
+                    <span className="font-mono text-ink">{o.name}</span>
+                    {o.real && (
+                      <span className="inline-flex items-center rounded border border-line px-1 font-mono text-[10px] text-muted">
+                        real tx
+                      </span>
+                    )}
+                  </div>
                   {w && <ClassBadge value={w} />}
                 </div>
                 <div className="text-faint">{summaryText(o.diff)}</div>
               </li>
             );
           })}
+          {lowFidelity.length > 0 && (
+            <>
+              <li role="presentation" className="mt-2 text-xs font-medium text-muted">
+                low-fidelity (not counted)
+              </li>
+              {lowFidelity.map((o, j) => {
+                const idx = counted.length + j;
+                const w = worst(o.diff);
+                return (
+                  <li
+                    key={o.name}
+                    ref={(el) => {
+                      items.current[idx] = el;
+                    }}
+                    role="option"
+                    aria-selected={idx === selected}
+                    tabIndex={idx === selected ? 0 : -1}
+                    onClick={() => setSelected(idx)}
+                    className={`cursor-pointer rounded border px-2 py-1 text-xs focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-accent ${idx === selected ? 'border-accent bg-raised' : 'border-line hover:bg-raised'}`}
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-1.5">
+                        <span className="font-mono text-ink">{o.name}</span>
+                        {o.real && (
+                          <span className="inline-flex items-center rounded border border-line px-1 font-mono text-[10px] text-muted">
+                            real tx
+                          </span>
+                        )}
+                      </div>
+                      {w && <ClassBadge value={w} />}
+                    </div>
+                    {o.real?.fidelity.reason && (
+                      <div className="text-muted">{o.real.fidelity.reason}</div>
+                    )}
+                    <div className="text-faint">{summaryText(o.diff)}</div>
+                  </li>
+                );
+              })}
+            </>
+          )}
         </ul>
         <section aria-label={`Differences in ${outcome?.name ?? ''}`} className="min-w-0 rounded border border-line p-3">
           {outcome ? <Detail outcome={outcome} /> : <p className="text-sm text-muted">This cycle replayed no calls.</p>}
