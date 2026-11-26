@@ -1,8 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { explainRegistryError } from './registry-errors.ts';
+import { explainRegistryError, explainReleaseError } from './registry-errors.ts';
 
-test('maps Error(Contract, #N) codes 3, 6, 7 and 8 to plain messages', () => {
+test('maps Error(Contract, #N) codes 3, 6, 7 and 8 to plain messages for claim', () => {
   assert.equal(
     explainRegistryError(new Error('Simulation failed: HostError: Error(Contract, #3)')),
     'That handle is already taken.',
@@ -21,16 +21,56 @@ test('maps Error(Contract, #N) codes 3, 6, 7 and 8 to plain messages', () => {
   );
 });
 
+test('explainRegistryError does not treat auth errors as ownership failures', () => {
+  const authErr = 'Simulation failed: HostError: Error(Auth, InvalidAction)';
+  assert.equal(explainRegistryError(new Error(authErr)), authErr);
+});
+
+test('maps release errors to plain messages', () => {
+  assert.equal(
+    explainReleaseError(new Error('Simulation failed: HostError: Error(Contract, #4)')),
+    'Handle not found.',
+  );
+  assert.equal(explainReleaseError('HostError: Error(Contract, #4)'), 'Handle not found.');
+  assert.equal(
+    explainReleaseError(new Error('Simulation failed: HostError: Error(Contract, #5)')),
+    'You are not the owner of that handle.',
+  );
+  assert.equal(
+    explainReleaseError(new Error('Simulation failed: HostError: Error(Auth, InvalidAction)')),
+    'You are not the owner of that handle.',
+  );
+  assert.equal(
+    explainReleaseError('HostError: Error(Auth, InvalidAction)'),
+    'You are not the owner of that handle.',
+  );
+  assert.equal(
+    explainReleaseError(
+      new Error('Release submission failed: {"errorResult":"Error(Auth, InvalidAction)"}'),
+    ),
+    'You are not the owner of that handle.',
+  );
+});
+
 test('maps JSON submission error payloads carrying contractError', () => {
-  const err = new Error('Claim submission failed: {"errorResult":{"code":"contractError","value":3}}');
-  assert.equal(explainRegistryError(err), 'That handle is already taken.');
+  const errClaim = new Error(
+    'Claim submission failed: {"errorResult":{"code":"contractError","value":3}}',
+  );
+  assert.equal(explainRegistryError(errClaim), 'That handle is already taken.');
+
+  const errRelease = new Error(
+    'Release submission failed: {"errorResult":{"code":"contractError","value":4}}',
+  );
+  assert.equal(explainReleaseError(errRelease), 'Handle not found.');
 });
 
 test('keeps the original text for unrecognised contract codes and other errors', () => {
   const unknownCode = 'HostError: Error(Contract, #99)';
   assert.equal(explainRegistryError(new Error(unknownCode)), unknownCode);
+  assert.equal(explainReleaseError(new Error(unknownCode)), unknownCode);
 
   const networkErr = 'Soroban RPC timed out after 10s';
   assert.equal(explainRegistryError(new Error(networkErr)), networkErr);
   assert.equal(explainRegistryError(networkErr), networkErr);
+  assert.equal(explainReleaseError(new Error(networkErr)), networkErr);
 });
