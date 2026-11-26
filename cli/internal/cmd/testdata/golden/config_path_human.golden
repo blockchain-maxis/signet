@@ -1,0 +1,6 @@
+$ signet config path
+-- stdout --
+<config-path>
+-- stderr --
+(empty)
+-- exit 0 --

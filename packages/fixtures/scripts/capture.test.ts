@@ -1,9 +1,9 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, readdir, rm } from 'node:fs/promises';
+import { mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { capture, rpcCall } from './capture.js';
+import { capture, DEPLOY_TX_HASH, rpcCall } from './capture.js';
 
 test('a NOT_FOUND getTransaction writes nothing and rejects naming the fixture and hash', async () => {
   const tempDir = await mkdtemp(join(tmpdir(), 'signet-capture-test-'));
@@ -49,24 +49,20 @@ test('a NOT_FOUND getTransaction writes nothing and rejects naming the fixture a
       async () => {
         await capture({
           dataDir: tempDir,
-          only: new Set(['claim-get-transaction']),
+          only: new Set(['deploy-get-transaction']),
           initialRetryDelayMs: 1,
         });
       },
       (err: Error) => {
-        assert.match(err.message, /claim-get-transaction/);
+        assert.match(err.message, /deploy-get-transaction/);
+        assert.match(err.message, new RegExp(DEPLOY_TX_HASH));
         assert.match(err.message, /NOT_FOUND/);
         return true;
       },
     );
 
-    // Verify nothing was written to the directory
-    try {
-      const files = await readdir(tempDir);
-      assert.equal(files.length, 0, 'no fixture files should be written on failure');
-    } catch {
-      // directory was not created or empty, which is also correct
-    }
+    // Nothing was written to the directory.
+    assert.deepEqual(await readdir(tempDir), [], 'no fixture files should be written on failure');
   } finally {
     globalThis.fetch = originalFetch;
     await rm(tempDir, { recursive: true, force: true });
@@ -117,6 +113,11 @@ test('an RPC error response is retried with backoff delay', async () => {
 test('a failure in a later fixture leaves earlier files untouched', async () => {
   const tempDir = await mkdtemp(join(tmpdir(), 'signet-capture-atomic-'));
   const originalFetch = globalThis.fetch;
+  // An earlier recording that the rejected capture must leave as it is.
+  const existingPath = join(tempDir, 'sac-instance-entry.json');
+  const existing =
+    JSON.stringify({ network: 'testnet', payload: 'earlier recording' }, null, 2) + '\n';
+  await writeFile(existingPath, existing);
 
   try {
     globalThis.fetch = (async (url: any, init?: any) => {
@@ -170,29 +171,19 @@ test('a failure in a later fixture leaves earlier files untouched', async () => 
       throw new Error(`Unexpected call to ${urlStr}`);
     }) as typeof fetch;
 
-    await assert.rejects(
-      async () => {
-        // Request both sac-instance-entry and horizon-contract-deploy-tx
-        await capture({
-          dataDir: tempDir,
-          only: new Set(['sac-instance-entry', 'horizon-contract-deploy-tx']),
-          initialRetryDelayMs: 1,
-        });
-      },
-      /Horizon GET.*failed/,
-    );
+    await assert.rejects(async () => {
+      // Request both sac-instance-entry and horizon-contract-deploy-tx
+      await capture({
+        dataDir: tempDir,
+        only: new Set(['sac-instance-entry', 'horizon-contract-deploy-tx']),
+        initialRetryDelayMs: 1,
+      });
+    }, /Horizon GET.*failed/);
 
-    // Assert that sac-instance-entry was NOT written because a later fixture failed
-    try {
-      const files = await readdir(tempDir);
-      assert.equal(
-        files.length,
-        0,
-        `expected 0 files written when later step fails, found: ${files.join(', ')}`,
-      );
-    } catch {
-      // tempDir was not even populated with files, which is correct
-    }
+    // sac-instance-entry was captured before Horizon failed, but the earlier
+    // recording is untouched and no other file was written.
+    assert.equal(await readFile(existingPath, 'utf8'), existing);
+    assert.deepEqual(await readdir(tempDir), ['sac-instance-entry.json']);
   } finally {
     globalThis.fetch = originalFetch;
     await rm(tempDir, { recursive: true, force: true });

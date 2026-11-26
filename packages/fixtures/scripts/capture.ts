@@ -1,14 +1,26 @@
 import { writeFile, mkdir } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { xdr, StrKey, Networks } from '@stellar/stellar-sdk';
+import { randomBytes } from 'node:crypto';
+import {
+  xdr,
+  StrKey,
+  Address,
+  BASE_FEE,
+  Contract,
+  Keypair,
+  Networks,
+  TransactionBuilder,
+  nativeToScVal,
+  rpc,
+  scValToNative,
+} from '@stellar/stellar-sdk';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 export const DEFAULT_DATA_DIR = join(__dirname, '..', 'data');
 
-export const DEFAULT_RPC_URL =
-  process.env.INDEXER_RPC_URL ?? 'https://soroban-testnet.stellar.org';
+export const DEFAULT_RPC_URL = process.env.INDEXER_RPC_URL ?? 'https://soroban-testnet.stellar.org';
 export const DEFAULT_HORIZON_URL =
   process.env.INDEXER_HORIZON_URL ?? 'https://horizon-testnet.stellar.org';
 
@@ -17,18 +29,14 @@ export const REGISTRY_CONTRACT_ID =
   'CASFJHI5PQSRWS7JV25CF7FOMRKIVBP3RXRP3E2GH2CV4BCAG7FUJRCN';
 
 // Native XLM SAC contract id on testnet
-export const SAC_CONTRACT_ID =
-  'CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC';
+export const SAC_CONTRACT_ID = 'CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC';
 
-// Known real claim transaction on testnet
-export const CLAIM_TX_HASH =
-  'ce05dc2ae700d2ea1d535d9efda77a212978d456c1a3e3da6e5f066a7008cd3d';
+const FRIENDBOT_URL = 'https://friendbot.stellar.org';
 
 // Real create-contract (HostFunctionTypeCreateContract) transaction on testnet.
 // Soroban RPC only serves getTransaction for a retention window (about 7 days),
 // so when this hash ages out, pick a newer create-contract tx and update it.
-export const DEPLOY_TX_HASH =
-  'dd8155932d72fe2f8edc2405fc28c022212d79485bb56515fc3175259cf3c9b2';
+export const DEPLOY_TX_HASH = 'dd8155932d72fe2f8edc2405fc28c022212d79485bb56515fc3175259cf3c9b2';
 
 // Real cross-contract calls on testnet (#516), both into the same lending
 // contract (CBXZBQ6N…). The repay's auth tree names a sub-call to a Stellar
@@ -40,6 +48,12 @@ export const SAC_TRANSFER_CALL_TX_HASH =
 export const FOOTPRINT_ONLY_CALL_TX_HASH =
   '7e8b80aa4dd8afe649b1362e1e4a79e9f931c8eeeb2deb8ccaa9e27aec224ac0';
 
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+/**
+ * One JSON-RPC call. A transport failure, a JSON-RPC `error` or a response
+ * with no `result` is retried with exponential backoff (capped at 10s).
+ */
 export async function rpcCall(
   method: string,
   params: unknown,
@@ -67,12 +81,14 @@ export async function rpcCall(
     } catch (err) {
       lastError = err;
       if (attempt < maxAttempts - 1) {
-        await new Promise((r) => setTimeout(r, delay));
+        await sleep(delay);
         delay = Math.min(delay * 2, 10000);
       }
     }
   }
-  throw new Error(`RPC call ${method} failed after ${maxAttempts} attempts: ${lastError instanceof Error ? lastError.message : String(lastError)}`);
+  throw new Error(
+    `RPC call ${method} failed after ${maxAttempts} attempts: ${lastError instanceof Error ? lastError.message : String(lastError)}`,
+  );
 }
 
 export async function horizonGet(
@@ -91,12 +107,14 @@ export async function horizonGet(
     } catch (err) {
       lastError = err;
       if (attempt < maxAttempts - 1) {
-        await new Promise((r) => setTimeout(r, delay));
+        await sleep(delay);
         delay = Math.min(delay * 2, 5000);
       }
     }
   }
-  throw new Error(`Horizon GET ${path} failed after ${maxAttempts} attempts: ${lastError instanceof Error ? lastError.message : String(lastError)}`);
+  throw new Error(
+    `Horizon GET ${path} failed after ${maxAttempts} attempts: ${lastError instanceof Error ? lastError.message : String(lastError)}`,
+  );
 }
 
 export interface FixtureEnvelope<T = unknown> {
@@ -118,6 +136,7 @@ interface StagedFixture {
 }
 
 export interface CaptureOptions {
+  /** Fixture names to re-record; empty records everything. */
   only?: Set<string>;
   dataDir?: string;
   rpcUrl?: string;
@@ -125,8 +144,168 @@ export interface CaptureOptions {
   initialRetryDelayMs?: number;
 }
 
+/**
+ * Fund a fresh account through Friendbot's HTTP endpoint. A request can fund
+ * the account and still fail client-side, after which Friendbot answers
+ * "already funded", so success is judged by the account existing.
+ */
+async function friendbot(server: rpc.Server, address: string): Promise<void> {
+  let lastError = '';
+  for (let attempt = 0; attempt < 5; attempt++) {
+    try {
+      const res = await fetch(`${FRIENDBOT_URL}/?addr=${encodeURIComponent(address)}`);
+      if (res.ok) return;
+      lastError = `HTTP ${res.status}: ${(await res.text()).slice(0, 200)}`;
+    } catch (err) {
+      lastError = String((err as { cause?: unknown }).cause ?? err);
+    }
+    try {
+      await server.getAccount(address);
+      return;
+    } catch {
+      // not funded yet; retry
+    }
+    await sleep(3000);
+  }
+  throw new Error(`Friendbot did not fund ${address}: ${lastError}`);
+}
+
+/**
+ * Build, simulate, sign and submit one registry call as `signer`, then wait
+ * for it to land. Returns the raw `getTransaction` result (the JSON the RPC
+ * served, not the SDK's parsed form), which must be SUCCESS. `NOT_FOUND` here
+ * means "not landed yet", so it is polled, not treated as aged out.
+ */
+async function invokeRegistry(
+  server: rpc.Server,
+  rpcUrl: string,
+  retryDelay: number,
+  signer: Keypair,
+  method: string,
+  args: xdr.ScVal[],
+): Promise<any> {
+  const account = await server.getAccount(signer.publicKey());
+  const tx = new TransactionBuilder(account, { fee: BASE_FEE, networkPassphrase: Networks.TESTNET })
+    .addOperation(new Contract(REGISTRY_CONTRACT_ID).call(method, ...args))
+    .setTimeout(60)
+    .build();
+  const prepared = await server.prepareTransaction(tx);
+  prepared.sign(signer);
+  const sent = await server.sendTransaction(prepared);
+  if (sent.status !== 'PENDING' && sent.status !== 'DUPLICATE') {
+    throw new Error(`${method}: sendTransaction returned ${sent.status}`);
+  }
+  for (let attempt = 0; attempt < 30; attempt++) {
+    const result = await rpcCall('getTransaction', { hash: sent.hash }, rpcUrl, 10, retryDelay);
+    if (result.status === 'SUCCESS') return result;
+    if (result.status !== 'NOT_FOUND') {
+      throw new Error(`${method} ${sent.hash} ended ${result.status}`);
+    }
+    await sleep(2000);
+  }
+  throw new Error(`${method} ${sent.hash} did not land within 60s`);
+}
+
+/** `{kind, handle, wallet}` for a registry event as getEvents serves it (base64 XDR). */
+function decodeRegistryEvent(event: { topic: string[]; value: string }) {
+  const topics = event.topic.map((t) => xdr.ScVal.fromXDR(t, 'base64'));
+  return {
+    kind: String(scValToNative(topics[0]!)),
+    handle: String(scValToNative(topics[1]!)),
+    wallet: String(scValToNative(xdr.ScVal.fromXDR(event.value, 'base64'))),
+  };
+}
+
+/**
+ * Registry event stream: a fresh testnet account claims a random handle on
+ * the registry and releases it, then returns the getEvents page that holds
+ * both events and the claim's getTransaction. Submits two real testnet
+ * transactions. Both fixtures describe the same claim, so they are always
+ * staged together, and only after both events are confirmed in the page.
+ */
+async function captureRegistryEvents(
+  network: string,
+  rpcUrl: string,
+  retryDelay: number,
+  capturedAt: string,
+): Promise<StagedFixture[]> {
+  const server = new rpc.Server(rpcUrl);
+  const signer = Keypair.random();
+  const wallet = signer.publicKey();
+  const handle = `fx-${randomBytes(4).toString('hex')}`;
+
+  console.log(`→ funding ${wallet} through Friendbot`);
+  await friendbot(server, wallet);
+
+  console.log(`→ claim(${handle}) and release(${handle}) on ${REGISTRY_CONTRACT_ID}`);
+  const claimArgs = [
+    nativeToScVal(handle, { type: 'string' }),
+    Address.fromString(wallet).toScVal(),
+  ];
+  const claimTx = await invokeRegistry(server, rpcUrl, retryDelay, signer, 'claim', claimArgs);
+  const releaseTx = await invokeRegistry(server, rpcUrl, retryDelay, signer, 'release', [
+    nativeToScVal(handle, { type: 'string' }),
+  ]);
+
+  const params = {
+    startLedger: claimTx.ledger,
+    filters: [{ type: 'contract', contractIds: [REGISTRY_CONTRACT_ID] }],
+    pagination: { limit: 100 },
+  };
+  const events = await rpcCall('getEvents', params, rpcUrl, 10, retryDelay);
+  const ours = (events.events ?? []).filter(
+    (e: { topic: string[]; value: string }) => decodeRegistryEvent(e).handle === handle,
+  );
+  const kinds = ours.map((e: { topic: string[]; value: string }) => decodeRegistryEvent(e).kind);
+  if (
+    kinds.join(',') !== 'claimed,released' ||
+    ours[0].txHash !== claimTx.txHash ||
+    ours[1].txHash !== releaseTx.txHash
+  ) {
+    throw new Error(
+      `getEvents from ledger ${claimTx.ledger} did not return claimed then released for ${handle} ` +
+        `(saw: ${kinds.join(',') || 'none'}); nothing written`,
+    );
+  }
+
+  return [
+    {
+      name: 'registry-claim-release-get-events',
+      envelope: {
+        network,
+        rpcUrl,
+        capturedAt,
+        latestLedger: events.latestLedger,
+        request: { endpoint: 'rpc', methodOrPath: 'getEvents', params },
+        payload: events,
+      },
+    },
+    {
+      name: 'claim-get-transaction',
+      envelope: {
+        network,
+        rpcUrl,
+        capturedAt,
+        latestLedger: claimTx.latestLedger,
+        request: {
+          endpoint: 'rpc',
+          methodOrPath: 'getTransaction',
+          params: { hash: claimTx.txHash },
+        },
+        payload: claimTx,
+      },
+    },
+  ];
+}
+
+/**
+ * Record the requested fixtures. Everything is captured into memory first;
+ * files are written only once every requested fixture has succeeded, so a
+ * failure at any step leaves `data/` exactly as it was.
+ */
 export async function capture(options: CaptureOptions = {}): Promise<void> {
   const only = options.only ?? new Set<string>();
+  const wanted = (name: string) => only.size === 0 || only.has(name);
   const dataDir = options.dataDir ?? DEFAULT_DATA_DIR;
   const rpcUrl = options.rpcUrl ?? DEFAULT_RPC_URL;
   const horizonUrl = options.horizonUrl ?? DEFAULT_HORIZON_URL;
@@ -134,7 +313,7 @@ export async function capture(options: CaptureOptions = {}): Promise<void> {
 
   console.log('Capturing fixtures from', rpcUrl, 'and', horizonUrl);
 
-  // Validate network passphrase from getNetwork
+  // The fixtures are testnet recordings: refuse an RPC that serves anything else.
   const networkInfo = await rpcCall('getNetwork', null, rpcUrl, 10, retryDelay);
   if (!networkInfo || networkInfo.passphrase !== Networks.TESTNET) {
     throw new Error(
@@ -149,14 +328,13 @@ export async function capture(options: CaptureOptions = {}): Promise<void> {
 
   const staged: StagedFixture[] = [];
   function stage(name: string, envelope: FixtureEnvelope) {
-    if (only.size > 0 && !only.has(name)) return;
+    if (!wanted(name)) return;
     staged.push({ name, envelope });
   }
 
-  // 1. Identity Registry instance entry
-  const shouldCaptureReg = only.size === 0 || only.has('registry-instance-entry') || only.has('contract-wasm-entry');
+  // 1. Identity Registry instance entry (also the source of the WASM hash in 3)
   let regEntries: any;
-  if (shouldCaptureReg) {
+  if (wanted('registry-instance-entry') || wanted('contract-wasm-entry')) {
     const regBytes = StrKey.decodeContract(REGISTRY_CONTRACT_ID);
     const regKey = xdr.LedgerKey.contractData(
       new xdr.LedgerKeyContractData({
@@ -168,7 +346,9 @@ export async function capture(options: CaptureOptions = {}): Promise<void> {
     regEntries = await rpcCall('getLedgerEntries', { keys: [regKey] }, rpcUrl, 10, retryDelay);
 
     if (!regEntries?.entries?.length || !regEntries.entries[0]?.xdr) {
-      throw new Error(`Identity Registry instance entry is missing for contract ${REGISTRY_CONTRACT_ID}`);
+      throw new Error(
+        `Identity Registry instance entry is missing for contract ${REGISTRY_CONTRACT_ID}`,
+      );
     }
 
     stage('registry-instance-entry', {
@@ -186,7 +366,7 @@ export async function capture(options: CaptureOptions = {}): Promise<void> {
   }
 
   // 2. SAC instance entry
-  if (only.size === 0 || only.has('sac-instance-entry')) {
+  if (wanted('sac-instance-entry')) {
     const sacBytes = StrKey.decodeContract(SAC_CONTRACT_ID);
     const sacKey = xdr.LedgerKey.contractData(
       new xdr.LedgerKeyContractData({
@@ -195,7 +375,13 @@ export async function capture(options: CaptureOptions = {}): Promise<void> {
         durability: xdr.ContractDataDurability.persistent(),
       }),
     ).toXDR('base64');
-    const sacEntries = await rpcCall('getLedgerEntries', { keys: [sacKey] }, rpcUrl, 10, retryDelay);
+    const sacEntries = await rpcCall(
+      'getLedgerEntries',
+      { keys: [sacKey] },
+      rpcUrl,
+      10,
+      retryDelay,
+    );
     stage('sac-instance-entry', {
       network,
       rpcUrl,
@@ -211,17 +397,20 @@ export async function capture(options: CaptureOptions = {}): Promise<void> {
   }
 
   // 3. Contract WASM entry
-  if (only.size === 0 || only.has('contract-wasm-entry')) {
-    if (!regEntries?.entries?.length || !regEntries.entries[0]?.xdr) {
-      throw new Error(`Cannot capture contract-wasm-entry: Identity Registry instance entry is missing`);
-    }
+  if (wanted('contract-wasm-entry')) {
     const entryXdr = regEntries.entries[0].xdr;
     const le = xdr.LedgerEntryData.fromXDR(entryXdr, 'base64');
     const wasmHash = le.contractData().val().instance().executable().wasmHash();
     const wasmKey = xdr.LedgerKey.contractCode(
       new xdr.LedgerKeyContractCode({ hash: wasmHash }),
     ).toXDR('base64');
-    const wasmEntries = await rpcCall('getLedgerEntries', { keys: [wasmKey] }, rpcUrl, 10, retryDelay);
+    const wasmEntries = await rpcCall(
+      'getLedgerEntries',
+      { keys: [wasmKey] },
+      rpcUrl,
+      10,
+      retryDelay,
+    );
     stage('contract-wasm-entry', {
       network,
       rpcUrl,
@@ -236,7 +425,9 @@ export async function capture(options: CaptureOptions = {}): Promise<void> {
     });
   }
 
-  // Helper for getTransaction: asserts status === 'SUCCESS'
+  // A pinned hash that has aged out of RPC retention answers NOT_FOUND inside
+  // `result`; anything but SUCCESS fails the whole capture, naming the
+  // fixture and the hash, so a good recording is never replaced by it.
   async function fetchGetTransaction(fixtureName: string, hash: string): Promise<any> {
     const tx = await rpcCall('getTransaction', { hash }, rpcUrl, 10, retryDelay);
     if (!tx || tx.status !== 'SUCCESS') {
@@ -247,25 +438,8 @@ export async function capture(options: CaptureOptions = {}): Promise<void> {
     return tx;
   }
 
-  // 4. Identity Registry claim getTransaction
-  if (only.size === 0 || only.has('claim-get-transaction')) {
-    const claimTx = await fetchGetTransaction('claim-get-transaction', CLAIM_TX_HASH);
-    stage('claim-get-transaction', {
-      network,
-      rpcUrl,
-      capturedAt,
-      latestLedger,
-      request: {
-        endpoint: 'rpc',
-        methodOrPath: 'getTransaction',
-        params: { hash: CLAIM_TX_HASH },
-      },
-      payload: claimTx,
-    });
-  }
-
-  // 5. Contract deployment getTransaction
-  if (only.size === 0 || only.has('deploy-get-transaction')) {
+  // 4. Contract deployment getTransaction
+  if (wanted('deploy-get-transaction')) {
     const deployTx = await fetchGetTransaction('deploy-get-transaction', DEPLOY_TX_HASH);
     stage('deploy-get-transaction', {
       network,
@@ -281,12 +455,12 @@ export async function capture(options: CaptureOptions = {}): Promise<void> {
     });
   }
 
-  // 6–7. Cross-contract call getTransactions
+  // 5–6. Cross-contract call getTransactions
   for (const [name, hash] of [
     ['sac-transfer-call-get-transaction', SAC_TRANSFER_CALL_TX_HASH],
     ['footprint-only-call-get-transaction', FOOTPRINT_ONLY_CALL_TX_HASH],
   ] as const) {
-    if (only.size > 0 && !only.has(name)) continue;
+    if (!wanted(name)) continue;
     const callTx = await fetchGetTransaction(name, hash);
     stage(name, {
       network,
@@ -302,9 +476,17 @@ export async function capture(options: CaptureOptions = {}): Promise<void> {
     });
   }
 
-  // 8. Horizon transaction record for the same deployment
-  if (only.size === 0 || only.has('horizon-contract-deploy-tx')) {
-    const horizonTx = await horizonGet(`/transactions/${DEPLOY_TX_HASH}`, horizonUrl, 5, retryDelay);
+  // 7. Horizon transaction record for the same deployment, verbatim. Current
+  // Horizon does not return `result_meta_xdr`; the meta lives in the
+  // `deploy-get-transaction` (RPC) fixture. Nothing is merged or invented here:
+  // if Horizon is unreachable the capture fails.
+  if (wanted('horizon-contract-deploy-tx')) {
+    const horizonTx = await horizonGet(
+      `/transactions/${DEPLOY_TX_HASH}`,
+      horizonUrl,
+      5,
+      retryDelay,
+    );
     stage('horizon-contract-deploy-tx', {
       network,
       rpcUrl: horizonUrl,
@@ -318,8 +500,16 @@ export async function capture(options: CaptureOptions = {}): Promise<void> {
     });
   }
 
-  // All requested fixtures captured and validated successfully!
-  // Write all staged fixtures atomically:
+  // 8. Registry event stream + the claim's getTransaction, from a fresh
+  // claim/release (two real testnet transactions). Runs last, so a read-only
+  // failure above (an aged-out hash, Horizon down) stops the capture before
+  // anything is submitted. Skipped unless one of its fixtures is wanted, so
+  // `capture <other>` submits nothing; naming either records both.
+  if (wanted('registry-claim-release-get-events') || wanted('claim-get-transaction')) {
+    staged.push(...(await captureRegistryEvents(network, rpcUrl, retryDelay, capturedAt)));
+  }
+
+  // Every requested fixture succeeded: only now touch the data directory.
   await mkdir(dataDir, { recursive: true });
   for (const { name, envelope } of staged) {
     const path = join(dataDir, `${name}.json`);
@@ -330,6 +520,8 @@ export async function capture(options: CaptureOptions = {}): Promise<void> {
   console.log('Capture completed successfully.');
 }
 
+// `capture <name>...` re-records only the named fixtures, so adding one does
+// not force re-capturing pinned transactions that have aged out of retention.
 if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
   capture({ only: new Set(process.argv.slice(2)) }).catch((err) => {
     console.error(err);

@@ -1,0 +1,6 @@
+$ signet context remove prod
+-- stdout --
+Removed context "prod".
+-- stderr --
+(empty)
+-- exit 0 --

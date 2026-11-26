@@ -40,6 +40,13 @@ stdout (docs/CLI_RUST_BRIDGE.md §1-§3):
 echo '{"version":1,"id":"hello","type":"hello","client_protocol_version":1}'   | sandbox/target/release/signet-simulator
 ```
 
+Started with no arguments and no input the binary waits for a message, which
+looks like a hang. `signet-simulator --help` (or `-h`) says what it is, shows
+the line above, and lists `--version` and the two environment variables that
+change its behaviour, `SIGNET_SIMULATOR_LOG` and
+`SIGNET_SIMULATOR_MEMORY_LIMIT`, with their defaults. Any other argument is
+refused with exit code 2.
+
 ## Build and test
 
 Run from the repo root (or `cd sandbox` and drop `--manifest-path`):
