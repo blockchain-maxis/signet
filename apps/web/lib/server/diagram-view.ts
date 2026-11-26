@@ -11,20 +11,15 @@
 
 import { fromSpecJson, type ContractSpec, type SpecJson } from '@signet/spec';
 import {
-  buildContractGraph,
   buildDiagramOutline,
   callersOnly,
-  canonicalExpand,
   CALLEES_MORE_ID,
-  collapseGroups,
-  diagramDecision,
-  functionGroupsOf,
   layoutContractGraph,
+  prepareDiagram,
   renderDiagramSvg,
   renderOutlineHtml,
   typeAnchor,
   withMarks,
-  COLLAPSE_THRESHOLD,
   LAYOUT_VERSION,
   type ActivityOverlay,
   type ActivityRange,
@@ -157,15 +152,14 @@ function cachedLayout(key: string, compute: () => PositionedDiagramModel): Posit
 /** Draws the Diagram tab's diagram for one URL state. */
 export function drawContractDiagram(input: DiagramViewInput): DiagramView {
   const spec = specForGraph(input.spec, input.address, input.network);
-  const full = buildContractGraph(spec);
-  const expanded = canonicalExpand(input.expand ?? null, full);
-  const graph = collapseGroups(full, { expand: expanded });
-  const collapsible =
-    full.nodes.filter((n) => n.kind === 'function').length > COLLAPSE_THRESHOLD &&
-    functionGroupsOf(full).some((g) => g.functions.length > 1);
-  const stateKey = `${input.spec.wasmHash}:${LAYOUT_VERSION}:${expanded.join(',')}`;
-  const specModel = cachedLayout(stateKey, () => layoutContractGraph(graph));
-  const decision = diagramDecision(graph, specModel);
+  const prepared = prepareDiagram(spec, {
+    expand: input.expand,
+    layout: (graph, expanded) => {
+      const stateKey = `${input.spec.wasmHash}:${LAYOUT_VERSION}:${expanded.join(',')}`;
+      return cachedLayout(stateKey, () => layoutContractGraph(graph));
+    },
+  });
+  const { full, graph, model: specModel, decision, expanded, collapsible } = prepared;
 
   // The call graph (#543) rides on the spec diagram; when the interface is not
   // worth drawing, the calls are drawn alone, from the functions that made them.
