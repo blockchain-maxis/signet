@@ -10,6 +10,7 @@ import {
   parseLimit,
   encodeCursor,
   parseCursor,
+  parseOperationsCursor,
   HTTP_STATUS_BY_CODE,
   type V1ErrorCode,
 } from './http.ts';
@@ -303,6 +304,56 @@ test('encodeCursor() and parseCursor() round-trip opaque pagination cursors', ()
   assert.throws(() => parseCursor(badVersionCursor, 1), {
     name: 'V1Error',
     code: 'bad_request',
+  });
+});
+
+test('parseOperationsCursor() rejects malformed cursors with 400 bad_request and parameter: cursor', () => {
+  // {"offset":"x"}
+  const badOffsetStr = encodeCursor({ offset: 'x' });
+  assert.throws(
+    () => parseOperationsCursor(badOffsetStr),
+    (err: unknown) => {
+      assert.ok(err instanceof V1Error);
+      assert.equal(err.code, 'bad_request');
+      assert.equal(err.details?.parameter, 'cursor');
+      return true;
+    },
+  );
+
+  // {"offset":-5}
+  const negativeOffset = encodeCursor({ offset: -5 });
+  assert.throws(
+    () => parseOperationsCursor(negativeOffset),
+    (err: unknown) => {
+      assert.ok(err instanceof V1Error);
+      assert.equal(err.code, 'bad_request');
+      assert.equal(err.details?.parameter, 'cursor');
+      return true;
+    },
+  );
+
+  // {"createdAt":"nope","id":1}
+  const badKeyset = encodeCursor({ createdAt: 'nope', id: 1 }, 2);
+  assert.throws(
+    () => parseOperationsCursor(badKeyset),
+    (err: unknown) => {
+      assert.ok(err instanceof V1Error);
+      assert.equal(err.code, 'bad_request');
+      assert.equal(err.details?.parameter, 'cursor');
+      return true;
+    },
+  );
+
+  // Valid version 1 offset cursor
+  const v1 = encodeCursor({ offset: 10 }, 1);
+  assert.deepEqual(parseOperationsCursor(v1), { type: 'offset', offset: 10 });
+
+  // Valid version 2 keyset cursor
+  const v2 = encodeCursor({ createdAt: '2026-11-21T07:02:11.000Z', id: 'op_123' }, 2);
+  assert.deepEqual(parseOperationsCursor(v2), {
+    type: 'keyset',
+    createdAt: '2026-11-21T07:02:11.000Z',
+    id: 'op_123',
   });
 });
 

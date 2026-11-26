@@ -7,7 +7,11 @@ Rust/Soroban smart contracts for Signet, managed as a Cargo workspace
 
 - [`identity-registry`](./identity-registry) — binds a Stellar wallet to a
   Signet identity via signed, on-chain claims. Implemented; unit tests over
-  known cases plus property tests (see [Testing](#testing)).
+  known cases plus property tests (see [Testing](#testing)). Before changing
+  its `src/lib.rs`, read the properties a PR must keep true in
+  [`docs/SECURITY_REVIEW.md` §7](../../docs/SECURITY_REVIEW.md#7-identity-registry-contract):
+  auth matrix, admin powers, handle rules, storage/TTL, counter, events and
+  error codes.
 
 ## Prerequisites
 
@@ -18,7 +22,7 @@ Rust/Soroban smart contracts for Signet, managed as a Cargo workspace
   rustup target add wasm32v1-none
   ```
 
-- Stellar CLI v25.2.0 or newer (required: soroban-sdk 28 only builds through `stellar contract build`):
+- Stellar CLI v25.2.0 or newer (required: soroban-sdk 29 only builds through `stellar contract build`):
 
   ```bash
   cargo install --locked stellar-cli
@@ -36,7 +40,7 @@ cd packages/contracts && stellar contract build
 
 ## Testing
 
-Two layers, both in the `contracts` CI job's `cargo test` run:
+Three layers, in the `contracts` CI job's `cargo test` run:
 
 - **Unit tests** (`identity-registry/src/test.rs`) — known cases: each
   entrypoint's happy path, each error, and the auth requirements. Each one also
@@ -48,8 +52,19 @@ Two layers, both in the `contracts` CI job's `cargo test` run:
   handle validation against an independent oracle over arbitrary byte strings,
   `resolve_batch` either side of `MAX_BATCH_SIZE`, and the invariant that
   `count` equals the number of live bindings after any sequence of
-  claim / release / transfer / revoke. These run with snapshot capture off —
+  claim / release / transfer / revoke. Nothing archives in the test host, so
+  there the counter is exact. On a real network it is only an upper bound (see
+  `count` in `src/lib.rs`). These run with snapshot capture off —
   a file per generated case would be hundreds of them, differing every run.
+- **Resource-cost tests** (`identity-registry/src/cost_test.rs`) — resource regression
+  tests measuring instructions, memory, read/write entries, read/write bytes, and event
+  bytes for each entry point against a committed baseline (`identity-registry/cost_baseline.json`).
+  The test allows a small tolerance (5% for CPU instructions and memory; 0% for entries).
+  To rewrite the baseline on purpose, run:
+
+  ```bash
+  UPDATE_GOLDEN=1 cargo test --manifest-path packages/contracts/Cargo.toml
+  ```
 
 `proptest` is a dev-dependency, so none of this reaches the deployment wasm.
 
@@ -64,7 +79,8 @@ a footprint concern. CI enforces a budget in the `contracts` job (see
 [`.github/workflows/ci.yml`](../../.github/workflows/ci.yml)): the build fails if
 `identity_registry.wasm` exceeds **20 KB** (`BUDGET_BYTES=20480`).
 
-`identity-registry` is ~9 KB today, so the budget leaves headroom for planned
-growth while catching accidental bloat — a heavy dependency, or a release
+That step logs `identity_registry.wasm: <size> bytes (budget 20480 bytes)` on
+every run, so read the current size there rather than from a number copied into
+this file. The budget leaves headroom for planned growth while catching accidental bloat — a heavy dependency, or a release
 profile that lost `opt-level = "z"` / `lto` / `strip`. Raise `BUDGET_BYTES`
 deliberately when a size increase is expected and justified.

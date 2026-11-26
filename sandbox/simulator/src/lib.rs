@@ -45,11 +45,70 @@ pub fn version_string() -> String {
     )
 }
 
+/// The environment variable that sets the log filter, and what it is when
+/// the variable is unset.
+pub const LOG_ENV: &str = "SIGNET_SIMULATOR_LOG";
+pub const DEFAULT_LOG_FILTER: &str = "warn";
+
+/// The message every session starts with, as `--help` and `sandbox/README.md`
+/// show it: one line, answered with `hello_ack`.
+pub fn hello_example() -> String {
+    format!(
+        r#"{{"version":{v},"id":"hello","type":"hello","client_protocol_version":{v}}}"#,
+        v = PROTOCOL_VERSION
+    )
+}
+
+/// What `--help` prints (#936).
+///
+/// The `signet` CLI starts this binary, so someone who finds it in a release
+/// archive or on `PATH` and runs it sees a process that waits and prints
+/// nothing. The text says what the binary is, how it is driven, and what
+/// changes its behaviour. The names and the defaults are the constants the
+/// code reads, so the text cannot come apart from them.
+pub fn help_text() -> String {
+    format!(
+        "\
+{version}
+
+The native contract simulator behind the `signet` CLI. `signet` starts it and
+drives it over NDJSON: one JSON message per line on stdin, one answer per line
+on stdout. Started by hand with no arguments it waits for a message, which
+looks like a hang.
+
+Usage:
+  signet-simulator            run the message loop on stdin/stdout
+  signet-simulator --version  print the build identity (also -V)
+  signet-simulator --help     print this text (also -h)
+
+To see it answer, send the message every session starts with:
+  echo '{hello}' | signet-simulator
+
+Environment:
+  {log_env}
+      Log filter for stderr: a level such as `debug`, or a tracing filter.
+      Default: {log_default}
+  {limit_env}
+      Memory limit of the process, in bytes.
+      Default: {limit_bytes} ({limit_gib} GiB)
+
+The protocol is described in docs/CLI_RUST_BRIDGE.md.
+",
+        version = version_string(),
+        hello = hello_example(),
+        log_env = LOG_ENV,
+        log_default = DEFAULT_LOG_FILTER,
+        limit_env = memguard::LIMIT_ENV,
+        limit_bytes = memguard::DEFAULT_LIMIT,
+        limit_gib = memguard::DEFAULT_LIMIT >> 30,
+    )
+}
+
 /// Logs go to stderr only (stdout is protocol data), at the level in
 /// `SIGNET_SIMULATOR_LOG` (default `warn`).
 fn init_logging() {
     let filter =
-        EnvFilter::try_from_env("SIGNET_SIMULATOR_LOG").unwrap_or_else(|_| EnvFilter::new("warn"));
+        EnvFilter::try_from_env(LOG_ENV).unwrap_or_else(|_| EnvFilter::new(DEFAULT_LOG_FILTER));
     tracing_subscriber::fmt()
         .with_env_filter(filter)
         .with_writer(io::stderr)

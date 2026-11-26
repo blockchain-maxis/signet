@@ -59,6 +59,29 @@ export interface GetTransactionResult {
   createdAt?: number;
 }
 
+/** Soroban RPC `getEvents` result, as served (topics and value are base64 XDR `ScVal`s). */
+export interface GetEventsResult {
+  latestLedger: number;
+  oldestLedger?: number;
+  latestLedgerCloseTime?: string;
+  oldestLedgerCloseTime?: string;
+  cursor?: string;
+  events: Array<{
+    type: string;
+    ledger: number;
+    ledgerClosedAt: string;
+    contractId: string;
+    id: string;
+    pagingToken?: string;
+    inSuccessfulContractCall: boolean;
+    topic: string[];
+    value: string;
+    txHash: string;
+    transactionIndex?: number;
+    operationIndex?: number;
+  }>;
+}
+
 export interface HorizonTransactionResult {
   id: string;
   paging_token: string;
@@ -80,15 +103,23 @@ export interface HorizonTransactionResult {
   signatures: string[];
 }
 
-export type FixtureName =
-  | 'registry-instance-entry'
-  | 'sac-instance-entry'
-  | 'contract-wasm-entry'
-  | 'claim-get-transaction'
-  | 'deploy-get-transaction'
-  | 'sac-transfer-call-get-transaction'
-  | 'footprint-only-call-get-transaction'
-  | 'horizon-contract-deploy-tx';
+/**
+ * Every recorded fixture, one per `data/<name>.json`. A runtime list rather
+ * than a bare union so index.test.ts can check it against the files on disk.
+ */
+export const FIXTURE_NAMES = [
+  'registry-instance-entry',
+  'sac-instance-entry',
+  'contract-wasm-entry',
+  'claim-get-transaction',
+  'deploy-get-transaction',
+  'sac-transfer-call-get-transaction',
+  'footprint-only-call-get-transaction',
+  'horizon-contract-deploy-tx',
+  'registry-claim-release-get-events',
+] as const;
+
+export type FixtureName = (typeof FIXTURE_NAMES)[number];
 
 export function loadFixtureEnvelope<T = unknown>(name: FixtureName): FixtureEnvelope<T> {
   const filePath = join(DATA_DIR, `${name}.json`);
@@ -107,6 +138,7 @@ export function loadFixture(
     | 'footprint-only-call-get-transaction',
 ): GetTransactionResult;
 export function loadFixture(name: 'horizon-contract-deploy-tx'): HorizonTransactionResult;
+export function loadFixture(name: 'registry-claim-release-get-events'): GetEventsResult;
 export function loadFixture<T = unknown>(name: FixtureName): T {
   const envelope = loadFixtureEnvelope<T>(name);
   return envelope.payload;
