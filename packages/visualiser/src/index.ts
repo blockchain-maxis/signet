@@ -87,6 +87,7 @@ export {
   type GraphEdgeKind,
   type GraphNode,
   type MissingNode,
+  type StubNode,
   type TypeNode,
 } from './graph.ts';
 
@@ -151,6 +152,7 @@ export {
 export {
   DEFAULT_TYPE_DEPTH,
   buildTypeGraph,
+  canonicalExpandTypes,
   typeAnchor,
   type TypeGraph,
   type TypeGraphEdge,
@@ -169,6 +171,7 @@ export {
   formatTokenDeclarations,
   generateInlineTokensStyle,
   generateTokensCss,
+  literalColourRules,
   type VizTheme,
   type VizThemeTokens,
   type VizTokenName,

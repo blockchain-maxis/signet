@@ -4,6 +4,10 @@ import { SignetMonogram } from '../../(marketing)/components/signet-monogram';
 export const metadata = {
   title: 'Docs · Signet',
   description: 'How Signet binds Stellar wallets to developer identities, and how to read the data.',
+  openGraph: {
+    title: 'Docs · Signet',
+    description: 'How Signet binds Stellar wallets to developer identities, and how to read the data.',
+  },
 };
 
 function H({ id, children }: { id?: string; children: React.ReactNode }) {

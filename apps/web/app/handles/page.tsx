@@ -11,6 +11,10 @@ export async function generateMetadata({
   return {
     title: 'Handles · Signet',
     description: 'Every handle recorded on the Signet Identity Registry.',
+    openGraph: {
+      title: 'Handles · Signet',
+      description: 'Every handle recorded on the Signet Identity Registry.',
+    },
     ...(hasQuery ? { robots: { index: false } } : {}),
   };
 }
@@ -107,8 +111,12 @@ export default async function HandlesPage({
           className="hidden gap-8 text-[11px] uppercase tracking-[0.22em] text-[#8a8779] md:flex"
           style={{ fontFamily: 'var(--font-mono)' }}
         >
-          <a href="/" className="transition-colors hover:text-[#f5f4ee]">Home</a>
-          <a href="/how-it-works" className="transition-colors hover:text-[#f5f4ee]">How it works</a>
+          <a href="/" className="transition-colors hover:text-[#f5f4ee]">
+            Home
+          </a>
+          <a href="/how-it-works" className="transition-colors hover:text-[#f5f4ee]">
+            How it works
+          </a>
         </div>
         <a
           href="/#claim"
@@ -172,7 +180,8 @@ export default async function HandlesPage({
             </p>
             {unconfirmedOnPage > 0 && (
               <p className="mt-2 text-[12px] leading-[1.7] text-[var(--text-muted)]">
-                {unconfirmedOnPage} candidate{unconfirmedOnPage === 1 ? '' : 's'} on this page could not be confirmed on-chain.
+                {unconfirmedOnPage} candidate{unconfirmedOnPage === 1 ? '' : 's'} on this page could
+                not be confirmed on-chain.
               </p>
             )}
             {emptyState.invite && (
@@ -215,7 +224,8 @@ export default async function HandlesPage({
 
             {unconfirmedOnPage > 0 && (
               <p className="mt-4 text-[12px] leading-[1.7] text-[var(--text-muted)]">
-                {unconfirmedOnPage} candidate{unconfirmedOnPage === 1 ? '' : 's'} on this page could not be confirmed on-chain.
+                {unconfirmedOnPage} candidate{unconfirmedOnPage === 1 ? '' : 's'} on this page could
+                not be confirmed on-chain.
               </p>
             )}
 
@@ -253,7 +263,6 @@ export default async function HandlesPage({
             )}
           </>
         )}
-
       </div>
 
       <footer className="flex flex-wrap items-center justify-between gap-3 border-t border-[#1f1d19] px-8 py-4 md:px-14">

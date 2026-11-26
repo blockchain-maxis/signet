@@ -5,16 +5,13 @@ import { connectDb, disconnectDb, prisma } from './db.js';
 import { createHorizonServer, sleep } from './stellar.js';
 import { createSorobanRpcServer } from './soroban-rpc.js';
 import { createContractExecutableReader } from './contract-executable.js';
-import { runDeploymentWorker, type DeploymentStore } from './workers/deployment.js';
-import { runActivityWorker, type ActivityStore } from './workers/activity.js';
+import { runDeploymentWorker } from './workers/deployment.js';
+import { runActivityWorker } from './workers/activity.js';
 import { runAttestationWorker } from './workers/attestation.js';
-import { runOperationsWorker, type OperationsStore } from './workers/operations.js';
-import { runInvocationsWorker, type InvocationsStore } from './workers/invocations.js';
-import { runPruningWorker, type PruningStore } from './workers/prune.js';
-import {
-  runExecutableRefreshWorker,
-  type ExecutableRefreshStore,
-} from './workers/executable-refresh.js';
+import { runOperationsWorker } from './workers/operations.js';
+import { runInvocationsWorker } from './workers/invocations.js';
+import { runPruningWorker } from './workers/prune.js';
+import { runExecutableRefreshWorker } from './workers/executable-refresh.js';
 import { idleUntilNextTick, runTick } from './tick.js';
 
 let shuttingDown = false;
@@ -68,30 +65,24 @@ async function tick(
   await runTick({
     attestation: () => runAttestationWorker(soroban, config),
     deployment: () =>
-      runDeploymentWorker(
-        horizon,
-        config,
-        prisma as unknown as DeploymentStore,
-        createContractExecutableReader(soroban),
-      ),
-    activity: () => runActivityWorker(prisma as unknown as ActivityStore, config),
-    operations: () => runOperationsWorker(horizon, prisma as unknown as OperationsStore, config),
+      runDeploymentWorker(horizon, config, prisma, createContractExecutableReader(soroban)),
+    activity: () => runActivityWorker(prisma, config),
+    operations: () => runOperationsWorker(horizon, prisma, config),
     invocations: config.captureInvocations
-      ? () => runInvocationsWorker(soroban, config, prisma as unknown as InvocationsStore)
+      ? () => runInvocationsWorker(soroban, config, prisma)
       : undefined,
-    executableRefresh: () =>
-      runExecutableRefreshWorker(soroban, config, prisma as unknown as ExecutableRefreshStore),
+    executableRefresh: () => runExecutableRefreshWorker(soroban, config, prisma),
     prune:
       Date.now() - lastPrunedAt >= config.pruneIntervalMs
         ? async () => {
-            const res = await runPruningWorker(prisma as unknown as PruningStore, config);
+            const res = await runPruningWorker(prisma, config);
             lastPrunedAt = Date.now();
             return res;
           }
         : undefined,
     saveCursor: async (highestLedger) => {
       await prisma.indexerCursor.upsert({
-        where:  { id: 'main' },
+        where: { id: 'main' },
         update: { lastLedger: highestLedger },
         create: { id: 'main', lastLedger: highestLedger },
       });
@@ -105,9 +96,9 @@ async function main(): Promise<void> {
 
   logger.info(
     {
-      network:  config.network,
-      horizon:  config.horizonUrl,
-      rpc:      config.rpcUrl,
+      network: config.network,
+      horizon: config.horizonUrl,
+      rpc: config.rpcUrl,
       registry: config.registryContractId || '(unset)',
       interval: config.tickIntervalMs,
     },
@@ -130,7 +121,7 @@ async function main(): Promise<void> {
     shuttingDown = true;
   }
   process.on('SIGTERM', () => onSignal('SIGTERM'));
-  process.on('SIGINT',  () => onSignal('SIGINT'));
+  process.on('SIGINT', () => onSignal('SIGINT'));
 
   try {
     // Main loop

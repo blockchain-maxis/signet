@@ -11,8 +11,10 @@
 
 import { fromSpecJson, type ContractSpec, type SpecJson } from '@signet/spec';
 import {
+  ACTIVITY_RANGES,
   buildDiagramOutline,
   callersOnly,
+  canonicalExpandTypes,
   CALLEES_MORE_ID,
   layoutContractGraph,
   prepareDiagram,
@@ -51,6 +53,12 @@ export interface DiagramViewInput {
   readonly activity?: ActivityOverlay | null;
   readonly range?: ActivityRange;
   readonly rankByFrequency?: boolean;
+  /** Embed mode: external links get target="_blank" rel="noopener" (#949). */
+  readonly embed?: boolean;
+  /** Theme passed through in embed mode (#949). */
+  readonly theme?: string;
+  /** The raw `?types=` list; checked against the spec's defined type names (#950). */
+  readonly types?: string | null;
 }
 
 export interface DiagramView {
@@ -63,6 +71,8 @@ export interface DiagramView {
   readonly writesOnly: boolean;
   /** Groups drawn expanded, canonical (sorted, known names only). */
   readonly expanded: readonly string[];
+  /** Types drawn expanded past depth 1, canonical (sorted, known names only). */
+  readonly expandedTypes?: readonly string[];
   /** Whether this contract has enough functions for its groups to collapse. */
   readonly collapsible: boolean;
   readonly totalFunctions: number;
@@ -101,9 +111,10 @@ function escapeHtml(value: string): string {
     .replace(/'/g, '&#39;');
 }
 
-/** The Diagram tab's path. */
-export function diagramPath(handle: string, address: string): string {
-  return `/p/${encodeURIComponent(handle)}/contract/${encodeURIComponent(address)}/diagram`;
+/** The Diagram tab's path (or embed path in embed mode). */
+export function diagramPath(handle: string, address: string, embed?: boolean): string {
+  const segment = embed ? 'embed' : 'diagram';
+  return `/p/${encodeURIComponent(handle)}/contract/${encodeURIComponent(address)}/${segment}`;
 }
 
 /**
@@ -113,19 +124,70 @@ export function diagramPath(handle: string, address: string): string {
 export function diagramStateHref(
   input: Pick<
     DiagramViewInput,
-    'handle' | 'address' | 'query' | 'writesOnly' | 'expandCallees' | 'range' | 'rankByFrequency'
+    | 'handle'
+    | 'address'
+    | 'query'
+    | 'writesOnly'
+    | 'expandCallees'
+    | 'range'
+    | 'rankByFrequency'
+    | 'types'
+    | 'embed'
+    | 'theme'
   >,
   expand: readonly string[],
+  types?: readonly string[],
 ): string {
   const params = new URLSearchParams();
   if (expand.length) params.set('expand', [...expand].sort().join(','));
+  const typesToUse =
+    types !== undefined
+      ? types
+      : input.types
+        ? typeof input.types === 'string'
+          ? input.types.split(',')
+          : input.types
+        : [];
+  const cleanTypes = [...new Set(typesToUse.map((t) => t.trim()).filter(Boolean))].sort();
+  if (cleanTypes.length) params.set('types', cleanTypes.join(','));
   if (input.query) params.set('q', input.query);
   if (input.writesOnly) params.set('writes', '1');
   if (input.expandCallees) params.set('callees', 'all');
   if (input.range && input.range !== '7d') params.set('range', input.range);
   if (input.rankByFrequency) params.set('order', 'use');
+  if (input.embed && input.theme) params.set('theme', input.theme);
   const query = params.toString();
-  return `${diagramPath(input.handle, input.address)}${query ? `?${query}` : ''}`;
+  return `${diagramPath(input.handle, input.address, input.embed)}${query ? `?${query}` : ''}`;
+}
+
+/**
+ * The Activity panel's range links and its order toggle (#518), on the state
+ * the diagram is drawn in: its expanded groups and types, and, in embed mode,
+ * the embed path and theme, so a click inside a frame stays on `…/embed` (#949).
+ */
+export function activityLinks(
+  input: Pick<
+    DiagramViewInput,
+    | 'handle'
+    | 'address'
+    | 'query'
+    | 'writesOnly'
+    | 'expandCallees'
+    | 'range'
+    | 'rankByFrequency'
+    | 'embed'
+    | 'theme'
+  >,
+  expand: readonly string[],
+  types: readonly string[],
+): { ranges: { range: ActivityRange; href: string }[]; order: string } {
+  return {
+    ranges: ACTIVITY_RANGES.map((range) => ({
+      range,
+      href: diagramStateHref({ ...input, range }, expand, types),
+    })),
+    order: diagramStateHref({ ...input, rankByFrequency: !input.rankByFrequency }, expand, types),
+  };
 }
 
 /** Spec-only layouts by (wasmHash, layoutVersion, expanded groups): one entry per state. */
@@ -152,10 +214,12 @@ function cachedLayout(key: string, compute: () => PositionedDiagramModel): Posit
 /** Draws the Diagram tab's diagram for one URL state. */
 export function drawContractDiagram(input: DiagramViewInput): DiagramView {
   const spec = specForGraph(input.spec, input.address, input.network);
+  const expandedTypes = canonicalExpandTypes(input.types ?? null, spec.types);
   const prepared = prepareDiagram(spec, {
     expand: input.expand,
+    expandTypes: expandedTypes,
     layout: (graph, expanded) => {
-      const stateKey = `${input.spec.wasmHash}:${LAYOUT_VERSION}:${expanded.join(',')}`;
+      const stateKey = `${input.spec.wasmHash}:${LAYOUT_VERSION}:${expanded.join(',')}:${expandedTypes.join(',')}`;
       return cachedLayout(stateKey, () => layoutContractGraph(graph));
     },
   });
@@ -189,14 +253,35 @@ export function drawContractDiagram(input: DiagramViewInput): DiagramView {
   const basePath = `/p/${encodeURIComponent(input.handle)}/contract/${encodeURIComponent(input.address)}`;
   const hrefForNode = (nodeId: string) => {
     const node = model.nodes.find((n) => n.id === nodeId);
-    if (node?.collapsed) return diagramStateHref(input, [...expanded, node.collapsed.group]);
+    if (node?.collapsed)
+      return diagramStateHref(input, [...expanded, node.collapsed.group], expandedTypes);
     if (node?.kind === 'function') return `${basePath}/functions#fn-${node.name}`;
-    if (node?.kind === 'type') return `${basePath}/types#${typeAnchor(node.name)}`;
+    if (node?.kind === 'stub' && (node.hidden ?? 0) > 0) {
+      return diagramStateHref(input, expanded, [...expandedTypes, node.name]);
+    }
+    if (node?.kind === 'type' || node?.kind === 'stub')
+      return `${basePath}/types#${typeAnchor(node.name)}`;
     if (node?.kind === 'callee' && node.address)
       return calls?.labels.get(node.address)?.href ?? null;
-    if (node?.id === CALLEES_MORE_ID) return `${basePath}/diagram?callees=all`;
+    if (node?.id === CALLEES_MORE_ID) {
+      if (input.embed) {
+        return `${diagramPath(input.handle, input.address, input.embed)}?callees=all${input.theme ? `&theme=${encodeURIComponent(input.theme)}` : ''}`;
+      }
+      return `${basePath}/diagram?callees=all`;
+    }
     return null;
   };
+
+  const targetForNode = input.embed
+    ? (nodeId: string) => {
+        const node = model.nodes.find((n) => n.id === nodeId);
+        // Links that change the diagram's state stay in the frame, on the embed path.
+        if (node?.collapsed) return null;
+        if (node?.kind === 'stub' && (node.hidden ?? 0) > 0) return null;
+        if (node?.id === CALLEES_MORE_ID) return null;
+        return '_blank';
+      }
+    : undefined;
 
   // Read/write marks (#512): observed from indexed transactions, stated as such
   // under the diagram, never taken from the interface.
@@ -220,7 +305,7 @@ export function drawContractDiagram(input: DiagramViewInput): DiagramView {
   const outline = mutability
     ? withMarks(buildDiagramOutline(model), mutability.marks)
     : buildDiagramOutline(model);
-  const outlineHtml = renderOutlineHtml(outline, hrefForNode);
+  const outlineHtml = renderOutlineHtml(outline, hrefForNode, targetForNode);
 
   const cleanQuery = input.query?.trim().toLowerCase();
   let totalFunctions = 0;
@@ -260,6 +345,7 @@ export function drawContractDiagram(input: DiagramViewInput): DiagramView {
     const svg = renderDiagramSvg(model, {
       idPrefix: `diagram-${input.address}-`,
       hrefForNode,
+      targetForNode,
       title: `${input.handle} (${input.address})`,
       ariaDescribedBy: 'diagram-outline',
       query: input.query,
@@ -271,7 +357,13 @@ export function drawContractDiagram(input: DiagramViewInput): DiagramView {
     const collapseLinks = expanded
       .map(
         (group) =>
-          `<a href="${escapeHtml(diagramStateHref(input, expanded.filter((g) => g !== group)))}" data-group-toggle="${escapeHtml(group)}" class="rounded border border-[#2b2721] px-2 py-1 text-[#f5f4ee] hover:border-[#e05a4b] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#e05a4b]">Collapse ${escapeHtml(group)}</a>`,
+          `<a href="${escapeHtml(
+            diagramStateHref(
+              input,
+              expanded.filter((g) => g !== group),
+              expandedTypes,
+            ),
+          )}" data-group-toggle="${escapeHtml(group)}" class="rounded border border-[#2b2721] px-2 py-1 text-[#f5f4ee] hover:border-[#e05a4b] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#e05a4b]">Collapse ${escapeHtml(group)}</a>`,
       )
       .join('');
     const controls = collapsible
@@ -292,6 +384,7 @@ export function drawContractDiagram(input: DiagramViewInput): DiagramView {
     hasWrites,
     writesOnly,
     expanded,
+    expandedTypes,
     collapsible,
     totalFunctions,
     matchingFunctions,

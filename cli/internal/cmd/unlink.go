@@ -13,6 +13,7 @@ import (
 	"github.com/blockchain-maxis/signet/cli/internal/exitcode"
 	"github.com/blockchain-maxis/signet/cli/internal/keys"
 	"github.com/blockchain-maxis/signet/cli/internal/link"
+	"github.com/blockchain-maxis/signet/cli/internal/networkcheck"
 	"github.com/blockchain-maxis/signet/cli/internal/redact"
 	"github.com/blockchain-maxis/signet/cli/internal/spec"
 )
@@ -123,6 +124,15 @@ stellar CLI.`,
 				client.API(), network, spec.CliLinkPurposeUnlink,
 			)(cmd.Context(), publicKey)
 			if err != nil {
+				return err
+			}
+			disc, _ := client.API().Discover(cmd.Context())
+			if disc.NetworkPassphrase == "" {
+				if p, ok := networkcheck.PassphraseFor(network); ok {
+					disc.NetworkPassphrase = p
+				}
+			}
+			if err := link.VerifyChallenge(unsigned, passphrase, publicKey, spec.CliLinkPurposeUnlink, disc); err != nil {
 				return err
 			}
 			signed, err := keys.SignChallenge(deps.KeysBinary, source, unsigned, passphrase)

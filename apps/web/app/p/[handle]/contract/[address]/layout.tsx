@@ -1,6 +1,7 @@
 import { Suspense } from 'react';
 import { headers } from 'next/headers';
-import { notFound } from 'next/navigation';
+import { notFound, permanentRedirect } from 'next/navigation';
+import { isValidHandle } from '@/lib/profiles';
 import { attributeContract } from '@/lib/contract-attribution';
 import { LIMITS, rateLimitDecision } from '@/lib/rate-limit-policy';
 import { SiteFooter } from '../../_components/site-footer';
@@ -34,6 +35,15 @@ export async function generateMetadata({
   params: Promise<{ handle: string; address: string }>;
 }): Promise<Metadata> {
   const { handle, address } = await params;
+  if (handle.toLowerCase() !== handle && isValidHandle(handle.toLowerCase())) {
+    const reqHeaders = await headers();
+    const pathname = reqHeaders.get('x-pathname');
+    const redirectUrl = pathname
+      ? pathname.replace(new RegExp(`^/p/${handle}(?=[/?#]|$)`, 'i'), `/p/${handle.toLowerCase()}`)
+      : `/p/${handle.toLowerCase()}/contract/${address}`;
+    permanentRedirect(redirectUrl);
+  }
+
   const attribution = await attributeContract(handle, address);
 
   if (attribution.status !== 'attributed') {
@@ -75,6 +85,16 @@ export default async function ContractLayout({
   params: Promise<{ handle: string; address: string }>;
   children: React.ReactNode;
 }) {
+  const { handle, address } = await params;
+  if (handle.toLowerCase() !== handle && isValidHandle(handle.toLowerCase())) {
+    const reqHeaders = await headers();
+    const pathname = reqHeaders.get('x-pathname');
+    const redirectUrl = pathname
+      ? pathname.replace(new RegExp(`^/p/${handle}(?=[/?#]|$)`, 'i'), `/p/${handle.toLowerCase()}`)
+      : `/p/${handle.toLowerCase()}/contract/${address}`;
+    permanentRedirect(redirectUrl);
+  }
+
   const refusal = await rateLimitDecision(await headers(), 'contract:page', LIMITS.contractPage);
   if (refusal) {
     // Next.js cannot set an HTTP 429 status code from a server component layout.
@@ -103,8 +123,6 @@ export default async function ContractLayout({
       </div>
     );
   }
-
-  const { handle, address } = await params;
 
   // One attribution check for the whole route: the contract renders as part
   // of this developer's record, so a contract the handle did not deploy is a

@@ -5,7 +5,6 @@ import {
   renderStorageOutlineHtml,
   renderStorageSvg,
   typeAnchor,
-  ACTIVITY_RANGES,
   MAX_NODES,
   type ActivityOverlay,
   type StorageViewInput,
@@ -23,7 +22,7 @@ import {
   type InstanceStorage,
   type MutabilityOverlay,
 } from '@/lib/server/diagram';
-import { diagramPath, diagramStateHref, drawContractDiagram } from '@/lib/server/diagram-view';
+import { activityLinks, diagramPath, drawContractDiagram } from '@/lib/server/diagram-view';
 import { DiagramExpand } from './diagram-expand';
 import { StorageToggle } from './storage-toggle';
 import { SectionLabel } from '../../../_components/section-label';
@@ -69,6 +68,9 @@ function DiagramBody(
     activity: props.activity,
     range: parseActivityRange(props.range),
     rankByFrequency: props.order === 'use',
+    embed: props.embed,
+    theme: props.theme,
+    types: props.types,
   });
   const { decision, callsAlone, hasWrites, writesOnly } = view;
   const { mutability } = props;
@@ -144,8 +146,14 @@ function DiagramBody(
           {view.expanded.length > 0 && (
             <input type="hidden" name="expand" value={view.expanded.join(',')} />
           )}
-          {props.range && <input type="hidden" name="range" value={parseActivityRange(props.range)} />}
+          {(view.expandedTypes?.length ?? 0) > 0 && (
+            <input type="hidden" name="types" value={view.expandedTypes!.join(',')} />
+          )}
+          {props.range && (
+            <input type="hidden" name="range" value={parseActivityRange(props.range)} />
+          )}
           {props.order === 'use' && <input type="hidden" name="order" value="use" />}
+          {props.embed && props.theme && <input type="hidden" name="theme" value={props.theme} />}
           <label
             className={`flex items-center gap-2 text-xs ${hasWrites ? 'text-[#f5f4ee]' : 'text-[#8a8779]'}`}
             title={
@@ -185,12 +193,19 @@ function DiagramBody(
             : 'This contract’s interface has no types to connect, so this shows only the calls it makes to other contracts.'}
         </p>
       )}
-      {props.activity && <ActivityPanel {...props} activity={props.activity} expanded={view.expanded} />}
+      {props.activity && (
+        <ActivityPanel
+          {...props}
+          activity={props.activity}
+          expanded={view.expanded}
+          expandedTypes={view.expandedTypes ?? []}
+        />
+      )}
       <div id={DIAGRAM_REGION_ID} dangerouslySetInnerHTML={{ __html: view.regionHtml }} />
       {view.collapsible && (
         <DiagramExpand
           region={DIAGRAM_REGION_ID}
-          fragmentPath={`${diagramPath(props.handle, props.address)}/fragment`}
+          fragmentPath={`${diagramPath(props.handle, props.address, props.embed)}/fragment`}
         />
       )}
       {mutability?.reason && (
@@ -214,7 +229,12 @@ function lastSeen(at: number): string {
  * and order controls, and what the counts cannot see.
  */
 function ActivityPanel(
-  props: ContractSlotProps & { activity: ActivityOverlay; expanded: readonly string[] },
+  props: ContractSlotProps & {
+    activity: ActivityOverlay;
+    expanded: readonly string[];
+    /** Types drawn expanded (#950), canonical; every link here keeps them. */
+    expandedTypes: readonly string[];
+  },
 ) {
   const { series } = props.activity;
   const range = parseActivityRange(props.range);
@@ -227,7 +247,10 @@ function ActivityPanel(
     expandCallees: props.expandCallees,
     range,
     rankByFrequency,
+    embed: props.embed,
+    theme: props.theme,
   };
+  const links = activityLinks(state, props.expanded, props.expandedTypes);
   const coverage = coverageNote(series);
   const link =
     'rounded border border-[#2b2721] px-2 py-0.5 hover:border-[#e05a4b] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#e05a4b]';
@@ -244,20 +267,17 @@ function ActivityPanel(
           {series.lastActivity !== null && ` Last activity ${lastSeen(series.lastActivity)}.`}
         </p>
         <nav aria-label="Activity range" className="flex flex-wrap items-center gap-2">
-          {ACTIVITY_RANGES.map((r) => (
+          {links.ranges.map(({ range: r, href }) => (
             <a
               key={r}
-              href={diagramStateHref({ ...state, range: r }, props.expanded)}
+              href={href}
               aria-current={r === range ? 'true' : undefined}
               className={`${link} ${r === range ? 'border-[#e05a4b] text-[#f5f4ee]' : ''}`}
             >
               {r}
             </a>
           ))}
-          <a
-            href={diagramStateHref({ ...state, rankByFrequency: !rankByFrequency }, props.expanded)}
-            className={link}
-          >
+          <a href={links.order} className={link}>
             {rankByFrequency ? 'Spec order' : 'Order by use'}
           </a>
         </nav>
@@ -318,7 +338,15 @@ export async function ContractDiagram(props: ContractSlotProps) {
           calls={calls}
           mutability={mutability}
           activity={activity}
-          storageOutline={storage ? renderStorageOutlineHtml(storage, hrefForType) : null}
+          storageOutline={
+            storage
+              ? renderStorageOutlineHtml(
+                  storage,
+                  hrefForType,
+                  props.embed ? () => '_blank' : undefined,
+                )
+              : null
+          }
         />
       </div>
       {props.spec.kind === 'spec' && (
@@ -341,6 +369,7 @@ export async function ContractDiagram(props: ContractSlotProps) {
                 href={`${basePath}/diagram.svg?view=storage&theme=auto`}
                 className="mb-3 inline-block text-xs underline underline-offset-4 focus-visible:outline focus-visible:outline-2"
                 download
+                {...(props.embed && { target: '_blank', rel: 'noopener' })}
               >
                 Download storage SVG
               </a>
@@ -355,6 +384,7 @@ export async function ContractDiagram(props: ContractSlotProps) {
                     title: `${props.handle} (${props.address}) storage, observed`,
                     hrefForType,
                     hrefForFunction: (name) => `${basePath}/functions#fn-${name}`,
+                    ...(props.embed && { target: '_blank' }),
                     ...(props.focus?.startsWith('slot:') && { focus: props.focus }),
                   }),
                 }}

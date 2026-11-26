@@ -48,6 +48,18 @@ export const SAC_TRANSFER_CALL_TX_HASH =
 export const FOOTPRINT_ONLY_CALL_TX_HASH =
   '7e8b80aa4dd8afe649b1362e1e4a79e9f931c8eeeb2deb8ccaa9e27aec224ac0';
 
+// The account that sent DEPLOY_TX_HASH (#974). Its history is 313 operations,
+// all on 2026-09-26: its funding, then contracts it deployed and called.
+const DEPLOYER = 'GC6IQQHUT4BXZYCJEM4AOKFD6ASWSXCEDXYPVA5NFKXSGOSRJX72KJMC';
+// The paging token of the deployer's fifth operation. What is older than it is
+// its first four: the funding, a create-contract (V2), and two calls to the
+// contract that created.
+const DEPLOYER_FIRST_PAGE_CURSOR = '20988414253887489';
+// The create-contract (V2) among those four.
+const CREATE_V2_TX_HASH = 'be5118188b1dd3c516a62999b41476121e622d0e343094410684d5562bb2c997';
+// The operation of DEPLOY_TX_HASH.
+const DEPLOY_OPERATION_ID = '20989380621512705';
+
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 /**
@@ -499,6 +511,84 @@ export async function capture(options: CaptureOptions = {}): Promise<void> {
       payload: horizonTx,
     });
   }
+
+  // 9–13. Horizon operation records (#974), verbatim, so that the workers that
+  // read them are tested on what Horizon sends and not on a record written by
+  // hand. Each is fetched only when it is being captured.
+  const horizonFixture = async (
+    name: string,
+    path: string,
+    check: (payload: any) => string | null,
+  ): Promise<any> => {
+    if (!wanted(name)) return null;
+    const payload = await horizonGet(path, horizonUrl, 5, retryDelay);
+    const wrong = check(payload);
+    if (wrong)
+      throw new Error(`${name}: ${wrong}. The pinned ids in capture.ts need another look.`);
+    stage(name, {
+      network,
+      rpcUrl: horizonUrl,
+      capturedAt,
+      latestLedger,
+      request: { endpoint: 'horizon', methodOrPath: path },
+      payload,
+    });
+    return payload;
+  };
+  const records = (page: any): any[] => page?._embedded?.records ?? [];
+  const isCreateV2 = (op: any) =>
+    op.function === 'HostFunctionTypeHostFunctionTypeCreateContractV2';
+
+  // 9. The deployer's newest page: what both workers ask for first.
+  await horizonFixture(
+    'horizon-account-operations-page',
+    `/accounts/${DEPLOYER}/operations?order=desc&limit=50`,
+    (page) =>
+      records(page).length === 50 ? null : `expected 50 records, got ${records(page).length}`,
+  );
+
+  // 10–11. The deployer's first four operations, and the empty page Horizon
+  // answers with after them: the end of a backward walk.
+  const firstPagePath = `/accounts/${DEPLOYER}/operations?cursor=${DEPLOYER_FIRST_PAGE_CURSOR}&limit=50&order=desc`;
+  const firstPage = await horizonFixture(
+    'horizon-account-operations-first-page',
+    firstPagePath,
+    (page) => {
+      const ops = records(page);
+      if (ops.length !== 4) return `expected the deployer's first 4 operations, got ${ops.length}`;
+      if (!ops.some((op) => isCreateV2(op) && op.transaction_hash === CREATE_V2_TX_HASH))
+        return 'no create-contract (V2) record for the pinned transaction';
+      if (ops[ops.length - 1].type !== 'create_account')
+        return 'the oldest record is not the funding';
+      return null;
+    },
+  );
+  if (wanted('horizon-account-operations-end')) {
+    // The next link of the page above, as Horizon wrote it.
+    const page = firstPage ?? (await horizonGet(firstPagePath, horizonUrl, 5, retryDelay));
+    const next = new URL(page._links.next.href);
+    await horizonFixture('horizon-account-operations-end', next.pathname + next.search, (end) =>
+      records(end).length === 0 ? null : `expected no records, got ${records(end).length}`,
+    );
+  }
+
+  // 12. The transaction of that create-contract (V2) operation.
+  await horizonFixture(
+    'horizon-create-contract-v2-tx',
+    `/transactions/${CREATE_V2_TX_HASH}`,
+    (tx) => (tx.hash === CREATE_V2_TX_HASH ? null : 'not the pinned transaction'),
+  );
+
+  // 13. The operation of DEPLOY_TX_HASH, whose transaction the fixtures above
+  // record twice (`horizon-contract-deploy-tx`, `deploy-get-transaction`).
+  await horizonFixture(
+    'horizon-create-contract-operation',
+    `/operations/${DEPLOY_OPERATION_ID}`,
+    (op) =>
+      op.transaction_hash === DEPLOY_TX_HASH
+        ? null
+        : 'not the operation of the recorded deployment',
+  );
 
   // 8. Registry event stream + the claim's getTransaction, from a fresh
   // claim/release (two real testnet transactions). Runs last, so a read-only

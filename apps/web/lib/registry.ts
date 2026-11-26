@@ -71,6 +71,49 @@ export async function claimHandle(handle: string, walletAddress: string): Promis
   return { hash: sent.hash };
 }
 
+export interface ReleaseResult {
+  hash: string;
+}
+
+/**
+ * Release `handle`, owned by the connected `walletAddress` (#898). The
+ * registry requires the owner's authorization, so the wallet signs.
+ *
+ * `contractId` is the registry the server reads, as for a restore; it falls
+ * back to the build's public id.
+ */
+export async function releaseHandle(
+  handle: string,
+  walletAddress: string,
+  options: { contractId?: string } = {},
+): Promise<ReleaseResult> {
+  const contractId = options.contractId || CONTRACT_ID;
+  if (!contractId) throw new RegistryNotConfiguredError();
+
+  // Both stay dynamic, like the restore: the SDK must not enter first load.
+  const [{ TransactionBuilder, rpc }, { buildReleaseTransaction }] = await Promise.all([
+    import('@stellar/stellar-sdk'),
+    import('./registry-transactions.ts'),
+  ]);
+
+  const server = new rpc.Server(RPC_URL, { allowHttp: RPC_URL.startsWith('http://') });
+  const account = await server.getAccount(walletAddress);
+  const tx = buildReleaseTransaction(account, handle, contractId, NETWORK_PASSPHRASE);
+
+  // Simulate + assemble (adds Soroban resource footprint, auth and fees).
+  const prepared = await server.prepareTransaction(tx);
+
+  const signedXdr = await signTransaction(prepared.toXDR(), walletAddress);
+  const signedTx = TransactionBuilder.fromXDR(signedXdr, NETWORK_PASSPHRASE);
+
+  const sent = await server.sendTransaction(signedTx);
+  if (sent.status === 'ERROR') {
+    throw new Error(`Release submission failed: ${JSON.stringify(sent.errorResult ?? sent)}`);
+  }
+
+  return { hash: sent.hash };
+}
+
 export interface RestoreResult {
   hash: string;
 }

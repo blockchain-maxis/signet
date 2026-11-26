@@ -165,6 +165,7 @@ const ENV_ALLOW = new Set([
   'SIGNET_CONTEXT', // shell env for the cli/ Go module (context override), not the pnpm workspace's .env
   'SIGNET_REGISTRY_WASM', // test input for the simulator's registry goldens (docs/SANDBOX.md), not app env
   'UPDATE_GOLDEN', // test flag that rewrites the simulator's goldens, not app env
+  'INDEXER_TEST_DATABASE_URL', // throwaway database for the indexer integration suite (docs/INDEXER.md), not app env
   'SIGNET_API_KEY', // examples/grant-portal's own env (an sgk_ key it sends), not this app's
 ]);
 

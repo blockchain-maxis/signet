@@ -21,15 +21,17 @@ test('the blend-pool-v1 SVG contains a legend with one row per kind present and 
   assert.ok(svg.includes('data-viz-legend=""'), 'SVG must contain the legend');
   assert.ok(svg.includes('class="diagram-legend-footer"'), 'SVG must contain diagram-legend-footer');
 
-  // Present kinds in blend-pool-v1 (has functions, structs, union, and arg/return/field edges)
+  // Present kinds in blend-pool-v1: functions, the structs its signatures
+  // name, and arg/return edges. Its unions and their fields are reached by no
+  // signature, so they are not drawn (issue 950).
   assert.ok(svg.includes('data-node-kind="function"'), 'function node kind present');
   assert.ok(svg.includes('data-node-kind="struct"'), 'struct node kind present');
-  assert.ok(svg.includes('data-node-kind="union"'), 'union node kind present');
   assert.ok(svg.includes('data-edge-label="arg"'), 'arg edge kind present');
   assert.ok(svg.includes('data-edge-label="return"'), 'return edge kind present');
-  assert.ok(svg.includes('data-edge-label="field"'), 'field edge kind present');
 
-  // Absent kinds (blend-pool-v1 has no enums, stubs, callees or calls)
+  // Absent kinds (blend-pool-v1 draws no unions, enums, stubs, fields, callees or calls)
+  assert.ok(!svg.includes('data-node-kind="union"'), 'union absent');
+  assert.ok(!svg.includes('data-edge-label="field"'), 'field edge absent');
   assert.ok(!svg.includes('data-node-kind="enum"'), 'enum absent');
   assert.ok(!svg.includes('data-node-kind="stub"'), 'stub absent');
   assert.ok(!svg.includes('data-node-kind="callee"'), 'callee absent');
