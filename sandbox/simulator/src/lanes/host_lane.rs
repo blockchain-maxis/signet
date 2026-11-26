@@ -2196,6 +2196,11 @@ mod tests {
             )
             .unwrap()
         };
+        let (handle, by_address, strkey_string) = (
+            format!("Handle(address:\"{wallet}\")"),
+            format!("address:\"{wallet}\""),
+            format!("string:\"{wallet}\""),
+        );
         let cases: Vec<(Option<&[u8]>, ScVal, &str)> = vec![
             // types_zoo declares `Shape { Point(u32, u32), Empty }`.
             (Some(&zoo), vec(vec![sym("Point"), ScVal::U32(5), ScVal::U32(9)]), "Point(5, 9)"),
@@ -2203,11 +2208,11 @@ mod tests {
             (None, vec(vec![sym("Point"), ScVal::U32(5), ScVal::U32(9)]), "Point(u32:5, u32:9)"),
             // The registry's DataKey is not in its spec.
             (Some(&registry), vec(vec![sym("Owner"), string("alice")]), "Owner(\"alice\")"),
-            (Some(&registry), vec(vec![sym("Handle"), address.clone()]), &format!("Handle(address:\"{wallet}\")")),
+            (Some(&registry), vec(vec![sym("Handle"), address.clone()]), &handle),
             (Some(&registry), vec(vec![sym("Admin")]), "Admin"),
             (Some(&registry), sym("Count"), "symbol:\"Count\""),
-            (Some(&registry), address.clone(), &format!("address:\"{wallet}\"")),
-            (Some(&registry), string(wallet), &format!("string:\"{wallet}\"")),
+            (Some(&registry), address.clone(), &by_address),
+            (Some(&registry), string(wallet), &strkey_string),
             (Some(&registry), ScVal::U64(7), "u64:\"7\""),
         ];
         for (wasm, key, expected) in cases {
