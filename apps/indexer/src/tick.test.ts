@@ -479,6 +479,16 @@ test('sanitizeError strips URLs and truncates to 200 characters', () => {
   assert.ok(sanitized.includes('failed fetching'), 'must preserve error description');
   assert.ok(sanitized.includes('500'), 'must preserve status code');
 
+  // Database URLs carry credentials: every scheme is stripped, not only http(s).
+  const dbErr = new Error(
+    "Can't reach database server at postgresql://signet:s3cret@db.internal:5432/signet (P1001)",
+  );
+  const dbSanitized = sanitizeError(dbErr);
+  assert.ok(!dbSanitized.includes('s3cret'), 'must not leak credentials');
+  assert.ok(!dbSanitized.includes('postgresql://'), 'must not contain the database URL');
+  assert.ok(dbSanitized.includes('P1001'), 'must preserve the error code');
+  assert.ok(!sanitizeError('redis://:pw@cache:6379 refused').includes('pw@'));
+
   const longErr = new Error('a'.repeat(300));
   assert.equal(sanitizeError(longErr).length, 200);
 });

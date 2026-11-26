@@ -675,14 +675,12 @@ export const paths: Record<string, OpenApiPathItem> = {
                             description: 'Verdict for the indexer loop.',
                           },
                           lastTickAt: {
-                            type: 'string',
-                            nullable: true,
+                            type: ['string', 'null'],
                             description:
                               "ISO-8601 timestamp of the indexer's last completed tick, or null if never recorded.",
                           },
                           lagSeconds: {
-                            type: 'integer',
-                            nullable: true,
+                            type: ['integer', 'null'],
                             description:
                               "Seconds since the indexer's last completed tick, or null if never recorded.",
                           },

@@ -1406,13 +1406,17 @@
                           "properties": {
                             "lagSeconds": {
                               "description": "Seconds since the indexer's last completed tick, or null if never recorded.",
-                              "nullable": true,
-                              "type": "integer"
+                              "type": [
+                                "integer",
+                                "null"
+                              ]
                             },
                             "lastTickAt": {
                               "description": "ISO-8601 timestamp of the indexer's last completed tick, or null if never recorded.",
-                              "nullable": true,
-                              "type": "string"
+                              "type": [
+                                "string",
+                                "null"
+                              ]
                             },
                             "status": {
                               "description": "Verdict for the indexer loop.",
