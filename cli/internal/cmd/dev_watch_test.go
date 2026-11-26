@@ -303,7 +303,7 @@ func TestDevWatch_TwoSavesSuperseded(t *testing.T) {
 	if len(cycles) != cyclesBefore+1 {
 		t.Fatalf("expected exactly one new cycle, got %d", len(cycles)-cyclesBefore)
 	}
-	if got := cycles[len(cycles)-1].Cycle.Local; got != newerHash {
+	if got := cycles[len(cycles)-1].Local; got != newerHash {
 		t.Fatalf("replay ran on build %s, want the newer build %s", got, newerHash)
 	}
 
