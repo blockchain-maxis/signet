@@ -1,8 +1,17 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { renderStandaloneSvg } from './render.ts';
-import { VIZ_TOKENS } from './tokens.ts';
+import sacTransfer from '../../fixtures/data/sac-transfer-call-get-transaction.json' with { type: 'json' };
+import footprintOnly from '../../fixtures/data/footprint-only-call-get-transaction.json' with { type: 'json' };
+import { collapseGroups } from './collapse.ts';
+import { buildContractGraph } from './graph.ts';
+import { layoutContractGraph } from './layout.ts';
 import type { PositionedDiagramModel } from './layout.ts';
+import { loadFixture } from './load-fixture.ts';
+import { buildCallGraph, callersOnly, describeCallWindow } from './observe/call-graph.ts';
+import { callEdgesFromTransaction, invokedFunction } from './observe/calls.ts';
+import { renderStandaloneSvg } from './render.ts';
+import { VIZ_TOKEN_NAMES, VIZ_TOKENS } from './tokens.ts';
+import { EDGE_VOCABULARY, dashArray } from './vocabulary.ts';
 
 const model: PositionedDiagramModel = {
   layoutVersion: 1,
@@ -59,5 +68,363 @@ test('invalid XML characters are replaced without dropping valid Unicode', () =>
     theme: 'light',
     provenance: { ...provenance, address: 'a' + String.fromCharCode(0, 0xd800) + '??' },
   });
-  assert.ok(svg.includes('a\uFFFD\uFFFD??'));
+  assert.ok(svg.includes('a��??'));
+});
+
+// The visual vocabulary (#953): the export draws what the page draws.
+
+const LENDING = 'CBXZBQ6NW3TGPGLTR4JCG2VPVWFLCCHKDW75NJIXYXV7CJLNUO64VTFC';
+const SAC = 'CBM44TNMCPYIFJO4PSMDZA7IXKJRRNHA6EOWNWI3X4V47DDC7WQXXD3E';
+const light = VIZ_TOKENS.light;
+
+/** Every value of an attribute in the SVG, in document order. */
+const attributeValues = (svg: string, name: string) =>
+  [...svg.matchAll(new RegExp(` ${name}="([^"]*)"`, 'g'))].map(([, value]) => value!);
+
+/** The outline element of the node titled `name`: a `<rect>` or a `<path>`. */
+function outlineOf(svg: string, name: string): string {
+  const found = new RegExp(`<title>${name}</title>(<(?:rect|path) [^>]*/>)`).exec(svg);
+  assert.ok(found, `no node titled ${name}`);
+  return found[1]!;
+}
+
+/** The drawing alone: the SVG without its legend, which repeats one of each kind. */
+const drawingOf = (svg: string) => svg.replace(/^<g class="export-legend".*$/m, '');
+
+/** The legend's height, which the footer sits under. */
+const legendHeightOf = (svg: string) => Number(/data-legend-height="(\d+)"/.exec(svg)?.[1] ?? 0);
+
+/** The `<polyline>` of every edge of one kind. */
+const edgesOf = (svg: string, kind: string) =>
+  svg.match(new RegExp(`<polyline class="edge" data-edge-kind="${kind}" [^>]*/>`, 'g')) ?? [];
+
+/**
+ * testnet-lending-market: 42 functions, the 6 structs and 2 unions its
+ * signatures name, and 5 stubs past them (issue 950), drawn without collapsing.
+ */
+function lendingMarket() {
+  const drawn = layoutContractGraph(buildContractGraph(loadFixture('testnet-lending-market')));
+  return { drawn, svg: renderStandaloneSvg(drawn, { theme: 'light', provenance }) };
+}
+
+/**
+ * The lending market's two real transactions as a call graph, drawn the way
+ * `calls.golden.test.ts` draws it: the interface is too large, so the calling
+ * functions and the contracts they called are drawn alone.
+ */
+function lendingCalls(): PositionedDiagramModel {
+  const rows = [sacTransfer, footprintOnly].map(({ payload }) => ({
+    ledger: payload.ledger,
+    function: invokedFunction(payload.envelopeXdr, LENDING),
+    callEdges: callEdgesFromTransaction(payload.envelopeXdr, payload.resultMetaXdr, LENDING),
+  }));
+  const overlay = buildCallGraph(LENDING, rows);
+  const full = buildContractGraph(loadFixture('testnet-lending-market'));
+  return layoutContractGraph(
+    callersOnly(full, overlay),
+    {},
+    { calls: { overlay, labels: new Map([[SAC, 'USDC']]) } },
+  );
+}
+
+test('the legend lists the kinds drawn, in literal colours, and a list with no edges has none', () => {
+  const { drawn, svg } = lendingMarket();
+  assert.equal(svg.match(/data-viz-legend=""/g)?.length, 1, 'one legend');
+  const legend = svg.slice(svg.indexOf('<g class="export-legend"'));
+  const kinds = (source: string, pattern: RegExp) =>
+    [...new Set([...source.matchAll(pattern)].map((m) => m[1]!))].sort();
+  // One row per node kind drawn and per edge kind drawn, and no other.
+  assert.deepEqual(
+    kinds(legend, /<text [^>]*data-node-kind="([^"]+)"/g),
+    kinds(svg, /<g data-node-kind="([^"]+)"><title>/g),
+  );
+  assert.deepEqual(
+    kinds(legend, /data-edge-label="([^"]+)"/g),
+    kinds(svg, /<polyline class="edge" data-edge-kind="([^"]+)"/g),
+  );
+  assert.doesNotMatch(legend, /var\(/);
+  // The footer sits under the legend, inside the canvas.
+  const legendHeight = Number(/data-legend-height="(\d+)"/.exec(svg)![1]);
+  const firstFooter = Number(/<text class="footer" x="24" y="(\d+)"/.exec(svg)![1]);
+  assert.ok(firstFooter > drawn.height + legendHeight);
+
+  assert.doesNotMatch(renderStandaloneSvg(model, { theme: 'light', provenance }), /data-viz-legend/);
+});
+
+test('a function, a struct and a union are drawn in three different shapes', () => {
+  const { drawn } = lendingMarket();
+  const svg = drawingOf(lendingMarket().svg);
+  const fn = outlineOf(svg, 'market');
+  const struct = outlineOf(svg, 'Reserve');
+  const union = outlineOf(svg, 'MarketUpdate');
+  assert.match(fn, /^<rect .*data-node-shape="rounded-rect".* rx="6"/);
+  assert.match(struct, /^<rect .*data-node-shape="rect".* rx="0"/);
+  assert.match(union, /^<path .*data-node-shape="notched-rect".* d="M /);
+
+  // Every node, not three picked ones: the shapes drawn are the kinds in the model.
+  const kinds = attributeValues(svg, 'data-node-kind');
+  const count = (list: readonly string[], value: string) => list.filter((v) => v === value).length;
+  const shapes = attributeValues(svg, 'data-node-shape');
+  assert.equal(kinds.length, drawn.nodes.length);
+  assert.equal(
+    count(shapes, 'rounded-rect'),
+    drawn.nodes.filter((n) => n.kind === 'function').length,
+  );
+  assert.equal(
+    count(shapes, 'notched-rect'),
+    drawn.nodes.filter((n) => n.typeKind === 'union').length,
+  );
+  assert.equal(count(shapes, 'rect'), drawn.nodes.filter((n) => n.typeKind === 'struct').length);
+  assert.ok(count(shapes, 'rounded-rect') > 0 && count(shapes, 'notched-rect') > 0);
+});
+
+test('argument and return edges differ by arrowhead, and a field edge is thin with none', () => {
+  const { svg } = lendingMarket();
+  const args = edgesOf(svg, 'arg');
+  const returns = edgesOf(svg, 'return');
+  const fields = edgesOf(svg, 'field');
+  assert.ok(args.length > 0 && returns.length > 0 && fields.length > 0);
+  for (const edge of args) assert.match(edge, /marker-end="url\(#export-filled-arrow\)"/);
+  for (const edge of returns) assert.match(edge, /marker-end="url\(#export-open-arrow\)"/);
+  for (const edge of fields) {
+    assert.doesNotMatch(edge, /marker-end/);
+    assert.match(edge, / stroke-width="1"/);
+  }
+  // Spec edges are solid and in the edge colour.
+  for (const edge of [...args, ...returns, ...fields]) {
+    assert.doesNotMatch(edge, /stroke-dasharray/);
+    assert.ok(edge.includes(` stroke="${light.edge}"`));
+  }
+  // The two arrowheads are two glyphs, each defined once.
+  const filled = /<marker id="export-filled-arrow"[^>]*>(<path [^>]*\/>)<\/marker>/.exec(svg);
+  const open = /<marker id="export-open-arrow"[^>]*>(<path [^>]*\/>)<\/marker>/.exec(svg);
+  assert.ok(filled && open);
+  assert.match(filled[1]!, / fill="#[0-9a-f]{6}"/);
+  assert.match(open[1]!, / fill="none"/);
+  assert.equal(svg.match(/<marker /g)?.length, 2);
+});
+
+test('a collapsed group and a missing type are dashed outlines with nothing filled', () => {
+  const full = buildContractGraph(loadFixture('axelar-its'));
+  const drawn = layoutContractGraph(collapseGroups(full));
+  const svg = drawingOf(renderStandaloneSvg(drawn, { theme: 'light', provenance }));
+  const group = drawn.nodes.find((n) => n.collapsed)!;
+  const missing = drawn.nodes.find((n) => n.kind === 'missing')!;
+  for (const node of [group, missing]) {
+    const outline = outlineOf(svg, node.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+    assert.match(
+      outline,
+      /data-node-shape="dashed-outline-rect" fill="none".* stroke-dasharray="5 3"/,
+    );
+  }
+  // A missing type's name is in the muted colour; a collapsed group's is not.
+  assert.match(svg, new RegExp(`<text class="label"[^>]* fill="${light.muted}">[^<]*</text>`));
+  assert.equal(
+    attributeValues(svg, 'data-node-kind').filter((k) => k === 'collapsed-group').length,
+    drawn.nodes.filter((n) => n.collapsed).length,
+  );
+});
+
+test('observed calls are drawn in their evidence style, counted, to a ringed contract', () => {
+  const drawn = lendingCalls();
+  const svg = drawingOf(renderStandaloneSvg(drawn, { theme: 'light', provenance }));
+  const evidence = ['call-auth-tree', 'call-event', 'call-footprint'] as const;
+  const dashes = new Set<string>();
+  for (const kind of evidence) {
+    const edges = edgesOf(svg, kind);
+    assert.ok(edges.length > 0, `no ${kind} edge`);
+    const dash = dashArray(EDGE_VOCABULARY[kind].dash)!;
+    dashes.add(dash);
+    for (const edge of edges) {
+      assert.ok(edge.includes(` stroke-dasharray="${dash}"`));
+      assert.ok(edge.includes(` stroke="${light.observed}"`));
+    }
+  }
+  assert.equal(dashes.size, evidence.length, 'two kinds of evidence share a dash');
+
+  // One count per call edge, and each callee ringed in the observed colour.
+  const callEdges = drawn.edges.filter((e) => e.call);
+  assert.equal(svg.match(/<text class="count"/g)?.length, callEdges.length);
+  assert.ok(svg.includes(`>×${callEdges[0]!.call!.count}</text>`));
+  const callees = drawn.nodes.filter((n) => n.kind === 'callee');
+  assert.ok(callees.length > 0);
+  assert.equal(
+    svg.match(
+      new RegExp(`data-node-shape="rect" fill="${light.node}" stroke="${light.observed}"`, 'g'),
+    )?.length,
+    callees.length,
+  );
+  // No sandbox run saw these calls, so nothing carries the S.
+  assert.doesNotMatch(svg, /data-sandbox-badge|export-sandbox-arrow/);
+});
+
+test('the footer of an export with calls names the window and says what came from where', () => {
+  const drawn = lendingCalls();
+  const svg = renderStandaloneSvg(drawn, { theme: 'light', provenance });
+  const window = describeCallWindow(drawn.calls!);
+  assert.match(
+    window,
+    /^Calls observed in 2 transactions \(ledger \d+\) and 0 local sandbox runs\./,
+  );
+  assert.ok(
+    svg.includes(
+      `<text class="footer" x="24" y="${drawn.height + legendHeightOf(svg) + 28 + 60}" fill="${light.muted}">${window}</text>`,
+    ),
+  );
+  assert.ok(
+    svg.includes(
+      '>Interface from the deployed contract; calls observed from indexed transactions</text>',
+    ),
+  );
+  assert.ok(!svg.includes('Generated by Signet from the deployed contract interface'));
+  // Five footer lines instead of four, and the canvas grows by the one line.
+  assert.equal(svg.match(/<text class="footer"/g)?.length, 5);
+  assert.ok(svg.includes(` height="${drawn.height + legendHeightOf(svg) + 36 + 5 * 20}" `));
+  assert.match(svg, /<desc id="export-desc">\d+ nodes, 0 references; calls 2 other contracts\. /);
+});
+
+test('calls seen in sandbox runs say so, and carry the S badge', () => {
+  const drawn = lendingCalls();
+  const sandboxOnly: PositionedDiagramModel = {
+    ...drawn,
+    calls: {
+      ...drawn.calls!,
+      transactions: 0,
+      firstLedger: null,
+      lastLedger: null,
+      sandboxRuns: 2,
+    },
+    edges: drawn.edges.map((e) =>
+      e.call ? { ...e, call: { ...e.call, evidence: null, sandboxRuns: 1 } } : e,
+    ),
+  };
+  const svg = renderStandaloneSvg(sandboxOnly, { theme: 'light', provenance });
+  assert.ok(
+    svg.includes(
+      '>Interface from the deployed contract; calls observed in local sandbox runs</text>',
+    ),
+  );
+  assert.ok(svg.includes('Calls observed in 0 transactions and 2 local sandbox runs.'));
+  const calls = sandboxOnly.edges.filter((e) => e.call).length;
+  assert.equal(edgesOf(svg, 'call-sandbox').length, calls);
+  assert.equal(drawingOf(svg).match(/data-sandbox-badge=""/g)?.length, calls);
+  assert.match(svg, /<marker id="export-sandbox-arrow"/);
+  // The badge and its arrowhead are in the observed colour, written out like the rest.
+  assert.ok(
+    svg.includes(`<circle cx=`) &&
+      svg.includes(` stroke="${light.observed}" stroke-width="1.25"/>`),
+  );
+  assert.doesNotMatch(svg, /var\(/);
+  // The badge's letter keeps its own size under the stylesheet's `text` rule.
+  assert.match(svg, /\.viz-sandbox-badge text \{ font-size: 9px; \}/);
+
+  const both: PositionedDiagramModel = {
+    ...sandboxOnly,
+    calls: { ...sandboxOnly.calls!, transactions: 3 },
+  };
+  assert.ok(
+    renderStandaloneSvg(both, { theme: 'light', provenance }).includes(
+      '>Interface from the deployed contract; calls observed from indexed transactions and in local sandbox runs</text>',
+    ),
+  );
+});
+
+test('a model that keeps a call summary but draws no call says nothing about calls', () => {
+  // What `visualise()` renders when the diagram is not worth drawing: the functions alone.
+  const drawn = lendingCalls();
+  const list: PositionedDiagramModel = {
+    ...drawn,
+    nodes: drawn.nodes.filter((n) => n.kind === 'function'),
+    edges: [],
+    groups: [],
+  };
+  assert.ok(list.calls);
+  const svg = renderStandaloneSvg(list, { theme: 'light', provenance });
+  assert.ok(svg.includes('Generated by Signet from the deployed contract interface'));
+  assert.doesNotMatch(svg, /Calls observed|calls observed|<marker /);
+  assert.equal(svg.match(/<text class="footer"/g)?.length, 4);
+});
+
+/** The richest exports: every node kind, every spec edge and three kinds of call. */
+function richExports(theme: 'dark' | 'light' | 'auto'): string[] {
+  const collapsed = layoutContractGraph(
+    collapseGroups(buildContractGraph(loadFixture('axelar-its'))),
+  );
+  return [lendingMarket().drawn, collapsed, lendingCalls()].map((drawn) =>
+    renderStandaloneSvg(drawn, { theme, provenance }),
+  );
+}
+
+for (const theme of ['dark', 'light', 'auto'] as const) {
+  test(`standalone ${theme}: every colour is a literal token colour, and nothing leaves the file`, () => {
+    const base = VIZ_TOKENS[theme === 'auto' ? 'light' : theme];
+    const tokenColours = new Set<string>(Object.values(base));
+    for (const svg of richExports(theme)) {
+      assert.equal(svg.match(/<style>/g)?.length, 1);
+      assert.doesNotMatch(svg, /var\(|<script|<image|<use|href=|style=|@import/);
+      // The only `url()` is an arrowhead defined in this file.
+      for (const [target] of svg.matchAll(/url\([^)]*\)/g)) {
+        assert.match(target, /^url\(#export-(filled|open|sandbox)-arrow\)$/);
+      }
+      const painted = [...attributeValues(svg, 'fill'), ...attributeValues(svg, 'stroke')];
+      assert.ok(painted.length > 0);
+      for (const value of painted) {
+        assert.ok(value === 'none' || tokenColours.has(value), `${value} is not a ${theme} token`);
+      }
+    }
+  });
+}
+
+test('auto: the dark theme overrides every colour the file writes', () => {
+  // The override matches each element on the light colour it was written
+  // with, which works only while no two light tokens are the same colour.
+  assert.equal(new Set(Object.values(light)).size, VIZ_TOKEN_NAMES.length);
+  // The PNG export repaints a dark export the same way, so the dark tokens too.
+  assert.equal(new Set(Object.values(VIZ_TOKENS.dark)).size, VIZ_TOKEN_NAMES.length);
+
+  for (const svg of richExports('auto')) {
+    const dark = /@media \(prefers-color-scheme: dark\) \{ (.*) \}<\/style>/.exec(svg)?.[1];
+    assert.ok(dark, 'no dark block');
+    for (const attribute of ['fill', 'stroke'] as const) {
+      for (const value of new Set(attributeValues(svg, attribute))) {
+        if (value === 'none') continue;
+        const token = VIZ_TOKEN_NAMES.find((name) => light[name] === value)!;
+        const darkValue = VIZ_TOKENS.dark[token];
+        if (darkValue === value) continue;
+        assert.ok(
+          dark.includes(`[${attribute}="${value}"] { ${attribute}: ${darkValue}; }`),
+          `no dark ${attribute} for ${token}`,
+        );
+      }
+    }
+  }
+});
+
+test('the dark and light exports differ in their colours and the theme they name, nothing else', () => {
+  const byToken = (svg: string, theme: 'dark' | 'light') =>
+    svg
+      .replace(` data-export-theme="${theme}"`, ' data-export-theme="{theme}"')
+      .replace(/#[0-9a-f]{6}/g, (colour) => {
+        const token = VIZ_TOKEN_NAMES.find((name) => VIZ_TOKENS[theme][name] === colour);
+        return token ? `{${token}}` : colour;
+      });
+  const darkExports = richExports('dark');
+  richExports('light').forEach((lightSvg, i) => {
+    assert.notEqual(lightSvg, darkExports[i]);
+    assert.match(lightSvg, /<svg [^>]* data-export-theme="light">/);
+    assert.match(darkExports[i]!, /<svg [^>]* data-export-theme="dark">/);
+    assert.equal(byToken(lightSvg, 'light'), byToken(darkExports[i]!, 'dark'));
+  });
+});
+
+test('a name that reads like a colour reference is drawn as it was written', () => {
+  // Only markup built by the renderer has its colours resolved: text from a spec is left alone.
+  const name = 'var(--viz-accent)';
+  const svg = renderStandaloneSvg(
+    { ...model, nodes: model.nodes.map((n) => ({ ...n, name, label: name })) },
+    { theme: 'light', provenance: { ...provenance, address: name } },
+  );
+  assert.ok(svg.includes(`<title>${name}</title>`));
+  assert.ok(svg.includes(`>${name}</text></g>`));
+  assert.ok(svg.includes(`>Address: ${name}</text>`));
 });

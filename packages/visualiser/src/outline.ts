@@ -587,11 +587,16 @@ function escapeHtml(s: string): string {
 export function renderOutlineHtml(
   outline: readonly OutlineNode[],
   hrefForNode: (nodeId: string) => string | null,
+  targetForNode?: (nodeId: string) => string | null,
 ): string {
   function renderLink(nodeId: string | undefined, name: string): string {
     const href = nodeId ? hrefForNode(nodeId) : null;
+    const target = nodeId && targetForNode ? targetForNode(nodeId) : null;
     if (href) {
-      return `<a href="${escapeHtml(href)}">${escapeHtml(name)}</a>`;
+      const targetAttr = target
+        ? ` target="${escapeHtml(target)}"${target === '_blank' ? ' rel="noopener"' : ''}`
+        : '';
+      return `<a href="${escapeHtml(href)}"${targetAttr}>${escapeHtml(name)}</a>`;
     }
     return `<span>${escapeHtml(name)}</span>`;
   }

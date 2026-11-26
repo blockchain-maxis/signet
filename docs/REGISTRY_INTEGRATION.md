@@ -132,10 +132,11 @@ rather than re-deriving it.
 ## 4. Events
 
 Every change to a binding publishes one event, with the topic tuple
-`(Symbol(kind), String(handle))`. Only the data payload varies. The one
-admin-side event, `admin_changed`, has a different shape: a **one-element**
-topic `(Symbol("admin_changed"),)` with no handle, and `(old_admin, new_admin)`
-as data. `initialize` publishes nothing.
+`(Symbol(kind), String(handle))`. Only the data payload varies. The two
+admin-side events have a different shape: a **one-element** topic with no
+handle. `admin_changed` is `(Symbol("admin_changed"),)` with
+`(old_admin, new_admin)` as data, and `initialized` is `(Symbol("initialized"),)`
+with the first admin's address as data.
 
 | Kind | Topics | Data | Emitted by |
 |------|--------|------|------------|
@@ -144,11 +145,13 @@ as data. `initialize` publishes nothing.
 | `revoked` | `[ symbol("revoked"), string(handle) ]` | `address(wallet)` | `admin_revoke` |
 | `transferred` † | `[ symbol("transferred"), string(handle) ]` | `[ address(from), address(to) ]` (a 2-tuple) | `transfer_handle` |
 | `admin_changed` † | `[ symbol("admin_changed") ]` (one element, no handle) | `[ address(old_admin), address(new_admin) ]` (a 2-tuple) | `set_admin` |
+| `initialized` † (new) | `[ symbol("initialized") ]` (one element, no handle) | `address(admin)` | `initialize` |
 
-† `transfer_handle` and `set_admin` are not in the deployed wasm (see §2), so the pinned
-deployment never emits `transferred` or `admin_changed`. They are documented here so
-consumers written now keep working after the next deployment. A consumer that folds
-bindings should skip `admin_changed`. Its `topics.length < 2` guard (below) already does.
+† `transfer_handle` and `set_admin`, and the `initialized` event, are not in the deployed
+wasm (see §2), so the pinned deployment never emits `transferred`, `admin_changed` or
+`initialized`. They are documented here so consumers written now keep working after the
+next deployment. A consumer that folds bindings should skip `admin_changed` and
+`initialized`. Its `topics.length < 2` guard (below) already does.
 
 Decoding one event:
 

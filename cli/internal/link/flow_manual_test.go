@@ -49,7 +49,7 @@ func TestRun_ManualCodeWinsWhenTheLoopbackCannotBind(t *testing.T) {
 		return pair.Completed{Handle: "alice"}, nil
 	}
 
-	result, err := Run(context.Background(), "https://signet.example", "testnet", "src", "GABC", deps)
+	result, err := Run(context.Background(), "https://signet.example", "testnet", "src", testClientPublicKey, deps)
 	if err != nil {
 		t.Fatalf("Run: %v", err)
 	}
@@ -78,7 +78,7 @@ func TestRun_BlankLinesDoNotCountAsACode(t *testing.T) {
 		return pair.Completed{}, nil
 	}
 
-	if _, err := Run(context.Background(), "https://signet.example", "testnet", "src", "GABC", deps); err != nil {
+	if _, err := Run(context.Background(), "https://signet.example", "testnet", "src", testClientPublicKey, deps); err != nil {
 		t.Fatalf("Run: %v", err)
 	}
 	if sent != "WXYZ2345" {
@@ -108,7 +108,7 @@ func TestRun_PromptsOnlyAfterApprovalWhenNoCallbackArrives(t *testing.T) {
 		return pair.Completed{}, nil
 	}
 
-	if _, err := Run(context.Background(), "https://signet.example", "testnet", "src", "GABC", deps); err != nil {
+	if _, err := Run(context.Background(), "https://signet.example", "testnet", "src", testClientPublicKey, deps); err != nil {
 		t.Fatalf("Run: %v", err)
 	}
 	if sent != "QWER5678" {
@@ -137,7 +137,7 @@ func TestRun_CallbackBeatsThePromptDuringTheGracePeriod(t *testing.T) {
 		}
 	}
 
-	if _, err := Run(context.Background(), "https://signet.example", "testnet", "src", "GABC", deps); err != nil {
+	if _, err := Run(context.Background(), "https://signet.example", "testnet", "src", testClientPublicKey, deps); err != nil {
 		t.Fatalf("Run: %v", err)
 	}
 }
@@ -153,7 +153,7 @@ func TestRun_NeverPromptsWithoutAPromptDep(t *testing.T) {
 		}
 		return pair.Completed{}, nil
 	}
-	if _, err := Run(context.Background(), "https://signet.example", "testnet", "src", "GABC", deps); err != nil {
+	if _, err := Run(context.Background(), "https://signet.example", "testnet", "src", testClientPublicKey, deps); err != nil {
 		t.Fatalf("Run: %v", err)
 	}
 }
@@ -167,7 +167,7 @@ func TestRun_AWrongCodeSurfacesTheServersMessage(t *testing.T) {
 		return pair.Completed{}, fmt.Errorf("%w: That confirmation code does not match the one shown in the browser", exitcode.ErrNetwork)
 	}
 
-	_, err := Run(context.Background(), "https://signet.example", "testnet", "src", "GABC", deps)
+	_, err := Run(context.Background(), "https://signet.example", "testnet", "src", testClientPublicKey, deps)
 	if err == nil || !strings.Contains(err.Error(), "does not match the one shown in the browser") {
 		t.Fatalf("err = %v, want the server's bad-handoff message", err)
 	}
@@ -189,7 +189,7 @@ func TestRun_CtrlCSaysThePairingWasAbandonedAndWhenItExpires(t *testing.T) {
 		}
 	}
 
-	_, err := Run(ctx, "https://signet.example", "testnet", "src", "GABC", deps)
+	_, err := Run(ctx, "https://signet.example", "testnet", "src", testClientPublicKey, deps)
 	if !errors.Is(err, exitcode.ErrInterrupted) {
 		t.Fatalf("err = %v, want ErrInterrupted", err)
 	}
@@ -208,7 +208,7 @@ func TestRun_RelinkingReportsAlreadyLinked(t *testing.T) {
 	deps.Complete = func(context.Context, string, string, string) (pair.Completed, error) {
 		return pair.Completed{Handle: "alice", Status: pair.StatusAlreadyLinked}, nil
 	}
-	result, err := Run(context.Background(), "https://signet.example", "testnet", "src", "GABC", deps)
+	result, err := Run(context.Background(), "https://signet.example", "testnet", "src", testClientPublicKey, deps)
 	if err != nil {
 		t.Fatalf("Run: %v", err)
 	}
@@ -219,7 +219,7 @@ func TestRun_RelinkingReportsAlreadyLinked(t *testing.T) {
 
 func TestRun_AServerThatSendsNoStatusIsAPlainLink(t *testing.T) {
 	deps := baseDeps(pair.StatusApproved)
-	result, err := Run(context.Background(), "https://signet.example", "testnet", "src", "GABC", deps)
+	result, err := Run(context.Background(), "https://signet.example", "testnet", "src", testClientPublicKey, deps)
 	if err != nil {
 		t.Fatalf("Run: %v", err)
 	}

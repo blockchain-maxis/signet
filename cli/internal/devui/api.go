@@ -204,6 +204,20 @@ type Events struct {
 // NewEvents is an empty broadcaster.
 func NewEvents() *Events { return &Events{subs: map[chan Event]bool{}} }
 
+// Subscribe registers a subscriber receiving events published on e until cancel is called.
+func (e *Events) Subscribe() (<-chan Event, func()) {
+	ch := make(chan Event, 256)
+	e.mu.Lock()
+	e.subs[ch] = true
+	e.mu.Unlock()
+	cancel := func() {
+		e.mu.Lock()
+		delete(e.subs, ch)
+		e.mu.Unlock()
+	}
+	return ch, cancel
+}
+
 // Publish sends an event to every stream; a stream that cannot keep up
 // misses it rather than stall the session.
 func (e *Events) Publish(typ string, data any) {

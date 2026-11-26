@@ -79,7 +79,7 @@ export interface AttestationStore {
     }): Promise<{ id: string }>;
     findMany(args: {
       select: { handle: true; wallets: { select: { pubkey: true; source: true } } };
-    }): Promise<{ handle: string; wallets: { pubkey: string; source: WalletSource }[] }[]>;
+    }): Promise<{ handle: string; wallets: { pubkey: string; source: WalletSource | string }[] }[]>;
   };
   wallet: {
     upsert(args: {

@@ -1,4 +1,5 @@
 import type { Horizon } from '@stellar/stellar-sdk';
+import type { Prisma } from '@signet/db';
 import { decodeInvokeParameters } from '@signet/visualiser';
 import { logger } from '../logger.js';
 import { sleep } from '../stellar.js';
@@ -71,13 +72,13 @@ export interface OperationCreate {
   createdAt: Date;
   transactionHash: string | null;
   successful: boolean;
-  balanceChanges?: unknown;
+  balanceChanges?: Prisma.InputJsonValue | Prisma.NullableJsonNullValueInput;
 }
 
 /** Fields refreshed on an existing `Operation` row. */
 export interface OperationUpdate {
   successful: boolean;
-  balanceChanges?: unknown;
+  balanceChanges?: Prisma.InputJsonValue | Prisma.NullableJsonNullValueInput;
   decodedFunction?: string;
   contractAddress?: string;
 }

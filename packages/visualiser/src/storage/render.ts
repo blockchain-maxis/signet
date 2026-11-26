@@ -59,6 +59,10 @@ export interface StorageRenderOptions {
   /** The spec type's page, for a slot whose key matched a spec union or enum. */
   readonly hrefForType?: (name: string) => string | null;
   readonly hrefForFunction?: (name: string) => string | null;
+  /** Target attribute for function and type links. */
+  readonly target?: string | null;
+  readonly targetForType?: (name: string) => string | null;
+  readonly targetForFunction?: (name: string) => string | null;
   /**
    * A standalone export: the tokens of this theme inlined, on a ground rect;
    * `auto` inlines both and follows the viewer's colour scheme.
@@ -358,8 +362,12 @@ export function renderStorageSvg(input: StorageViewInput, opts: StorageRenderOpt
     const id = `fn:${fn}`;
     const p = fnPos.get(id)!;
     const href = opts.hrefForFunction?.(fn) ?? null;
+    const target = opts.targetForFunction?.(fn) ?? opts.target ?? null;
+    const targetAttr = target
+      ? ` target="${escapeXml(target)}"${target === '_blank' ? ' rel="noopener"' : ''}`
+      : '';
     const open = href
-      ? `<a href="${escapeXml(href)}" data-node-id="${escapeXml(id)}" class="storage-node${stateClass(id)}">`
+      ? `<a href="${escapeXml(href)}" data-node-id="${escapeXml(id)}" class="storage-node${stateClass(id)}"${targetAttr}>`
       : `<g data-node-id="${escapeXml(id)}" class="storage-node${stateClass(id)}">`;
     parts.push(
       `  ${open}<title>${escapeXml(fn)}</title>${nodeShapeSvg('rounded-rect', p.x, p.y, p.width, p.height)}<text x="${p.x + 12}" y="${p.y + p.height / 2}" dominant-baseline="central" fill="${cssVar('nodeText')}">${escapeXml(truncateLabel(fn, MAX_FN_CELLS))}</text>${href ? '</a>' : '</g>'}`,
@@ -371,11 +379,15 @@ export function renderStorageSvg(input: StorageViewInput, opts: StorageRenderOpt
     const id = slotId(slot);
     const p = slotPos.get(id)!;
     const typeHref = slot.specType ? (opts.hrefForType?.(slot.specType) ?? null) : null;
+    const typeTarget = slot.specType ? (opts.targetForType?.(slot.specType) ?? opts.target ?? null) : null;
+    const typeTargetAttr = typeTarget
+      ? ` target="${escapeXml(typeTarget)}"${typeTarget === '_blank' ? ' rel="noopener"' : ''}`
+      : '';
     const meta = slotMeta(slot);
     const typeX = p.x + 12 + textWidth(meta, SMALL_PX);
     const typeText = slot.specType
       ? typeHref
-        ? `<a href="${escapeXml(typeHref)}" class="storage-type-link"><text x="${typeX}" y="${p.y + 33}" font-size="${SMALL_PX}" fill="${cssVar('accent')}" text-decoration="underline">${escapeXml(slot.specType)}</text></a>`
+        ? `<a href="${escapeXml(typeHref)}" class="storage-type-link"${typeTargetAttr}><text x="${typeX}" y="${p.y + 33}" font-size="${SMALL_PX}" fill="${cssVar('accent')}" text-decoration="underline">${escapeXml(slot.specType)}</text></a>`
         : `<text x="${typeX}" y="${p.y + 33}" font-size="${SMALL_PX}" fill="${cssVar('muted')}">${escapeXml(slot.specType)}</text>`
       : '';
     parts.push(
@@ -420,6 +432,7 @@ export function renderStorageSvg(input: StorageViewInput, opts: StorageRenderOpt
 export function renderStorageOutlineHtml(
   input: StorageViewInput,
   hrefForType: (name: string) => string | null = () => null,
+  targetForType?: (name: string) => string | null,
 ): string {
   const out: string[] = ['<section class="storage-outline">', '<h3>Storage (observed)</h3>'];
   out.push(`<p>${escapeXml(storageHeading(input))}</p>`, '<ul>');
@@ -430,8 +443,12 @@ export function renderStorageOutlineHtml(
     out.push(`<li>${durability}<ul>`);
     for (const slot of slots) {
       const href = slot.specType ? hrefForType(slot.specType) : null;
+      const target = slot.specType && targetForType ? targetForType(slot.specType) : null;
+      const targetAttr = target
+        ? ` target="${escapeXml(target)}"${target === '_blank' ? ' rel="noopener"' : ''}`
+        : '';
       const type = slot.specType
-        ? ` Key type: ${href ? `<a href="${escapeXml(href)}">${escapeXml(slot.specType)}</a>` : escapeXml(slot.specType)}.`
+        ? ` Key type: ${href ? `<a href="${escapeXml(href)}"${targetAttr}>${escapeXml(slot.specType)}</a>` : escapeXml(slot.specType)}.`
         : '';
       out.push(`<li id="outline-${escapeXml(slotId(slot).replace(/[^A-Za-z0-9_-]/g, '-'))}"><code>${escapeXml(slot.shape)}</code>: ${escapeXml(slotFacts(slot, false))}${type}</li>`);
     }

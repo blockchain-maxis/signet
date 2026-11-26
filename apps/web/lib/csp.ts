@@ -29,6 +29,8 @@
  * that supports either one is heard.
  */
 
+import { logger } from './logger.ts';
+
 /** Route that collects violation reports (see `app/api/csp-report/route.ts`). */
 export const CSP_REPORT_PATH = '/api/csp-report';
 
@@ -71,10 +73,73 @@ export function isEmbedPath(pathname: string): boolean {
   return /^\/p\/[^/]+\/contract\/[^/]+\/embed(?:\/.*)?$/.test(pathname);
 }
 
+const loggedInvalidValues = new Set<string>();
+
+export function __resetFrameAncestorsWarningForTest(): void {
+  loggedInvalidValues.clear();
+}
+
+/**
+ * Matches a single valid CSP source expression for frame-ancestors:
+ * - 'self'
+ * - 'none'
+ * - *
+ * - scheme: (e.g. https:, http:, blob:, data:)
+ * - [scheme://][host][:port]
+ *   where host can be a wildcard subdomain (*.example.com), hostname (example.com),
+ *   IPv4 address, localhost, or *
+ *   and port can be digits or *
+ */
+function isValidSourceExpression(source: string): boolean {
+  if (source === "'self'" || source === "'none'" || source === '*') {
+    return true;
+  }
+  // Scheme-only source (e.g. https:, http:)
+  if (/^[a-zA-Z][a-zA-Z0-9+.-]*:$/.test(source)) {
+    return true;
+  }
+  // Host source with optional scheme and port
+  const hostSourceRegex =
+    /^(?:[a-zA-Z][a-zA-Z0-9+.-]*:\/\/)?(?:\*|(?:\*\.)?[a-zA-Z0-9-]+(?:\.[a-zA-Z0-9-]+)*|\d{1,3}(?:\.\d{1,3}){3}|localhost)(?::(?:\*|\d+))?$/;
+  return hostSourceRegex.test(source);
+}
+
+/**
+ * Validates a space-separated string of CSP source expressions.
+ * Returns the normalized space-separated sources if valid, or null if invalid.
+ */
+function validateFrameAncestors(raw: string): string | null {
+  if (/[;\r\n]/.test(raw)) {
+    return null;
+  }
+  const tokens = raw.trim().split(/\s+/);
+  if (tokens.length === 0 || (tokens.length === 1 && tokens[0] === '')) {
+    return null;
+  }
+  for (const token of tokens) {
+    if (!isValidSourceExpression(token)) {
+      return null;
+    }
+  }
+  return tokens.join(' ');
+}
+
 export function resolveFrameAncestors(path?: string, explicit?: string): string {
   if (explicit) return explicit;
   if (path && isEmbedPath(path)) {
-    return process.env.FRAME_ANCESTORS_ALLOWLIST || process.env.EMBED_FRAME_ANCESTORS || '*';
+    const raw = process.env.FRAME_ANCESTORS_ALLOWLIST || process.env.EMBED_FRAME_ANCESTORS;
+    if (!raw || raw.trim() === '') {
+      return '*';
+    }
+    const validated = validateFrameAncestors(raw);
+    if (validated !== null) {
+      return validated;
+    }
+    if (!loggedInvalidValues.has(raw)) {
+      loggedInvalidValues.add(raw);
+      logger.warn({ value: raw }, 'csp.invalidFrameAncestors');
+    }
+    return "'none'";
   }
   return "'none'";
 }

@@ -123,6 +123,23 @@ test('/how-it-works states the limits of contract attribution', async ({ page })
   await expect(body).toContainText("Nothing executes on Signet's servers");
 });
 
+test('profile page canonical link, social metadata and case redirect', async ({
+  page,
+  request,
+}) => {
+  const redirectRes = await request.get('/p/Alice', { maxRedirects: 0 });
+  expect(redirectRes.status()).toBe(308);
+  expect(redirectRes.headers()['location']).toBe('/p/alice');
+
+  await page.goto('/p/this-handle-does-not-exist');
+  const missingOgTitle = await page.locator('meta[property="og:title"]').getAttribute('content');
+  expect(missingOgTitle).toContain('Profile not found');
+
+  await page.goto('/handles');
+  const handlesOgTitle = await page.locator('meta[property="og:title"]').getAttribute('content');
+  expect(handlesOgTitle).toBe('Handles · Signet');
+});
+
 test('default OpenGraph image serves a PNG and the landing page og:image resolves to one', async ({
   page,
   request,

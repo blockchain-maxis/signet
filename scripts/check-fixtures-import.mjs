@@ -1,6 +1,9 @@
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
 
+// Where production code lives. `packages/spec/src` and `packages/visualiser/src`
+// are here because their tests read the recordings (#974) while the code beside
+// those tests ships in both apps.
 const PRODUCTION_DIRS = [
   'apps/web/app',
   'apps/web/components',
@@ -9,17 +12,26 @@ const PRODUCTION_DIRS = [
   'packages/sdk/src',
   'packages/types/src',
   'packages/db/src',
+  'packages/spec/src',
+  'packages/visualiser/src',
 ];
 
 const FORBIDDEN_IMPORT_PATTERNS = [/@signet\/fixtures/, /packages\/fixtures/, /\.\.\/.*fixtures/];
 
 let failed = false;
+let scanned = 0;
 
-function scanDir(dirPath) {
+function scanDir(dirPath, listed = false) {
   let entries = [];
   try {
     entries = readdirSync(dirPath);
   } catch {
+    // A listed directory that is gone would otherwise drop out of the check
+    // without a word, and the check would keep passing.
+    if (listed) {
+      console.error(`[check-fixtures-import] ${dirPath} cannot be read; update PRODUCTION_DIRS.`);
+      failed = true;
+    }
     return;
   }
 
@@ -39,6 +51,7 @@ function scanDir(dirPath) {
       !fullPath.includes('.spec.') &&
       !fullPath.includes('/e2e/')
     ) {
+      scanned++;
       const content = readFileSync(fullPath, 'utf8');
       for (const pattern of FORBIDDEN_IMPORT_PATTERNS) {
         if (pattern.test(content)) {
@@ -53,7 +66,7 @@ function scanDir(dirPath) {
 }
 
 for (const dir of PRODUCTION_DIRS) {
-  scanDir(dir);
+  scanDir(dir, true);
 }
 
 if (failed) {
@@ -62,5 +75,5 @@ if (failed) {
   );
   process.exit(1);
 } else {
-  console.log('✓ No production code imports @signet/fixtures');
+  console.log(`✓ No production code imports @signet/fixtures (${scanned} files checked)`);
 }
