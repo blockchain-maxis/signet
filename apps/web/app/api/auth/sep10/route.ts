@@ -2,13 +2,12 @@ import { NextResponse } from 'next/server';
 import { WebAuth } from '@stellar/stellar-sdk';
 import {
   buildChallenge,
-  verifyChallenge,
-  issueJwt,
+  authenticateWithSep10,
+  mintSep10Session,
   getNetworkPassphrase,
   Sep10ConfigError,
   Sep10Error,
 } from '@/lib/sep10';
-import { issueSession, SESSION_COOKIE } from '@/lib/auth';
 import { isValidStellarAddress } from '@/lib/stellar-address';
 import { LIMITS, enforceRateLimit } from '@/lib/rate-limit-http';
 import { logger } from '@/lib/logger';
@@ -82,36 +81,34 @@ export async function POST(req: Request) {
 
   const { transaction } = (await req.json().catch(() => ({}))) as { transaction?: string };
   if (!transaction) {
-    return NextResponse.json({ error: 'transaction is required' }, { status: 400, headers: CORS_HEADERS });
+    return NextResponse.json(
+      { error: 'transaction is required' },
+      { status: 400, headers: CORS_HEADERS },
+    );
   }
 
   let clientAccountId: string;
   try {
-    clientAccountId = verifyChallenge(transaction);
+    clientAccountId = await authenticateWithSep10(transaction);
   } catch (err) {
     if (err instanceof Sep10ConfigError) {
       logger.error({ err: err.message }, 'sep10.misconfigured');
       return NextResponse.json({ error: err.message }, { status: 503, headers: CORS_HEADERS });
     }
-    const message =
-      err instanceof Sep10Error || err instanceof WebAuth.InvalidChallengeError
-        ? err.message
-        : 'Invalid challenge transaction';
-    logger.warn({ error: message }, 'sep10.verifyRejected');
-    return NextResponse.json({ error: message }, { status: 401, headers: CORS_HEADERS });
+    if (err instanceof Sep10Error) {
+      return NextResponse.json({ error: err.message }, { status: 401, headers: CORS_HEADERS });
+    }
+    // A nonce store failure (or any other unexpected error) fails closed with 503.
+    logger.error({ err: String(err) }, 'sep10.unexpectedError');
+    return NextResponse.json(
+      { error: 'Unable to process challenge' },
+      { status: 503, headers: CORS_HEADERS },
+    );
   }
 
-  const res = NextResponse.json({ token: issueJwt(clientAccountId) }, { headers: CORS_HEADERS });
-  // Same-origin convenience: lets this app's own frontend use the normal
-  // cookie session immediately, alongside the spec-mandated bearer token.
-  // SameSite=lax means genuine cross-origin callers never get this sent back.
-  res.cookies.set(SESSION_COOKIE, issueSession(clientAccountId), {
-    httpOnly: true,
-    secure: process.env.NODE_ENV === 'production',
-    sameSite: 'lax',
-    path: '/',
-    maxAge: 7 * 24 * 60 * 60,
-  });
+  const { token, cookie } = mintSep10Session(clientAccountId);
+  const res = NextResponse.json({ token }, { headers: CORS_HEADERS });
+  res.cookies.set(cookie.name, cookie.value, cookie.options);
   logger.info({ address: clientAccountId }, 'sep10.signedIn');
   return res;
 }

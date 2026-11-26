@@ -12,6 +12,10 @@ export {
 } from './handle.ts';
 export type { ReservedHandle } from './handle.ts';
 
+// Horizon operation predicates.
+export { CREATE_CONTRACT_FUNCTIONS, isCreateContractFunction } from './contract.ts';
+export type { CreateContractFunction } from './contract.ts';
+
 // Pairing audit trail — one event vocabulary for the web tier and the indexer.
 export { PAIRING_EVENTS, PairingSecretLeakError, pairingEvent } from './pairing.ts';
 export type {

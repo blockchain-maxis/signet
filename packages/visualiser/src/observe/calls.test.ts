@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {
   aggregateCallEdges,
   callEdgesFromTransaction,
+  decodeInvokeParameters,
   eventContractIds,
   invokedFunction,
 } from './calls.ts';
@@ -128,4 +129,53 @@ test('aggregateCallEdges counts a transaction once per callee', () => {
       lastLedger: 10,
     },
   ]);
+});
+
+test('decodeInvokeParameters: decodes valid InvokeContract parameters', () => {
+  const parameters = [
+    {
+      value: 'AAAAEgAAAAH4oodbFBaefih5JVDOHOcj/rPQqTNF2uc5cYzP8paqaw==',
+      type: 'Address',
+    },
+    {
+      value: 'AAAADwAAAAx3cml0ZV9wcmljZXM=',
+      type: 'Sym',
+    },
+  ];
+  const decoded = decodeInvokeParameters(parameters);
+  assert.deepEqual(decoded, {
+    contract: 'CD4KFB23CQLJ47RIPESVBTQ444R75M6QVEZULWXHHFYYZT7SS2VGXOPW',
+    fn: 'write_prices',
+  });
+});
+
+test('decodeInvokeParameters: returns nulls for CreateContract parameters', () => {
+  const parameters = [
+    {
+      value: 'AAAAEAAAAAEAAAABAAAADgAAAANFVEgA',
+      type: 'Vec',
+    },
+    {
+      value: 'AAAADwAAAAx3cml0ZV9wcmljZXM=',
+      type: 'Sym',
+    },
+  ];
+  assert.deepEqual(decodeInvokeParameters(parameters), { contract: null, fn: null });
+});
+
+test('decodeInvokeParameters: returns nulls for malformed and garbage input', () => {
+  assert.deepEqual(decodeInvokeParameters(null), { contract: null, fn: null });
+  assert.deepEqual(decodeInvokeParameters(undefined), { contract: null, fn: null });
+  assert.deepEqual(decodeInvokeParameters([]), { contract: null, fn: null });
+  assert.deepEqual(decodeInvokeParameters([{ value: 'invalid base64!!!' }]), {
+    contract: null,
+    fn: null,
+  });
+  assert.deepEqual(
+    decodeInvokeParameters([
+      { value: 'not-valid-base64', type: 'Address' },
+      { value: 'not-valid-base64', type: 'Sym' },
+    ]),
+    { contract: null, fn: null },
+  );
 });

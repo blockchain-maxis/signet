@@ -96,11 +96,13 @@ error. signet status shows the same progress later.`,
 			ctx, stop := signal.NotifyContext(cmd.Context(), os.Interrupt)
 			defer stop()
 
+			disc, _ := client.API().Discover(cmd.Context())
 			result, err := link.Run(ctx, resolved.BaseURL, network, source, publicKey, link.Deps{
 				Start:     client.Start,
 				Poll:      client.Poll,
 				Complete:  client.Complete,
 				Challenge: link.FetchChallenge(client.API(), network, spec.CliLinkPurposeLink),
+				Discovery: disc,
 				Sign: func(unsigned, passphrase string) (string, error) {
 					return keys.SignChallenge(deps.KeysBinary, source, unsigned, passphrase)
 				},

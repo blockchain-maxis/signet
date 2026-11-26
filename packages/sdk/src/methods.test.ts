@@ -302,3 +302,89 @@ test('listHandles is empty when the deployment can list nothing', async () => {
   const { client } = routes({ '/api/v1/profiles?limit=100': directoryPage([], null, 'none') });
   assert.deepEqual(await client.listHandles(), []);
 });
+
+// ─── Contract invocations and versions (#970) ────────────────────────────────
+
+const invocation = (i: number) => ({
+  txHash: '0'.repeat(64),
+  ledger: 1000 + i,
+  createdAt: `2026-10-0${i}T00:00:00.000Z`,
+  sourceAccount: WALLET,
+  function: 'swap',
+  successful: true,
+});
+
+const wasmVersion = (hash: string, ledger: number) => ({
+  wasmHash: hash,
+  observedAt: '2026-10-01T00:00:00.000Z',
+  observedLedger: ledger,
+});
+
+test('listContractInvocations passes limit, cursor, mine and returns data and meta', async () => {
+  const meta = {
+    nextCursor: 'c2',
+    total: 10,
+    source: 'database' as const,
+    countedSince: '2026-01-01T00:00:00.000Z',
+    totalIsFloor: true,
+  };
+  const { client, urls } = routes({
+    [`/api/v1/profiles/alice/contracts/${CONTRACT}/invocations?limit=1&cursor=prev&mine=true`]: {
+      body: { data: [invocation(1)], meta },
+    },
+  });
+  const page = await client.listContractInvocations('alice', CONTRACT, {
+    limit: 1,
+    cursor: 'prev',
+    mine: true,
+  });
+  assert.deepEqual(page, { data: [invocation(1)], meta });
+  assert.deepEqual(urls, [
+    `/api/v1/profiles/alice/contracts/${CONTRACT}/invocations?limit=1&cursor=prev&mine=true`,
+  ]);
+});
+
+test('iterateContractInvocations follows nextCursor across pages', async () => {
+  const { client, urls } = routes({
+    [`/api/v1/profiles/alice/contracts/${CONTRACT}/invocations?limit=2&mine=true`]: {
+      body: {
+        data: [invocation(1), invocation(2)],
+        meta: { nextCursor: 'p2', total: 3, source: 'database', countedSince: null, totalIsFloor: false },
+      },
+    },
+    [`/api/v1/profiles/alice/contracts/${CONTRACT}/invocations?limit=2&cursor=p2&mine=true`]: {
+      body: {
+        data: [invocation(3)],
+        meta: { nextCursor: null, total: 3, source: 'database', countedSince: null, totalIsFloor: false },
+      },
+    },
+  });
+  const it = client.iterateContractInvocations('alice', CONTRACT, { pageSize: 2, mine: true });
+  const seen: number[] = [];
+  for await (const inv of it) seen.push(inv.ledger);
+  assert.deepEqual(seen, [1001, 1002, 1003]);
+  assert.equal(it.truncated, false);
+  assert.equal(urls.length, 2);
+});
+
+test('getContractVersions returns data and meta, or null on 404', async () => {
+  const meta = {
+    source: 'database' as const,
+    detectionStartsAt: '2026-10-01T00:00:00.000Z',
+    windowSentence: 'Upgraded 2 times.',
+    headerNote: 'Active version',
+  };
+  const data = [wasmVersion(HASH, 1001)];
+  const { client, urls } = routes({
+    [`/api/v1/profiles/alice/contracts/${CONTRACT}/versions`]: {
+      body: { data, meta },
+    },
+  });
+  assert.deepEqual(await client.getContractVersions('alice', CONTRACT), { data, meta });
+  assert.equal(await client.getContractVersions('bob', CONTRACT), null);
+  assert.deepEqual(urls, [
+    `/api/v1/profiles/alice/contracts/${CONTRACT}/versions`,
+    `/api/v1/profiles/bob/contracts/${CONTRACT}/versions`,
+  ]);
+});
+

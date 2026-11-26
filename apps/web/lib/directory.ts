@@ -311,12 +311,48 @@ export interface Directory {
    * event window" is true of `events` and false of `database`.
    */
   source: DirectorySource;
+  /** Total matching candidates before pagination. */
+  totalCandidates: number;
+  /** Number of candidates on this page that could not be confirmed on-chain. */
+  unconfirmedOnPage: number;
+  /** Current 1-based page. */
+  page: number;
+  /** Number of items per page. */
+  pageSize: number;
+  /** Total pages available. */
+  totalPages: number;
 }
 
 /** Options for `listDirectory`, plus the injectable durable store for tests. */
 export interface DirectoryReadOptions extends RegistryReadOptions {
   /** Override the database read. Tests inject a stub; production omits it. */
   store?: DirectoryStore;
+  /** Optional handle prefix to filter candidates by. */
+  q?: string;
+  /** 1-based page number to fetch. */
+  page?: number;
+  /** Number of candidates per page (defaults to 24). */
+  pageSize?: number;
+  /** Max concurrent resolve simulations (defaults to 8). */
+  concurrency?: number;
+}
+
+async function mapConcurrent<T, R>(
+  items: T[],
+  limit: number,
+  fn: (item: T) => Promise<R>,
+): Promise<R[]> {
+  if (items.length === 0) return [];
+  const results = new Array<R>(items.length);
+  let index = 0;
+  const workers = Array.from({ length: Math.min(limit, items.length) }, async () => {
+    while (index < items.length) {
+      const current = index++;
+      results[current] = await fn(items[current]!);
+    }
+  });
+  await Promise.all(workers);
+  return results;
 }
 
 /**
@@ -331,11 +367,24 @@ export interface DirectoryReadOptions extends RegistryReadOptions {
  * 500-ing.
  */
 export async function listDirectory(options: DirectoryReadOptions = {}): Promise<Directory> {
+  const pageSize = Math.max(1, options.pageSize ?? 24);
+  const requestedPage = Math.max(1, options.page ?? 1);
+
   // No registry, nothing to confirm against: a handle the database remembers
   // cannot be shown as bound without a `resolve`, so list nothing. Read per
   // call (not `chain.ts`'s module-level snapshot) so tests can flip it.
   if (!registryConfiguredNow()) {
-    return { registryConfigured: false, entries: [], boundTotal: null, source: 'none' };
+    return {
+      registryConfigured: false,
+      entries: [],
+      boundTotal: null,
+      source: 'none',
+      totalCandidates: 0,
+      unconfirmedOnPage: 0,
+      page: 1,
+      pageSize,
+      totalPages: 1,
+    };
   }
 
   // Durable first. The event stream is only consulted when there is no
@@ -348,26 +397,49 @@ export async function listDirectory(options: DirectoryReadOptions = {}): Promise
 
   const source: DirectorySource = indexed ? 'database' : discovered ? 'events' : 'none';
 
-  const candidates = [...new Set((discovered ?? []).map((e) => e.handle))].sort((a, b) =>
+  let candidates = [...new Set((discovered ?? []).map((e) => e.handle))].sort((a, b) =>
     a.localeCompare(b),
   );
 
-  // `boundCount` already answers null for an unconfigured or unreachable
-  // registry, so no separate configured-check is needed here — and unlike
-  // `chain.ts`'s module-level snapshot, it re-reads the environment per call.
-  const [confirmed, boundTotal] = await Promise.all([
-    Promise.all(
-      candidates.map(async (handle) => {
-        const wallet = await resolveHandle(handle, options);
-        return { handle, wallet: wallet ?? '', bound: wallet !== null };
-      }),
-    ),
-    boundCount(options),
-  ]);
+  if (typeof options.q === 'string' && options.q.length > 0) {
+    const q = options.q.trim().toLowerCase();
+    if (q.length === 0) {
+      // empty trimmed query matches all
+    } else if (/^[a-z0-9_-]{1,32}$/.test(q)) {
+      candidates = candidates.filter((h) => h.startsWith(q));
+    } else {
+      candidates = [];
+    }
+  }
+
+  const totalCandidates = candidates.length;
+  const totalPages = Math.max(1, Math.ceil(totalCandidates / pageSize));
+  const page = Math.min(requestedPage, totalPages);
+  const start = (page - 1) * pageSize;
+  const pageCandidates = candidates.slice(start, start + pageSize);
+
+  const concurrency = Math.max(1, options.concurrency ?? 8);
+
+  const boundTotal = await boundCount(options);
+  const confirmed = await mapConcurrent(pageCandidates, concurrency, async (handle) => {
+    const wallet = await resolveHandle(handle, options);
+    return { handle, wallet: wallet ?? '', bound: wallet !== null };
+  });
 
   // Bound handles lead; unconfirmed candidates follow. `candidates` is already sorted, and
   // a stable partition preserves that order inside each group.
   const entries = [...confirmed.filter((e) => e.bound), ...confirmed.filter((e) => !e.bound)];
+  const unconfirmedOnPage = confirmed.filter((e) => !e.bound).length;
 
-  return { registryConfigured: true, entries, boundTotal, source };
+  return {
+    registryConfigured: true,
+    entries,
+    boundTotal,
+    source,
+    totalCandidates,
+    unconfirmedOnPage,
+    page,
+    pageSize,
+    totalPages,
+  };
 }

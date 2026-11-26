@@ -24,11 +24,55 @@
  * randomness, and every output order is the spec's declaration order.
  */
 
+import { xdrText } from '@signet/spec';
 import type { ContractSpec, SpecFunction, SpecType, TypeRef } from '@signet/spec';
 import type { DiagramEdge, DiagramNode } from './index.ts';
 
 /** Default for `LayoutOptions.typeDepth`: direct argument and return types only. */
 export const DEFAULT_TYPE_DEPTH = 1;
+
+/**
+ * The types a URL's `types` parameter names, validated against the spec's
+ * defined type names, deduplicated and sorted. Any unknown type name is
+ * dropped and never echoed.
+ */
+export function canonicalExpandTypes(
+  raw: string | readonly string[] | null | undefined,
+  specOrTypes:
+    | ContractSpec
+    | readonly { name: string }[]
+    | ReadonlySet<string>
+    | Iterable<string>
+    | null
+    | undefined,
+): string[] {
+  const valid = new Set<string>();
+  if (specOrTypes) {
+    if ('types' in specOrTypes && Array.isArray((specOrTypes as any).types)) {
+      for (const t of (specOrTypes as any).types) if (t?.name) valid.add(t.name);
+    } else if (Array.isArray(specOrTypes)) {
+      for (const t of specOrTypes) {
+        if (typeof t === 'string') valid.add(t);
+        else if (t && typeof (t as any).name === 'string') valid.add((t as any).name);
+      }
+    } else if (specOrTypes instanceof Set) {
+      for (const t of specOrTypes) if (typeof t === 'string') valid.add(t);
+    } else if (typeof (specOrTypes as any)[Symbol.iterator] === 'function') {
+      for (const t of specOrTypes as any) {
+        if (typeof t === 'string') valid.add(t);
+        else if (t && typeof (t as any).name === 'string') valid.add((t as any).name);
+      }
+    }
+  }
+  const asked = typeof raw === 'string' ? raw.split(',') : (raw ?? []);
+  return [
+    ...new Set(
+      asked
+        .map((name) => name.trim())
+        .filter((name) => valid.has(name)),
+    ),
+  ].sort();
+}
 
 /** A stub's hidden-edge count, appended to its label: `RouteStep +3`. */
 function hiddenSuffix(hidden: number): string {
@@ -107,7 +151,9 @@ export interface TypeGraph {
 }
 
 /** The flattened views the type graph is built from. */
-type TypeGraphInput = Pick<ContractSpec, 'functions' | 'types' | 'errors'>;
+type TypeGraphInput = Pick<ContractSpec, 'functions' | 'types' | 'errors'> & {
+  readonly entries?: ContractSpec['entries'];
+};
 
 /** One named type reached through any depth of wrappers. */
 function namedIn(ref: TypeRef, visit: (name: string) => void): void {
@@ -212,6 +258,13 @@ export function buildTypeGraph(spec: TypeGraphInput, options: TypeGraphOptions =
   const byName = indexTypes(spec.types);
   const errorEnums = new Set<string>();
   for (const error of spec.errors) errorEnums.add(error.enumName);
+  if ('entries' in spec && Array.isArray((spec as any).entries)) {
+    for (const entry of (spec as any).entries) {
+      if (typeof entry.switch === 'function' && entry.switch().name === 'scSpecEntryUdtErrorEnumV0') {
+        errorEnums.add(xdrText(entry.udtErrorEnumV0().name()));
+      }
+    }
+  }
 
   const drafts = new Map<string, Draft>();
   const edges: TypeGraphEdge[] = [];
@@ -264,6 +317,15 @@ export function buildTypeGraph(spec: TypeGraphInput, options: TypeGraphOptions =
       if (child === undefined) continue;
       edges.push({ from, to: typeNodeId(child.name), label: edge.label, role: edge.role });
       frontier.push(child);
+    }
+  }
+
+  // When a spec has no functions at all (such as a types-only test spec),
+  // seed the frontier from the types themselves so their member edges are walked.
+  if (spec.functions.length === 0) {
+    for (const type of spec.types) {
+      const root = visit(type.name, 1);
+      if (root !== undefined) frontier.push(root);
     }
   }
 

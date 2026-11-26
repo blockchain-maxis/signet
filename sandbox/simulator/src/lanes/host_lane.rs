@@ -35,7 +35,7 @@ use soroban_simulation::NetworkConfig;
 use super::{
     AuthMode, BudgetOverride, ByteSnapshotSource, DiffRules, DiffSide, DiffWrite, LayoutReplay, EffectiveBudget, BUDGET_CEILING_FACTOR, DecodeTarget, DerivedKey, EntryChangeBytes, ErrorCase, ExternalRef,
     Installed, InstanceInfo, InterfaceVersion, InvocationFailure, KeyRequest, Lane, LaneError,
-    SimulateBytes, SimulateResultBytes, StorageOverride, StorageWrite, Durability, SwapResultBytes, TraceCall, TransactionResources, WasmInspection,
+    SimulateBytes, SimulateResultBytes, SnapshotBytes, SnapshotEntryBytes, StorageOverride, StorageWrite, Durability, SwapResultBytes, TraceCall, TransactionResources, WasmInspection,
 };
 
 
@@ -816,7 +816,7 @@ impl Lane for HostLane {
             .map(|(i, p)| spec.storage_pattern(p, &format!("rules.ignore_storage[{i}]")))
             .collect::<Result<Vec<_>, _>>()?;
         let rules = diff::Rules { events: &rules.ignore_events, storage: &patterns };
-        diff::values(a, b, &rules, &|key| self.describe_key(key), &|entry| self.describe_entry(entry))
+        diff::values(a, b, &rules, &|key| self.describe_key(key), &|entry| self.describe_entry(entry, None))
     }
 
     fn layout_check(
@@ -904,8 +904,12 @@ impl Lane for HostLane {
         }
     }
 
-    fn describe_entry(&self, entry_xdr: &[u8]) -> Result<Value, LaneError> {
+    fn describe_entry(&self, entry_xdr: &[u8], wasm: Option<&[u8]>) -> Result<Value, LaneError> {
         let entry: LedgerEntry = decode(entry_xdr, "LedgerEntry")?;
+        // The spec storage_override reads keys with; none without the code.
+        let spec = wasm
+            .and_then(|w| spec::Spec::from_wasm(w).ok())
+            .unwrap_or(spec::Spec { entries: Vec::new() });
         let plain = |val: &ScVal| spec::generic(val).unwrap_or_else(|_| json!(val.name()));
         Ok(match &entry.data {
             LedgerEntryData::ContractData(data) => match &data.val {
@@ -919,7 +923,11 @@ impl Lane for HostLane {
                     },
                     "storage": instance.storage.as_ref().map_or_else(Vec::new, |map| {
                         map.iter()
-                            .map(|item| json!({ "key": plain(&item.key), "value": plain(&item.val) }))
+                            .map(|item| json!({
+                                "key": plain(&item.key),
+                                "key_expression": spec.key_expression(&item.key),
+                                "value": plain(&item.val),
+                            }))
                             .collect()
                     }),
                 }),
@@ -928,6 +936,7 @@ impl Lane for HostLane {
                     "contract": data.contract.to_string(),
                     "durability": data.durability.name().to_lowercase(),
                     "key": plain(&data.key),
+                    "key_expression": spec.key_expression(&data.key),
                     "value": plain(val),
                 }),
             },
@@ -1234,6 +1243,100 @@ impl Lane for HostLane {
             })
             .collect())
     }
+
+    fn read_snapshot(&self, text: &str) -> Result<SnapshotBytes, String> {
+        let raw: RawLedgerSnapshot = serde_json::from_str(text).map_err(|e| e.to_string())?;
+        let network_id = raw.network_id.to_bytes()?;
+        let items: Vec<(LedgerKey, Box<LedgerEntry>, Option<u32>)> = match raw.ledger_entries {
+            RawLedgerEntries::V2(entries) => entries
+                .into_iter()
+                .map(|ext| (ext.entry.to_key(), ext.entry, ext.live_until))
+                .collect(),
+            RawLedgerEntries::V1(entries) => entries
+                .into_iter()
+                .map(|(k, (e, live_until))| (*k, e, live_until))
+                .collect(),
+        };
+        let mut entries = Vec::with_capacity(items.len());
+        for (key, entry, live_until) in items {
+            let encode = |what: &str, r: Result<Vec<u8>, _>| {
+                r.map_err(|e: soroban_env_host::xdr::Error| format!("{what}: {e}"))
+            };
+            entries.push(SnapshotEntryBytes {
+                key_xdr: encode("key", key.to_xdr(Limits::none()))?,
+                data_xdr: encode("entry", entry.data.to_xdr(Limits::none()))?,
+                ext_xdr: encode("entry ext", entry.ext.to_xdr(Limits::none()))?,
+                last_modified_ledger_seq: entry.last_modified_ledger_seq,
+                live_until,
+            });
+        }
+        Ok(SnapshotBytes {
+            protocol_version: raw.protocol_version,
+            sequence_number: raw.sequence_number,
+            timestamp: raw.timestamp,
+            network_id,
+            base_reserve: raw.base_reserve,
+            min_persistent_entry_ttl: raw.min_persistent_entry_ttl,
+            min_temp_entry_ttl: raw.min_temp_entry_ttl,
+            max_entry_ttl: raw.max_entry_ttl,
+            entries,
+        })
+    }
+}
+
+#[derive(serde::Deserialize)]
+struct RawLedgerSnapshot {
+    protocol_version: u32,
+    sequence_number: u32,
+    timestamp: u64,
+    network_id: RawNetworkId,
+    base_reserve: u32,
+    min_persistent_entry_ttl: u32,
+    min_temp_entry_ttl: u32,
+    max_entry_ttl: u32,
+    ledger_entries: RawLedgerEntries,
+}
+
+#[derive(serde::Deserialize)]
+#[serde(untagged)]
+enum RawNetworkId {
+    Hex(String),
+    Bytes([u8; 32]),
+}
+
+impl RawNetworkId {
+    fn to_bytes(&self) -> Result<[u8; 32], String> {
+        match self {
+            RawNetworkId::Bytes(b) => Ok(*b),
+            RawNetworkId::Hex(s) => {
+                let s = s.trim();
+                if s.len() != 64 {
+                    return Err(format!("network_id must be 64 hex characters, got {}", s.len()));
+                }
+                let mut out = [0u8; 32];
+                for (i, chunk) in s.as_bytes().as_chunks::<2>().0.iter().enumerate() {
+                    let hex_str = std::str::from_utf8(chunk).map_err(|e| e.to_string())?;
+                    out[i] = u8::from_str_radix(hex_str, 16).map_err(|e| e.to_string())?;
+                }
+                Ok(out)
+            }
+        }
+    }
+}
+
+type RawLedgerEntryV1 = (Box<LedgerKey>, (Box<LedgerEntry>, Option<u32>));
+
+#[derive(serde::Deserialize)]
+#[serde(untagged)]
+enum RawLedgerEntries {
+    V2(Vec<RawLedgerEntryExt>),
+    V1(Vec<RawLedgerEntryV1>),
+}
+
+#[derive(serde::Deserialize)]
+struct RawLedgerEntryExt {
+    entry: Box<LedgerEntry>,
+    live_until: Option<u32>,
 }
 
 // ─── XDR helpers (#532) ────────────────────────────────────────────────────────
@@ -2154,6 +2257,134 @@ mod tests {
         assert_eq!(LANE.inspect_wasm(&registry).unwrap().upgradeable, "none");
         let counter = read_fixture("sandbox/fixtures/wasm/counter_v1.wasm");
         assert_eq!(LANE.inspect_wasm(&counter).unwrap().upgradeable, "wasm");
+    }
+
+    /// The `key_expression` describe_entry gives a storage key reads back
+    /// through `storage_override`, with the same spec, to the same
+    /// `LedgerKey` (#933): a case the spec declares takes JSON arguments,
+    /// any other key typed ones.
+    #[test]
+    fn a_key_expression_round_trips_through_storage_override() {
+        let zoo = read_fixture("packages/spec/fixtures/types_zoo.wasm");
+        let registry = read_fixture("packages/spec/fixtures/identity-registry.wasm");
+        let contract = ScAddress::Contract(ContractId(Hash([9; 32])));
+        let contract_id = contract.to_string();
+        let wallet = "GAAZI4TCR3TY5OJHCTJC2A4QSY6CJWJH5IAJTGKIN2ER7LBNVKOCCWN7";
+        let vec = |items: Vec<ScVal>| ScVal::Vec(Some(items.try_into().unwrap()));
+        let string = |s: &str| ScVal::String(soroban_env_host::xdr::ScString(s.try_into().unwrap()));
+        let address = ScVal::Address(ScAddress::from_str(wallet).unwrap());
+        let data_entry = |key: ScVal| {
+            encode(
+                &LedgerEntry {
+                    last_modified_ledger_seq: 1,
+                    data: LedgerEntryData::ContractData(ContractDataEntry {
+                        ext: ExtensionPoint::V0,
+                        contract: contract.clone(),
+                        key,
+                        durability: ContractDataDurability::Persistent,
+                        val: ScVal::U32(1),
+                    }),
+                    ext: LedgerEntryExt::V0,
+                },
+                "LedgerEntry",
+            )
+            .unwrap()
+        };
+        let (handle, by_address, strkey_string) = (
+            format!("Handle(address:\"{wallet}\")"),
+            format!("address:\"{wallet}\""),
+            format!("string:\"{wallet}\""),
+        );
+        let cases: Vec<(Option<&[u8]>, ScVal, &str)> = vec![
+            // types_zoo declares `Shape { Point(u32, u32), Empty }`.
+            (Some(&zoo), vec(vec![sym("Point"), ScVal::U32(5), ScVal::U32(9)]), "Point(5, 9)"),
+            (Some(&zoo), vec(vec![sym("Empty")]), "Empty"),
+            (None, vec(vec![sym("Point"), ScVal::U32(5), ScVal::U32(9)]), "Point(u32:5, u32:9)"),
+            // The registry's DataKey is not in its spec.
+            (Some(&registry), vec(vec![sym("Owner"), string("alice")]), "Owner(\"alice\")"),
+            (Some(&registry), vec(vec![sym("Handle"), address.clone()]), &handle),
+            (Some(&registry), vec(vec![sym("Admin")]), "Admin"),
+            (Some(&registry), sym("Count"), "symbol:\"Count\""),
+            (Some(&registry), address.clone(), &by_address),
+            (Some(&registry), string(wallet), &strkey_string),
+            (Some(&registry), ScVal::U64(7), "u64:\"7\""),
+        ];
+        for (wasm, key, expected) in cases {
+            let entry = data_entry(key);
+            let described = LANE.describe_entry(&entry, wasm).unwrap();
+            let expr = described["key_expression"].as_str().unwrap_or_else(|| panic!("no expression: {described}"));
+            assert_eq!(expr, expected);
+            let write = LANE
+                .override_storage(&StorageOverride {
+                    wasm,
+                    contract_id: &contract_id,
+                    durability: Durability::Persistent,
+                    key: expr,
+                    value: Some("u32:1"),
+                    instance_entry: None,
+                })
+                .unwrap_or_else(|e| panic!("{expr}: {e}"));
+            assert_eq!(write.key_xdr, LANE.entry_key(&entry).unwrap(), "{expr}");
+        }
+        // A map key has no expression.
+        let map = ScVal::Map(Some(soroban_env_host::xdr::ScMap(Default::default())));
+        assert_eq!(LANE.describe_entry(&data_entry(map), None).unwrap()["key_expression"], Value::Null);
+    }
+
+    /// `entries_describe` reads each contract's keys with the spec of the
+    /// code its instance runs, when the batch holds both (#933).
+    #[test]
+    fn entries_describe_writes_keys_against_the_contracts_spec() {
+        let zoo = read_fixture("packages/spec/fixtures/types_zoo.wasm");
+        let contract = ScAddress::Contract(ContractId(Hash([9; 32])));
+        let point = ScVal::Vec(Some(
+            vec![sym("Point"), ScVal::U32(5), ScVal::U32(9)].try_into().unwrap(),
+        ));
+        let data = |d: LedgerEntryData| BASE64.encode(encode(&d, "LedgerEntryData").unwrap());
+        let instance = data(LedgerEntryData::ContractData(ContractDataEntry {
+            ext: ExtensionPoint::V0,
+            contract: contract.clone(),
+            key: ScVal::LedgerKeyContractInstance,
+            durability: ContractDataDurability::Persistent,
+            val: ScVal::ContractInstance(ScContractInstance {
+                executable: ContractExecutable::Wasm(Hash(Sha256::digest(&zoo).into())),
+                storage: Some(
+                    soroban_env_host::xdr::ScMap::sorted_from(vec![soroban_env_host::xdr::ScMapEntry {
+                        key: point.clone(),
+                        val: ScVal::U32(1),
+                    }])
+                    .unwrap(),
+                ),
+            }),
+        }));
+        let code = data(LedgerEntryData::ContractCode(ContractCodeEntry {
+            ext: ContractCodeEntryExt::V0,
+            hash: Hash(Sha256::digest(&zoo).into()),
+            code: zoo.clone().try_into().unwrap(),
+        }));
+        let stored = data(LedgerEntryData::ContractData(ContractDataEntry {
+            ext: ExtensionPoint::V0,
+            contract,
+            key: point,
+            durability: ContractDataDurability::Persistent,
+            val: ScVal::U32(1),
+        }));
+        let request = |entries: Vec<&String>| {
+            let entries: Vec<Value> = entries
+                .into_iter()
+                .map(|d| json!({ "data_xdr": d, "last_modified_ledger_seq": 1 }))
+                .collect();
+            match json!({ "entries": entries, "ledger_protocol": LEDGER_PROTOCOL }) {
+                Value::Object(map) => crate::xdr_helpers::entries_describe(&None, &json!("1"), &map),
+                _ => unreachable!(),
+            }
+        };
+        let reply = request(vec![&instance, &code, &stored]);
+        assert_eq!(reply["entries"][0]["storage"][0]["key_expression"], "Point(5, 9)");
+        assert_eq!(reply["entries"][2]["key_expression"], "Point(5, 9)");
+        // Without the code, the key is written without a spec.
+        let reply = request(vec![&stored]);
+        assert_eq!(reply["entries"][0]["key_expression"], "Point(u32:5, u32:9)");
     }
 
     #[test]

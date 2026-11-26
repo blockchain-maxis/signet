@@ -7,10 +7,16 @@ import {
   CONFIGURED_NETWORK,
   DEPLOY_TX_A,
   FIXTURE_HANDLE,
+  FIXTURE_OPERATION_COUNT,
   MALFORMED_ADDRESS,
   OTHER_HANDLE,
+  PROFILE_OPERATIONS_HANDLE,
+  REVOKED_CONTRACT,
+  REVOKED_HANDLE,
+  REVOKED_ONCHAIN_WALLET,
   WASM_HASH_1,
   WASM_HASH_2,
+  seedProfileOperationsFixture,
 } from './fixtures/contracts';
 import { CALLEE_SAC } from './fixtures/docs-failures';
 
@@ -338,6 +344,52 @@ test.describe('contract page @db', () => {
     // Turn on with #447: GET /profile/{handle}/contract/{address} redirects to
     // /p/{handle}/contract/{address}. Today `profile` is passed through by the
     // middleware and no such route exists.
+  });
+
+  test('the profile page reports the real operation total and pages to the end of the indexed record (#899)', async ({
+    page,
+  }) => {
+    // Its own profile, seeded here: the 130 rows belong to this test alone and
+    // never sit on the contract-page fixture's wallets (#460's tab checks read
+    // those), so they cannot change what any other tab renders.
+    await seedProfileOperationsFixture();
+    await page.goto(`/p/${PROFILE_OPERATIONS_HANDLE}`);
+
+    // The heading is the database's count, not the size of the first page, and
+    // the record is complete — nothing is described as partial.
+    await expect(page.getByText(`· ${FIXTURE_OPERATION_COUNT} indexed`)).toBeVisible();
+    await expect(page.getByText(/partial record/i)).toHaveCount(0);
+    await expect(page.getByText(/indexer read only/i)).toHaveCount(0);
+
+    const rows = page.getByTestId('operation-row');
+    await expect(rows).toHaveCount(25);
+    for (let shown = 25; shown < FIXTURE_OPERATION_COUNT; shown += 25) {
+      await page.getByRole('button', { name: /Load more/ }).click();
+      await expect(rows).toHaveCount(Math.min(FIXTURE_OPERATION_COUNT, shown + 25));
+    }
+
+    // Every indexed operation is listed and the button is gone.
+    await expect(rows).toHaveCount(FIXTURE_OPERATION_COUNT);
+    await expect(page.getByRole('button', { name: /Load more/ })).toHaveCount(0);
+  });
+
+  test('a released handle whose Profile row survives is a 404 on the profile and its contract (#895)', async ({
+    request,
+  }) => {
+    // What the attestation worker leaves after `released`/`revoked`: it deletes
+    // the on-chain primary wallet row and nothing else. The Profile row, the
+    // CLI-linked deploy wallet and that wallet's contract all stay.
+    const { prisma } = await import('@signet/db');
+    try {
+      await prisma.wallet.deleteMany({ where: { pubkey: REVOKED_ONCHAIN_WALLET } });
+    } finally {
+      await prisma.$disconnect();
+    }
+
+    const profile = await request.get(`/p/${REVOKED_HANDLE}`);
+    expect(profile.status()).toBe(404);
+    const contract = await request.get(base(REVOKED_HANDLE, REVOKED_CONTRACT));
+    expect(contract.status()).toBe(404);
   });
 
   test('the profile page lists both attributed contracts, linked, and not the other-network one', async ({

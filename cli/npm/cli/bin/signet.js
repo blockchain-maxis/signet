@@ -10,7 +10,8 @@
  * binary's; this file only finds it.
  */
 
-const { execFileSync } = require('node:child_process');
+const { spawnSync } = require('node:child_process');
+const os = require('node:os');
 
 /** node's platform-arch pair -> the npm package that ships that binary. */
 const PLATFORM_PACKAGES = {
@@ -56,10 +57,23 @@ const binaryPath = resolveBinary();
 // builds and non-standard installs (docs/CLI_RUST_BRIDGE.md §5), and setting
 // it here would hide a broken package behind a working override.
 
-try {
-  execFileSync(binaryPath, process.argv.slice(2), { stdio: 'inherit' });
-} catch (err) {
-  // execFileSync throws even for a clean non-zero exit from the child; forward
-  // its real exit code so `npx @signet/cli link ...; echo $?` still works in CI.
-  process.exit(typeof err.status === 'number' ? err.status : 1);
+const result = spawnSync(binaryPath, process.argv.slice(2), { stdio: 'inherit' });
+
+if (result.error) {
+  const code = result.error.code || 'UNKNOWN';
+  const msg = result.error.message || String(result.error);
+  console.error(`signet: could not run ${binaryPath}: ${code} ${msg}`);
+  console.error(
+    'Try reinstalling (@signet/cli with npm install --force), or file an issue if this persists.',
+  );
+  process.exit(1);
 }
+
+if (result.signal) {
+  if (process.platform === 'win32' || !os.constants?.signals?.[result.signal]) {
+    process.exit(1);
+  }
+  process.exit(128 + os.constants.signals[result.signal]);
+}
+
+process.exit(typeof result.status === 'number' ? result.status : 1);

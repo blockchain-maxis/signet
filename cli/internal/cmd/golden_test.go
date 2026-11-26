@@ -38,6 +38,8 @@ var volatile = []struct {
 	{regexp.MustCompile(`callback_state=[A-Za-z0-9_\-]+`), "callback_state=<state>"},
 	// RFC 3339 timestamps, as an expiry or a recorded time.
 	{regexp.MustCompile(`\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?(Z|[+-]\d{2}:\d{2})`), "<timestamp>"},
+	// Isolated per-test config file paths differ in temp dir and slash style across OSes.
+	{regexp.MustCompile(`<tmp>(?:[\\/]|\\\\)[^"\n]*config\.json`), "<config-path>"},
 }
 
 // normalizeGolden makes output comparable across runs and operating systems:
@@ -63,8 +65,15 @@ func normalizeGolden(s string) string {
 func tempDirs() []string {
 	base := filepath.Clean(os.TempDir())
 	dirs := []string{base, filepath.ToSlash(base)}
+	if escaped := strings.ReplaceAll(base, `\`, `\\`); escaped != base {
+		dirs = append([]string{escaped}, dirs...)
+	}
 	if resolved, err := filepath.EvalSymlinks(base); err == nil && resolved != base {
-		dirs = append([]string{resolved, filepath.ToSlash(resolved)}, dirs...)
+		extra := []string{resolved, filepath.ToSlash(resolved)}
+		if escaped := strings.ReplaceAll(resolved, `\`, `\\`); escaped != resolved {
+			extra = append([]string{escaped}, extra...)
+		}
+		dirs = append(extra, dirs...)
 	}
 	return dirs
 }

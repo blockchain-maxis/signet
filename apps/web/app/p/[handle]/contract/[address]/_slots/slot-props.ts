@@ -29,4 +29,6 @@ export interface ContractSlotProps {
   range?: string;
   /** Function order (?order=use ranks each group by observed use, #518). */
   order?: string;
+  /** Types drawn expanded past depth 1 (?types=, #950), raw. */
+  types?: string;
 }
