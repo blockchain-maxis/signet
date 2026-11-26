@@ -4,6 +4,7 @@ import { nativeToScVal, type Transaction } from '@stellar/stellar-sdk';
 import type { SimulatingServer } from './server/registry-read.ts';
 import {
   CHECK_TIMEOUT_MS,
+  checkIndexer,
   checkRegistry,
   collectHealth,
   overallStatus,
@@ -231,4 +232,90 @@ test('the report includes pairing, derived from the checks beside it', async () 
   const withoutDb = await collectHealth({ db: probe('down'), registry: probe('up') });
   assert.equal(withoutDb.checks.pairing, 'down');
   assert.equal(withoutDb.status, 'degraded');
+});
+
+// ── indexer heartbeat ────────────────────────────────────────────────────
+
+test('checkIndexer returns skipped when no database is configured', async () => {
+  const result = await checkIndexer({ databaseUrl: '' });
+  assert.deepEqual(result, { status: 'skipped', lastTickAt: null, lagSeconds: null });
+});
+
+test('checkIndexer returns down when heartbeat row is missing', async () => {
+  const fakePrisma = {
+    indexerHeartbeat: {
+      async findMany() {
+        return [];
+      },
+    },
+  };
+  const result = await checkIndexer({
+    databaseUrl: 'postgresql://test@localhost/db',
+    prisma: fakePrisma,
+  });
+  assert.deepEqual(result, { status: 'down', lastTickAt: null, lagSeconds: null });
+});
+
+test('checkIndexer returns up for a fresh heartbeat', async () => {
+  const now = Date.now();
+  const lastSuccessAt = new Date(now - 60_000); // 1 minute old
+  const fakePrisma = {
+    indexerHeartbeat: {
+      async findMany() {
+        return [
+          {
+            worker: 'tick',
+            lastSuccessAt,
+            lastFailureAt: null,
+            lastError: null,
+          },
+        ];
+      },
+    },
+  };
+  const result = await checkIndexer({
+    databaseUrl: 'postgresql://test@localhost/db',
+    prisma: fakePrisma,
+    now: () => now,
+    staleAfterMs: 600_000,
+  });
+  assert.equal(result.status, 'up');
+  assert.equal(result.lastTickAt, lastSuccessAt.toISOString());
+  assert.equal(result.lagSeconds, 60);
+});
+
+test('checkIndexer returns down and degrades health for a 20 minutes old heartbeat', async () => {
+  const now = Date.now();
+  const lastSuccessAt = new Date(now - 20 * 60_000); // 20 minutes old
+  const fakePrisma = {
+    indexerHeartbeat: {
+      async findMany() {
+        return [
+          {
+            worker: 'tick',
+            lastSuccessAt,
+            lastFailureAt: null,
+            lastError: null,
+          },
+        ];
+      },
+    },
+  };
+  const result = await checkIndexer({
+    databaseUrl: 'postgresql://test@localhost/db',
+    prisma: fakePrisma,
+    now: () => now,
+    staleAfterMs: 600_000, // 10 minutes threshold
+  });
+  assert.equal(result.status, 'down');
+  assert.equal(result.lastTickAt, lastSuccessAt.toISOString());
+  assert.equal(result.lagSeconds, 1200);
+
+  const report = await collectHealth({
+    db: probe('up'),
+    registry: probe('up'),
+    indexer: async () => result,
+  });
+  assert.equal(report.status, 'degraded');
+  assert.equal(report.indexer?.status, 'down');
 });

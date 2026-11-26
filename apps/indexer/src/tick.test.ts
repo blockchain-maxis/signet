@@ -6,6 +6,8 @@ import {
   PENDING_CHECK_INTERVAL_MS,
   runTick,
   runWorker,
+  sanitizeError,
+  type HeartbeatStore,
   type TickWorkers,
 } from './tick.ts';
 
@@ -56,12 +58,22 @@ function fakeWorkers(): { workers: TickWorkers; ran: string[]; cursorSaves: numb
     };
   const workers: TickWorkers = {
     attestation: ok('attestation', { eventsDecoded: 2 }),
-    deployment: ok('deployment', { highestLedger: 5_000, walletsScanned: 3, contractsFound: 1, walletsStopped: 0 }),
+    deployment: ok('deployment', {
+      highestLedger: 5_000,
+      walletsScanned: 3,
+      contractsFound: 1,
+      walletsStopped: 0,
+    }),
     activity: ok('activity', { snapshotsWritten: 4 }),
     operations: ok('operations', { opsUpserted: 7 }),
     invocations: ok('invocations', { invocationsUpserted: 6 }),
     executableRefresh: ok('executable-refresh', { wasmChanged: 5 }),
-    prune: ok('prune', { opsPruned: 9, snapshotsPruned: 8, invocationsPruned: 10, pairingsPruned: 11 }),
+    prune: ok('prune', {
+      opsPruned: 9,
+      snapshotsPruned: 8,
+      invocationsPruned: 10,
+      pairingsPruned: 11,
+    }),
     saveCursor: async (highestLedger) => {
       ran.push('cursor');
       cursorSaves.push(highestLedger);
@@ -241,7 +253,12 @@ test('a failed save of the main cursor is reported without losing the tick', asy
 
 test('the main cursor is not saved when the deployment worker saw no ledger', async () => {
   const { workers, ran, cursorSaves } = fakeWorkers();
-  workers.deployment = async () => ({ highestLedger: 0, walletsScanned: 3, contractsFound: 0, walletsStopped: 0 });
+  workers.deployment = async () => ({
+    highestLedger: 0,
+    walletsScanned: 3,
+    contractsFound: 0,
+    walletsStopped: 0,
+  });
 
   const { result: summary } = await captureLogs(() => runTick(workers));
 
@@ -466,4 +483,132 @@ test('idleUntilNextTick does not sleep or query at all when already shutting dow
 
   assert.equal(clock.sleeps(), 0);
   assert.equal(checks, 0);
+});
+
+// ── heartbeat tracking ───────────────────────────────────────────────────
+
+test('sanitizeError strips URLs and truncates to 200 characters', () => {
+  const urlErr = new Error('failed fetching https://horizon-testnet.stellar.org/accounts/GABC 500');
+  const sanitized = sanitizeError(urlErr);
+  assert.ok(!sanitized.includes('https://'), 'must not contain URLs');
+  assert.ok(sanitized.includes('failed fetching'), 'must preserve error description');
+  assert.ok(sanitized.includes('500'), 'must preserve status code');
+
+  // Database URLs carry credentials: every scheme is stripped, not only http(s).
+  const dbErr = new Error(
+    "Can't reach database server at postgresql://signet:s3cret@db.internal:5432/signet (P1001)",
+  );
+  const dbSanitized = sanitizeError(dbErr);
+  assert.ok(!dbSanitized.includes('s3cret'), 'must not leak credentials');
+  assert.ok(!dbSanitized.includes('postgresql://'), 'must not contain the database URL');
+  assert.ok(dbSanitized.includes('P1001'), 'must preserve the error code');
+  assert.ok(!sanitizeError('redis://:pw@cache:6379 refused').includes('pw@'));
+
+  const longErr = new Error('a'.repeat(300));
+  assert.equal(sanitizeError(longErr).length, 200);
+});
+
+test('a failing worker writes lastFailureAt and leaves lastSuccessAt unchanged', async () => {
+  const previousSuccessAt = new Date('2026-11-22T10:00:00.000Z');
+  const heartbeats: Record<
+    string,
+    { lastSuccessAt?: Date; lastFailureAt?: Date; lastError?: string | null }
+  > = {
+    deployment: {
+      lastSuccessAt: previousSuccessAt,
+      lastFailureAt: undefined,
+      lastError: undefined,
+    },
+  };
+
+  const fakeHeartbeatStore: HeartbeatStore = {
+    async upsert({ where, update }) {
+      const current = heartbeats[where.worker] ?? {};
+      heartbeats[where.worker] = {
+        ...current,
+        ...(update.lastSuccessAt !== undefined ? { lastSuccessAt: update.lastSuccessAt } : {}),
+        ...(update.lastFailureAt !== undefined ? { lastFailureAt: update.lastFailureAt } : {}),
+        ...(update.lastError !== undefined ? { lastError: update.lastError } : {}),
+      };
+      return heartbeats[where.worker];
+    },
+  };
+
+  await captureLogs(() =>
+    runWorker(
+      'deployment',
+      async () => {
+        throw new Error('rpc connection refused to https://soroban-rpc.testnet.stellar.org');
+      },
+      { highestLedger: 0, walletsScanned: 0, contractsFound: 0 },
+      fakeHeartbeatStore,
+    ),
+  );
+
+  const entry = heartbeats.deployment;
+  assert.ok(entry, 'heartbeat entry must exist');
+  assert.equal(entry.lastSuccessAt, previousSuccessAt, 'lastSuccessAt must remain unchanged');
+  assert.ok(entry.lastFailureAt instanceof Date, 'lastFailureAt must be written');
+  assert.ok(!entry.lastError?.includes('https://'), 'lastError must not contain URLs');
+  assert.ok(
+    entry.lastError?.includes('rpc connection refused to'),
+    'lastError must contain description',
+  );
+});
+
+test('a successful worker writes lastSuccessAt and leaves lastFailureAt unchanged', async () => {
+  const previousFailureAt = new Date('2026-11-22T09:00:00.000Z');
+  const heartbeats: Record<
+    string,
+    { lastSuccessAt?: Date; lastFailureAt?: Date; lastError?: string | null }
+  > = {
+    activity: {
+      lastSuccessAt: undefined,
+      lastFailureAt: previousFailureAt,
+      lastError: 'some error',
+    },
+  };
+
+  const fakeHeartbeatStore: HeartbeatStore = {
+    async upsert({ where, update }) {
+      const current = heartbeats[where.worker] ?? {};
+      heartbeats[where.worker] = {
+        ...current,
+        ...(update.lastSuccessAt !== undefined ? { lastSuccessAt: update.lastSuccessAt } : {}),
+        ...(update.lastFailureAt !== undefined ? { lastFailureAt: update.lastFailureAt } : {}),
+        ...(update.lastError !== undefined ? { lastError: update.lastError } : {}),
+      };
+      return heartbeats[where.worker];
+    },
+  };
+
+  await runWorker(
+    'activity',
+    async () => ({ snapshotsWritten: 3 }),
+    { snapshotsWritten: 0 },
+    fakeHeartbeatStore,
+  );
+
+  const entry = heartbeats.activity;
+  assert.ok(entry, 'the activity heartbeat must exist');
+  assert.ok(entry.lastSuccessAt instanceof Date, 'lastSuccessAt must be written');
+  assert.equal(entry.lastFailureAt, previousFailureAt, 'lastFailureAt must remain unchanged');
+  assert.equal(entry.lastError, 'some error', 'lastError must remain unchanged');
+});
+
+test('runTick records tick success heartbeat on completion', async () => {
+  const { workers } = fakeWorkers();
+  const recorded: string[] = [];
+  const fakeHeartbeatStore: HeartbeatStore = {
+    async upsert({ where }) {
+      recorded.push(where.worker);
+      return {};
+    },
+  };
+
+  workers.heartbeat = fakeHeartbeatStore;
+  await captureLogs(() => runTick(workers));
+
+  assert.ok(recorded.includes('tick'), 'tick heartbeat must be recorded');
+  assert.ok(recorded.includes('attestation'), 'worker heartbeats must be recorded');
 });

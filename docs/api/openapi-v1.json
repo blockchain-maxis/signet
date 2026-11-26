@@ -1471,6 +1471,41 @@
                           ],
                           "type": "object"
                         },
+                        "indexer": {
+                          "additionalProperties": false,
+                          "description": "Freshness of the background indexer loop. Skipped when the deployment runs without a database.",
+                          "properties": {
+                            "lagSeconds": {
+                              "description": "Seconds since the indexer's last completed tick, or null if never recorded.",
+                              "type": [
+                                "integer",
+                                "null"
+                              ]
+                            },
+                            "lastTickAt": {
+                              "description": "ISO-8601 timestamp of the indexer's last completed tick, or null if never recorded.",
+                              "type": [
+                                "string",
+                                "null"
+                              ]
+                            },
+                            "status": {
+                              "description": "Verdict for the indexer loop.",
+                              "enum": [
+                                "up",
+                                "down",
+                                "skipped"
+                              ],
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "status",
+                            "lastTickAt",
+                            "lagSeconds"
+                          ],
+                          "type": "object"
+                        },
                         "network": {
                           "description": "The Stellar network this deployment is configured for.",
                           "type": "string"

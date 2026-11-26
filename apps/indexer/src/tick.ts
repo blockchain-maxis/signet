@@ -28,6 +28,58 @@ export interface TickWorkers {
   >;
   /** Saves the `main` cursor. Called only when the deployment worker saw a ledger. */
   saveCursor: (highestLedger: number) => Promise<void>;
+  /** Database store for worker and tick heartbeats. */
+  heartbeat?: HeartbeatStore;
+}
+
+export interface HeartbeatStore {
+  upsert: (args: {
+    where: { worker: string };
+    update: { lastSuccessAt?: Date; lastFailureAt?: Date; lastError?: string | null };
+    create: { worker: string; lastSuccessAt?: Date; lastFailureAt?: Date; lastError?: string | null };
+  }) => Promise<unknown>;
+}
+
+/**
+ * Strips URLs and truncates error string to 200 characters per docs/API_V1.md:103-104.
+ */
+export function sanitizeError(err: unknown): string {
+  const msg = err instanceof Error ? err.message : String(err);
+  const withoutUrls = msg.replace(/[a-zA-Z][a-zA-Z0-9+.-]*:\/\/[^\s"'<>]+/g, '').trim();
+  return withoutUrls.slice(0, 200);
+}
+
+export async function recordHeartbeatSuccess(
+  store: HeartbeatStore,
+  worker: string,
+  now: Date = new Date(),
+): Promise<void> {
+  try {
+    await store.upsert({
+      where: { worker },
+      update: { lastSuccessAt: now },
+      create: { worker, lastSuccessAt: now },
+    });
+  } catch (err) {
+    logger.warn({ worker, error: String(err) }, 'heartbeat.writeFailed');
+  }
+}
+
+export async function recordHeartbeatFailure(
+  store: HeartbeatStore,
+  worker: string,
+  err: unknown,
+  now: Date = new Date(),
+): Promise<void> {
+  try {
+    await store.upsert({
+      where: { worker },
+      update: { lastFailureAt: now, lastError: sanitizeError(err) },
+      create: { worker, lastFailureAt: now, lastError: sanitizeError(err) },
+    });
+  } catch (e) {
+    logger.warn({ worker, error: String(e) }, 'heartbeat.writeFailed');
+  }
 }
 
 /** The fields of the `tick.summary` log line. */
@@ -61,11 +113,19 @@ export async function runWorker<T>(
   name: string,
   fn: () => Promise<T>,
   zero: T,
+  heartbeat?: HeartbeatStore,
 ): Promise<{ result: T; failed: boolean }> {
   try {
-    return { result: await fn(), failed: false };
+    const result = await fn();
+    if (heartbeat) {
+      await recordHeartbeatSuccess(heartbeat, name);
+    }
+    return { result, failed: false };
   } catch (err) {
     logger.error({ worker: name, error: String(err) }, 'worker.failed');
+    if (heartbeat) {
+      await recordHeartbeatFailure(heartbeat, name, err);
+    }
     return { result: zero, failed: true };
   }
 }
@@ -84,7 +144,7 @@ export async function runTick(workers: TickWorkers): Promise<TickSummary> {
 
   const failedWorkers: string[] = [];
   const run = async <T>(name: string, fn: () => Promise<T>, zero: T): Promise<T> => {
-    const { result, failed } = await runWorker(name, fn, zero);
+    const { result, failed } = await runWorker(name, fn, zero, workers.heartbeat);
     if (failed) failedWorkers.push(name);
     return result;
   };
@@ -149,6 +209,11 @@ export async function runTick(workers: TickWorkers): Promise<TickSummary> {
     durationMs: Date.now() - start,
   };
   logger.info({ ...summary }, 'tick.summary');
+
+  if (workers.heartbeat) {
+    await recordHeartbeatSuccess(workers.heartbeat, 'tick');
+  }
+
   return summary;
 }
 

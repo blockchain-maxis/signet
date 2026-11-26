@@ -859,6 +859,18 @@ export interface operations {
                                 /** @enum {string} */
                                 registry: "up" | "down" | "skipped";
                             };
+                            /** @description Freshness of the background indexer loop. Skipped when the deployment runs without a database. */
+                            indexer?: {
+                                /** @description Seconds since the indexer's last completed tick, or null if never recorded. */
+                                lagSeconds: number | null;
+                                /** @description ISO-8601 timestamp of the indexer's last completed tick, or null if never recorded. */
+                                lastTickAt: string | null;
+                                /**
+                                 * @description Verdict for the indexer loop.
+                                 * @enum {string}
+                                 */
+                                status: "up" | "down" | "skipped";
+                            };
                             /** @description The Stellar network this deployment is configured for. */
                             network: string;
                             networkPassphrase: string;

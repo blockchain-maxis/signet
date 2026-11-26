@@ -12,7 +12,7 @@ import { runOperationsWorker } from './workers/operations.js';
 import { runInvocationsWorker } from './workers/invocations.js';
 import { runPruningWorker } from './workers/prune.js';
 import { runExecutableRefreshWorker } from './workers/executable-refresh.js';
-import { idleUntilNextTick, runTick } from './tick.js';
+import { idleUntilNextTick, recordHeartbeatFailure, runTick } from './tick.js';
 
 let shuttingDown = false;
 let shuttingDownPrisma = false;
@@ -87,6 +87,7 @@ async function tick(
         create: { id: 'main', lastLedger: highestLedger },
       });
     },
+    heartbeat: prisma.indexerHeartbeat,
   });
 }
 
@@ -134,6 +135,7 @@ async function main(): Promise<void> {
         await markAlive();
       } catch (err) {
         logger.error({ error: String(err) }, 'tick.error');
+        await recordHeartbeatFailure(prisma.indexerHeartbeat, 'tick', err);
       }
 
       if (shuttingDown) break;
