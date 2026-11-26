@@ -35,6 +35,7 @@ export interface TickSummary {
   walletsScanned: number;
   eventsDecoded: number;
   contractsFound: number;
+  walletsStopped: number;
   opsUpserted: number;
   invocationsUpserted: number;
   snapshotsWritten: number;
@@ -94,10 +95,10 @@ export async function runTick(workers: TickWorkers): Promise<TickSummary> {
   // Deployments: find new contract creations for all tracked wallets. Wallets
   // are (re-)read fresh from the store on every call, so one linked mid-life
   // — after the indexer started — is scanned starting the very next tick.
-  const { highestLedger, walletsScanned, contractsFound } = await run(
+  const { highestLedger, walletsScanned, contractsFound, walletsStopped } = await run(
     'deployment',
     workers.deployment,
-    { highestLedger: 0, walletsScanned: 0, contractsFound: 0 },
+    { highestLedger: 0, walletsScanned: 0, contractsFound: 0, walletsStopped: 0 },
   );
 
   // Activity: refresh snapshots for tracked contracts. Same freshness
@@ -135,6 +136,7 @@ export async function runTick(workers: TickWorkers): Promise<TickSummary> {
     walletsScanned,
     eventsDecoded,
     contractsFound,
+    walletsStopped,
     opsUpserted,
     invocationsUpserted,
     snapshotsWritten,

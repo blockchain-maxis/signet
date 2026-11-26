@@ -2,7 +2,7 @@ import type { Horizon } from '@stellar/stellar-sdk';
 import { isCreateContractFunction } from '@signet/types';
 import { logger } from '../logger.js';
 import { extractContractAddress, sleep } from '../stellar.js';
-import { withRetry } from '../retry.js';
+import { isTransientError, withRetry } from '../retry.js';
 import type { IndexerConfig } from '../config.js';
 import type { ContractExecutableInfo, ReadExecutable } from '../contract-executable.js';
 
@@ -25,7 +25,10 @@ export interface DeploymentResult {
   highestLedger: number;
   walletsScanned: number;
   contractsFound: number;
+  walletsStopped: number;
 }
+
+export type OperationOutcome = 'done' | 'retryLater';
 
 /** A tracked wallet, as far as this worker is concerned. */
 export interface DeploymentWallet {
@@ -165,24 +168,24 @@ async function handleOperation(
   store: DeploymentStore,
   state: ScanState,
   readExecutable: ReadExecutable | undefined,
-): Promise<void> {
+): Promise<OperationOutcome> {
   if (op.paging_token) {
     const ledgerSeq = Math.floor(Number(op.paging_token) / 4294967296);
     if (ledgerSeq > state.highestLedger) state.highestLedger = ledgerSeq;
   }
 
-  if (op.type !== 'invoke_host_function') return;
+  if (op.type !== 'invoke_host_function') return 'done';
 
   // The SDK's operation type narrowing — use any to access function field
   // which is present on InvokeHostFunction operations from Horizon
   const opRecord = op as unknown as Record<string, unknown>;
-  if (!isCreateContractFunction(opRecord['function'] as string | undefined)) return;
+  if (!isCreateContractFunction(opRecord['function'] as string | undefined)) return 'done';
 
   const txHash = op.transaction_hash;
-  if (!txHash) return;
+  if (!txHash) return 'done';
 
   const existing = await store.contract.findFirst({ where: { deployTxHash: txHash } });
-  if (existing) return;
+  if (existing) return 'done';
 
   await sleep(RATE_LIMIT_DELAY_MS);
 
@@ -214,7 +217,7 @@ async function handleOperation(
           { pubkey: wallet.pubkey, contract: contractAddress },
           'deployments.alreadyRecorded',
         );
-        return;
+        return 'done';
       }
 
       // For a freshly-deployed contract the instance is still live, so this is
@@ -286,11 +289,20 @@ async function handleOperation(
         state.walletUndecodedMetaVersions.add(extraction.metaVersion);
       }
     }
+    return 'done';
   } catch (txErr) {
+    if (isTransientError(txErr)) {
+      logger.warn(
+        { pubkey: wallet.pubkey, txHash, error: String(txErr) },
+        'deployments.txFetchFailed',
+      );
+      return 'retryLater';
+    }
     logger.warn(
       { pubkey: wallet.pubkey, txHash, error: String(txErr) },
       'deployments.txFetchFailed',
     );
+    return 'done';
   }
 }
 
@@ -318,10 +330,9 @@ async function quickCheck(
   store: DeploymentStore,
   state: ScanState,
   readExecutable: ReadExecutable | undefined,
-): Promise<void> {
+): Promise<boolean> {
   if (!wallet.deploymentWatermark) {
-    await seedWatermark(wallet, horizon, config, store, state, readExecutable);
-    return;
+    return await seedWatermark(wallet, horizon, config, store, state, readExecutable);
   }
 
   let page = (await withRetry(
@@ -339,10 +350,23 @@ async function quickCheck(
 
   let watermark = wallet.deploymentWatermark;
   let pagesRead = 0;
+  let stopped = false;
 
   while (true) {
     for (const op of page.records) {
-      await handleOperation(op, wallet, horizon, config, store, state, readExecutable);
+      const outcome = await handleOperation(
+        op,
+        wallet,
+        horizon,
+        config,
+        store,
+        state,
+        readExecutable,
+      );
+      if (outcome === 'retryLater') {
+        stopped = true;
+        break;
+      }
       if (op.paging_token) watermark = op.paging_token;
     }
     pagesRead++;
@@ -358,6 +382,7 @@ async function quickCheck(
       });
     }
 
+    if (stopped) return true;
     if (page.records.length === 0) break;
     if (pagesRead >= MAX_PAGES_PER_TICK) {
       logger.debug({ pubkey: wallet.pubkey, pagesRead }, 'deployments.catchUpPaused');
@@ -371,6 +396,7 @@ async function quickCheck(
     }
     await sleep(RATE_LIMIT_DELAY_MS);
   }
+  return false;
 }
 
 /**
@@ -386,7 +412,7 @@ async function seedWatermark(
   store: DeploymentStore,
   state: ScanState,
   readExecutable: ReadExecutable | undefined,
-): Promise<void> {
+): Promise<boolean> {
   const ops = await withRetry(
     () =>
       horizon.operations().forAccount(wallet.pubkey).order('desc').limit(QUICK_CHECK_LIMIT).call(),
@@ -398,7 +424,21 @@ async function seedWatermark(
   const newest = ops.records[0]?.paging_token ?? null;
 
   for (const op of ops.records) {
-    await handleOperation(op, wallet, horizon, config, store, state, readExecutable);
+    const outcome = await handleOperation(
+      op,
+      wallet,
+      horizon,
+      config,
+      store,
+      state,
+      readExecutable,
+    );
+    // The page is newest-first, so every operation handled so far is newer
+    // than the one that failed. Saving any of them as the watermark would make
+    // the next forward check start past the failed deploy and lose it. Save
+    // nothing: the next tick re-seeds, and `deployTxHash` dedups what was
+    // already recorded.
+    if (outcome === 'retryLater') return true;
   }
 
   if (newest) {
@@ -407,6 +447,7 @@ async function seedWatermark(
       data: { deploymentWatermark: newest },
     });
   }
+  return false;
 }
 
 /**
@@ -424,7 +465,7 @@ async function backfill(
   store: DeploymentStore,
   state: ScanState,
   readExecutable: ReadExecutable | undefined,
-): Promise<void> {
+): Promise<boolean> {
   let page = (await withRetry(
     () => {
       const query = horizon
@@ -441,10 +482,23 @@ async function backfill(
   let cursor = wallet.deploymentCursor;
   let pagesRead = 0;
   let reachedEnd = false;
+  let stopped = false;
 
   while (true) {
     for (const op of page.records) {
-      await handleOperation(op, wallet, horizon, config, store, state, readExecutable);
+      const outcome = await handleOperation(
+        op,
+        wallet,
+        horizon,
+        config,
+        store,
+        state,
+        readExecutable,
+      );
+      if (outcome === 'retryLater') {
+        stopped = true;
+        break;
+      }
       if (op.paging_token) cursor = op.paging_token;
     }
     pagesRead++;
@@ -459,6 +513,7 @@ async function backfill(
       });
     }
 
+    if (stopped) return true;
     if (page.records.length === 0) {
       reachedEnd = true;
       break;
@@ -479,12 +534,13 @@ async function backfill(
 
   // The cursor is already saved by the per-page write above; the only thing
   // left to record is that the walk reached the end.
-  if (reachedEnd) {
+  if (reachedEnd && !stopped) {
     await store.wallet.update({
       where: { id: wallet.id },
       data: { deploymentCursor: cursor, deploymentBackfilledAt: new Date() },
     });
   }
+  return false;
 }
 
 export async function runDeploymentWorker(
@@ -500,6 +556,7 @@ export async function runDeploymentWorker(
     walletUndecodedMetaCount: 0,
     walletUndecodedMetaVersions: new Set(),
   };
+  let walletsStopped = 0;
 
   for (const wallet of wallets) {
     logger.debug({ pubkey: wallet.pubkey }, 'deployments.scanning');
@@ -507,12 +564,14 @@ export async function runDeploymentWorker(
     state.walletUndecodedMetaCount = 0;
     state.walletUndecodedMetaVersions = new Set();
 
+    let stopped = false;
     try {
       if (wallet.deploymentBackfilledAt) {
-        await quickCheck(wallet, horizon, config, store, state, readExecutable);
+        stopped = await quickCheck(wallet, horizon, config, store, state, readExecutable);
       } else {
-        await backfill(wallet, horizon, config, store, state, readExecutable);
+        stopped = await backfill(wallet, horizon, config, store, state, readExecutable);
       }
+      if (stopped) walletsStopped++;
     } catch (err) {
       logger.error({ pubkey: wallet.pubkey, error: String(err) }, 'deployments.scanFailed');
     }
@@ -549,5 +608,6 @@ export async function runDeploymentWorker(
     highestLedger: state.highestLedger,
     walletsScanned: wallets.length,
     contractsFound: state.newContracts,
+    walletsStopped,
   };
 }

@@ -13,7 +13,7 @@
     "build": "tsc --noEmit",
     "typecheck": "tsc --noEmit",
     "lint": "eslint . --config ../../eslint.config.js",
-    "test": "node --import tsx --test \"src/**/*.test.ts\"",
+    "test": "node --import tsx --test \"src/**/*.test.ts\" \"scripts/**/*.test.ts\"",
     "capture": "node --import tsx scripts/capture.ts"
   },
   "dependencies": {

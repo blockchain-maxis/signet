@@ -7,7 +7,7 @@
   font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="14"
 >
   <title id="soroswap-router-title">soroswap-router (mainnet CAG5LRYQ5JVEUI5TEID72EYOVX44TTUJT5BQR2J6J77FH65PCCFAJDDH)</title>
-  <desc id="soroswap-router-desc">20 functions in 9 groups, 0 types, 0 references</desc>
+  <desc id="soroswap-router-desc">20 functions in 4 groups, 0 types, 0 references</desc>
   <defs>
   </defs>
   <a id="diagram-fn-add_liquidity" href="#fn-add_liquidity" data-node-id="fn:add_liquidity">
