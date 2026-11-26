@@ -3,7 +3,7 @@
   role="figure"
   aria-labelledby="blend-pool-v1-title blend-pool-v1-desc"
   class="contract-diagram"
-  width="828" height="924" viewBox="0 0 828 924"
+  width="828" height="1084" viewBox="0 0 828 1084"
   font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="14"
 >
   <title id="blend-pool-v1-title">blend-pool-v1 (mainnet CDVQVKOY2YSXS2IC7KN6MNASSHPAO7UN2UR2ON4OI2SKMFJNVAMDX6DP)</title>
@@ -597,4 +597,7 @@
       Asset
     </text>
   </a>
+  <g class="diagram-legend-footer" transform="translate(16 924)">
+    <g class="viz-legend" role="group" aria-label="Diagram legend" data-viz-legend="" data-legend-width="780" data-legend-height="160"><title>Diagram legend</title><defs><marker id="blend-pool-v1-legend-open-arrow" markerWidth="8" markerHeight="8" refX="7.5" refY="3" orient="auto" markerUnits="strokeWidth"><path class="viz-arrow viz-arrow--open" d="M0,0 L8,3 L0,6" fill="none" stroke="var(--viz-edge)" stroke-width="1.25"/></marker><marker id="blend-pool-v1-legend-filled-arrow" markerWidth="8" markerHeight="8" refX="7.5" refY="3" orient="auto" markerUnits="strokeWidth"><path class="viz-arrow viz-arrow--filled" d="M0,0 L8,3 L0,6 Z" fill="var(--viz-edge)"/></marker></defs><rect class="viz-shape viz-shape--rounded-rect" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="8" y="13" width="22" height="14" rx="6" ry="6"/><text class="viz-legend-label" fill="var(--viz-muted)" data-node-kind="function" data-node-prefix="fn" x="40" y="20" dominant-baseline="middle">fn — function</text><rect class="viz-shape viz-shape--rect" data-node-shape="rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="8" y="37" width="22" height="14" rx="0" ry="0"/><text class="viz-legend-label" fill="var(--viz-muted)" data-node-kind="struct" data-node-prefix="struct" x="40" y="44" dominant-baseline="middle">struct — struct</text><path class="viz-shape viz-shape--notched" data-node-shape="notched-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" d="M 8 61 H 25.333333333333332 L 30 65.66666666666667 V 75 H 8 Z"/><text class="viz-legend-label" fill="var(--viz-muted)" data-node-kind="union" data-node-prefix="union" x="40" y="68" dominant-baseline="middle">union — union</text><line class="viz-edge-swatch" data-edge-kind="arg" data-edge-dash="solid" data-edge-marker="filled-arrow" x1="8" y1="92" x2="30" y2="92" stroke="var(--viz-edge)" stroke-width="1.75" marker-end="url(#blend-pool-v1-legend-filled-arrow)"/><text class="viz-legend-label" fill="var(--viz-muted)" data-edge-label="arg" x="40" y="92" dominant-baseline="middle">argument (solid, filled arrow)</text><line class="viz-edge-swatch" data-edge-kind="return" data-edge-dash="solid" data-edge-marker="open-arrow" x1="8" y1="116" x2="30" y2="116" stroke="var(--viz-edge)" stroke-width="1.75" marker-end="url(#blend-pool-v1-legend-open-arrow)"/><text class="viz-legend-label" fill="var(--viz-muted)" data-edge-label="return" x="40" y="116" dominant-baseline="middle">return (solid, open arrow)</text><line class="viz-edge-swatch" data-edge-kind="field" data-edge-dash="solid" data-edge-marker="none" x1="8" y1="140" x2="30" y2="140" stroke="var(--viz-edge)" stroke-width="1"/><text class="viz-legend-label" fill="var(--viz-muted)" data-edge-label="field" x="40" y="140" dominant-baseline="middle">field (thin solid)</text></g>
+  </g>
 </svg>

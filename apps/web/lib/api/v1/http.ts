@@ -447,7 +447,10 @@ export function encodeCursor<T>(payload: T, version = 1): string {
 /**
  * Decodes an opaque base64url cursor, checking the version prefix byte.
  */
-export function parseCursor<T = unknown>(raw: unknown, expectedVersion = 1): T | null {
+export function parseCursor<T = unknown>(
+  raw: unknown,
+  expectedVersion: number | number[] = 1,
+): T | null {
   if (raw === undefined || raw === null || raw === '') {
     return null;
   }
@@ -460,7 +463,10 @@ export function parseCursor<T = unknown>(raw: unknown, expectedVersion = 1): T |
       throw new Error('empty cursor buffer');
     }
     const version = buf.readUInt8(0);
-    if (version !== expectedVersion) {
+    const valid = Array.isArray(expectedVersion)
+      ? expectedVersion.includes(version)
+      : version === expectedVersion;
+    if (!valid) {
       throw new Error(`unsupported cursor version: ${version}`);
     }
     const jsonStr = buf.subarray(1).toString('utf8');
@@ -470,4 +476,90 @@ export function parseCursor<T = unknown>(raw: unknown, expectedVersion = 1): T |
       parameter: 'cursor',
     });
   }
+}
+
+/**
+ * Decodes an opaque base64url cursor and returns both the version and payload.
+ */
+export function parseCursorWithVersion<T = unknown>(
+  raw: unknown,
+  expectedVersions: number[] = [1],
+): { version: number; payload: T } | null {
+  if (raw === undefined || raw === null || raw === '') {
+    return null;
+  }
+  if (typeof raw !== 'string') {
+    throw new V1Error('bad_request', 'Invalid cursor format.', { parameter: 'cursor' });
+  }
+  try {
+    const buf = Buffer.from(raw, 'base64url');
+    if (buf.length < 1) {
+      throw new Error('empty cursor buffer');
+    }
+    const version = buf.readUInt8(0);
+    if (!expectedVersions.includes(version)) {
+      throw new Error(`unsupported cursor version: ${version}`);
+    }
+    const jsonStr = buf.subarray(1).toString('utf8');
+    return { version, payload: JSON.parse(jsonStr) as T };
+  } catch {
+    throw new V1Error('bad_request', 'Invalid or unparseable pagination cursor.', {
+      parameter: 'cursor',
+    });
+  }
+}
+
+export interface V1OperationsKeysetCursor {
+  createdAt: string;
+  id: string;
+}
+
+export interface V1OperationsOffsetCursor {
+  offset: number;
+}
+
+export type V1OperationsCursor =
+  | { type: 'keyset'; createdAt: string; id: string }
+  | { type: 'offset'; offset: number };
+
+/**
+ * Decodes and validates cursor payload specifically for /api/v1/profiles/{handle}/operations.
+ * Supports version 2 keyset cursor ({ createdAt, id }) and version 1 offset cursor ({ offset }).
+ * Throws 400 bad_request with details.parameter: 'cursor' on malformed or invalid payloads.
+ */
+export function parseOperationsCursor(raw: unknown): V1OperationsCursor | null {
+  const result = parseCursorWithVersion<any>(raw, [1, 2]);
+  if (!result) return null;
+  const { version, payload } = result;
+  if (typeof payload !== 'object' || payload === null) {
+    throw new V1Error('bad_request', 'Invalid cursor payload.', { parameter: 'cursor' });
+  }
+  if (version === 1) {
+    if (
+      typeof payload.offset !== 'number' ||
+      !Number.isInteger(payload.offset) ||
+      payload.offset < 0
+    ) {
+      throw new V1Error('bad_request', 'Invalid cursor: offset must be a non-negative integer.', {
+        parameter: 'cursor',
+      });
+    }
+    return { type: 'offset', offset: payload.offset };
+  }
+  if (version === 2) {
+    if (
+      typeof payload.createdAt !== 'string' ||
+      isNaN(Date.parse(payload.createdAt)) ||
+      typeof payload.id !== 'string' ||
+      payload.id.length === 0
+    ) {
+      throw new V1Error(
+        'bad_request',
+        'Invalid cursor: createdAt must be a valid ISO timestamp and id must be a string.',
+        { parameter: 'cursor' },
+      );
+    }
+    return { type: 'keyset', createdAt: payload.createdAt, id: payload.id };
+  }
+  throw new V1Error('bad_request', 'Unsupported cursor version.', { parameter: 'cursor' });
 }
