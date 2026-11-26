@@ -7,7 +7,11 @@ Rust/Soroban smart contracts for Signet, managed as a Cargo workspace
 
 - [`identity-registry`](./identity-registry) — binds a Stellar wallet to a
   Signet identity via signed, on-chain claims. Implemented; unit tests over
-  known cases plus property tests (see [Testing](#testing)).
+  known cases plus property tests (see [Testing](#testing)). Before changing
+  its `src/lib.rs`, read the properties a PR must keep true in
+  [`docs/SECURITY_REVIEW.md` §7](../../docs/SECURITY_REVIEW.md#7-identity-registry-contract):
+  auth matrix, admin powers, handle rules, storage/TTL, counter, events and
+  error codes.
 
 ## Prerequisites
 
@@ -48,7 +52,9 @@ Three layers, in the `contracts` CI job's `cargo test` run:
   handle validation against an independent oracle over arbitrary byte strings,
   `resolve_batch` either side of `MAX_BATCH_SIZE`, and the invariant that
   `count` equals the number of live bindings after any sequence of
-  claim / release / transfer / revoke. These run with snapshot capture off —
+  claim / release / transfer / revoke. Nothing archives in the test host, so
+  there the counter is exact. On a real network it is only an upper bound (see
+  `count` in `src/lib.rs`). These run with snapshot capture off —
   a file per generated case would be hundreds of them, differing every run.
 - **Resource-cost tests** (`identity-registry/src/cost_test.rs`) — resource regression
   tests measuring instructions, memory, read/write entries, read/write bytes, and event
@@ -73,7 +79,8 @@ a footprint concern. CI enforces a budget in the `contracts` job (see
 [`.github/workflows/ci.yml`](../../.github/workflows/ci.yml)): the build fails if
 `identity_registry.wasm` exceeds **20 KB** (`BUDGET_BYTES=20480`).
 
-`identity-registry` is ~9 KB today, so the budget leaves headroom for planned
-growth while catching accidental bloat — a heavy dependency, or a release
+That step logs `identity_registry.wasm: <size> bytes (budget 20480 bytes)` on
+every run, so read the current size there rather than from a number copied into
+this file. The budget leaves headroom for planned growth while catching accidental bloat — a heavy dependency, or a release
 profile that lost `opt-level = "z"` / `lto` / `strip`. Raise `BUDGET_BYTES`
 deliberately when a size increase is expected and justified.

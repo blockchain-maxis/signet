@@ -31,6 +31,8 @@ type Trigger struct {
 type WatchOptions struct {
 	// CrateDir is watched recursively, new subdirectories included.
 	CrateDir string
+	// ExtraDirs are extra recursive roots to watch (e.g. local path dependencies).
+	ExtraDirs []string
 	// Files are watched one by one: the workspace Cargo.toml and
 	// Cargo.lock, which may sit above the crate.
 	Files []string
@@ -74,6 +76,18 @@ func Watch(ctx context.Context, opts WatchOptions) (<-chan Trigger, error) {
 	if err != nil {
 		return nil, err
 	}
+	roots := make([]string, 0, 1+len(opts.ExtraDirs))
+	if opts.CrateDir != "" {
+		cDir, _ := filepath.Abs(opts.CrateDir)
+		roots = append(roots, cDir)
+	}
+	for _, d := range opts.ExtraDirs {
+		if d != "" {
+			aDir, _ := filepath.Abs(d)
+			roots = append(roots, aDir)
+		}
+	}
+
 	addTree := func(root string) error {
 		return filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
 			if err != nil {
@@ -82,15 +96,17 @@ func Watch(ctx context.Context, opts WatchOptions) (<-chan Trigger, error) {
 			if !d.IsDir() {
 				return nil
 			}
-			if path != opts.CrateDir && ignoredDirs[d.Name()] {
+			if path != root && ignoredDirs[d.Name()] {
 				return filepath.SkipDir
 			}
 			return w.Add(path)
 		})
 	}
-	if err := addTree(opts.CrateDir); err != nil {
-		_ = w.Close()
-		return nil, err
+	for _, root := range roots {
+		if err := addTree(root); err != nil {
+			_ = w.Close()
+			return nil, err
+		}
 	}
 	// Single files are watched through their directories, filtered to them.
 	single := map[string]bool{}
@@ -102,7 +118,6 @@ func Watch(ctx context.Context, opts WatchOptions) (<-chan Trigger, error) {
 		single[abs] = true
 		_ = w.Add(filepath.Dir(abs))
 	}
-	crateDir, _ := filepath.Abs(opts.CrateDir)
 	devFile := ""
 	if opts.DevFile != "" {
 		devFile, _ = filepath.Abs(opts.DevFile)
@@ -128,10 +143,16 @@ func Watch(ctx context.Context, opts WatchOptions) (<-chan Trigger, error) {
 					return
 				}
 				path, _ := filepath.Abs(ev.Name)
-				inCrate := !strings.HasPrefix(mustRel(crateDir, path), "..")
+				var matchedRoot string
+				for _, r := range roots {
+					if !strings.HasPrefix(mustRel(r, path), "..") {
+						matchedRoot = r
+						break
+					}
+				}
 				switch {
 				case single[path]:
-				case !inCrate, underIgnoredDir(crateDir, path), ignoredFile(filepath.Base(path)):
+				case matchedRoot == "", underIgnoredDir(matchedRoot, path), ignoredFile(filepath.Base(path)):
 					continue
 				}
 				if info, err := os.Stat(path); err == nil && info.IsDir() {
@@ -140,7 +161,7 @@ func Watch(ctx context.Context, opts WatchOptions) (<-chan Trigger, error) {
 					if !ev.Has(fsnotify.Create) {
 						continue
 					}
-					if inCrate {
+					if matchedRoot != "" {
 						_ = addTree(path)
 					}
 				}

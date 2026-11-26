@@ -74,6 +74,18 @@ jobs:
       - name: Check docs drift
         run: node scripts/check-docs.mjs
 
+      # infra/deploy-contract.sh is the documented deploy path
+      # (docs/DEPLOYMENT.md §4). The test drives it against a fake `stellar`
+      # on PATH and checks the explicit --rpc-url/--network-passphrase flags,
+      # that the optimized wasm is what gets deployed, the printed sha256, and
+      # the "deployed but NOT initialized" exit. shellcheck ships on the
+      # ubuntu runner image.
+      - name: shellcheck deploy-contract.sh
+        run: shellcheck infra/deploy-contract.sh infra/deploy-contract.test.sh
+
+      - name: Test deploy-contract.sh
+        run: bash infra/deploy-contract.test.sh
+
       # The signet dev --ci example contract repos copy (#640) must be a
       # valid workflow.
       - name: Lint the example workflow
@@ -167,6 +179,12 @@ jobs:
 
       - name: Test
         run: pnpm test
+
+      # The keep-alive script must build a real ExtendFootprintTTL footprint
+      # (instance + both binding keys) and never claim a simulated read bumped
+      # anything. Stubbed rpc.Server, no network.
+      - name: Test the keep-alive script
+        run: node --test scripts/keepalive-contract.test.mjs
 
       - name: Smoke check generated TypeScript client stub
         run: pnpm --filter @signet/spec smoke:client
@@ -429,6 +447,27 @@ jobs:
             exit 1
           fi
 
+      # infra/deploy-contract.sh deploys the file `stellar contract optimize
+      # --wasm-out` writes. Run that exact command with the pinned CLI so a
+      # CLI that drops the subcommand or the flag fails here, not mid-deploy,
+      # and log both sizes.
+      - name: Optimize wasm as deploy-contract.sh does
+        working-directory: packages/contracts
+        run: |
+          wasm="target/wasm32v1-none/release/identity_registry.wasm"
+          out="target/wasm32v1-none/release/identity_registry.optimized.wasm"
+          rm -f "$out"
+          stellar contract optimize --wasm "$wasm" --wasm-out "$out"
+          test -s "$out"
+          echo "identity_registry.wasm: $(wc -c < "$wasm") bytes"
+          echo "identity_registry.optimized.wasm: $(wc -c < "$out") bytes"
+          echo "optimized sha256: $(sha256sum "$out" | cut -d' ' -f1)"
+          # The deploy and verify flags the script relies on (only the fake
+          # stellar in infra/deploy-contract.test.sh exercises them otherwise).
+          stellar contract deploy --help | grep -q -- '--network-passphrase'
+          stellar contract invoke --help | grep -q -- '--rpc-url'
+          stellar contract fetch --help | grep -q -- '--out-file'
+
   spec-fixtures:
     name: spec fixtures parity
     runs-on: ubuntu-latest
@@ -466,7 +505,7 @@ jobs:
       - name: Install wabt (wat2wasm for no_spec.wat)
         run: sudo apt-get update && sudo apt-get install -y wabt
 
-      # Rebuilds the four Rust fixtures, recompiles no_spec.wat and
+      # Rebuilds the six Rust fixtures, recompiles no_spec.wat and
       # regenerates corrupt_section.wasm, then fails on any byte difference
       # against the committed packages/spec/fixtures/*.wasm.
       - name: Verify fixtures match a fresh build

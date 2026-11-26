@@ -6,6 +6,10 @@
 
 use std::path::PathBuf;
 
+use base64::engine::general_purpose::STANDARD as BASE64;
+use base64::Engine;
+use serde_json::Value;
+
 use signet_simulator::fuzzing;
 
 fn corpus(target: &str) -> Vec<Vec<u8>> {
@@ -68,7 +72,7 @@ fn mutate(rng: &mut Rng, seed: &[u8], seeds: &[Vec<u8>]) -> Vec<u8> {
     out
 }
 
-fn run(target: &str, f: fn(&[u8]), mutations: usize) {
+fn run<R>(target: &str, f: fn(&[u8]) -> R, mutations: usize) {
     let seeds = corpus(target);
     for seed in &seeds {
         f(seed);
@@ -93,6 +97,65 @@ fn dispatch_survives_its_corpus_and_mutations() {
 #[test]
 fn xdr_params_survive_their_corpus_and_mutations() {
     run("xdr_params", fuzzing::xdr_params, 300);
+}
+
+#[test]
+fn every_xdr_params_request_reaches_its_decoder() {
+    let raw: Value = serde_json::from_str(include_str!("fixtures/network-config-entries.json"))
+        .expect("network-config-entries.json");
+    let entry = &raw["payload"]["entries"][0];
+    let last_modified = (entry["lastModifiedLedgerSeq"].as_u64().unwrap() as u32).to_be_bytes();
+    let data = BASE64.decode(entry["xdr"].as_str().unwrap()).unwrap();
+    let ext = BASE64.decode(entry["extXdr"].as_str().unwrap()).unwrap();
+
+    let mut entry_bytes = Vec::new();
+    entry_bytes.extend_from_slice(&last_modified);
+    entry_bytes.extend_from_slice(&data);
+    entry_bytes.extend_from_slice(&ext);
+
+    for lane in [0u8, 1] {
+        let mut seed = vec![lane];
+        seed.extend_from_slice(&entry_bytes);
+
+        let replies = fuzzing::xdr_params(&seed);
+        assert!(!replies.is_empty(), "expected replies from xdr_params");
+
+        for reply in &replies {
+            assert_ne!(
+                reply["detail"]["kind"], "no_open_ledger",
+                "reply was no_open_ledger: {reply}"
+            );
+            if let Some(msg) = reply.get("message").and_then(Value::as_str) {
+                assert!(
+                    !msg.contains("no ledger is open"),
+                    "message indicated no open ledger: {reply}"
+                );
+            }
+        }
+
+        let layout_reply = replies
+            .iter()
+            .find(|r| r["id"] == "x-layout_check_valid")
+            .unwrap_or_else(|| panic!("missing layout_check_valid reply in {replies:?}"));
+
+        assert_eq!(
+            layout_reply["type"], "result",
+            "layout_check with valid seed should succeed: {layout_reply}"
+        );
+        let path = layout_reply["detail"]["path"].as_str().unwrap_or("");
+        assert!(
+            path != "old" && path != "new",
+            "layout_check path named old or new: {layout_reply}"
+        );
+        let msg = layout_reply
+            .get("message")
+            .and_then(Value::as_str)
+            .unwrap_or("");
+        assert!(
+            !msg.starts_with("`old`") && !msg.starts_with("`new`"),
+            "layout_check message named old or new: {layout_reply}"
+        );
+    }
 }
 
 /// `SCV_VEC` (16), present, one element, nested `depth` times around a void.
