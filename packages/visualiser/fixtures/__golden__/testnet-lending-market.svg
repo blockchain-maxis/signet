@@ -7,7 +7,7 @@
   font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="14"
 >
   <title id="testnet-lending-market-title">testnet-lending-market (testnet CBXZBQ6NW3TGPGLTR4JCG2VPVWFLCCHKDW75NJIXYXV7CJLNUO64VTFC)</title>
-  <desc id="testnet-lending-market-desc">42 functions in 22 groups, 13 types, 29 references</desc>
+  <desc id="testnet-lending-market-desc">42 functions in 8 groups, 13 types, 29 references</desc>
   <defs>
     <marker id="testnet-lending-market-filled-arrow" markerWidth="8" markerHeight="8" refX="7.5" refY="3" orient="auto" markerUnits="userSpaceOnUse"><path class="viz-arrow viz-arrow--filled" d="M0,0 L8,3 L0,6 Z" fill="var(--viz-edge)"/></marker>
     <marker id="testnet-lending-market-open-arrow" markerWidth="8" markerHeight="8" refX="7.5" refY="3" orient="auto" markerUnits="userSpaceOnUse"><path class="viz-arrow viz-arrow--open" d="M0,0 L8,3 L0,6" fill="none" stroke="var(--viz-edge)" stroke-width="1.25"/></marker>

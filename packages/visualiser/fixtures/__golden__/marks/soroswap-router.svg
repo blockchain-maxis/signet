@@ -7,7 +7,7 @@
   font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="14"
 >
   <title id="marks-title">soroswap-router with read/write marks</title>
-  <desc id="marks-desc">20 functions in 9 groups, 0 types, 0 references</desc>
+  <desc id="marks-desc">20 functions in 4 groups, 0 types, 0 references</desc>
   <defs>
   </defs>
   <a id="diagram-fn-initialize" href="#fn-initialize" data-node-id="fn:initialize" data-mark="unknown" data-mark-label="not observed">

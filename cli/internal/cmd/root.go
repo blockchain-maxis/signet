@@ -174,14 +174,28 @@ func Execute(version, commit string) error {
 	return Run(newRootCmd(version, commit))
 }
 
+var lastRunJSON bool
+
+// LastRunJSON reports whether the most recent Run execution had --json requested.
+func LastRunJSON() bool {
+	return lastRunJSON
+}
+
 // Run executes root and, when it returns an error, records that error for
 // `signet bug-report` before returning it unchanged. Recording is best-effort
 // and never alters the error. It is Execute's body and the seam a test uses to
 // exercise last-error persistence without a real process exit.
+//
+// Under --json, Run writes the structured error to stderr on failure so scripts
+// receive machine-readable output rather than human text.
 func Run(root *cobra.Command) error {
 	err := root.Execute()
+	lastRunJSON = jsonRequested(root)
 	if err != nil {
 		recordLastError(err)
+		if lastRunJSON {
+			_ = WriteErrorJSON(root.ErrOrStderr(), err)
+		}
 	}
 	maybeNotifyUpdate(root)
 	return err

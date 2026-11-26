@@ -244,12 +244,37 @@ export function drawContractDiagram(input: DiagramViewInput): DiagramView {
   const outlineHtml = renderOutlineHtml(outline, hrefForNode);
 
   const cleanQuery = input.query?.trim().toLowerCase();
-  const isFunction = (n: PositionedDiagramModel['nodes'][number]) => n.id.startsWith('fn:');
-  const matches = (n: PositionedDiagramModel['nodes'][number]) =>
-    !cleanQuery || n.id.toLowerCase().includes(cleanQuery) || n.label.toLowerCase().includes(cleanQuery);
-  const totalFunctions = model.nodes.filter(isFunction).length;
-  const matchingFunctions = model.nodes.filter((n) => isFunction(n) && matches(n)).length;
-  const totalMatches = model.nodes.filter(matches).length;
+  let totalFunctions = 0;
+  let matchingFunctions = 0;
+  let totalMatches = 0;
+
+  for (const n of model.nodes) {
+    const isFunction = n.id.startsWith('fn:');
+    const members = n.collapsed?.members;
+    if (isFunction) totalFunctions += 1;
+    else if (members) totalFunctions += members.length;
+
+    if (!cleanQuery) {
+      totalMatches += 1;
+      if (isFunction) matchingFunctions += 1;
+      else if (members) matchingFunctions += members.length;
+      continue;
+    }
+
+    const matchedMembers = members
+      ? members.filter((m) => m.toLowerCase().includes(cleanQuery))
+      : [];
+    const isMatch =
+      n.id.toLowerCase().includes(cleanQuery) ||
+      n.label.toLowerCase().includes(cleanQuery) ||
+      matchedMembers.length > 0;
+
+    if (isMatch) {
+      totalMatches += 1;
+      if (isFunction) matchingFunctions += 1;
+      else if (members) matchingFunctions += matchedMembers.length;
+    }
+  }
 
   let regionHtml = '';
   if (decision.kind === 'draw' || callsAlone) {

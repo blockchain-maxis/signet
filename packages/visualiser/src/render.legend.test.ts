@@ -23,7 +23,7 @@ test('the blend-pool-v1 SVG contains a legend with one row per kind present and 
 
   // Present kinds in blend-pool-v1: functions, the structs its signatures
   // name, and arg/return edges. Its unions and their fields are reached by no
-  // signature, so they are not drawn (#950).
+  // signature, so they are not drawn (issue 950).
   assert.ok(svg.includes('data-node-kind="function"'), 'function node kind present');
   assert.ok(svg.includes('data-node-kind="struct"'), 'struct node kind present');
   assert.ok(svg.includes('data-edge-label="arg"'), 'arg edge kind present');

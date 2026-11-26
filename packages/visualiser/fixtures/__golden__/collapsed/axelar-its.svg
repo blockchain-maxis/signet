@@ -112,7 +112,7 @@
     fill="none" stroke="var(--viz-edge)" stroke-width="1.5"
     marker-end="url(#collapsed-open-arrow)"
   />
-  <a id="diagram-collapsed-other" href="?expand=other" data-node-id="collapsed:other" data-group-toggle="other">
+  <a id="diagram-collapsed-other" href="?expand=other" data-node-id="collapsed:other" data-group-toggle="other" data-members="gas_service,chain_name,its_hub_chain_name,its_hub_address,native_token_address,is_trusted_chain,set_trusted_chain,remove_trusted_chain,canonical_interchain_token_id,linked_token_id,registered_token_address,deployed_token_manager,is_flow_limiter,set_flow_limit,add_flow_limiter,remove_flow_limiter,link_token,operator,owner,paused,pause,unpause,required_auths,migrate,gateway,execute">
     <rect id="collapsed-node-collapsed:other" class="viz-shape viz-shape--dashed-outline-rect diagram-node diagram-node--collapsed-group" data-node-shape="dashed-outline-rect" fill="none" stroke="var(--viz-edge)" x="24" y="24" width="104" height="28" rx="0" ry="0" stroke-dasharray="5 3"/>
     <title>other (26): gas_service, chain_name, its_hub_chain_name, its_hub_address, native_token_address, is_trusted_chain, set_trusted_chain, remove_trusted_chain, canonical_interchain_token_id, linked_token_id, registered_token_address, deployed_token_manager, is_flow_limiter, set_flow_limit, add_flow_limiter, remove_flow_limiter, link_token, operator, owner, paused, pause, unpause, required_auths, migrate, gateway, execute. Expand to draw them.</title>
     <text
@@ -125,7 +125,7 @@
       other (26)
     </text>
   </a>
-  <a id="diagram-collapsed-interchain" href="?expand=interchain" data-node-id="collapsed:interchain" data-group-toggle="interchain">
+  <a id="diagram-collapsed-interchain" href="?expand=interchain" data-node-id="collapsed:interchain" data-group-toggle="interchain" data-members="interchain_token_wasm_hash,interchain_token_id,interchain_token_address,interchain_transfer">
     <rect id="collapsed-node-collapsed:interchain" class="viz-shape viz-shape--dashed-outline-rect diagram-node diagram-node--collapsed-group" data-node-shape="dashed-outline-rect" fill="none" stroke="var(--viz-edge)" x="24" y="72" width="155" height="28" rx="0" ry="0" stroke-dasharray="5 3"/>
     <title>interchain_* (4): interchain_token_wasm_hash, interchain_token_id, interchain_token_address, interchain_transfer. Expand to draw them.</title>
     <text
@@ -138,7 +138,7 @@
       interchain_* (4)
     </text>
   </a>
-  <a id="diagram-collapsed-token" href="?expand=token" data-node-id="collapsed:token" data-group-toggle="token">
+  <a id="diagram-collapsed-token" href="?expand=token" data-node-id="collapsed:token" data-group-toggle="token" data-members="token_manager_wasm_hash,token_manager_address,token_manager_type">
     <rect id="collapsed-node-collapsed:token" class="viz-shape viz-shape--dashed-outline-rect diagram-node diagram-node--collapsed-group" data-node-shape="dashed-outline-rect" fill="none" stroke="var(--viz-edge)" x="24" y="360" width="113" height="28" rx="0" ry="0" stroke-dasharray="5 3"/>
     <title>token_* (3): token_manager_wasm_hash, token_manager_address, token_manager_type. Expand to draw them.</title>
     <text
@@ -151,7 +151,7 @@
       token_* (3)
     </text>
   </a>
-  <a id="diagram-collapsed-flow" href="?expand=flow" data-node-id="collapsed:flow" data-group-toggle="flow">
+  <a id="diagram-collapsed-flow" href="?expand=flow" data-node-id="collapsed:flow" data-group-toggle="flow" data-members="flow_limit,flow_out_amount,flow_in_amount">
     <rect id="collapsed-node-collapsed:flow" class="viz-shape viz-shape--dashed-outline-rect diagram-node diagram-node--collapsed-group" data-node-shape="dashed-outline-rect" fill="none" stroke="var(--viz-edge)" x="24" y="216" width="104" height="28" rx="0" ry="0" stroke-dasharray="5 3"/>
     <title>flow_* (3): flow_limit, flow_out_amount, flow_in_amount. Expand to draw them.</title>
     <text
@@ -164,7 +164,7 @@
       flow_* (3)
     </text>
   </a>
-  <a id="diagram-collapsed-transfer" href="?expand=transfer" data-node-id="collapsed:transfer" data-group-toggle="transfer">
+  <a id="diagram-collapsed-transfer" href="?expand=transfer" data-node-id="collapsed:transfer" data-group-toggle="transfer" data-members="transfer_flow_limiter,transfer_token_admin,transfer_operatorship,transfer_ownership">
     <rect id="collapsed-node-collapsed:transfer" class="viz-shape viz-shape--dashed-outline-rect diagram-node diagram-node--collapsed-group" data-node-shape="dashed-outline-rect" fill="none" stroke="var(--viz-edge)" x="24" y="120" width="138" height="28" rx="0" ry="0" stroke-dasharray="5 3"/>
     <title>transfer_* (4): transfer_flow_limiter, transfer_token_admin, transfer_operatorship, transfer_ownership. Expand to draw them.</title>
     <text
@@ -177,7 +177,7 @@
       transfer_* (4)
     </text>
   </a>
-  <a id="diagram-collapsed-deploy" href="?expand=deploy" data-node-id="collapsed:deploy" data-group-toggle="deploy">
+  <a id="diagram-collapsed-deploy" href="?expand=deploy" data-node-id="collapsed:deploy" data-group-toggle="deploy" data-members="deploy_interchain_token,deploy_remote_interchain_token,deploy_remote_canonical_token">
     <rect id="collapsed-node-collapsed:deploy" class="viz-shape viz-shape--dashed-outline-rect diagram-node diagram-node--collapsed-group" data-node-shape="dashed-outline-rect" fill="none" stroke="var(--viz-edge)" x="24" y="168" width="121" height="28" rx="0" ry="0" stroke-dasharray="5 3"/>
     <title>deploy_* (3): deploy_interchain_token, deploy_remote_interchain_token, deploy_remote_canonical_token. Expand to draw them.</title>
     <text
@@ -190,7 +190,7 @@
       deploy_* (3)
     </text>
   </a>
-  <a id="diagram-collapsed-register" href="?expand=register" data-node-id="collapsed:register" data-group-toggle="register">
+  <a id="diagram-collapsed-register" href="?expand=register" data-node-id="collapsed:register" data-group-toggle="register" data-members="register_canonical_token,register_token_metadata,register_custom_token">
     <rect id="collapsed-node-collapsed:register" class="viz-shape viz-shape--dashed-outline-rect diagram-node diagram-node--collapsed-group" data-node-shape="dashed-outline-rect" fill="none" stroke="var(--viz-edge)" x="24" y="312" width="138" height="28" rx="0" ry="0" stroke-dasharray="5 3"/>
     <title>register_* (3): register_canonical_token, register_token_metadata, register_custom_token. Expand to draw them.</title>
     <text
@@ -203,7 +203,7 @@
       register_* (3)
     </text>
   </a>
-  <a id="diagram-collapsed-lifecycle" href="?expand=lifecycle" data-node-id="collapsed:lifecycle" data-group-toggle="lifecycle">
+  <a id="diagram-collapsed-lifecycle" href="?expand=lifecycle" data-node-id="collapsed:lifecycle" data-group-toggle="lifecycle" data-members="__constructor,version,upgrade">
     <rect id="collapsed-node-collapsed:lifecycle" class="viz-shape viz-shape--dashed-outline-rect diagram-node diagram-node--collapsed-group" data-node-shape="dashed-outline-rect" fill="none" stroke="var(--viz-edge)" x="24" y="264" width="130" height="28" rx="0" ry="0" stroke-dasharray="5 3"/>
     <title>lifecycle (3): __constructor, version, upgrade. Expand to draw them.</title>
     <text
