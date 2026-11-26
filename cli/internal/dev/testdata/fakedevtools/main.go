@@ -3,6 +3,8 @@
 //
 //   - cargo metadata …: a workspace of one crate, FAKECARGO_PACKAGE
 //     (default identity-registry), a cdylib unless FAKECARGO_NO_CDYLIB is set.
+//     FAKECARGO_PATH_DEPS lists path dependencies' manifests (outside the
+//     workspace's members); FAKECARGO_DEP_CDYLIB gives them a cdylib target.
 //   - rustup target list --installed: FAKERUSTUP_TARGETS, one per line
 //     (default wasm32v1-none).
 package main
@@ -63,6 +65,10 @@ func cargoMetadata(args []string) {
 
 	if pathDeps := os.Getenv("FAKECARGO_PATH_DEPS"); pathDeps != "" {
 		var contractDeps []any
+		depCrateTypes := []string{"rlib"}
+		if os.Getenv("FAKECARGO_DEP_CDYLIB") != "" {
+			depCrateTypes = []string{"cdylib", "rlib"}
+		}
 		for _, depManifest := range strings.Split(pathDeps, string(filepath.ListSeparator)) {
 			depManifest = strings.TrimSpace(depManifest)
 			if depManifest == "" {
@@ -82,7 +88,7 @@ func cargoMetadata(args []string) {
 				"id":            depID,
 				"source":        nil,
 				"manifest_path": depManifest,
-				"targets":       []any{map[string]any{"name": depName, "crate_types": []string{"rlib"}}},
+				"targets":       []any{map[string]any{"name": depName, "crate_types": depCrateTypes}},
 			})
 			resolveNodes = append(resolveNodes, map[string]any{
 				"id":           depID,
@@ -99,9 +105,10 @@ func cargoMetadata(args []string) {
 	}}, resolveNodes...)
 
 	out, _ := json.Marshal(map[string]any{
-		"target_directory": filepath.Join(dir, "target"),
-		"workspace_root":   dir,
-		"packages":         packages,
+		"target_directory":  filepath.Join(dir, "target"),
+		"workspace_root":    dir,
+		"workspace_members": []string{pkg + " 0.1.0"},
+		"packages":          packages,
 		"resolve": map[string]any{
 			"nodes": resolveNodes,
 		},

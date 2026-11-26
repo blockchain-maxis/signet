@@ -154,3 +154,38 @@ func TestFindCrateCollectsLocalDepsFromPathDependency(t *testing.T) {
 		t.Fatalf("c.LocalDeps = %v, want [%s]", c.LocalDeps, commonDir)
 	}
 }
+
+func TestFindCrateIgnoresDependencyWithCdylibTarget(t *testing.T) {
+	dir := t.TempDir()
+	crateDir := filepath.Join(dir, "contracts", "registry")
+	_ = os.MkdirAll(crateDir, 0o755)
+	manifest := filepath.Join(crateDir, "Cargo.toml")
+	_ = os.WriteFile(manifest, []byte("[package]\nname = \"identity-registry\"\n"), 0o644)
+
+	// A local dependency that is itself a contract (it has a cdylib target)
+	// is not a workspace member, so it is not a candidate.
+	otherDir := filepath.Join(dir, "contracts", "token")
+	_ = os.MkdirAll(otherDir, 0o755)
+	otherManifest := filepath.Join(otherDir, "Cargo.toml")
+	_ = os.WriteFile(otherManifest, []byte("[package]\nname = \"token\"\n"), 0o644)
+
+	t.Setenv("FAKECARGO_PATH_DEPS", otherManifest)
+	t.Setenv("FAKECARGO_DEP_CDYLIB", "1")
+	tools := fakeDevTools(t)
+
+	c, err := FindCrate(tools, crateDir, "")
+	if err != nil {
+		t.Fatalf("FindCrate: %v", err)
+	}
+	if c.Name != "identity-registry" || c.ManifestPath != manifest {
+		t.Fatalf("FindCrate picked %s (%s), want identity-registry", c.Name, c.ManifestPath)
+	}
+	if len(c.LocalDeps) != 1 || c.LocalDeps[0] != otherDir {
+		t.Fatalf("c.LocalDeps = %v, want [%s]", c.LocalDeps, otherDir)
+	}
+
+	// Naming the dependency is refused too: it is not this workspace's.
+	if _, err := FindCrate(tools, crateDir, "token"); err == nil {
+		t.Fatal("FindCrate accepted a dependency crate as the contract")
+	}
+}

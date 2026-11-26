@@ -150,6 +150,10 @@ func FindCrate(t Tools, path, pkg string) (Crate, error) {
 		WorkspaceRoot   string       `json:"workspace_root"`
 		Packages        []rawPackage `json:"packages"`
 		Resolve         *rawResolve  `json:"resolve"`
+		// WorkspaceMembers are the package IDs of the workspace's own
+		// crates. Without --no-deps, packages lists every dependency in
+		// the graph too, and only a member can be the contract.
+		WorkspaceMembers []string `json:"workspace_members"`
 	}
 	if err := json.Unmarshal(out, &meta); err != nil {
 		return Crate{}, configuration("cargo metadata for %s is unreadable: %v", manifest, err)
@@ -157,6 +161,9 @@ func FindCrate(t Tools, path, pkg string) (Crate, error) {
 	var contracts []Crate
 	var contractPkgs []rawPackage
 	for _, p := range meta.Packages {
+		if len(meta.WorkspaceMembers) > 0 && !slices.Contains(meta.WorkspaceMembers, p.ID) {
+			continue
+		}
 		for _, target := range p.Targets {
 			if slices.Contains(target.CrateTypes, "cdylib") {
 				contracts = append(contracts, Crate{
