@@ -1,10 +1,58 @@
 #![cfg(test)]
 
+extern crate std;
+
 use super::*;
 use soroban_sdk::{
-    testutils::{storage::Instance, Address as _, Events, Ledger},
-    Address, Env, String, Vec,
+    symbol_short,
+    testutils::{storage::Instance, Address as _, Events, Ledger, MockAuth, MockAuthInvoke},
+    vec, xdr, Address, Env, IntoVal, String, Symbol, TryFromVal, Val, Vec,
 };
+
+fn last_events(env: &Env) -> Vec<(Vec<Val>, Val)> {
+    let all = env.events().all();
+    let mut out = Vec::new(env);
+    for e in all.events() {
+        match &e.body {
+            xdr::ContractEventBody::V0(v0) => {
+                let mut topics = Vec::new(env);
+                for t in v0.topics.iter() {
+                    topics.push_back(Val::try_from_val(env, t).unwrap());
+                }
+                let data = Val::try_from_val(env, &v0.data).unwrap();
+                out.push_back((topics, data));
+            }
+        }
+    }
+    out
+}
+
+fn val_eq(env: &Env, a: &Val, b: &Val) -> bool {
+    let a_xdr = xdr::ScVal::try_from_val(env, a).unwrap();
+    let b_xdr = xdr::ScVal::try_from_val(env, b).unwrap();
+    a_xdr == b_xdr
+}
+
+fn assert_single_event(env: &Env, expected_topics: Vec<Val>, expected_data: Val) {
+    let events = last_events(env);
+    assert_eq!(
+        events.len(),
+        1,
+        "expected exactly one event to be published"
+    );
+    let (topics, data) = events.get(0).unwrap();
+    assert_eq!(
+        topics.len(),
+        expected_topics.len(),
+        "topics length mismatch"
+    );
+    for i in 0..topics.len() {
+        let actual = topics.get(i).unwrap();
+        let expected = expected_topics.get(i).unwrap();
+        assert!(val_eq(env, &actual, &expected), "topic[{}] mismatch", i);
+    }
+    assert!(val_eq(env, &data, &expected_data), "event data mismatch");
+}
 
 fn setup() -> (Env, IdentityRegistryClient<'static>, Address) {
     let env = Env::default();
@@ -14,6 +62,21 @@ fn setup() -> (Env, IdentityRegistryClient<'static>, Address) {
     let admin = Address::generate(&env);
     client.initialize(&admin);
     (env, client, admin)
+}
+
+#[test]
+fn initialize_emits_event() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let contract_id = env.register(IdentityRegistry, ());
+    let client = IdentityRegistryClient::new(&env, &contract_id);
+    let admin = Address::generate(&env);
+    client.initialize(&admin);
+    assert_single_event(
+        &env,
+        vec![&env, Symbol::new(&env, "initialized").into_val(&env)],
+        admin.into_val(&env),
+    );
 }
 
 #[test]
@@ -115,6 +178,15 @@ fn release_frees_handle_and_wallet() {
     client.claim(&handle, &wallet);
 
     client.release(&handle);
+    assert_single_event(
+        &env,
+        vec![
+            &env,
+            symbol_short!("released").into_val(&env),
+            handle.clone().into_val(&env),
+        ],
+        wallet.clone().into_val(&env),
+    );
 
     assert!(!client.is_bound(&handle));
     assert_eq!(client.lookup(&wallet), None);
@@ -123,6 +195,73 @@ fn release_frees_handle_and_wallet() {
     // Handle and wallet are reusable after release.
     client.claim(&handle, &wallet);
     assert!(client.is_bound(&handle));
+}
+
+#[test]
+fn release_emits_event() {
+    let (env, client, _admin) = setup();
+    let wallet = Address::generate(&env);
+    let handle = String::from_str(&env, "aquawolf");
+    client.claim(&handle, &wallet);
+
+    client.release(&handle);
+    assert_single_event(
+        &env,
+        vec![
+            &env,
+            symbol_short!("released").into_val(&env),
+            handle.clone().into_val(&env),
+        ],
+        wallet.into_val(&env),
+    );
+}
+
+#[test]
+fn release_requires_owner_auth() {
+    let (env, client, _admin) = setup();
+    let wallet = Address::generate(&env);
+    let handle = String::from_str(&env, "aquawolf");
+    client.claim(&handle, &wallet);
+
+    client.release(&handle);
+
+    let auths = env.auths();
+    assert_eq!(auths.len(), 1);
+    assert_eq!(
+        auths[0].0, wallet,
+        "release must be authorized by the owning wallet"
+    );
+}
+
+#[test]
+fn release_rejected_when_authorized_by_wrong_address() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let contract_id = env.register(IdentityRegistry, ());
+    let client = IdentityRegistryClient::new(&env, &contract_id);
+    let admin = Address::generate(&env);
+    client.initialize(&admin);
+
+    let wallet = Address::generate(&env);
+    let wrong = Address::generate(&env);
+    let handle = String::from_str(&env, "aquawolf");
+    client.claim(&handle, &wallet);
+
+    env.mock_auths(&[MockAuth {
+        address: &wrong,
+        invoke: &MockAuthInvoke {
+            contract: &contract_id,
+            fn_name: "release",
+            args: (&handle,).into_val(&env),
+            sub_invokes: &[],
+        },
+    }]);
+
+    let res = client.try_release(&handle);
+    assert!(
+        res.is_err(),
+        "release must fail when authorized by wrong address"
+    );
 }
 
 #[test]
@@ -135,14 +274,88 @@ fn release_unknown_handle_errors() {
 #[test]
 fn admin_revoke_removes_binding() {
     let (env, client, _admin) = setup();
+    let wallet = Address::generate(&env);
     let handle = String::from_str(&env, "spammer");
-    client.claim(&handle, &Address::generate(&env));
+    client.claim(&handle, &wallet);
 
     client.admin_revoke(&handle);
-    // `env.events()` only reflects the most recent invocation, so the `revoked` event
-    // must be asserted before any further client call.
-    assert!(!env.events().all().events().is_empty());
+    assert_single_event(
+        &env,
+        vec![
+            &env,
+            symbol_short!("revoked").into_val(&env),
+            handle.clone().into_val(&env),
+        ],
+        wallet.into_val(&env),
+    );
     assert!(!client.is_bound(&handle));
+}
+
+#[test]
+fn admin_revoke_emits_event() {
+    let (env, client, _admin) = setup();
+    let wallet = Address::generate(&env);
+    let handle = String::from_str(&env, "badactor");
+    client.claim(&handle, &wallet);
+
+    client.admin_revoke(&handle);
+    assert_single_event(
+        &env,
+        vec![
+            &env,
+            symbol_short!("revoked").into_val(&env),
+            handle.clone().into_val(&env),
+        ],
+        wallet.into_val(&env),
+    );
+}
+
+#[test]
+fn admin_revoke_requires_admin_auth() {
+    let (env, client, admin) = setup();
+    let wallet = Address::generate(&env);
+    let handle = String::from_str(&env, "spammer");
+    client.claim(&handle, &wallet);
+
+    client.admin_revoke(&handle);
+
+    let auths = env.auths();
+    assert_eq!(auths.len(), 1);
+    assert_eq!(
+        auths[0].0, admin,
+        "admin_revoke must be authorized by the stored admin"
+    );
+}
+
+#[test]
+fn admin_revoke_rejected_when_authorized_by_wrong_address() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let contract_id = env.register(IdentityRegistry, ());
+    let client = IdentityRegistryClient::new(&env, &contract_id);
+    let admin = Address::generate(&env);
+    client.initialize(&admin);
+
+    let wallet = Address::generate(&env);
+    let wrong = Address::generate(&env);
+    let handle = String::from_str(&env, "spammer");
+    client.claim(&handle, &wallet);
+
+    env.mock_auths(&[MockAuth {
+        address: &wrong,
+        invoke: &MockAuthInvoke {
+            contract: &contract_id,
+            fn_name: "admin_revoke",
+            args: (&handle,).into_val(&env),
+            sub_invokes: &[],
+        },
+    }]);
+
+    let res = client.try_admin_revoke(&handle);
+    assert!(
+        res.is_err(),
+        "admin_revoke must fail when authorized by non-admin"
+    );
 }
 
 #[test]
@@ -165,10 +378,18 @@ fn claim_before_initialize_errors() {
 #[test]
 fn claim_emits_event() {
     let (env, client, _admin) = setup();
+    let wallet = Address::generate(&env);
     let handle = String::from_str(&env, "aquawolf");
-    client.claim(&handle, &Address::generate(&env));
-    // At least one event was published by the claim.
-    assert!(!env.events().all().events().is_empty());
+    client.claim(&handle, &wallet);
+    assert_single_event(
+        &env,
+        vec![
+            &env,
+            symbol_short!("claimed").into_val(&env),
+            handle.clone().into_val(&env),
+        ],
+        wallet.into_val(&env),
+    );
 }
 
 #[test]
@@ -212,13 +433,23 @@ fn transfer_handle_happy_path() {
     client.transfer_handle(&handle, &new_wallet);
 
     // `env.auths()` and `env.events()` only reflect the most recent invocation, so both
-    // must be read before any further client calls.
+    // must be read before any further client calls. A transfer moves the binding on
+    // behalf of both wallets, so both must have authorized it.
     let auths = env.auths();
-    assert_eq!(auths.len(), 1);
+    assert_eq!(auths.len(), 2);
     assert_eq!(auths[0].0, old_wallet);
+    assert_eq!(auths[1].0, new_wallet);
 
     // Verify event was emitted
-    assert!(!env.events().all().events().is_empty());
+    assert_single_event(
+        &env,
+        vec![
+            &env,
+            Symbol::new(&env, "transferred").into_val(&env),
+            handle.clone().into_val(&env),
+        ],
+        (old_wallet.clone(), new_wallet.clone()).into_val(&env),
+    );
 
     // Bindings updated correctly
     assert_eq!(client.resolve(&handle), Some(new_wallet.clone()));
@@ -228,6 +459,27 @@ fn transfer_handle_happy_path() {
 
     // Count is preserved
     assert_eq!(client.count(), 1);
+}
+
+#[test]
+fn transfer_handle_emits_event() {
+    let (env, client, _admin) = setup();
+    let old_wallet = Address::generate(&env);
+    let new_wallet = Address::generate(&env);
+    let handle = String::from_str(&env, "aquawolf");
+
+    client.claim(&handle, &old_wallet);
+    client.transfer_handle(&handle, &new_wallet);
+
+    assert_single_event(
+        &env,
+        vec![
+            &env,
+            Symbol::new(&env, "transferred").into_val(&env),
+            handle.clone().into_val(&env),
+        ],
+        (old_wallet, new_wallet).into_val(&env),
+    );
 }
 
 #[test]
@@ -243,6 +495,44 @@ fn transfer_handle_requires_current_owner_auth() {
     env.set_auths(&[]);
     let res = client.try_transfer_handle(&handle, &new_wallet);
     assert!(res.is_err());
+
+    // The binding is untouched.
+    env.mock_all_auths();
+    assert_eq!(client.resolve(&handle), Some(old_wallet.clone()));
+    assert_eq!(client.lookup(&old_wallet), Some(handle.clone()));
+    assert_eq!(client.lookup(&new_wallet), None);
+    assert_eq!(client.count(), 1);
+}
+
+#[test]
+fn transfer_handle_requires_new_wallet_auth() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let contract_id = env.register(IdentityRegistry, ());
+    let client = IdentityRegistryClient::new(&env, &contract_id);
+    client.initialize(&Address::generate(&env));
+
+    let old_wallet = Address::generate(&env);
+    let new_wallet = Address::generate(&env);
+    let handle = String::from_str(&env, "aquawolf");
+    client.claim(&handle, &old_wallet);
+
+    // Only the current owner signs: the new wallet has not agreed to the
+    // binding, and a handle must not be pushed onto it.
+    env.mock_auths(&[MockAuth {
+        address: &old_wallet,
+        invoke: &MockAuthInvoke {
+            contract: &contract_id,
+            fn_name: "transfer_handle",
+            args: (handle.clone(), new_wallet.clone()).into_val(&env),
+            sub_invokes: &[],
+        },
+    }]);
+    let res = client.try_transfer_handle(&handle, &new_wallet);
+    assert!(
+        res.is_err(),
+        "a transfer without the new wallet's auth must fail"
+    );
 
     // The binding is untouched.
     env.mock_all_auths();
@@ -323,7 +613,14 @@ fn claim_allows_handles_that_only_resemble_reserved_names() {
     let (env, client, _admin) = setup();
 
     // Reservation is exact-match: superstrings of reserved names are fine.
-    for name in ["apps", "apiv2", "administrator", "profiles", "links", "www2"] {
+    for name in [
+        "apps",
+        "apiv2",
+        "administrator",
+        "profiles",
+        "links",
+        "www2",
+    ] {
         let handle = String::from_str(&env, name);
         client.claim(&handle, &Address::generate(&env));
         assert!(client.is_bound(&handle));
@@ -466,10 +763,14 @@ fn set_admin_before_initialize_errors() {
 
 #[test]
 fn set_admin_emits_event() {
-    let (env, client, _admin) = setup();
-    client.set_admin(&Address::generate(&env));
-    // Asserted immediately: `env.events()` only reflects the last invocation.
-    assert!(!env.events().all().events().is_empty());
+    let (env, client, admin) = setup();
+    let new_admin = Address::generate(&env);
+    client.set_admin(&new_admin);
+    assert_single_event(
+        &env,
+        vec![&env, Symbol::new(&env, "admin_changed").into_val(&env)],
+        (admin, new_admin).into_val(&env),
+    );
 }
 
 // ── migration reservations & seal (issue #982) ───────────────────────────────
@@ -492,6 +793,34 @@ fn reserve_then_claim_by_named_wallet_succeeds_and_consumes_reservation() {
     let other_wallet = Address::generate(&env);
     client.claim(&handle, &other_wallet);
     assert_eq!(client.resolve(&handle), Some(other_wallet));
+}
+
+#[test]
+fn admin_reserve_emits_event() {
+    let (env, client, _admin) = setup();
+    let wallet = Address::generate(&env);
+    let handle = String::from_str(&env, "reserveduser");
+    client.admin_reserve(&handle, &wallet);
+    assert_single_event(
+        &env,
+        vec![
+            &env,
+            Symbol::new(&env, "reserved").into_val(&env),
+            handle.into_val(&env),
+        ],
+        wallet.into_val(&env),
+    );
+}
+
+#[test]
+fn seal_emits_event() {
+    let (env, client, _admin) = setup();
+    client.seal();
+    assert_single_event(
+        &env,
+        vec![&env, Symbol::new(&env, "sealed").into_val(&env)],
+        ().into_val(&env),
+    );
 }
 
 #[test]
@@ -665,4 +994,123 @@ fn a_missed_read_still_keeps_the_instance_alive() {
 
     assert_eq!(client.resolve(&String::from_str(&env, "nobody-here")), None);
     assert_eq!(instance_ttl(&env, &client), BUMP_LEDGERS);
+}
+
+// ── declared events (#981) ──────────────────────────────────────────────────
+
+/// One `eventV0` spec entry, reduced to what a consumer reads from the wasm.
+fn event_spec(
+    spec_xdr: &[u8],
+) -> (
+    std::string::String,
+    std::vec::Vec<std::string::String>,
+    xdr::ScSpecEventDataFormat,
+    std::vec::Vec<(std::string::String, xdr::ScSpecEventParamLocationV0)>,
+) {
+    use xdr::ReadXdr;
+    let entry = xdr::ScSpecEntry::from_xdr(spec_xdr, xdr::Limits::none()).unwrap();
+    let xdr::ScSpecEntry::EventV0(event) = entry else {
+        panic!("expected an eventV0 spec entry");
+    };
+    (
+        event.name.to_utf8_string().unwrap(),
+        event
+            .prefix_topics
+            .iter()
+            .map(|t| t.to_utf8_string().unwrap())
+            .collect(),
+        event.data_format,
+        event
+            .params
+            .iter()
+            .map(|p| (p.name.to_utf8_string().unwrap(), p.location))
+            .collect(),
+    )
+}
+
+/// The `#[contractevent]` structs are what put `eventV0` entries into the
+/// wasm's `contractspecv0` section, so these are the events a spec reader
+/// (Signet's docs view, `stellar contract info interface`) lists for the
+/// registry. The names, prefix topics, data formats and param locations must
+/// match the published layout pinned by the `*_emits_event` tests above.
+#[test]
+fn contract_spec_declares_every_event() {
+    use xdr::ScSpecEventDataFormat::{SingleValue, Vec as VecFormat};
+    use xdr::ScSpecEventParamLocationV0::{Data, TopicList};
+    let s = |v: &str| std::string::String::from(v);
+
+    assert_eq!(
+        event_spec(&Claimed::spec_xdr()),
+        (
+            s("Claimed"),
+            vec_of(&["claimed"]),
+            SingleValue,
+            std::vec![(s("handle"), TopicList), (s("wallet"), Data)]
+        )
+    );
+    assert_eq!(
+        event_spec(&Released::spec_xdr()),
+        (
+            s("Released"),
+            vec_of(&["released"]),
+            SingleValue,
+            std::vec![(s("handle"), TopicList), (s("wallet"), Data)]
+        )
+    );
+    assert_eq!(
+        event_spec(&Revoked::spec_xdr()),
+        (
+            s("Revoked"),
+            vec_of(&["revoked"]),
+            SingleValue,
+            std::vec![(s("handle"), TopicList), (s("wallet"), Data)]
+        )
+    );
+    assert_eq!(
+        event_spec(&Transferred::spec_xdr()),
+        (
+            s("Transferred"),
+            vec_of(&["transferred"]),
+            VecFormat,
+            std::vec![(s("handle"), TopicList), (s("from"), Data), (s("to"), Data)]
+        )
+    );
+    assert_eq!(
+        event_spec(&AdminChanged::spec_xdr()),
+        (
+            s("AdminChanged"),
+            vec_of(&["admin_changed"]),
+            VecFormat,
+            std::vec![(s("old_admin"), Data), (s("new_admin"), Data)]
+        )
+    );
+    assert_eq!(
+        event_spec(&Initialized::spec_xdr()),
+        (
+            s("Initialized"),
+            vec_of(&["initialized"]),
+            SingleValue,
+            std::vec![(s("admin"), Data)]
+        )
+    );
+    assert_eq!(
+        event_spec(&Reserved::spec_xdr()),
+        (
+            s("Reserved"),
+            vec_of(&["reserved"]),
+            SingleValue,
+            std::vec![(s("handle"), TopicList), (s("wallet"), Data)]
+        )
+    );
+    assert_eq!(
+        event_spec(&Sealed::spec_xdr()),
+        (s("Sealed"), vec_of(&["sealed"]), SingleValue, std::vec![])
+    );
+}
+
+fn vec_of(items: &[&str]) -> std::vec::Vec<std::string::String> {
+    items
+        .iter()
+        .map(|i| std::string::String::from(*i))
+        .collect()
 }

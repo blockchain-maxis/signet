@@ -24,15 +24,27 @@ interface Run {
   cached?: boolean;
 }
 
-interface Outcome {
+export interface RealOutcome {
+  hash: string;
+  ledger: number;
+  function: string;
+  link?: string;
+  fidelity: {
+    high: boolean;
+    reason?: string;
+  };
+}
+
+export interface Outcome {
   name: string;
   a: Run;
   b: Run;
   diff?: { summary: { breaking: number; behavioural: number; cost: number; ignored: number } };
   verdict?: { expect: string; pass: boolean; reason?: string };
+  real?: RealOutcome;
 }
 
-interface Cycle {
+export interface Cycle {
   id: number;
   deployed: string;
   local: string;
@@ -334,7 +346,7 @@ export function App() {
 
 const NO_OUTCOMES: Outcome[] = [];
 
-function CycleTable({ cycle }: { cycle: Load<Cycle> }) {
+export function CycleTable({ cycle }: { cycle: Load<Cycle> }) {
   if (cycle.state === 'loading') {
     return (
       <div className="mt-4 space-y-2" role="status" aria-label="loading the latest cycle">
@@ -361,6 +373,10 @@ function CycleTable({ cycle }: { cycle: Load<Cycle> }) {
       </p>
     );
   }
+
+  const counted = cycle.value.outcomes.filter((o) => !(o.real && !o.real.fidelity.high));
+  const lowFidelity = cycle.value.outcomes.filter((o) => Boolean(o.real && !o.real.fidelity.high));
+
   return (
     <div className="mt-4 overflow-x-auto">
       <table className="w-full min-w-[44rem] border-collapse text-left text-sm">
@@ -384,37 +400,82 @@ function CycleTable({ cycle }: { cycle: Load<Cycle> }) {
           </tr>
         </thead>
         <tbody className="font-mono text-xs">
-          {cycle.value.outcomes.map((o) => (
-            <tr key={o.name} className="border-b border-line/60 align-top">
-              <th scope="row" className="min-w-[10rem] py-1.5 pr-4 font-sans text-sm font-normal">
-                {o.name}
-              </th>
-              <td className="break-all py-1.5 pr-4 text-muted">
-                {describeRun(o.a)}
-                {o.a.cached ? <span className="ml-2 text-faint">cached</span> : null}
-              </td>
-              <td className="break-all py-1.5 pr-4">{describeRun(o.b)}</td>
-              <td
-                className={`whitespace-nowrap py-1.5 pr-4 ${summarise(o.diff) === 'same' ? 'text-muted' : 'text-accent'}`}
-              >
-                {summarise(o.diff)}
-              </td>
-              <td className="whitespace-nowrap py-1.5">
-                {o.verdict ? (
-                  <span
-                    className={o.verdict.pass ? 'text-ok' : 'text-bad'}
-                    title={o.verdict.reason}
-                  >
-                    {o.verdict.pass ? 'pass' : 'fail'} {o.verdict.expect}
-                  </span>
-                ) : (
-                  <span className="text-faint">none</span>
-                )}
-              </td>
-            </tr>
+          {counted.map((o) => (
+            <OutcomeRow key={o.name} outcome={o} />
           ))}
+          {lowFidelity.length > 0 && (
+            <>
+              <tr className="border-b border-line bg-raised/40">
+                <td colSpan={5} className="py-2 pr-4 font-sans text-xs font-medium text-muted">
+                  low-fidelity (not counted)
+                </td>
+              </tr>
+              {lowFidelity.map((o) => (
+                <OutcomeRow key={o.name} outcome={o} />
+              ))}
+            </>
+          )}
         </tbody>
       </table>
     </div>
+  );
+}
+
+function OutcomeRow({ outcome: o }: { outcome: Outcome }) {
+  return (
+    <tr key={o.name} className="border-b border-line/60 align-top">
+      <th scope="row" className="min-w-[10rem] py-1.5 pr-4 font-sans text-sm font-normal">
+        <div className="flex flex-wrap items-center gap-1.5">
+          <span>{o.name}</span>
+          {o.real && (
+            <>
+              <span className="inline-flex items-center rounded border border-line px-1 font-mono text-[10px] text-muted">
+                real tx
+              </span>
+              <span className="font-mono text-xs text-faint">ledger {o.real.ledger}</span>
+              {o.real.link ? (
+                <a
+                  href={o.real.link}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="font-mono text-xs text-accent underline hover:text-ink"
+                >
+                  {short(o.real.hash)}
+                </a>
+              ) : (
+                <span className="font-mono text-xs text-muted" title={o.real.hash}>
+                  {short(o.real.hash)}
+                </span>
+              )}
+            </>
+          )}
+        </div>
+        {o.real?.fidelity.reason && (
+          <p className="mt-0.5 font-sans text-xs text-muted">{o.real.fidelity.reason}</p>
+        )}
+      </th>
+      <td className="break-all py-1.5 pr-4 text-muted">
+        {describeRun(o.a)}
+        {o.a.cached ? <span className="ml-2 text-faint">cached</span> : null}
+      </td>
+      <td className="break-all py-1.5 pr-4">{describeRun(o.b)}</td>
+      <td
+        className={`whitespace-nowrap py-1.5 pr-4 ${summarise(o.diff) === 'same' ? 'text-muted' : 'text-accent'}`}
+      >
+        {summarise(o.diff)}
+      </td>
+      <td className="whitespace-nowrap py-1.5">
+        {o.verdict ? (
+          <span
+            className={o.verdict.pass ? 'text-ok' : 'text-bad'}
+            title={o.verdict.reason}
+          >
+            {o.verdict.pass ? 'pass' : 'fail'} {o.verdict.expect}
+          </span>
+        ) : (
+          <span className="text-faint">none</span>
+        )}
+      </td>
+    </tr>
   );
 }

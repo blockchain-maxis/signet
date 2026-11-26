@@ -96,9 +96,9 @@ announcement and the last user signing, every handle on the new registry is
 unclaimed — and `claim` is first-come. Without a reservation, migration day is an
 open squat on every handle in the product.
 
-So the replacement wasm adds two entrypoints (**neither exists in the current
-contract; they are part of the migration deployment, and want their own tests and
-review**):
+So the replacement wasm adds two entrypoints. Both are in `main` (#982, tested in
+`src/test.rs` and the property test) but **not in the deployed wasm**: they ship with
+the migration deployment, and still want their own review before it:
 
 ```rust
 /// Reserve `handle` so that only `wallet` may claim it. Admin-only, and
@@ -160,14 +160,24 @@ stellar contract invoke --network "$NETWORK" --id "$OLD_CONTRACT_ID" \
 # → the wallet in your list, or you do not migrate that entry yet
 ```
 
-The count has to agree too — `count()` on the old contract is the number of
-live bindings, and a list that does not match it is a list that is missing
-something:
+Then check the total against `count()` on the old contract. `count()` is an
+**upper bound**, not the number of live bindings. A binding whose persistent
+entries archive while nobody touches them runs no contract code, so nothing
+subtracts it, and the counter can only drift upward (`count`'s doc comment in
+`packages/contracts/identity-registry/src/lib.rs`, and
+[`REGISTRY_INTEGRATION.md`](./REGISTRY_INTEGRATION.md)):
 
 ```bash
 stellar contract invoke --network "$NETWORK" --id "$OLD_CONTRACT_ID" \
   --source "$ACCOUNT" -- count
 ```
+
+A verified list may be **smaller** than `count()`. The gap is bindings that
+archived or that no source recorded, and every entry already passed `resolve`
+above. It may never be **larger**: more live bindings than the counter has
+recorded means an entry was not really verified, or it is a duplicate. Find
+that entry before going on. Record both numbers and the difference in the
+migration log.
 
 **4. Deploy the replacement.** `./infra/deploy-contract.sh` deploys and
 initializes in one run and prints the new contract id. Deploy as the intended
@@ -255,7 +265,7 @@ and its verification output as an artifact of the migration.
 - [ ] Defect classified as ownership-affecting (§3)
 - [ ] Announcement published, with the date
 - [ ] Fresh snapshot taken and reconciled from all three sources
-- [ ] Every entry verified against `resolve`, and the total against `count()`
+- [ ] Every entry verified against `resolve`, and the total no larger than `count()` (an upper bound; smaller is expected)
 - [ ] `admin_reserve` / `seal` implemented, tested, reviewed
 - [ ] Replacement deployed and initialized by the intended admin
 - [ ] Reservations written and read back, with a log

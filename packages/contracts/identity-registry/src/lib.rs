@@ -27,7 +27,7 @@
 //! and per-call cost stay constant regardless of how many handles exist.
 
 use soroban_sdk::{
-    contract, contracterror, contractimpl, contracttype, symbol_short, Address, Env, String, Vec,
+    contract, contracterror, contractevent, contractimpl, contracttype, Address, Env, String, Vec,
 };
 
 /// Maximum handle length in bytes. Handles are short, URL-safe identifiers.
@@ -100,6 +100,74 @@ pub enum Error {
     RegistrySealed = 11,
 }
 
+/// A handle was claimed and bound to a wallet.
+#[contractevent(data_format = "single-value")]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct Claimed {
+    #[topic]
+    pub handle: String,
+    pub wallet: Address,
+}
+
+/// A handle was voluntarily released by its owning wallet.
+#[contractevent(data_format = "single-value")]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct Released {
+    #[topic]
+    pub handle: String,
+    pub wallet: Address,
+}
+
+/// A handle was force-unbound by the moderation admin.
+#[contractevent(data_format = "single-value")]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct Revoked {
+    #[topic]
+    pub handle: String,
+    pub wallet: Address,
+}
+
+/// A handle was transferred from one wallet to another.
+#[contractevent(data_format = "vec")]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct Transferred {
+    #[topic]
+    pub handle: String,
+    pub from: Address,
+    pub to: Address,
+}
+
+/// Moderation authority was rotated to a new admin.
+#[contractevent(data_format = "vec")]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct AdminChanged {
+    pub old_admin: Address,
+    pub new_admin: Address,
+}
+
+/// The registry was initialized with its initial moderation admin.
+#[contractevent(data_format = "single-value")]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct Initialized {
+    pub admin: Address,
+}
+
+/// Migration only: `handle` was reserved so that only `wallet` may claim it.
+/// A reservation, not a binding.
+#[contractevent(data_format = "single-value")]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct Reserved {
+    #[topic]
+    pub handle: String,
+    pub wallet: Address,
+}
+
+/// The migration was sealed: no further reservations, and `claim` ignores
+/// the remaining ones. Topic `[Symbol("sealed")]`, data void.
+#[contractevent(data_format = "single-value")]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct Sealed {}
+
 #[contract]
 pub struct IdentityRegistry;
 
@@ -119,6 +187,7 @@ impl IdentityRegistry {
         }
         env.storage().instance().set(&DataKey::Admin, &admin);
         Self::bump_instance(&env);
+        Initialized { admin }.publish(&env);
         Ok(())
     }
 
@@ -139,16 +208,20 @@ impl IdentityRegistry {
         env.storage().instance().set(&DataKey::Admin, &new_admin);
         Self::bump_instance(&env);
 
-        env.events().publish(
-            (soroban_sdk::Symbol::new(&env, "admin_changed"),),
-            (admin, new_admin),
-        );
+        AdminChanged {
+            old_admin: admin,
+            new_admin,
+        }
+        .publish(&env);
         Ok(())
     }
 
     /// Bind `handle` to `wallet`. Requires the wallet's authorization, which
     /// is the cryptographic proof of ownership. Fails if the handle is already
-    /// taken or the wallet already owns a handle.
+    /// taken or the wallet already owns a handle. Until `seal`, a handle
+    /// reserved with `admin_reserve` can only be claimed by the reserved wallet
+    /// (`HandleReservedForOther` otherwise), and that claim consumes the
+    /// reservation.
     pub fn claim(env: Env, handle: String, wallet: Address) -> Result<(), Error> {
         Self::require_initialized(&env)?;
         wallet.require_auth();
@@ -194,18 +267,20 @@ impl IdentityRegistry {
         env.storage().instance().set(&DataKey::Count, &(count + 1));
         Self::bump_instance(&env);
 
-        env.events()
-            .publish((symbol_short!("claimed"), handle), wallet);
+        Claimed { handle, wallet }.publish(&env);
         Ok(())
     }
 
-    /// Transfer a handle to a new wallet. Requires authentication from the current owner.
+    /// Transfer a handle to a new wallet. Requires authentication from both the
+    /// current owner and the new wallet, so a handle can never be bound to a
+    /// wallet that did not agree to it.
     /// Fails if the handle is not found or if the target wallet already holds a handle.
     pub fn transfer_handle(env: Env, handle: String, new_wallet: Address) -> Result<(), Error> {
         Self::require_initialized(&env)?;
         let current_owner =
             Self::resolve(env.clone(), handle.clone()).ok_or(Error::HandleNotFound)?;
         current_owner.require_auth();
+        new_wallet.require_auth();
 
         let new_wallet_key = DataKey::Handle(new_wallet.clone());
         if env.storage().persistent().has(&new_wallet_key) {
@@ -228,10 +303,12 @@ impl IdentityRegistry {
             .extend_ttl(&new_wallet_key, BUMP_THRESHOLD, BUMP_LEDGERS);
         Self::bump_instance(&env);
 
-        env.events().publish(
-            (soroban_sdk::Symbol::new(&env, "transferred"), handle),
-            (current_owner, new_wallet),
-        );
+        Transferred {
+            handle,
+            from: current_owner,
+            to: new_wallet,
+        }
+        .publish(&env);
 
         Ok(())
     }
@@ -241,7 +318,8 @@ impl IdentityRegistry {
         Self::require_initialized(&env)?;
         let wallet = Self::resolve(env.clone(), handle.clone()).ok_or(Error::HandleNotFound)?;
         wallet.require_auth();
-        Self::remove_binding(&env, &handle, &wallet, symbol_short!("released"));
+        Self::remove_binding(&env, &handle, &wallet);
+        Released { handle, wallet }.publish(&env);
         Ok(())
     }
 
@@ -254,7 +332,8 @@ impl IdentityRegistry {
             .ok_or(Error::NotInitialized)?;
         admin.require_auth();
         let wallet = Self::resolve(env.clone(), handle.clone()).ok_or(Error::HandleNotFound)?;
-        Self::remove_binding(&env, &handle, &wallet, symbol_short!("revoked"));
+        Self::remove_binding(&env, &handle, &wallet);
+        Revoked { handle, wallet }.publish(&env);
         Ok(())
     }
 
@@ -292,8 +371,7 @@ impl IdentityRegistry {
             .extend_ttl(&res_key, BUMP_THRESHOLD, BUMP_LEDGERS);
         Self::bump_instance(&env);
 
-        env.events()
-            .publish((symbol_short!("reserved"), handle), wallet);
+        Reserved { handle, wallet }.publish(&env);
         Ok(())
     }
 
@@ -318,13 +396,17 @@ impl IdentityRegistry {
         env.storage().instance().set(&DataKey::Sealed, &true);
         Self::bump_instance(&env);
 
-        env.events().publish((symbol_short!("sealed"),), ());
+        Sealed {}.publish(&env);
         Ok(())
     }
 
     /// Resolve a handle to its owning wallet, if bound.
     pub fn resolve(env: Env, handle: String) -> Option<Address> {
         Self::bump_instance(&env);
+        Self::resolve_owner(&env, handle)
+    }
+
+    fn resolve_owner(env: &Env, handle: String) -> Option<Address> {
         let key = DataKey::Owner(handle);
         let res: Option<Address> = env.storage().persistent().get(&key);
         if res.is_some() {
@@ -380,7 +462,7 @@ impl IdentityRegistry {
         }
         let mut results: Vec<Option<Address>> = Vec::new(&env);
         for handle in handles.iter() {
-            let addr = Self::resolve(env.clone(), handle);
+            let addr = Self::resolve_owner(&env, handle);
             results.push_back(addr);
         }
         Ok(results)
@@ -416,12 +498,7 @@ impl IdentityRegistry {
         }
     }
 
-    fn remove_binding(
-        env: &Env,
-        handle: &String,
-        wallet: &Address,
-        event_name: soroban_sdk::Symbol,
-    ) {
+    fn remove_binding(env: &Env, handle: &String, wallet: &Address) {
         env.storage()
             .persistent()
             .remove(&DataKey::Owner(handle.clone()));
@@ -434,9 +511,6 @@ impl IdentityRegistry {
             .instance()
             .set(&DataKey::Count, &count.saturating_sub(1));
         Self::bump_instance(env);
-
-        env.events()
-            .publish((event_name, handle.clone()), wallet.clone());
     }
 }
 
@@ -477,5 +551,6 @@ fn is_reserved_handle(handle: &String) -> bool {
     false
 }
 
+mod cost_test;
 mod property_test;
 mod test;

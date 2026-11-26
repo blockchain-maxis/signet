@@ -83,7 +83,7 @@ pub fn layout_check(
                     Lookup::Live { entry, .. } | Lookup::Archived { entry, .. } => {
                         entries.push((key, entry.to_vec()))
                     }
-                    Lookup::Absent => {}
+                    Lookup::Deleted { .. } | Lookup::Absent => {}
                 }
             }
         }
