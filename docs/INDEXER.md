@@ -537,9 +537,10 @@ contract's ledger position; reset the cursor at the same time.
 ```bash
 pnpm --filter @signet/indexer test               # worker and module unit tests
 pnpm --filter @signet/indexer typecheck          # TypeScript compile check
+INDEXER_TEST_DATABASE_URL=postgresql://… pnpm --filter @signet/indexer test:integration
 ```
 
 The test suites include:
 
 - **Unit tests**: Fast tests with injected, mocked stores covering all 7 workers (`attestation`, `deployment`, `activity`, `operations`, `invocations`, `executable-refresh`, `prune`), plus `config`, `retry`, `network-guard`, and `tick` loop logic. No external network or live database is required.
-- **Integration tests**: End-to-end worker execution tests (in `src/integration/`) using a real PostgreSQL database (Prisma client) to verify database constraints, upsert mechanics, JSON column behaviors (`Prisma.DbNull`), and cross-table interactions across workers.
+- **Integration tests**: End-to-end worker execution tests (in `src/integration/`) using a real PostgreSQL database (Prisma client) to verify database constraints, upsert mechanics, JSON column behaviors (`Prisma.DbNull`), and cross-table interactions across workers. They run only when `INDEXER_TEST_DATABASE_URL` is set (CI sets it in the Postgres e2e job), and they empty the indexer tables before each case and at the end, so point them at a throwaway database.
