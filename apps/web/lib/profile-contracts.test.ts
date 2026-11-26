@@ -81,7 +81,7 @@ function freshCalls() {
 function createOp(overrides: Partial<ProfileContractsHorizonOp> = {}): ProfileContractsHorizonOp {
   return {
     type: 'invoke_host_function',
-    function: 'HostFunctionTypeCreateContract',
+    function: 'HostFunctionTypeHostFunctionTypeCreateContract',
     salt: SALT_HEX,
     transactionHash: 'tx1',
     createdAt: '2026-09-20T12:00:00.000Z',
@@ -185,7 +185,7 @@ test('without a DB, create-contract ops resolve through salt derivation', async 
     [
       createOp({ transactionHash: 'tx-deploy', createdAt: '2026-09-21T12:00:00.000Z' }),
       createOp({
-        function: 'HostFunctionTypeInvokeContract',
+        function: 'HostFunctionTypeHostFunctionTypeInvokeContract',
         salt: null,
         transactionHash: 'tx-invoke',
       }),
@@ -208,6 +208,27 @@ test('without a DB, create-contract ops resolve through salt derivation', async 
   });
   // The non-create op never reaches result-meta decoding.
   assert.equal(calls.meta, 0);
+});
+
+test('without a DB, HostFunctionTypeHostFunctionTypeCreateContractV2 is recognized', async () => {
+  const calls = freshCalls();
+  const horizon = makeHorizon(
+    DEPLOYER,
+    [
+      createOp({
+        function: 'HostFunctionTypeHostFunctionTypeCreateContractV2',
+        transactionHash: 'tx-v2',
+        createdAt: '2026-09-22T12:00:00.000Z',
+      }),
+    ],
+    calls,
+  );
+
+  const res = await getProfileContractsWithDeps('alice', { network: NETWORK, db: noDb, horizon });
+
+  assert.equal(res.source, 'horizon');
+  assert.equal(res.contracts.length, 1);
+  assert.equal(res.contracts[0]?.deployTxHash, 'tx-v2');
 });
 
 test('Horizon truncation is carried through with the cap', async () => {

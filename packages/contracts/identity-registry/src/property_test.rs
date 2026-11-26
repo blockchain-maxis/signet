@@ -295,14 +295,14 @@ proptest! {
 
             // ...and the count only means anything if it counts *these*
             // bindings, in both directions.
-            for h in 0..POOL {
+            for (h, handle) in handles.iter().enumerate() {
                 let expected = model.get(&h).map(|&w| wallets[w].clone());
-                prop_assert_eq!(client.resolve(&handles[h]), expected.clone());
-                prop_assert_eq!(client.is_bound(&handles[h]), expected.is_some());
+                prop_assert_eq!(client.resolve(handle), expected.clone());
+                prop_assert_eq!(client.is_bound(handle), expected.is_some());
             }
-            for w in 0..POOL {
+            for (w, wallet) in wallets.iter().enumerate() {
                 let expected = owner_of(&model, w).map(|h| handles[h].clone());
-                prop_assert_eq!(client.lookup(&wallets[w]), expected);
+                prop_assert_eq!(client.lookup(wallet), expected);
             }
         }
     }

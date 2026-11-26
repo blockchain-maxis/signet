@@ -11,10 +11,10 @@ For release instructions and versioning procedures, see [`docs/RELEASING.md`](do
 
 ## Deployed Contract Registry
 
-| Network             | Contract            | Contract ID                                                | Deployed Date | Verification         |
-| ------------------- | ------------------- | ---------------------------------------------------------- | ------------- | -------------------- |
-| **Stellar Testnet** | `identity-registry` | `CASFJHI5PQSRWS7JV25CF7FOMRKIVBP3RXRP3E2GH2CV4BCAG7FUJRCN` | —             | Active (Soroban RPC) |
-| **Stellar Mainnet** | `identity-registry` | _Pending deployment_                                       | _TBD_         | —                    |
+| Network             | Contract            | Contract ID                                                | WASM Hash                                                         | Deployed Date | Verification         |
+| ------------------- | ------------------- | ---------------------------------------------------------- | ----------------------------------------------------------------- | ------------- | -------------------- |
+| **Stellar Testnet** | `identity-registry` | `CASFJHI5PQSRWS7JV25CF7FOMRKIVBP3RXRP3E2GH2CV4BCAG7FUJRCN` | `936996c74b7d383c56ec174857b15927cdd29478c6909da332b4dec8b67335fe` | 2026-07-09    | Active (Soroban RPC) |
+| **Stellar Mainnet** | `identity-registry` | _Pending deployment_                                       | _Pending deployment_                                              | _TBD_         | —                    |
 
 ---
 
@@ -44,6 +44,7 @@ For release instructions and versioning procedures, see [`docs/RELEASING.md`](do
 
 ### Removed
 
+- Retired the unused message-signing auth endpoints `POST /api/auth/challenge` and `POST /api/auth/verify` along with their server helpers (`createChallenge`, `verifyChallenge`, `redeemChallenge`, `verifySignature`) and `signMessage` in `@signet/web`; sign-in now goes exclusively through SEP-10 (`GET`/`POST /api/auth/sep10`) ([#894](https://github.com/blockchain-maxis/signet/issues/894)).
 - The synthetic demo profiles (`aquawolf`, `sorobuilder`, `stellardev`) and everything that served them: the shared persona list in `@signet/types`, the static operation fixtures under `apps/web/public/data/`, the indexer's demo seed and its `--reseed` flag / `indexer:seed` script, the landing page's "See it in action" and fabricated featured-developer sections, and the demo-wallet check workflow. Profiles now resolve database → chain only, activity database → Horizon only, and `/handles` lists only handles confirmed on the Identity Registry — with no registry configured it says so and lists nothing.
 
 ---

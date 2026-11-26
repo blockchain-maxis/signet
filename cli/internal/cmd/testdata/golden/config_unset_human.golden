@@ -1,0 +1,6 @@
+$ signet config unset source
+-- stdout --
+Unset source in context "default".
+-- stderr --
+(empty)
+-- exit 0 --

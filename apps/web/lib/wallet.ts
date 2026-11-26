@@ -92,21 +92,10 @@ export async function signTransaction(xdr: string, address: string): Promise<str
   return signedTxXdr;
 }
 
-/** Sign an arbitrary message; returns the base64 signature. */
-export async function signMessage(message: string, address: string): Promise<string> {
-  const kit = await ensureInit();
-  const { signedMessage } = await kit.signMessage(message, { address });
-  return signedMessage;
-}
-
 /**
  * Sign-in via SEP-10 Stellar Web Authentication: connect (if needed), fetch a
  * challenge transaction from `/api/auth/sep10`, sign it with the wallet, and
  * exchange it for a session cookie. Returns the authenticated address.
- *
- * The older custom message-signing flow (`/api/auth/{challenge,verify}`)
- * still exists server-side for any client mid-migration to this one, but the
- * app's own UI goes through SEP-10 exclusively now.
  */
 export async function signIn(): Promise<string> {
   const address = (await getConnectedAddress()) ?? (await connectWallet());

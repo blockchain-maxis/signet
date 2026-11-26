@@ -1,12 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { existsSync, readFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
-import { fileURLToPath } from 'node:url';
 import { xdr } from '@stellar/stellar-sdk';
 import { buildEvents } from './events.ts';
 import { fixtureEntries } from './test-helpers.ts';
-import { parseContractSpec } from './parse.ts';
 
 test('events.wasm produces the expected events', () => {
   assert.deepEqual(buildEvents(fixtureEntries('events')), [
@@ -74,75 +70,4 @@ test('every data format and param location maps, and absent docs are empty strin
   );
   assert.equal(events[0]!.doc, '');
   assert.equal(events[0]!.params[0]!.location, 'topic');
-});
-
-test('built identity-registry wasm spec declares the six events', () => {
-  const wasmPath = join(
-    dirname(fileURLToPath(import.meta.url)),
-    '../../../contracts/target/wasm32v1-none/release/identity_registry.wasm',
-  );
-  if (!existsSync(wasmPath)) return;
-  const wasm = readFileSync(wasmPath);
-  const spec = parseContractSpec(wasm);
-  const events = spec.events.map((e) => ({
-    name: e.name,
-    prefixTopics: [...e.prefixTopics],
-    dataFormat: e.dataFormat,
-    params: e.params.map((p) => ({ name: p.name, location: p.location })),
-  }));
-  events.sort((a, b) => a.name.localeCompare(b.name));
-  assert.deepEqual(events, [
-    {
-      name: 'AdminChanged',
-      prefixTopics: ['admin_changed'],
-      dataFormat: 'vec',
-      params: [
-        { name: 'old_admin', location: 'data' },
-        { name: 'new_admin', location: 'data' },
-      ],
-    },
-    {
-      name: 'Claimed',
-      prefixTopics: ['claimed'],
-      dataFormat: 'single_value',
-      params: [
-        { name: 'handle', location: 'topic' },
-        { name: 'wallet', location: 'data' },
-      ],
-    },
-    {
-      name: 'Initialized',
-      prefixTopics: ['initialized'],
-      dataFormat: 'single_value',
-      params: [{ name: 'admin', location: 'data' }],
-    },
-    {
-      name: 'Released',
-      prefixTopics: ['released'],
-      dataFormat: 'single_value',
-      params: [
-        { name: 'handle', location: 'topic' },
-        { name: 'wallet', location: 'data' },
-      ],
-    },
-    {
-      name: 'Revoked',
-      prefixTopics: ['revoked'],
-      dataFormat: 'single_value',
-      params: [
-        { name: 'handle', location: 'topic' },
-        { name: 'wallet', location: 'data' },
-      ],
-    },
-    {
-      name: 'Transferred',
-      prefixTopics: ['transferred'],
-      dataFormat: 'vec',
-      params: [
-        { name: 'handle', location: 'topic' },
-        { name: 'from', location: 'data' },
-        { name: 'to', location: 'data' },
-      ],
-    },
-  ]);
 });

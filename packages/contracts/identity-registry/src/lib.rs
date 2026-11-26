@@ -165,10 +165,7 @@ impl IdentityRegistry {
         }
         env.storage().instance().set(&DataKey::Admin, &admin);
         Self::bump_instance(&env);
-        Initialized {
-            admin,
-        }
-        .publish(&env);
+        Initialized { admin }.publish(&env);
         Ok(())
     }
 
@@ -231,11 +228,7 @@ impl IdentityRegistry {
         env.storage().instance().set(&DataKey::Count, &(count + 1));
         Self::bump_instance(&env);
 
-        Claimed {
-            handle,
-            wallet,
-        }
-        .publish(&env);
+        Claimed { handle, wallet }.publish(&env);
         Ok(())
     }
 
@@ -284,11 +277,7 @@ impl IdentityRegistry {
         let wallet = Self::resolve(env.clone(), handle.clone()).ok_or(Error::HandleNotFound)?;
         wallet.require_auth();
         Self::remove_binding(&env, &handle, &wallet);
-        Released {
-            handle,
-            wallet,
-        }
-        .publish(&env);
+        Released { handle, wallet }.publish(&env);
         Ok(())
     }
 
@@ -302,17 +291,17 @@ impl IdentityRegistry {
         admin.require_auth();
         let wallet = Self::resolve(env.clone(), handle.clone()).ok_or(Error::HandleNotFound)?;
         Self::remove_binding(&env, &handle, &wallet);
-        Revoked {
-            handle,
-            wallet,
-        }
-        .publish(&env);
+        Revoked { handle, wallet }.publish(&env);
         Ok(())
     }
 
     /// Resolve a handle to its owning wallet, if bound.
     pub fn resolve(env: Env, handle: String) -> Option<Address> {
         Self::bump_instance(&env);
+        Self::resolve_owner(&env, handle)
+    }
+
+    fn resolve_owner(env: &Env, handle: String) -> Option<Address> {
         let key = DataKey::Owner(handle);
         let res: Option<Address> = env.storage().persistent().get(&key);
         if res.is_some() {
@@ -368,7 +357,7 @@ impl IdentityRegistry {
         }
         let mut results: Vec<Option<Address>> = Vec::new(&env);
         for handle in handles.iter() {
-            let addr = Self::resolve(env.clone(), handle);
+            let addr = Self::resolve_owner(&env, handle);
             results.push_back(addr);
         }
         Ok(results)
@@ -457,5 +446,6 @@ fn is_reserved_handle(handle: &String) -> bool {
     false
 }
 
+mod cost_test;
 mod property_test;
 mod test;
