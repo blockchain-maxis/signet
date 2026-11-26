@@ -185,13 +185,16 @@ impl IdentityRegistry {
         Ok(())
     }
 
-    /// Transfer a handle to a new wallet. Requires authentication from the current owner.
+    /// Transfer a handle to a new wallet. Requires authentication from both the
+    /// current owner and the new wallet, so a handle can never be bound to a
+    /// wallet that did not agree to it.
     /// Fails if the handle is not found or if the target wallet already holds a handle.
     pub fn transfer_handle(env: Env, handle: String, new_wallet: Address) -> Result<(), Error> {
         Self::require_initialized(&env)?;
         let current_owner =
             Self::resolve(env.clone(), handle.clone()).ok_or(Error::HandleNotFound)?;
         current_owner.require_auth();
+        new_wallet.require_auth();
 
         let new_wallet_key = DataKey::Handle(new_wallet.clone());
         if env.storage().persistent().has(&new_wallet_key) {
