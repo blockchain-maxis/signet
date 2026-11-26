@@ -1,0 +1,6 @@
+$ signet config set source carol
+-- stdout --
+Set source to "carol" in context "default".
+-- stderr --
+(empty)
+-- exit 0 --

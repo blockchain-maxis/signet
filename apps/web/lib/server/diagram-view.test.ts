@@ -2,7 +2,12 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import type { SpecJson } from '@signet/spec';
 import { aggregateActivity } from '@signet/visualiser';
-import { drawContractDiagram, __resetDiagramViewCache, type DiagramViewInput } from './diagram-view.ts';
+import {
+  diagramStateHref,
+  drawContractDiagram,
+  __resetDiagramViewCache,
+  type DiagramViewInput,
+} from './diagram-view.ts';
 import { exportDiagramFragment, type DiagramFragmentDeps } from './diagram-fragment.ts';
 import type { Attribution } from '../contract-attribution.ts';
 
@@ -84,6 +89,15 @@ test('?types=<unknown> is dropped and never echoed', () => {
   assert.doesNotMatch(hostile.regionHtml, /<script/);
   assert.doesNotMatch(hostile.regionHtml, /UnknownType/);
   assert.deepEqual(hostile.expandedTypes, []);
+});
+
+test('state links keep the expanded types, as the activity range and order links pass them', () => {
+  const state = { handle: 'alice', address, range: '30d' as const, rankByFrequency: true };
+  const href = new URL(diagramStateHref(state, ['pool'], ['Pool', 'Config']), 'https://x.test');
+  assert.equal(href.searchParams.get('types'), 'Config,Pool');
+  assert.equal(href.searchParams.get('expand'), 'pool');
+  assert.equal(href.searchParams.get('range'), '30d');
+  assert.equal(href.searchParams.get('order'), 'use');
 });
 
 test('a contract below the threshold has no group controls', () => {

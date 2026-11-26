@@ -10,8 +10,9 @@
  * label from its instance entry (`fixtures/calls/`), the way the web app
  * labels callees (#517).
  *
- * The interface is too large to draw, so the page draws the calls alone:
- * the calling functions and the callee column.
+ * The golden draws the calls alone, as the page does when the interface is
+ * not drawn: the calling functions and the callee column. Since #950 the
+ * interface itself fits, so the calls-alone graph is forced here.
  *
  * `UPDATE_GOLDEN=1 pnpm --filter @signet/visualiser test` rewrites it.
  */
@@ -25,7 +26,6 @@ import { scValToNative, xdr } from '@stellar/stellar-sdk';
 import sacTransfer from '../../fixtures/data/sac-transfer-call-get-transaction.json' with { type: 'json' };
 import footprintOnly from '../../fixtures/data/footprint-only-call-get-transaction.json' with { type: 'json' };
 import usdcInstance from '../fixtures/calls/usdc-sac-instance-entry.json' with { type: 'json' };
-import { diagramDecision } from './decide.ts';
 import { buildContractGraph } from './graph.ts';
 import { calleeNodeId, layoutContractGraph } from './layout.ts';
 import { FIXTURES_DIR, loadFixture } from './load-fixture.ts';
@@ -54,11 +54,7 @@ function render() {
     callEdges: callEdgesFromTransaction(payload.envelopeXdr, payload.resultMetaXdr, LENDING),
   }));
   const overlay = buildCallGraph(LENDING, rows);
-  const full = buildContractGraph(loadFixture('testnet-lending-market'));
-  const graph =
-    diagramDecision(full, layoutContractGraph(full)).kind === 'draw'
-      ? full
-      : callersOnly(full, overlay);
+  const graph = callersOnly(buildContractGraph(loadFixture('testnet-lending-market')), overlay);
   const labels = new Map([[SAC, sacLabel(usdcInstance.payload.entries[0]!.xdr)]]);
   const model = layoutContractGraph(graph, {}, { calls: { overlay, labels } });
   const svg = renderDiagramSvg(model, {
@@ -117,9 +113,11 @@ test('what the golden shows: the right edges, labels and evidence', () => {
   assert.ok(
     svg.includes('Calls observed in 2 transactions (ledger 5273174) and 0 local sandbox runs.'),
   );
-  if (model.nodes.every((n) => n.kind !== 'type')) {
-    assert.ok(!svg.includes('diagram-node--type'), 'calls alone: no types');
-  }
+  assert.ok(
+    model.nodes.every((n) => n.kind !== 'type' && n.kind !== 'stub'),
+    'calls alone: no types',
+  );
+  assert.ok(!svg.includes('diagram-node--type'), 'calls alone: no types');
 });
 
 test('the outline says the same in text: each callee, who called it, how often and how we know', () => {

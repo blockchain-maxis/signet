@@ -3,13 +3,10 @@ import { SectionLabel } from './_components/section-label';
 import { SiteFooter } from './_components/site-footer';
 import { SiteNav } from './_components/site-nav';
 import {
-  getProfile,
-  getOperationsResult,
-  getProfileStats,
   formatCount,
   formatStatsWindow,
 } from '@/lib/profiles';
-import { getProfileContracts } from '@/lib/profile-contracts';
+import { loadProfilePageData } from '@/lib/profile-page';
 import { STELLAR_EXPLORER, STELLAR_NETWORK_NAME } from '@/lib/network';
 import { formatDate } from '@/lib/format-date';
 import OperationsList from './operations-list';
@@ -39,23 +36,22 @@ export async function generateMetadata({ params }: { params: Promise<{ handle: s
 export default async function ProfilePage({ params }: { params: Promise<{ handle: string }> }) {
   const { handle } = await params;
 
-  const profile = await getProfile(handle);
-  if (!profile) notFound();
+  const data = await loadProfilePageData(handle);
+  if (!data) notFound();
 
-  // `truncated` says the record stops at a cap rather than at the end of this
-  // developer's history. Every claim below that would otherwise read as a total
-  // is qualified by it — a partial record shown as complete is the one thing a
-  // career record must never do.
-  const { operations, truncated, cap, source } = await getOperationsResult(handle);
-  const stats = await getProfileStats(handle, operations);
-  // Contracts the handle's wallets deployed, newest first — a summary list
-  // linking to each contract page, with no interface detail (#455).
   const {
+    profile,
+    operations,
+    truncated,
+    cap,
+    source,
+    stats,
     contracts,
-    truncated: contractsTruncated,
-    cap: contractsCap,
+    contractsTruncated,
+    contractsCap,
     multiWallet,
-  } = await getProfileContracts(handle);
+  } = data;
+
   // The stats can outrun the capped operation list: database aggregates are
   // exact for their represented scope even when the list below stops at a cap.
   // When that scope is retention-bounded, the UI labels the window explicitly.

@@ -266,10 +266,10 @@ function contractCreationMetaV4Xdr(contractAddress: string): string {
 
 const CONTRACT_ONE = 'CAAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQC526';
 
-function createContractOp(txHash: string, pagingToken: string) {
+function createContractOp(txHash: string, pagingToken: string, fn = 'HostFunctionTypeHostFunctionTypeCreateContract') {
   return {
     type: 'invoke_host_function',
-    function: 'HostFunctionTypeCreateContract',
+    function: fn,
     transaction_hash: txHash,
     paging_token: pagingToken,
   };
@@ -293,6 +293,46 @@ test('a create-contract op is detected and recorded during backfill (v3 meta)', 
 
   assert.equal(result.contractsFound, 1);
   assert.equal(contracts.get(CONTRACT_ONE)?.walletId, WALLET_A.id);
+});
+
+test('an operation with HostFunctionTypeHostFunctionTypeCreateContractV2 creates a Contract row', async () => {
+  const wallets = [{ ...WALLET_A }];
+  const { store, contracts } = memoryStore(wallets);
+  const { horizon } = horizonPages([[createContractOp('hash-v2', 'tok-1', 'HostFunctionTypeHostFunctionTypeCreateContractV2')]]);
+  horizon.transactions = (() => ({
+    transaction: () => ({
+      call: async () => ({
+        result_meta_xdr: contractCreationMetaV4Xdr(CONTRACT_ONE),
+        ledger_attr: 2,
+        created_at: '2026-01-01T00:00:00Z',
+      }),
+    }),
+  })) as unknown as Horizon.Server['transactions'];
+
+  const result = await runDeploymentWorker(horizon, CONFIG, store);
+
+  assert.equal(result.contractsFound, 1);
+  assert.equal(contracts.get(CONTRACT_ONE)?.walletId, WALLET_A.id);
+});
+
+test('an operation with HostFunctionTypeHostFunctionTypeUploadContractWasm does not create a Contract row', async () => {
+  const wallets = [{ ...WALLET_A }];
+  const { store, contracts } = memoryStore(wallets);
+  const { horizon } = horizonPages([[createContractOp('hash-wasm', 'tok-1', 'HostFunctionTypeHostFunctionTypeUploadContractWasm')]]);
+  horizon.transactions = (() => ({
+    transaction: () => ({
+      call: async () => ({
+        result_meta_xdr: contractCreationMetaV4Xdr(CONTRACT_ONE),
+        ledger_attr: 2,
+        created_at: '2026-01-01T00:00:00Z',
+      }),
+    }),
+  })) as unknown as Horizon.Server['transactions'];
+
+  const result = await runDeploymentWorker(horizon, CONFIG, store);
+
+  assert.equal(result.contractsFound, 0);
+  assert.equal(contracts.size, 0);
 });
 
 test('a create-contract op is detected and recorded during backfill (v4 meta)', async () => {

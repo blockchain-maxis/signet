@@ -122,6 +122,8 @@ export {
   describeMarks,
   markText,
   writeMarkOf,
+  nodeKindOf,
+  edgeKindOf,
   type MutabilityOverlayInput,
   type RenderOptions,
   type StandaloneSvgOptions,
@@ -224,6 +226,7 @@ export {
 export {
   aggregateCallEdges,
   callEdgesFromTransaction,
+  decodeInvokeParameters,
   eventContractIds,
   invokedFunction,
 } from './observe/calls.ts';
@@ -283,6 +286,10 @@ export {
 } from './collapse.ts';
 export type { CollapseOptions } from './collapse.ts';
 export type { CollapsedGroup } from './graph.ts';
+
+// Pure pipeline (#946): build -> collapse -> layout -> decide.
+export { prepareDiagram } from './prepare.ts';
+export type { PrepareDiagramOptions, PreparedDiagram } from './prepare.ts';
 
 // Activity overlay (#518): use over a range from indexed invocations.
 export {

@@ -145,6 +145,9 @@ function DiagramBody(
           {view.expanded.length > 0 && (
             <input type="hidden" name="expand" value={view.expanded.join(',')} />
           )}
+          {(view.expandedTypes?.length ?? 0) > 0 && (
+            <input type="hidden" name="types" value={view.expandedTypes!.join(',')} />
+          )}
           {props.range && <input type="hidden" name="range" value={parseActivityRange(props.range)} />}
           {props.order === 'use' && <input type="hidden" name="order" value="use" />}
           <label
@@ -186,7 +189,14 @@ function DiagramBody(
             : 'This contract’s interface has no types to connect, so this shows only the calls it makes to other contracts.'}
         </p>
       )}
-      {props.activity && <ActivityPanel {...props} activity={props.activity} expanded={view.expanded} />}
+      {props.activity && (
+        <ActivityPanel
+          {...props}
+          activity={props.activity}
+          expanded={view.expanded}
+          expandedTypes={view.expandedTypes ?? []}
+        />
+      )}
       <div id={DIAGRAM_REGION_ID} dangerouslySetInnerHTML={{ __html: view.regionHtml }} />
       {view.collapsible && (
         <DiagramExpand
@@ -215,7 +225,12 @@ function lastSeen(at: number): string {
  * and order controls, and what the counts cannot see.
  */
 function ActivityPanel(
-  props: ContractSlotProps & { activity: ActivityOverlay; expanded: readonly string[] },
+  props: ContractSlotProps & {
+    activity: ActivityOverlay;
+    expanded: readonly string[];
+    /** Types drawn expanded (#950), canonical; every link here keeps them. */
+    expandedTypes: readonly string[];
+  },
 ) {
   const { series } = props.activity;
   const range = parseActivityRange(props.range);
@@ -248,7 +263,7 @@ function ActivityPanel(
           {ACTIVITY_RANGES.map((r) => (
             <a
               key={r}
-              href={diagramStateHref({ ...state, range: r }, props.expanded)}
+              href={diagramStateHref({ ...state, range: r }, props.expanded, props.expandedTypes)}
               aria-current={r === range ? 'true' : undefined}
               className={`${link} ${r === range ? 'border-[#e05a4b] text-[#f5f4ee]' : ''}`}
             >
@@ -256,7 +271,11 @@ function ActivityPanel(
             </a>
           ))}
           <a
-            href={diagramStateHref({ ...state, rankByFrequency: !rankByFrequency }, props.expanded)}
+            href={diagramStateHref(
+              { ...state, rankByFrequency: !rankByFrequency },
+              props.expanded,
+              props.expandedTypes,
+            )}
             className={link}
           >
             {rankByFrequency ? 'Spec order' : 'Order by use'}

@@ -6,16 +6,19 @@ import { exportDiagramPng, PNG_EXPORT_ERROR_MESSAGE } from '@signet/visualiser/i
 export interface ExportPngButtonProps {
   handle: string;
   address: string;
+  expand?: string;
 }
 
 /**
  * Client component to download diagram as PNG at 2× scale with embedded IBM Plex Mono font (#519).
  */
-export function ExportPngButton({ handle, address }: ExportPngButtonProps) {
+export function ExportPngButton({ handle, address, expand }: ExportPngButtonProps) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const svgUrl = `/p/${encodeURIComponent(handle)}/contract/${encodeURIComponent(address)}/diagram.svg?theme=auto`;
+  const query = new URLSearchParams({ theme: 'auto' });
+  if (expand) query.set('expand', expand);
+  const svgUrl = `/p/${encodeURIComponent(handle)}/contract/${encodeURIComponent(address)}/diagram.svg?${query.toString()}`;
 
   const handleExport = async () => {
     try {

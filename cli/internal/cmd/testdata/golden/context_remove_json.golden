@@ -1,0 +1,6 @@
+$ signet context remove prod --json
+-- stdout --
+{"removed":"prod"}
+-- stderr --
+(empty)
+-- exit 0 --

@@ -73,6 +73,11 @@ test('the bundle defines signetVisualise and nothing else on the global object',
   assert.deepEqual(Object.keys(context), ['signetVisualise']);
 });
 
+test('visualise on axelar-its returns decision.kind === "draw"', () => {
+  const out = visualise(inputFor('axelar-its'));
+  assert.equal(out.decision.kind, 'draw');
+});
+
 for (const name of fixtureNames()) {
   test(`the bundle's SVG for ${name} is byte-identical to the package's golden`, () => {
     const golden = join(GOLDEN_DIR, `${name}.svg`);

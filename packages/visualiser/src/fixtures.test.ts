@@ -24,6 +24,19 @@ const UNDEFINED_TYPES: Record<string, string[]> = {
   ],
 };
 
+/**
+ * Type nodes each fixture draws at the default type depth (#950): the types a
+ * signature reaches, stubs past the cutoff, and the undefined references
+ * above. Unreferenced types are not drawn.
+ */
+const TYPES_DRAWN: Record<string, number> = {
+  'identity-registry': 0,
+  'blend-pool-v1': 5,
+  'testnet-lending-market': 13,
+  'axelar-its': 5,
+  'soroswap-router': 0,
+};
+
 function fixtureNames(): string[] {
   return readdirSync(FIXTURES_DIR)
     .filter((f) => f.endsWith('.spec.json'))
@@ -103,7 +116,7 @@ test('the fixture set covers a large contract (40 or more functions) that still 
   for (const { name, spec } of large) {
     assert.ok(spec.types.length > 0, `${name}: has user-defined types`);
     const model = layoutContractGraph(buildContractGraph(spec));
-    assert.ok(model.nodes.length >= spec.functions.length, name);
+    assert.equal(model.nodes.length, spec.functions.length + TYPES_DRAWN[name]!, name);
     assert.ok(groupFunctions(spec.functions.map((f) => f.name)).length >= 2, `${name}: groups`);
   }
 });
@@ -111,21 +124,12 @@ test('the fixture set covers a large contract (40 or more functions) that still 
 // --- the fixtures drive the visualiser pipeline ------------------------------
 
 test('graph: only types reached by signatures are drawn, plus documented undefined types', () => {
-  const EXPECTED_TYPES_DRAWN: Record<string, number> = {
-    'identity-registry': 0,
-    'blend-pool-v1': 5,
-    'testnet-lending-market': 13,
-    'axelar-its': 5,
-    'soroswap-router': 0,
-  };
   for (const name of fixtureNames()) {
     const spec = loadFixture(name);
     const graph = buildContractGraph(spec);
     const undefinedTypes = UNDEFINED_TYPES[name] ?? [];
-    if (name in EXPECTED_TYPES_DRAWN) {
-      const typeNodes = graph.nodes.filter((n) => n.kind !== 'function');
-      assert.equal(typeNodes.length, EXPECTED_TYPES_DRAWN[name], `${name} type nodes`);
-    }
+    assert.ok(name in TYPES_DRAWN, `${name}: add its drawn type count to TYPES_DRAWN`);
+    assert.equal(graph.nodes.length, spec.functions.length + TYPES_DRAWN[name]!, name);
     assert.deepEqual(
       graph.nodes
         .filter((n) => n.kind === 'missing')

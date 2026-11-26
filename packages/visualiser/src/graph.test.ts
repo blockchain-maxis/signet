@@ -5,7 +5,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { contract, xdr } from '@stellar/stellar-sdk';
 import { buildSpecViews, parseContractSpec } from '@signet/spec';
-import type { ContractSpec } from '@signet/spec';
+import type { ContractSpec, TypeRef } from '@signet/spec';
 import { loadFixture } from './load-fixture.ts';
 import { buildContractGraph, functionNodeId, typeNodeId } from './graph.ts';
 import type { GraphEdge, GraphNode } from './graph.ts';
@@ -132,24 +132,81 @@ test('blend-pool-v1 draws 5 type nodes at default depth and 0 nodes with no inci
   }
 });
 
+/** The user-defined type names a type reference names, through any wrappers. */
+function namedRefs(ref: TypeRef, out: Set<string>): void {
+  if (typeof ref === 'string') return;
+  switch (ref.type) {
+    case 'named':
+      out.add(ref.name);
+      return;
+    case 'option':
+      namedRefs(ref.value, out);
+      return;
+    case 'result':
+      namedRefs(ref.ok, out);
+      namedRefs(ref.error, out);
+      return;
+    case 'vec':
+      namedRefs(ref.element, out);
+      return;
+    case 'map':
+      namedRefs(ref.key, out);
+      namedRefs(ref.value, out);
+      return;
+    case 'tuple':
+      for (const element of ref.elements) namedRefs(element, out);
+      return;
+    default:
+      return;
+  }
+}
+
+/** The ids of the types a definition's members name directly, error enums aside. */
+function directChildren(spec: ContractSpec, name: string, errorEnums: Set<string>): string[] {
+  const type = buildSpecViews(spec.entries).types.find((t) => t.name === name)!;
+  const names = new Set<string>();
+  if (type.kind === 'struct') for (const field of type.fields) namedRefs(field.type, names);
+  if (type.kind === 'union') {
+    for (const unionCase of type.cases) for (const field of unionCase.fields) namedRefs(field.type, names);
+  }
+  return [...names].filter((n) => !errorEnums.has(n)).map(typeNodeId).sort();
+}
+
 test('testnet-lending-market draws 5 stubs and expanding one adds exactly its direct children', () => {
   const spec = loadFixture('testnet-lending-market');
   const graph = buildContractGraph(spec);
   const stubs = graph.nodes.filter((n) => n.kind === 'stub');
   assert.equal(stubs.length, 5);
 
-  // Pick the first stub
-  const stub = stubs[0]!;
-  const expanded = buildContractGraph(spec, { expandTypes: [stub.name] });
-  const inlined = expanded.nodes.find((n) => n.id === stub.id);
-  assert.equal(inlined?.kind, 'type');
+  const stub = stubs.find((n) => (n.hidden ?? 0) > 0)!;
+  assert.ok(stub, 'a stub hides at least one member');
+  const errorEnums = new Set(graph.errors.map((e) => e.enumName));
+  const children = directChildren(spec, stub.name, errorEnums);
+  assert.ok(children.length > 0, `${stub.name} has direct children`);
 
-  // Direct children added as outgoing field edges from this inlined type
-  const newEdges = expanded.edges.filter((e) => e.from === stub.id);
-  assert.ok(newEdges.length > 0);
-  for (const edge of newEdges) {
-    assert.ok(expanded.nodes.some((n) => n.id === edge.to));
-  }
+  const expanded = buildContractGraph(spec, { expandTypes: [stub.name] });
+  assert.equal(expanded.nodes.find((n) => n.id === stub.id)?.kind, 'type', 'the stub is drawn inline');
+
+  // Its outgoing edges are exactly its direct children, one per child.
+  const targets = expanded.edges.filter((e) => e.from === stub.id).map((e) => e.to).sort();
+  assert.deepEqual(targets, children);
+
+  // Nothing else changes: every node drawn before is still drawn, and the
+  // only new nodes are direct children that were not drawn yet.
+  const before = new Set(graph.nodes.map((n) => n.id));
+  const after = new Set(expanded.nodes.map((n) => n.id));
+  for (const id of before) assert.ok(after.has(id), `${id} is still drawn`);
+  assert.deepEqual(
+    [...after].filter((id) => !before.has(id)).sort(),
+    children.filter((id) => !before.has(id)),
+  );
+  // Every other edge is unchanged.
+  const otherEdges = (g: typeof graph) =>
+    g.edges
+      .filter((e) => e.from !== stub.id)
+      .map((e) => e.id)
+      .sort();
+  assert.deepEqual(otherEdges(expanded), otherEdges(graph));
 });
 
 test('types_zoo: a three-deep struct nest becomes a chain of field edges', () => {
