@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import type { SpecJson } from '@signet/spec';
+import { toSpecJson, type SpecJson } from '@signet/spec';
+import { loadFixture } from '../../../../packages/visualiser/src/load-fixture.ts';
 import { aggregateActivity } from '@signet/visualiser';
 import { drawContractDiagram, __resetDiagramViewCache, type DiagramViewInput } from './diagram-view.ts';
 import { exportDiagramFragment, type DiagramFragmentDeps } from './diagram-fragment.ts';
@@ -76,6 +77,15 @@ test('permuted expand lists draw the same state; unknown names are never echoed'
   const hostile = drawContractDiagram(input({ expand: '<script>alert(1)</script>' }));
   assert.equal(hostile.regionHtml, drawContractDiagram(input()).regionHtml);
   assert.doesNotMatch(hostile.regionHtml, /<script/);
+});
+
+test('on axelar-its, query deploy reports matching functions and totalFunctions === 49', () => {
+  const axelarSpec = toSpecJson(loadFixture('axelar-its'));
+  const view = drawContractDiagram(input({ spec: axelarSpec, query: 'deploy' }));
+  assert.equal(view.totalFunctions, 49);
+  assert.equal(view.matchingFunctions, 4);
+  const deployPrefix = drawContractDiagram(input({ spec: axelarSpec, query: 'deploy_' }));
+  assert.equal(deployPrefix.matchingFunctions, 3);
 });
 
 test('a contract below the threshold has no group controls', () => {
