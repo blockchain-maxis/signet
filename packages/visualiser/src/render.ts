@@ -48,6 +48,8 @@ export interface RenderOptions {
   idPrefix: string;
   /** Returns the href for a node id, or null if the node is not linkable. */
   hrefForNode: (nodeId: string) => string | null;
+  /** Returns the target attribute for a node id, or null if default target. */
+  targetForNode?: (nodeId: string) => string | null;
   /** Title for the <title> element (contract name/address). */
   title: string;
   /** Optional ID of an element that describes this SVG (e.g. outline details for a11y, issue 499). */
@@ -562,8 +564,12 @@ export function renderDiagramSvg(model: DiagramModel, opts: RenderOptions): stri
     if (diffKind) markAttrs += ` data-diff="${diffKind}"`;
 
     if (href) {
+      const target = opts.targetForNode?.(node.id) ?? null;
+      const targetAttr = target
+        ? ` target="${escapeXml(target)}"${target === '_blank' ? ' rel="noopener"' : ''}`
+        : '';
       svgParts.push(
-        `  <a id="${anchorId}" href="${escapeXml(href)}" data-node-id="${escapeXml(node.id)}"${markAttrs}${containerClass}${autofocusAttr}>`,
+        `  <a id="${anchorId}" href="${escapeXml(href)}"${targetAttr} data-node-id="${escapeXml(node.id)}"${markAttrs}${containerClass}${autofocusAttr}>`,
       );
     } else {
       svgParts.push(
