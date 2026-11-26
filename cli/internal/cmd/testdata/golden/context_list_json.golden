@@ -1,0 +1,6 @@
+$ signet context list --json
+-- stdout --
+{"current":"default","contexts":{"default":{"url":"https://signet.example.com","network":"testnet","source":"alice"},"prod":{"url":"https://prod.example.com","network":"mainnet","source":"bob"}}}
+-- stderr --
+(empty)
+-- exit 0 --

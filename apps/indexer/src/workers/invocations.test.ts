@@ -14,10 +14,27 @@ import {
   type ContractInvocationUpdate,
   type SorobanInvocationsRpc,
 } from './invocations.js';
-import { xdr } from '@stellar/stellar-sdk';
+import { scValToNative, xdr } from '@stellar/stellar-sdk';
 import claimFixture from '../../../../packages/fixtures/data/claim-get-transaction.json' with { type: 'json' };
 import deployFixture from '../../../../packages/fixtures/data/deploy-get-transaction.json' with { type: 'json' };
 import sacTransferFixture from '../../../../packages/fixtures/data/sac-transfer-call-get-transaction.json' with { type: 'json' };
+
+// The recorded claim is re-made on every capture (packages/fixtures README) by a
+// fresh account that claims for itself, so the source account is whatever
+// wallet the claim names rather than a constant.
+const CLAIM_WALLET = String(
+  scValToNative(
+    xdr.TransactionEnvelope.fromXDR(claimFixture.payload.envelopeXdr, 'base64')
+      .v1()
+      .tx()
+      .operations()[0]!
+      .body()
+      .invokeHostFunctionOp()
+      .hostFunction()
+      .invokeContract()
+      .args()[1]!,
+  ),
+);
 
 function createMockStore(contracts: InvocationsContract[] = []) {
   const contractInvocations: Map<string, ContractInvocationCreate> = new Map();
@@ -58,7 +75,7 @@ test('extracts sourceAccount, footprint, functionName, changedKeys, and eventsCo
   const regAddress = 'CASFJHI5PQSRWS7JV25CF7FOMRKIVBP3RXRP3E2GH2CV4BCAG7FUJRCN';
 
   const sourceAccount = extractSourceAccount(claimEnv);
-  assert.equal(sourceAccount, 'GCWEY5SG6LEGTI6MJ7BTS5FF22DDBZN3E6BS4AFFB44BNOAE4A5V4PWE');
+  assert.equal(sourceAccount, CLAIM_WALLET);
 
   const { readOnly, readWrite } = extractFootprint(claimTx);
   assert.equal(readOnly.length, 1);
@@ -157,10 +174,10 @@ test('runInvocationsWorker upserts invocations idempotently', async () => {
   assert.equal(res1.invocationsUpserted, 1);
   assert.equal(contractInvocations.size, 1);
 
-  const record = contractInvocations.get(`${claimFixture.payload.txHash}:0`);
+  const record = contractInvocations.get(`${claimFixture.payload.txHash}:${contract.id}`);
   assert.ok(record);
   assert.equal(record.contractId, 'contract-1');
-  assert.equal(record.sourceAccount, 'GCWEY5SG6LEGTI6MJ7BTS5FF22DDBZN3E6BS4AFFB44BNOAE4A5V4PWE');
+  assert.equal(record.sourceAccount, CLAIM_WALLET);
   assert.equal(record.function, 'claim');
   assert.equal(record.successful, true);
   assert.equal(record.wasmHash, 'abc123wasmhash');
@@ -277,8 +294,8 @@ test('runInvocationsWorker persists callEdges and names the function of a sub-ca
   const LENDING = 'CBXZBQ6NW3TGPGLTR4JCG2VPVWFLCCHKDW75NJIXYXV7CJLNUO64VTFC';
   const SAC = 'CBM44TNMCPYIFJO4PSMDZA7IXKJRRNHA6EOWNWI3X4V47DDC7WQXXD3E';
   const FOREIGN = 'CAITA5YIDBY4WQU7C5DUOM2P6BWZDFCKFCGOSUVDHZH3O3T7XKOAYOZR';
-  const lending: InvocationsContract = { id: 'lending', address: LENDING, wasmHash: null };
-  const sac: InvocationsContract = { id: 'sac', address: SAC, wasmHash: null };
+  const lending: InvocationsContract = { id: 'lending', address: LENDING, wasmHash: 'wasm-lending' };
+  const sac: InvocationsContract = { id: 'sac', address: SAC, wasmHash: 'wasm-sac' };
   const { store, contractInvocations } = createMockStore([lending, sac]);
   const tx = sacTransferFixture.payload;
 
@@ -288,32 +305,35 @@ test('runInvocationsWorker persists callEdges and names the function of a sub-ca
     getTransaction: async () => tx as any,
   } as unknown as SorobanInvocationsRpc;
 
-  await runInvocationsWorker(mockRpc, { eventWindowLedgers: 8000 }, store);
+  // Scan both contracts in one run: both get independent rows keyed on `${txHash}:${contractId}`
+  const res1 = await runInvocationsWorker(mockRpc, { eventWindowLedgers: 8000 }, store);
+  assert.equal(res1.invocationsUpserted, 2);
+  assert.equal(contractInvocations.size, 2);
 
-  // Both contracts' rows share the `${txHash}:0` id in this worker, so the
-  // second scan (the SAC) refreshes the row the first created. Check each
-  // contract's view by scanning it alone.
-  const byContract = async (contract: InvocationsContract) => {
-    const { store, contractInvocations } = createMockStore([contract]);
-    await runInvocationsWorker(mockRpc, { eventWindowLedgers: 8000 }, store);
-    return contractInvocations.get(`${tx.txHash}:0`)!;
-  };
-
-  const lendingRow = await byContract(lending);
+  const lendingRow = contractInvocations.get(`${tx.txHash}:${lending.id}`)!;
+  assert.ok(lendingRow);
+  assert.equal(lendingRow.contractId, 'lending');
   assert.equal(lendingRow.function, 'repay_obligation_liquidity');
+  assert.equal(lendingRow.wasmHash, 'wasm-lending');
   assert.deepEqual(lendingRow.callEdges, [
     { from: LENDING, to: SAC, function: 'transfer', evidence: 'auth-tree' },
     { from: LENDING, to: FOREIGN, evidence: 'footprint' },
   ]);
   assert.deepEqual([...lendingRow.eventsContractIds].sort(), [LENDING, SAC].sort());
 
-  const sacRow = await byContract(sac);
+  const sacRow = contractInvocations.get(`${tx.txHash}:${sac.id}`)!;
+  assert.ok(sacRow);
+  assert.equal(sacRow.contractId, 'sac');
   // Reached only as a sub-call: the auth tree names the function (#417's null rows).
   assert.equal(sacRow.function, 'transfer');
+  assert.equal(sacRow.wasmHash, 'wasm-sac');
   assert.deepEqual(sacRow.callEdges, []);
 
-  // The refresh path writes callEdges too, not just create.
-  const refreshed = contractInvocations.get(`${tx.txHash}:0`)!;
-  assert.deepEqual(refreshed.callEdges, []);
-  assert.equal(refreshed.function, 'transfer');
+  // A second run changes neither (idempotent)
+  const res2 = await runInvocationsWorker(mockRpc, { eventWindowLedgers: 8000 }, store);
+  assert.equal(contractInvocations.size, 2);
+  const lendingRow2 = contractInvocations.get(`${tx.txHash}:${lending.id}`)!;
+  const sacRow2 = contractInvocations.get(`${tx.txHash}:${sac.id}`)!;
+  assert.deepEqual(lendingRow2, lendingRow);
+  assert.deepEqual(sacRow2, sacRow);
 });

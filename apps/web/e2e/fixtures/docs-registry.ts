@@ -274,8 +274,8 @@ export async function seedDocsRegistryFixture(): Promise<void> {
     });
     const wallet = await prisma.wallet.upsert({
       where: { pubkey: WALLET_4 },
-      update: { profileId: profile.id },
-      create: { profileId: profile.id, pubkey: WALLET_4, source: 'cli', isPrimary: true },
+      update: { profileId: profile.id, source: 'onchain', isPrimary: true },
+      create: { profileId: profile.id, pubkey: WALLET_4, source: 'onchain', isPrimary: true },
     });
     const rows = [
       { address: REGISTRY, tx: 'a7', wasm: REGISTRY_WASM, spec: registrySpec },

@@ -205,7 +205,7 @@ model ContractWasmVersion {
 /// Per-contract invocation index capturing raw transaction footprints, storage mutations,
 /// and metadata for contracts. Populated by the invocations worker via RPC getTransaction.
 model ContractInvocation {
-  /// Composite ID format: `${txHash}:${opIndex}`
+  /// Composite ID format: `${txHash}:${contractId}`
   id                String   @id
   contractId        String
   txHash            String

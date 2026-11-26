@@ -60,6 +60,12 @@ const numericVariables = [
     min: 60_000,
     key: 'executableRefreshIntervalMs',
   },
+  {
+    name: 'INDEXER_INVOCATIONS_MAX_PER_CONTRACT',
+    defaultValue: 1_000,
+    min: 0,
+    key: 'invocationsMaxPerContract',
+  },
 ] as const;
 
 test('loadConfig uses defaults when validated numeric variables are unset', () => {
@@ -90,3 +96,17 @@ for (const { name, min } of numericVariables) {
     assert.throws(() => loadConfig(), new RegExp(`${name}.*${min - 1}`));
   });
 }
+
+test('loadConfig accepts INDEXER_INVOCATIONS_MAX_PER_CONTRACT=0 to retain indefinitely', () => {
+  process.env.INDEXER_INVOCATIONS_MAX_PER_CONTRACT = '0';
+  const config = loadConfig();
+  assert.equal(config.invocationsMaxPerContract, 0);
+});
+
+test('loadConfig rejects INDEXER_INVOCATIONS_MAX_PER_CONTRACT=-1', () => {
+  process.env.INDEXER_INVOCATIONS_MAX_PER_CONTRACT = '-1';
+  assert.throws(
+    () => loadConfig(),
+    (err: Error) => err.message.includes('INDEXER_INVOCATIONS_MAX_PER_CONTRACT') && err.message.includes('-1'),
+  );
+});
