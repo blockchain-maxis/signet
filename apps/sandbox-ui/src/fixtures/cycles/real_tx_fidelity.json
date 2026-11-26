@@ -1,0 +1,89 @@
+{
+  "id": 1,
+  "deployed": "c3295f35c288e9709721d220801fe8c0ff929fcdae18c454ba8abc15cef39e33",
+  "local": "e7d811f3138aa63465f6393fa12ed9fb3bb49be35cb650f08bdd2e081209a5ca",
+  "outcomes": [
+    {
+      "name": "saved_call",
+      "a": {
+        "result": {
+          "return_value_xdr": "AAAAAwAAAAA=",
+          "return_value": 0,
+          "events": [],
+          "cost": { "cpu_insns": 100000, "mem_bytes": 500000 }
+        }
+      },
+      "b": {
+        "result": {
+          "return_value_xdr": "AAAAAwAAAAA=",
+          "return_value": 0,
+          "events": [],
+          "cost": { "cpu_insns": 100000, "mem_bytes": 500000 }
+        }
+      },
+      "diff": {
+        "empty": false,
+        "summary": { "breaking": 0, "behavioural": 1, "cost": 0, "ignored": 0 }
+      }
+    },
+    {
+      "name": "tx_high_fidelity",
+      "a": {
+        "result": {
+          "return_value_xdr": "AAAAAwAAAAA=",
+          "return_value": 0,
+          "events": [],
+          "cost": { "cpu_insns": 150000, "mem_bytes": 600000 }
+        }
+      },
+      "b": {
+        "result": {
+          "return_value_xdr": "AAAAAwAAAAE=",
+          "return_value": 1,
+          "events": [],
+          "cost": { "cpu_insns": 150000, "mem_bytes": 600000 }
+        }
+      },
+      "diff": {
+        "empty": false,
+        "summary": { "breaking": 1, "behavioural": 0, "cost": 0, "ignored": 0 }
+      },
+      "real": {
+        "hash": "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+        "ledger": 123456,
+        "function": "transfer",
+        "link": "https://stellar.expert/explorer/testnet/tx/0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+        "fidelity": {
+          "high": true
+        }
+      }
+    },
+    {
+      "name": "tx_low_fidelity",
+      "a": {
+        "error": {
+          "code": "Error(Contract, #1)"
+        }
+      },
+      "b": {
+        "error": {
+          "code": "Error(Contract, #1)"
+        }
+      },
+      "diff": {
+        "empty": false,
+        "summary": { "breaking": 5, "behavioural": 2, "cost": 0, "ignored": 0 }
+      },
+      "real": {
+        "hash": "fedcba9876543210fedcba9876543210fedcba9876543210fedcba9876543210",
+        "ledger": 123450,
+        "function": "claim",
+        "link": "https://stellar.expert/explorer/testnet/tx/fedcba9876543210fedcba9876543210fedcba9876543210fedcba9876543210",
+        "fidelity": {
+          "high": false,
+          "reason": "low-fidelity (state changed since ledger 123450): the deployed code fails here now (Error(Contract, #1)), where it succeeded on-chain"
+        }
+      }
+    }
+  ]
+}

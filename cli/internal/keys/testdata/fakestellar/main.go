@@ -27,6 +27,12 @@ func main() {
 		return
 	}
 
+	// `contract fetch ... -o <path>`:
+	if len(args) >= 2 && args[0] == "contract" && args[1] == "fetch" {
+		contractFetch(args[2:])
+		return
+	}
+
 	// `contract build --manifest-path <m> --package <p>` (#564), as
 	// FAKESTELLAR_BUILD says: ok (the default) writes the WASM where cargo
 	// would, fail prints rustc errors, stale succeeds without writing, slow
@@ -185,4 +191,41 @@ error: could not compile `+"`"+pkg+"`"+` (lib) due to 2 previous errors
 		os.Exit(1)
 	}
 	fmt.Fprintln(os.Stderr, "    Finished `release` profile [optimized] target(s) in 1.2s")
+}
+
+func contractFetch(args []string) {
+	if log := os.Getenv("FAKESTELLAR_ARGS_LOG"); log != "" {
+		f, err := os.OpenFile(log, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o600)
+		if err == nil {
+			fmt.Fprintln(f, strings.Join(args, " "))
+			_ = f.Close()
+		}
+	}
+	out := ""
+	for i := 0; i+1 < len(args); i++ {
+		if args[i] == "-o" || args[i] == "--out" {
+			out = args[i+1]
+		}
+	}
+	if out == "" {
+		fmt.Fprintln(os.Stderr, "fakestellar: no output path given")
+		os.Exit(2)
+	}
+	src := os.Getenv("FAKESTELLAR_FETCH_WASM")
+	if src == "" {
+		src = os.Getenv("FAKESTELLAR_BUILD_WASM")
+	}
+	wasm := []byte("\x00asm\x01\x00\x00\x00")
+	if src != "" {
+		raw, err := os.ReadFile(src)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "fakestellar: read fetch wasm: %v\n", err)
+			os.Exit(1)
+		}
+		wasm = raw
+	}
+	if err := os.WriteFile(out, wasm, 0o644); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
 }

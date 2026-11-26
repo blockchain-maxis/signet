@@ -11,8 +11,9 @@
 import { createHash } from 'node:crypto';
 import { mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
-const here = new URL('.', import.meta.url).pathname;
+const here = fileURLToPath(new URL('.', import.meta.url));
 const transcripts = join(here, '../protocol/transcripts');
 const corpus = join(here, 'corpus');
 

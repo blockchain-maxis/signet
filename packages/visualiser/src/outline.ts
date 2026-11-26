@@ -16,7 +16,15 @@ import type {
 } from './layout.ts';
 import type { DiagramModel, DiagramNode, DiagramEdge } from './index.ts';
 import { describeCallWindow } from './observe/call-graph.ts';
-import { markText, writeMarkOf } from './render.ts';
+import { markText, writeMarkOf, nodeKindOf, edgeKindOf } from './render.ts';
+import {
+  NODE_KIND_ORDER,
+  EDGE_KIND_ORDER,
+  NODE_VOCABULARY,
+  EDGE_VOCABULARY,
+  type NodeKind,
+  type EdgeKind,
+} from './vocabulary.ts';
 import type { MutabilityMark } from '@signet/spec';
 
 /** A node in the text-equivalent diagram outline hierarchy. */
@@ -441,7 +449,71 @@ export function buildDiagramOutline(model: PositionedDiagramModel | DiagramModel
   const calls = callsSection(model, nodesById, isCall);
   if (calls) outline.push(calls);
 
+  if (model.edges.length > 0) {
+    const key = keySection(model);
+    if (key) outline.push(key);
+  }
+
   return outline;
+}
+
+/** Short key list representing the diagram's vocabulary for screen readers. */
+function keySection(model: PositionedDiagramModel | DiagramModel): OutlineNode | null {
+  if (model.edges.length === 0) return null;
+
+  const kinds = new Set<EdgeKind | NodeKind>();
+  for (const n of model.nodes) {
+    kinds.add(nodeKindOf(n));
+  }
+  for (const e of model.edges) {
+    if (!('call' in e && e.call)) {
+      kinds.add(edgeKindOf(e));
+    }
+  }
+  if ('calls' in model && model.calls) kinds.add('callee');
+  for (const e of model.edges) {
+    if ('call' in e && e.call) {
+      kinds.add(edgeKindOf(e));
+      if (e.call.sandboxRuns > 0) kinds.add('call-sandbox');
+    }
+  }
+  if ('calls' in model && model.calls && model.calls.hidden > 0) kinds.add('callees-more');
+  if (model.nodes.some((n) => 'kind' in n && n.kind === 'call-anchor')) kinds.add('call-anchor');
+
+  const nodeKinds = NODE_KIND_ORDER.filter((k) => kinds.has(k));
+  const edgeKinds = EDGE_KIND_ORDER.filter((k) => kinds.has(k));
+
+  const items: OutlineNode[] = [];
+  for (const k of nodeKinds) {
+    const vocab = NODE_VOCABULARY[k];
+    const text = `${vocab.prefix} — ${vocab.label}`;
+    items.push({
+      id: `key:${k}`,
+      name: text,
+      label: text,
+      kind: 'type',
+    });
+  }
+  for (const k of edgeKinds) {
+    const vocab = EDGE_VOCABULARY[k];
+    const text = vocab.label;
+    items.push({
+      id: `key:${k}`,
+      name: text,
+      label: text,
+      kind: 'type',
+    });
+  }
+
+  if (items.length === 0) return null;
+
+  return {
+    id: 'group:key',
+    name: 'key',
+    label: 'key',
+    kind: 'group',
+    children: items,
+  };
 }
 
 const EVIDENCE_WORDS: Record<string, string> = {

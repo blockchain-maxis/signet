@@ -201,15 +201,20 @@ const profiles = signet.iterateProfiles();
 for await (const p of profiles) console.log(p.handle, p.primaryWallet);
 ```
 
-### `client.request(path, { query })`
+### `client.request(path, { query, signal })`
 
 The transport the methods use, for any v1 endpoint: `GET {baseUrl}/api/v1{path}`, with
-`query` as the query string (`undefined` and `null` values left out). Resolves to the
-whole `{ data, meta }` envelope and throws the typed errors below.
+`query` as the query string (`undefined` and `null` values left out) and optional `signal`
+to cancel the request. Resolves to the whole `{ data, meta }` envelope and throws the
+typed errors below.
 
 ```ts
 const page = await signet.request('/profiles/alice/contracts', { query: { limit: 10 } });
 ```
+
+All methods accept an optional `signal?: AbortSignal` (via `RequestOptions` or `PageOptions`).
+When aborted, the call rejects immediately with the caller's abort reason without retry.
+An already-aborted signal makes no fetch call at all.
 
 ### `client.listHandles()` *(deprecated)*
 
@@ -248,6 +253,7 @@ and the v1 envelope's `code`:
 | Class | When | Extra fields |
 |--|--|--|
 | `ValidationError` | `400`: a malformed handle, address, cursor or limit | `code`, `parameter` |
+| `UnauthorizedError` | `401`: invalid, malformed or revoked API key (never retried) | `code` |
 | `NotFoundError` | `404`, from `request()` (the named lookups return `null` instead) | `code` |
 | `RateLimitedError` | `429` | `code`, `retryAfterSeconds` (from `Retry-After`, or `null`) |
 | `UnavailableError` | `503`: no layer the deployment reads could answer | `code` |
