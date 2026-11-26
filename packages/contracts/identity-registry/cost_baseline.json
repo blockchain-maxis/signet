@@ -99,12 +99,12 @@
     "event_bytes": 168
   },
   "transfer_handle": {
-    "cpu_instructions": 119912,
-    "memory_bytes": 17670,
-    "read_entries": 7,
-    "write_entries": 4,
+    "cpu_instructions": 136356,
+    "memory_bytes": 21682,
+    "read_entries": 9,
+    "write_entries": 5,
     "read_bytes": 0,
-    "write_bytes": 368,
+    "write_bytes": 440,
     "event_bytes": 188
   }
 }
