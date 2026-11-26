@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 import { createServer, type Server } from 'node:http';
-import { Address, StrKey, xdr } from '@stellar/stellar-sdk';
+import { Address, SorobanDataBuilder, StrKey, xdr } from '@stellar/stellar-sdk';
 
 /**
  * Fixtures and a mock Soroban RPC for the docs failure-state e2e (#470).
@@ -18,9 +18,18 @@ import { Address, StrKey, xdr } from '@stellar/stellar-sdk';
  *
  * The profile is separate from `e2e-dev` so the contract-list specs on that
  * profile keep their counts.
+ *
+ * The same RPC stands in for the Identity Registry (#896): the e2e server is
+ * given `MOCK_REGISTRY_ID`, and `simulateTransaction` of `resolve` for
+ * `ARCHIVED_HANDLE` answers with a restore preamble, the shape an archived
+ * persistent entry simulates as. That handle has no database row, so its
+ * profile page falls through to the chain layer. Every other simulation
+ * returns `None`, as an empty registry would, so nothing else reads as bound.
  */
 
 export const DOCS_HANDLE = 'e2e-docs';
+/** A handle whose registry entry is archived (#896). Deliberately not seeded. */
+export const ARCHIVED_HANDLE = 'e2e-archived';
 
 const contractId = (byte: number) => StrKey.encodeContract(Buffer.alloc(32, byte));
 
@@ -34,6 +43,9 @@ export const RPC_DOWN = contractId(0xe5);
  */
 export const CALLEE_SAC = contractId(0x5c);
 export const CALLEE_SAC_ISSUER = StrKey.encodeEd25519PublicKey(Buffer.alloc(32, 0x5d));
+
+/** The registry contract id the e2e server is configured with; only this mock answers for it. */
+export const MOCK_REGISTRY_ID = contractId(0x7e);
 
 const WALLET_3 = StrKey.encodeEd25519PublicKey(Buffer.alloc(32, 0xe3));
 
@@ -125,6 +137,37 @@ function answerFor(keyXdr: string): Answer {
   return { status: 200, entries: [] };
 }
 
+/**
+ * The handle a `simulateTransaction` asks the registry to `resolve`, or null
+ * when the transaction is anything else.
+ */
+function resolvedHandle(txXdr: unknown): string | null {
+  if (typeof txXdr !== 'string') return null;
+  try {
+    const op = xdr.TransactionEnvelope.fromXDR(txXdr, 'base64').v1().tx().operations()[0];
+    const call = op?.body().invokeHostFunctionOp().hostFunction().invokeContract();
+    if (!call || call.functionName().toString() !== 'resolve') return null;
+    return call.args()[0]?.str().toString() ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * A successful simulation returning `None`. With `archived`, it also reports
+ * an archived entry to restore, which `rpc.Api.isSimulationRestore` detects.
+ */
+function simulation(archived: boolean): Record<string, unknown> {
+  const data = new SorobanDataBuilder().build().toXDR('base64');
+  return {
+    transactionData: data,
+    minResourceFee: '100',
+    results: [{ auth: [], xdr: xdr.ScVal.scvVoid().toXDR('base64') }],
+    ...(archived ? { restorePreamble: { transactionData: data, minResourceFee: '100' } } : {}),
+    latestLedger: 1_000_001,
+  };
+}
+
 /** Start the mock RPC. Returns a function that stops it. */
 export async function startMockRpc(): Promise<() => Promise<void>> {
   const server: Server = createServer((req, res) => {
@@ -136,55 +179,13 @@ export async function startMockRpc(): Promise<() => Promise<void>> {
         const rpc = JSON.parse(body) as {
           id?: unknown;
           method?: string;
-          params?: { keys?: string[] };
+          params?: { keys?: string[]; transaction?: unknown };
         };
         id = rpc.id ?? 1;
         if (rpc.method === 'simulateTransaction') {
+          const archived = resolvedHandle(rpc.params?.transaction) === ARCHIVED_HANDLE;
           res.writeHead(200, { 'content-type': 'application/json' });
-          res.end(
-            JSON.stringify({
-              jsonrpc: '2.0',
-              id,
-              result: {
-                transactionData: 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=',
-                minResourceFee: '1000',
-                restorePreamble: {
-                  minResourceFee: '1000',
-                  transactionData: 'AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA=',
-                },
-                latestLedger: 1_000_001,
-              },
-            }),
-          );
-          return;
-        }
-        if (rpc.method === 'getAccount') {
-          res.writeHead(200, { 'content-type': 'application/json' });
-          res.end(
-            JSON.stringify({
-              jsonrpc: '2.0',
-              id,
-              result: {
-                id: (rpc.params as any)?.address ?? WALLET_3,
-                sequence: '100',
-              },
-            }),
-          );
-          return;
-        }
-        if (rpc.method === 'sendTransaction') {
-          res.writeHead(200, { 'content-type': 'application/json' });
-          res.end(
-            JSON.stringify({
-              jsonrpc: '2.0',
-              id,
-              result: {
-                status: 'PENDING',
-                hash: '0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef',
-                latestLedger: 1_000_001,
-              },
-            }),
-          );
+          res.end(JSON.stringify({ jsonrpc: '2.0', id, result: simulation(archived) }));
           return;
         }
         if (rpc.method !== 'getLedgerEntries') {
