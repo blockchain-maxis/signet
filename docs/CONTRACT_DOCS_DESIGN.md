@@ -43,10 +43,15 @@ contract's age, and it is free once the module is already parsed.
 
 Three steps, all read-only, no signature, no fee:
 
-1. **Fetch the WASM.** `rpc.Server#getContractWasmByContractId(address)` or by
-   hash via `getContractWasmByHash(wasmHash)` in [`packages/spec/src/fetch.ts`](../packages/spec/src/fetch.ts).
-   It resolves the contract instance ledger entry, reads the executable's WASM
-   hash, fetches the matching `ContractCode` entry, and returns the bytes.
+1. **Fetch the WASM.** Both readers live in [`packages/spec/src/fetch.ts`](../packages/spec/src/fetch.ts).
+   `fetchContractSpec(address)` reads the contract instance entry with
+   `getLedgerEntries` to get the executable's WASM hash (a Stellar Asset
+   Contract stops here with `NoInterface`), fetches the module with
+   `rpc.Server#getContractWasmByContractId(address)`, and checks that the
+   fetched bytes hash to the instance's WASM hash.
+   `fetchContractSpecByHash(wasmHash)` skips the instance and reads the
+   `ContractCode` ledger entry for that hash directly with `getLedgerEntries`,
+   then checks the bytes against the requested hash.
 2. **Pull the custom section.** Rather than depending on runtime WASM engines or
    untyped `WebAssembly.Module.customSections`, `@signet/spec` uses its own
    binary section walker ([`packages/spec/src/wasm-sections.ts`](../packages/spec/src/wasm-sections.ts))
@@ -90,17 +95,20 @@ ship before the bridge exists.
 
 ### 1.5 Failure modes
 
-Failures map to a typed taxonomy ([`packages/spec/src/errors.ts`](../packages/spec/src/errors.ts)):
+Failures map to a typed taxonomy ([`packages/spec/src/errors.ts`](../packages/spec/src/errors.ts)).
+The contract page's copy for each failure comes from `failureCopy` in
+[`apps/web/lib/contract-overview.ts`](../apps/web/lib/contract-overview.ts);
+`classifySpecError` there maps each error's `kind` to the state shown.
 
-| Condition | Error Class | Cause | Shown as |
+| Condition | Error / state | Cause | Shown as |
 | --- | --- | --- | --- |
 | Contract not found | `ContractNotFound` | Address never deployed, or archived and not restored | "Not found on `<network>`" |
-| WASM not found | `WasmNotFound` | Instance points to missing bytecode entry | "WASM `<hash>` not found on `<network>`" |
-| No interface | `NoInterface` (`no_section`, `stellar_asset_contract`, `empty_section`) | Not built with `soroban-sdk`, built-in SAC without custom section, or empty custom section | "This contract publishes no interface" |
+| WASM not found | `WasmNotFound` | No contract-code ledger entry for the WASM hash (expired or evicted) | "Code not found on `<network>`" |
+| No interface | `NoInterface` (`no_section`, `stellar_asset_contract`, `empty_section`) | Not built with `soroban-sdk`, a Stellar Asset Contract, or an empty custom section | "This contract publishes no interface" |
 | Decode failure | `InterfaceUnreadable` | A spec format newer than the pinned SDK | "Interface could not be read" + SDK version |
-| RPC unavailable | `RpcUnavailable` | RPC node unreachable, timeout, or hash mismatch (#944) | RPC error / temporary unavailability |
-| Invalid WASM | `InvalidWasm` | Malformed WASM header, truncated section, or size cap exceeded | "Malformed or invalid WASM bytecode" |
-| Wrong network | `wrong_network` | Address exists on another network or invalid format | "Contract address belongs to a different network" |
+| RPC unavailable | `RpcUnavailable` | RPC node unreachable, timeout, or fetched bytes that do not match the expected hash (#944) | "Interface is unavailable right now" |
+| Invalid WASM | `InvalidWasm` | Bad magic number or version, truncated section, or size cap exceeded | No copy of its own: `classifySpecError` maps it to the unavailable state, "Interface is unavailable right now" |
+| Wrong network | `wrong_network` (loader state, not a `@signet/spec` error) | The contract's network is not the one this deployment reads; `loadContractSpec` in [`apps/web/lib/server/contract-spec.ts`](../apps/web/lib/server/contract-spec.ts) returns it before any RPC call or cache read (#464) | "This contract is on `<network>`" |
 
 None of these may render as a generic error page. A contract that publishes no
 interface is a fact about that contract and belongs on the page.
