@@ -634,7 +634,13 @@ func watchAndRebuild(ctx context.Context, setup devSetup, builder *dev.Builder, 
 		devFile = filepath.Join(setup.fileDir, devconfig.FileName)
 	}
 	crateDir := filepath.Dir(setup.crate.ManifestPath)
-	triggers, err := dev.Watch(ctx, dev.WatchOptions{CrateDir: crateDir, Files: files, DevFile: devFile, Debounce: debounce})
+	triggers, err := dev.Watch(ctx, dev.WatchOptions{
+		CrateDir:  crateDir,
+		ExtraDirs: setup.crate.LocalDeps,
+		Files:     files,
+		DevFile:   devFile,
+		Debounce:  debounce,
+	})
 	if err != nil {
 		return fmt.Errorf("%w: watching %s: %v", exitcode.ErrConfiguration, crateDir, err)
 	}

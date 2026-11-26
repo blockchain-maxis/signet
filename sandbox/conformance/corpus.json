@@ -2529,6 +2529,539 @@
       ]
     },
     {
+      "fixture": "packages/spec/fixtures/upgrade_v1.wasm",
+      "name": "upgrade_v1",
+      "wasmHash": "fae2e5841cfb520ecbae4e993ad2717894f886c772e14da473062301ca661576",
+      "specJson": {
+        "build": {
+          "entries": {
+            "rssdk_spec_shaking": "2",
+            "rssdkver": "28.0.0#48d506712f964094d14176e2f0b02afcd1054567",
+            "rsver": "1.97.1"
+          },
+          "rustVersion": "1.97.1",
+          "sdkVersion": "28.0.0#48d506712f964094d14176e2f0b02afcd1054567"
+        },
+        "entriesXdr": [
+          "AAAAAwAAAAAAAAAAAAAABE1vZGUAAAABAAAAAAAAAAVSZWFkeQAAAAAAAAE=",
+          "AAAAAQAAAAAAAAAAAAAABlJlY29yZAAAAAAAAQAAAAAAAAACaWQAAAAAAAQ=",
+          "AAAABQAAAAAAAAAAAAAAB1VwZGF0ZWQAAAAAAQAAAAd1cGRhdGVkAAAAAAMAAAAAAAAAAmlkAAAAAAAEAAAAAQAAAAAAAAAGYW1vdW50AAAAAAAEAAAAAAAAAAAAAAAEbWVtbwAAAAQAAAAAAAAAAg==",
+          "AAAABAAAAAAAAAAAAAAADFVwZ3JhZGVFcnJvcgAAAAEAAAAAAAAACE5vdEZvdW5kAAAAAQ==",
+          "AAAAAAAAAC5SZWFkcyBhIHJlY29yZCB3aXRob3V0IGNoYW5naW5nIGl0cyBpbnRlcmZhY2UuAAAAAAAEcmVhZAAAAAIAAAAAAAAABnJlY29yZAAAAAAH0AAAAAZSZWNvcmQAAAAAAAAAAAAEbW9kZQAAB9AAAAAETW9kZQAAAAEAAAfQAAAABlJlY29yZAAA",
+          "AAAAAAAAABNDaGFuZ2VzIHRoZSBhbW91bnQuAAAAAA1jaGFuZ2VfYW1vdW50AAAAAAAAAQAAAAAAAAAGYW1vdW50AAAAAAAEAAAAAQAAA+kAAAAEAAAH0AAAAAxVcGdyYWRlRXJyb3I="
+        ],
+        "env": {
+          "preRelease": 0,
+          "protocolVersion": 28
+        },
+        "errors": [
+          {
+            "doc": "",
+            "enumName": "UpgradeError",
+            "name": "NotFound",
+            "value": 1
+          }
+        ],
+        "events": [],
+        "functions": [
+          {
+            "doc": "Reads a record without changing its interface.",
+            "inputs": [
+              {
+                "doc": "",
+                "name": "record",
+                "type": {
+                  "name": "Record",
+                  "type": "named"
+                }
+              },
+              {
+                "doc": "",
+                "name": "mode",
+                "type": {
+                  "name": "Mode",
+                  "type": "named"
+                }
+              }
+            ],
+            "isConstructor": false,
+            "name": "read",
+            "outputs": [
+              {
+                "name": "Record",
+                "type": "named"
+              }
+            ]
+          },
+          {
+            "doc": "Changes the amount.",
+            "inputs": [
+              {
+                "doc": "",
+                "name": "amount",
+                "type": "u32"
+              }
+            ],
+            "isConstructor": false,
+            "name": "change_amount",
+            "outputs": [
+              {
+                "error": {
+                  "name": "UpgradeError",
+                  "type": "named"
+                },
+                "ok": "u32",
+                "type": "result"
+              }
+            ]
+          }
+        ],
+        "provenance": "embedded",
+        "schemaVersion": 1,
+        "sdkVersion": "16.1.0",
+        "types": [
+          {
+            "doc": "",
+            "kind": "enum",
+            "name": "Mode",
+            "variants": [
+              {
+                "doc": "",
+                "name": "Ready",
+                "value": 1
+              }
+            ]
+          },
+          {
+            "doc": "",
+            "fields": [
+              {
+                "doc": "",
+                "name": "id",
+                "type": "u32"
+              }
+            ],
+            "kind": "struct",
+            "name": "Record"
+          }
+        ],
+        "warnings": [],
+        "wasmHash": "fae2e5841cfb520ecbae4e993ad2717894f886c772e14da473062301ca661576"
+      },
+      "cases": [
+        {
+          "name": "read valid 0",
+          "function": "read",
+          "args": {
+            "record": {
+              "id": 7
+            },
+            "mode": 1
+          },
+          "expected": {
+            "ok": true,
+            "argsXdr": [
+              "AAAAEQAAAAEAAAABAAAADwAAAAJpZAAAAAAAAwAAAAc=",
+              "AAAAAwAAAAE="
+            ]
+          }
+        },
+        {
+          "name": "read valid 1",
+          "function": "read",
+          "args": {
+            "record": {
+              "id": 4294967295
+            },
+            "mode": 1
+          },
+          "expected": {
+            "ok": true,
+            "argsXdr": [
+              "AAAAEQAAAAEAAAABAAAADwAAAAJpZAAAAAAAA/////8=",
+              "AAAAAwAAAAE="
+            ]
+          }
+        },
+        {
+          "name": "read wrong record",
+          "function": "read",
+          "args": {
+            "record": 42,
+            "mode": 1
+          },
+          "expected": {
+            "ok": false,
+            "reason": "Type [object Object] was not void, but value was undefined"
+          }
+        },
+        {
+          "name": "read wrong mode",
+          "function": "read",
+          "args": {
+            "record": {
+              "id": 7
+            },
+            "mode": 42
+          },
+          "expected": {
+            "ok": false,
+            "reason": "no such enum entry: 42 in [object Object]"
+          }
+        },
+        {
+          "name": "read missing record",
+          "function": "read",
+          "args": {
+            "mode": 1
+          },
+          "expected": {
+            "ok": false,
+            "reason": "Missing field record"
+          }
+        },
+        {
+          "name": "change_amount valid 0",
+          "function": "change_amount",
+          "args": {
+            "amount": 7
+          },
+          "expected": {
+            "ok": true,
+            "argsXdr": [
+              "AAAAAwAAAAc="
+            ]
+          }
+        },
+        {
+          "name": "change_amount valid 1",
+          "function": "change_amount",
+          "args": {
+            "amount": 4294967295
+          },
+          "expected": {
+            "ok": true,
+            "argsXdr": [
+              "AAAAA/////8="
+            ]
+          }
+        },
+        {
+          "name": "change_amount wrong amount",
+          "function": "change_amount",
+          "args": {
+            "amount": 4294967296
+          },
+          "expected": {
+            "ok": false,
+            "reason": "Value 4294967296 is out of range for U32"
+          }
+        },
+        {
+          "name": "change_amount missing amount",
+          "function": "change_amount",
+          "args": {},
+          "expected": {
+            "ok": false,
+            "reason": "Missing field amount"
+          }
+        }
+      ]
+    },
+    {
+      "fixture": "packages/spec/fixtures/upgrade_v2.wasm",
+      "name": "upgrade_v2",
+      "wasmHash": "256dce26aa51d0fbec8ca369185cff704de914f8a6ecbf48ef669602384f96f8",
+      "specJson": {
+        "build": {
+          "entries": {
+            "rssdk_spec_shaking": "2",
+            "rssdkver": "28.0.0#48d506712f964094d14176e2f0b02afcd1054567",
+            "rsver": "1.97.1"
+          },
+          "rustVersion": "1.97.1",
+          "sdkVersion": "28.0.0#48d506712f964094d14176e2f0b02afcd1054567"
+        },
+        "entriesXdr": [
+          "AAAAAwAAAAAAAAAAAAAABE1vZGUAAAACAAAAAAAAAAVSZWFkeQAAAAAAAAEAAAAAAAAABlBhdXNlZAAAAAAAAg==",
+          "AAAAAQAAAAAAAAAAAAAABlJlY29yZAAAAAAAAgAAAAAAAAAGYWN0aXZlAAAAAAABAAAAAAAAAAJpZAAAAAAABA==",
+          "AAAABQAAAAAAAAAAAAAAB0NyZWF0ZWQAAAAAAQAAAAdjcmVhdGVkAAAAAAIAAAAAAAAAAmlkAAAAAAAEAAAAAQAAAAAAAAAIcmV2aXNpb24AAAAEAAAAAAAAAAI=",
+          "AAAABQAAAAAAAAAAAAAAB1VwZGF0ZWQAAAAAAQAAAAd1cGRhdGVkAAAAAAMAAAAAAAAAAmlkAAAAAAAEAAAAAQAAAAAAAAAGYW1vdW50AAAAAAAEAAAAAQAAAAAAAAAEbWVtbwAAAAQAAAAAAAAAAg==",
+          "AAAABAAAAAAAAAAAAAAADFVwZ3JhZGVFcnJvcgAAAAIAAAAAAAAACE5vdEZvdW5kAAAAAQAAAAAAAAAIQ29uZmxpY3QAAAAC",
+          "AAAAAAAAAC5SZWFkcyBhIHJlY29yZCB3aXRob3V0IGNoYW5naW5nIGl0cyBpbnRlcmZhY2UuAAAAAAAEcmVhZAAAAAIAAAAAAAAABnJlY29yZAAAAAAH0AAAAAZSZWNvcmQAAAAAAAAAAAAEbW9kZQAAB9AAAAAETW9kZQAAAAEAAAfQAAAABlJlY29yZAAA",
+          "AAAAAAAAABlSZXR1cm5zIHRoZSBjdXJyZW50IG1vZGUuAAAAAAAACHNldF9tb2RlAAAAAAAAAAEAAAfQAAAABE1vZGU=",
+          "AAAAAAAAABNVcGRhdGVzIHRoZSBhbW91bnQuAAAAAA1jaGFuZ2VfYW1vdW50AAAAAAAAAQAAAAAAAAAGYW1vdW50AAAAAAAGAAAAAQAAA+kAAAAEAAAH0AAAAAxVcGdyYWRlRXJyb3I="
+        ],
+        "env": {
+          "preRelease": 0,
+          "protocolVersion": 28
+        },
+        "errors": [
+          {
+            "doc": "",
+            "enumName": "UpgradeError",
+            "name": "NotFound",
+            "value": 1
+          },
+          {
+            "doc": "",
+            "enumName": "UpgradeError",
+            "name": "Conflict",
+            "value": 2
+          }
+        ],
+        "events": [],
+        "functions": [
+          {
+            "doc": "Reads a record without changing its interface.",
+            "inputs": [
+              {
+                "doc": "",
+                "name": "record",
+                "type": {
+                  "name": "Record",
+                  "type": "named"
+                }
+              },
+              {
+                "doc": "",
+                "name": "mode",
+                "type": {
+                  "name": "Mode",
+                  "type": "named"
+                }
+              }
+            ],
+            "isConstructor": false,
+            "name": "read",
+            "outputs": [
+              {
+                "name": "Record",
+                "type": "named"
+              }
+            ]
+          },
+          {
+            "doc": "Returns the current mode.",
+            "inputs": [],
+            "isConstructor": false,
+            "name": "set_mode",
+            "outputs": [
+              {
+                "name": "Mode",
+                "type": "named"
+              }
+            ]
+          },
+          {
+            "doc": "Updates the amount.",
+            "inputs": [
+              {
+                "doc": "",
+                "name": "amount",
+                "type": "u64"
+              }
+            ],
+            "isConstructor": false,
+            "name": "change_amount",
+            "outputs": [
+              {
+                "error": {
+                  "name": "UpgradeError",
+                  "type": "named"
+                },
+                "ok": "u32",
+                "type": "result"
+              }
+            ]
+          }
+        ],
+        "provenance": "embedded",
+        "schemaVersion": 1,
+        "sdkVersion": "16.1.0",
+        "types": [
+          {
+            "doc": "",
+            "kind": "enum",
+            "name": "Mode",
+            "variants": [
+              {
+                "doc": "",
+                "name": "Ready",
+                "value": 1
+              },
+              {
+                "doc": "",
+                "name": "Paused",
+                "value": 2
+              }
+            ]
+          },
+          {
+            "doc": "",
+            "fields": [
+              {
+                "doc": "",
+                "name": "active",
+                "type": "bool"
+              },
+              {
+                "doc": "",
+                "name": "id",
+                "type": "u32"
+              }
+            ],
+            "kind": "struct",
+            "name": "Record"
+          }
+        ],
+        "warnings": [],
+        "wasmHash": "256dce26aa51d0fbec8ca369185cff704de914f8a6ecbf48ef669602384f96f8"
+      },
+      "cases": [
+        {
+          "name": "read valid 0",
+          "function": "read",
+          "args": {
+            "record": {
+              "active": true,
+              "id": 7
+            },
+            "mode": 1
+          },
+          "expected": {
+            "ok": true,
+            "argsXdr": [
+              "AAAAEQAAAAEAAAACAAAADwAAAAZhY3RpdmUAAAAAAAAAAAABAAAADwAAAAJpZAAAAAAAAwAAAAc=",
+              "AAAAAwAAAAE="
+            ]
+          }
+        },
+        {
+          "name": "read valid 1",
+          "function": "read",
+          "args": {
+            "record": {
+              "active": false,
+              "id": 4294967295
+            },
+            "mode": 2
+          },
+          "expected": {
+            "ok": true,
+            "argsXdr": [
+              "AAAAEQAAAAEAAAACAAAADwAAAAZhY3RpdmUAAAAAAAAAAAAAAAAADwAAAAJpZAAAAAAAA/////8=",
+              "AAAAAwAAAAI="
+            ]
+          }
+        },
+        {
+          "name": "read wrong record",
+          "function": "read",
+          "args": {
+            "record": 42,
+            "mode": 1
+          },
+          "expected": {
+            "ok": false,
+            "reason": "Type [object Object] was not void, but value was undefined"
+          }
+        },
+        {
+          "name": "read wrong mode",
+          "function": "read",
+          "args": {
+            "record": {
+              "active": true,
+              "id": 7
+            },
+            "mode": 42
+          },
+          "expected": {
+            "ok": false,
+            "reason": "no such enum entry: 42 in [object Object]"
+          }
+        },
+        {
+          "name": "read missing record",
+          "function": "read",
+          "args": {
+            "mode": 1
+          },
+          "expected": {
+            "ok": false,
+            "reason": "Missing field record"
+          }
+        },
+        {
+          "name": "set_mode valid 0",
+          "function": "set_mode",
+          "args": {},
+          "expected": {
+            "ok": true,
+            "argsXdr": []
+          }
+        },
+        {
+          "name": "set_mode valid 1",
+          "function": "set_mode",
+          "args": {},
+          "expected": {
+            "ok": true,
+            "argsXdr": []
+          }
+        },
+        {
+          "name": "change_amount valid 0",
+          "function": "change_amount",
+          "args": {
+            "amount": "1700000000"
+          },
+          "expected": {
+            "ok": true,
+            "argsXdr": [
+              "AAAABQAAAABlU/EA"
+            ]
+          }
+        },
+        {
+          "name": "change_amount valid 1",
+          "function": "change_amount",
+          "args": {
+            "amount": "18446744073709551615"
+          },
+          "expected": {
+            "ok": true,
+            "argsXdr": [
+              "AAAABf//////////"
+            ]
+          }
+        },
+        {
+          "name": "change_amount wrong amount",
+          "function": "change_amount",
+          "args": {
+            "amount": {
+              "not": "this"
+            }
+          },
+          "expected": {
+            "ok": false,
+            "reason": "Received object [object Object]  did not match the provided type [object Object]"
+          }
+        },
+        {
+          "name": "change_amount missing amount",
+          "function": "change_amount",
+          "args": {},
+          "expected": {
+            "ok": false,
+            "reason": "Missing field amount"
+          }
+        }
+      ]
+    },
+    {
       "fixture": "sandbox/fixtures/wasm/callee.wasm",
       "name": "callee",
       "wasmHash": "1eb71402eae8897b1be9f352c379b4e66a39df5482527a0d7b4c3ac6a34f19a4",

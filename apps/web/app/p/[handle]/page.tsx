@@ -12,6 +12,8 @@ import { STELLAR_EXPLORER, STELLAR_NETWORK_NAME } from '@/lib/network';
 import { formatDate } from '@/lib/format-date';
 import OperationsList from './operations-list';
 import { CopyAddress } from './copy-address';
+import { RestoreBinding } from '@/components/restore-binding';
+import { REGISTRY_CONTRACT_ID } from '@/lib/chain';
 
 // Rendered per request. The root layout reads request headers for the CSP
 // nonce, so no route can be statically pre-rendered anyway, and handles are
@@ -404,6 +406,11 @@ export default async function ProfilePage({ params }: { params: Promise<{ handle
                 </>
               ) : null}
             </p>
+            )}
+            {state === 'archived' && (
+              <div className="mt-6">
+                <RestoreBinding handle={handle} registryContract={REGISTRY_CONTRACT_ID} />
+              </div>
             )}
             <a
               href="/how-it-works"
