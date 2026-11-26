@@ -27,6 +27,10 @@ import type {
   SpecType,
   TypeRef,
 } from '@signet/spec';
+import {
+  buildTypeGraph,
+  type TypeGraphOptions,
+} from './type-graph.ts';
 
 /** Where a reference sits relative to the edge's source node. */
 export type GraphEdgeKind = 'arg' | 'return' | 'field';
@@ -58,6 +62,18 @@ export interface TypeNode {
 }
 
 /**
+ * A link stub standing for a type past the depth policy's cutoff (#490, #950).
+ * Shares the `type:<name>` id space with {@link TypeNode}.
+ */
+export interface StubNode {
+  readonly id: string;
+  readonly kind: 'stub';
+  readonly name: string;
+  readonly label?: string;
+  readonly hidden?: number;
+}
+
+/**
  * A reference to a type the spec does not define (possible with hand-edited
  * specs). Shares the `type:<name>` id space with {@link TypeNode}.
  */
@@ -67,7 +83,7 @@ export interface MissingNode {
   readonly name: string;
 }
 
-export type GraphNode = FunctionNode | TypeNode | MissingNode;
+export type GraphNode = FunctionNode | TypeNode | MissingNode | StubNode;
 
 /** One way a source node reaches a target node. */
 export interface EdgeRole {
@@ -217,8 +233,12 @@ function viewsOf(spec: ContractSpec): Pick<ContractSpec, 'functions' | 'types' |
  * Build the abstract graph of a decoded spec. Pure: no I/O, no WASM decoding,
  * never throws on a dangling reference.
  */
-export function buildContractGraph(spec: ContractSpec): ContractGraph {
-  const { functions, types, errors } = viewsOf(spec);
+export function buildContractGraph(
+  spec: ContractSpec,
+  options: TypeGraphOptions = {},
+): ContractGraph {
+  const views = viewsOf(spec);
+  const { functions, types, errors } = views;
   const nodes: GraphNode[] = [];
   const edges: GraphEdge[] = [];
   const nodeIds = new Set<string>();
@@ -236,8 +256,32 @@ export function buildContractGraph(spec: ContractSpec): ContractGraph {
   for (const fn of functions) {
     addNode({ id: functionNodeId(fn.name), kind: 'function', name: fn.name });
   }
-  for (const type of types) {
-    addNode({ id: typeNodeId(type.name), kind: 'type', name: type.name, typeKind: type.kind });
+
+  const typeGraph = buildTypeGraph({ ...views, entries: spec.entries }, options);
+  const byName = new Map(types.map((t) => [t.name, t]));
+
+  for (const tNode of typeGraph.nodes) {
+    if (tNode.kind === 'inline') {
+      const specType = byName.get(tNode.name);
+      addNode({
+        id: tNode.id,
+        kind: 'type',
+        name: tNode.name,
+        typeKind: specType?.kind ?? 'struct',
+      });
+    } else {
+      addNode({
+        id: tNode.id,
+        kind: 'stub',
+        name: tNode.name,
+        label: tNode.label,
+        hidden: tNode.hidden,
+      });
+    }
+  }
+
+  for (const missingName of typeGraph.missing) {
+    addNode({ id: typeNodeId(missingName), kind: 'missing', name: missingName });
   }
 
   const addRole = (from: string, ref: TypeRef, role: Omit<EdgeRole, 'path'>): void => {
@@ -249,7 +293,7 @@ export function buildContractGraph(spec: ContractSpec): ContractGraph {
       // Error enums are listed, not drawn (design §2.2).
       if (errorEnums.has(name)) continue;
       const to = typeNodeId(name);
-      if (!nodeIds.has(to)) addNode({ id: to, kind: 'missing', name });
+      if (!nodeIds.has(to)) continue;
 
       const id = `${from}->${to}`;
       const full: EdgeRole = { ...role, path };
@@ -280,7 +324,10 @@ export function buildContractGraph(spec: ContractSpec): ContractGraph {
     for (const input of fn.inputs) addRole(from, input.type, { kind: 'arg', via: input.name });
     for (const output of fn.outputs) addRole(from, output, { kind: 'return' });
   }
-  for (const type of types) {
+  for (const tNode of typeGraph.nodes) {
+    if (tNode.kind !== 'inline') continue;
+    const type = byName.get(tNode.name);
+    if (!type) continue;
     const from = typeNodeId(type.name);
     if (walked.has(from)) continue;
     walked.add(from);

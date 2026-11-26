@@ -44,7 +44,7 @@ export function enhanceExpand(options: EnhanceExpandOptions): ExpandController {
   const baseUrl = options.baseUrl ?? (() => window.location.href);
   let pending = 0;
 
-  async function follow(href: string, group: string): Promise<void> {
+  async function follow(href: string, groupOrType: string): Promise<void> {
     const url = new URL(href, baseUrl());
     const ticket = ++pending;
     try {
@@ -55,10 +55,13 @@ export function enhanceExpand(options: EnhanceExpandOptions): ExpandController {
       region.innerHTML = html;
       replaceUrl(url.pathname + url.search + url.hash);
       // Focus stays on the group: its node while collapsed, its collapse
-      // link once expanded.
-      const target = region.querySelector<HTMLElement>(`[data-group-toggle="${cssEscape(group)}"]`);
+      // link once expanded, or the toggled type.
+      const target =
+        region.querySelector<HTMLElement>(`[data-group-toggle="${cssEscape(groupOrType)}"]`) ??
+        region.querySelector<HTMLElement>(`[data-type-toggle="${cssEscape(groupOrType)}"]`) ??
+        region.querySelector<HTMLElement>(`[data-node-id="type:${cssEscape(groupOrType)}"]`);
       target?.focus();
-      options.onSwap?.(group);
+      options.onSwap?.(groupOrType);
     } catch {
       navigate(url.toString());
     }
@@ -67,13 +70,18 @@ export function enhanceExpand(options: EnhanceExpandOptions): ExpandController {
   function onClick(event: Event) {
     const e = event as MouseEvent;
     if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
-    const link = (e.target as Element | null)?.closest?.('a[data-group-toggle]');
+    const link =
+      (e.target as Element | null)?.closest?.('a[data-group-toggle], a[data-type-toggle]') ??
+      (e.target as Element | null)?.closest?.('a[data-group-toggle]') ??
+      (e.target as Element | null)?.closest?.('a[data-type-toggle]');
     if (!link || !region.contains(link)) return;
     const href = link.getAttribute('href');
     const group = link.getAttribute('data-group-toggle');
-    if (!href || !group) return;
+    const type = link.getAttribute('data-type-toggle');
+    const targetKey = group ?? type;
+    if (!href || !targetKey) return;
     e.preventDefault();
-    void follow(href, group);
+    void follow(href, targetKey);
   }
 
   region.addEventListener('click', onClick);
