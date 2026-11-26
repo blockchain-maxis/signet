@@ -122,7 +122,7 @@ pub fn build(cx: &Context, run: &SimulateResultBytes, max_frames: usize) -> Valu
 
 /// Whether the run saw anything but the network's own state: an entry the
 /// fork did not fetch (installed, written by the session, put or swapped),
-/// or a moved ledger. Such a run is evidence of what the code does, not of
+/// a key the session deleted or an override unset (#934), or a moved ledger. Such a run is evidence of what the code does, not of
 /// what happened on chain.
 fn seeded(cx: &Context, calls: &[TraceCall], run: &SimulateResultBytes) -> bool {
     if cx.ledger_overridden {
@@ -144,7 +144,9 @@ fn seeded(cx: &Context, calls: &[TraceCall], run: &SimulateResultBytes) -> bool 
     let store = cx.store.borrow();
     keys.iter().any(|key| {
         let provenance = match store.lookup(key) {
-            Lookup::Live { provenance, .. } | Lookup::Archived { provenance, .. } => provenance,
+            Lookup::Live { provenance, .. }
+            | Lookup::Archived { provenance, .. }
+            | Lookup::Deleted { provenance } => provenance,
             Lookup::Absent => return false,
         };
         provenance.source != Source::Fork
