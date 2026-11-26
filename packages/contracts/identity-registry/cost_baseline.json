@@ -1,7 +1,7 @@
 {
   "admin_revoke": {
-    "cpu_instructions": 91427,
-    "memory_bytes": 14409,
+    "cpu_instructions": 96368,
+    "memory_bytes": 14817,
     "read_entries": 6,
     "write_entries": 4,
     "read_bytes": 0,
@@ -9,17 +9,17 @@
     "event_bytes": 128
   },
   "claim": {
-    "cpu_instructions": 100008,
-    "memory_bytes": 15326,
-    "read_entries": 6,
+    "cpu_instructions": 125900,
+    "memory_bytes": 17960,
+    "read_entries": 7,
     "write_entries": 4,
     "read_bytes": 0,
     "write_bytes": 572,
     "event_bytes": 128
   },
   "count": {
-    "cpu_instructions": 21939,
-    "memory_bytes": 3719,
+    "cpu_instructions": 22455,
+    "memory_bytes": 3787,
     "read_entries": 2,
     "write_entries": 0,
     "read_bytes": 0,
@@ -27,8 +27,8 @@
     "event_bytes": 0
   },
   "is_bound": {
-    "cpu_instructions": 22150,
-    "memory_bytes": 3854,
+    "cpu_instructions": 22996,
+    "memory_bytes": 3922,
     "read_entries": 3,
     "write_entries": 0,
     "read_bytes": 0,
@@ -36,8 +36,8 @@
     "event_bytes": 0
   },
   "lookup": {
-    "cpu_instructions": 32855,
-    "memory_bytes": 4797,
+    "cpu_instructions": 34471,
+    "memory_bytes": 4865,
     "read_entries": 3,
     "write_entries": 0,
     "read_bytes": 0,
@@ -45,8 +45,8 @@
     "event_bytes": 0
   },
   "release": {
-    "cpu_instructions": 89509,
-    "memory_bytes": 14463,
+    "cpu_instructions": 94000,
+    "memory_bytes": 14871,
     "read_entries": 6,
     "write_entries": 4,
     "read_bytes": 0,
@@ -54,8 +54,8 @@
     "event_bytes": 128
   },
   "resolve": {
-    "cpu_instructions": 32130,
-    "memory_bytes": 4854,
+    "cpu_instructions": 33746,
+    "memory_bytes": 4922,
     "read_entries": 3,
     "write_entries": 0,
     "read_bytes": 0,
@@ -63,8 +63,8 @@
     "event_bytes": 0
   },
   "resolve_batch_1": {
-    "cpu_instructions": 34725,
-    "memory_bytes": 5023,
+    "cpu_instructions": 36341,
+    "memory_bytes": 5091,
     "read_entries": 3,
     "write_entries": 0,
     "read_bytes": 0,
@@ -72,8 +72,8 @@
     "event_bytes": 0
   },
   "resolve_batch_100": {
-    "cpu_instructions": 4401499,
-    "memory_bytes": 363205,
+    "cpu_instructions": 4532559,
+    "memory_bytes": 370005,
     "read_entries": 102,
     "write_entries": 0,
     "read_bytes": 0,
@@ -81,8 +81,8 @@
     "event_bytes": 0
   },
   "resolve_batch_50": {
-    "cpu_instructions": 1773816,
-    "memory_bytes": 141880,
+    "cpu_instructions": 1842546,
+    "memory_bytes": 145280,
     "read_entries": 52,
     "write_entries": 0,
     "read_bytes": 0,
@@ -99,8 +99,8 @@
     "event_bytes": 168
   },
   "transfer_handle": {
-    "cpu_instructions": 136356,
-    "memory_bytes": 21682,
+    "cpu_instructions": 144093,
+    "memory_bytes": 22430,
     "read_entries": 9,
     "write_entries": 5,
     "read_bytes": 0,

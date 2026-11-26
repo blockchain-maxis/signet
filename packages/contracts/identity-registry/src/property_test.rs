@@ -256,7 +256,7 @@ proptest! {
             match *op {
                 Op::Claim { handle, wallet } => {
                     let reserved_for_other =
-                        !sealed && reservations.get(&handle).map_or(false, |&w| w != wallet);
+                        !sealed && reservations.get(&handle).is_some_and(|&w| w != wallet);
                     let should_fail = reserved_for_other
                         || model.contains_key(&handle)
                         || owner_of(&model, wallet).is_some();
