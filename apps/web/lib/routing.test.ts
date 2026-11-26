@@ -149,6 +149,25 @@ test('bare /link passes through — it is the CLI approval page, not a profile',
   assert.equal(resolveRewriteTarget('signet.dev', '/link'), null);
 });
 
+test('Next.js root metadata file routes pass through on apex, localhost and previews (#892)', () => {
+  const routes = ['/opengraph-image', '/twitter-image', '/icon', '/apple-icon'];
+  const hosts = ['signet.dev', 'localhost:3000', 'my-preview.vercel.app'];
+  for (const host of hosts) {
+    for (const route of routes) {
+      assert.equal(resolveRewriteTarget(host, route), null, `${host}${route}`);
+    }
+  }
+});
+
+test('/@{handle} and handle subdomains still route metadata-route names to the profile (#892)', () => {
+  for (const name of ['opengraph-image', 'twitter-image', 'icon', 'apple-icon']) {
+    assert.equal(resolveRewriteTarget('signet.dev', `/@${name}`), `/p/${name}`);
+    assert.equal(resolveRewriteTarget('localhost:3000', `/@${name}`), `/p/${name}`);
+    assert.equal(resolveRewriteTarget('my-preview.vercel.app', `/@${name}`), `/p/${name}`);
+    assert.equal(resolveRewriteTarget(`${name}.signet.dev`, '/'), `/p/${name}`);
+  }
+});
+
 test('/@{handle} rewrites to the canonical profile, lowercased', () => {
   assert.equal(resolveRewriteTarget('signet.dev', '/@alice'), '/p/alice');
   assert.equal(resolveRewriteTarget('signet.dev', '/@Alice'), '/p/alice');

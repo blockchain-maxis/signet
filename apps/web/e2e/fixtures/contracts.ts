@@ -44,6 +44,18 @@ export const MALFORMED_ADDRESS = 'CNOTAREALCONTRACTADDRESS';
 export const WALLET_1 = accountId(0xe1);
 export const WALLET_2 = accountId(0xe2);
 
+/**
+ * A profile in the state a `released`/`revoked` event leaves behind (#895):
+ * the attestation worker deletes the on-chain primary wallet row but never the
+ * Profile row, its CLI-linked deploy wallet or that wallet's contract. The
+ * release case deletes `REVOKED_ONCHAIN_WALLET` and expects the profile and
+ * `REVOKED_CONTRACT` to 404 from then on.
+ */
+export const REVOKED_HANDLE = 'e2e-revoked';
+export const REVOKED_CONTRACT = contractId(0xc4);
+export const REVOKED_CLI_WALLET = accountId(0xe6);
+export const REVOKED_ONCHAIN_WALLET = accountId(0xe7);
+
 /** Deploy transaction hash of contract A (the header links to it, #448). */
 export const DEPLOY_TX_A = 'a1'.repeat(32);
 
@@ -83,14 +95,59 @@ export async function seedContractFixture(): Promise<void> {
       [WALLET_1, true],
       [WALLET_2, false],
     ] as const) {
+      // The profile only counts as live while an on-chain primary binds it
+      // (#895): a CLI-linked primary is exactly the leftover state a release
+      // leaves, so wallet 1 is the on-chain one and wallet 2 the CLI link.
+      const source = isPrimary ? 'onchain' : 'cli';
       wallets.push(
         await prisma.wallet.upsert({
           where: { pubkey },
-          update: { profileId: profile.id },
-          create: { profileId: profile.id, pubkey, source: 'cli', isPrimary },
+          update: { profileId: profile.id, source, isPrimary },
+          create: { profileId: profile.id, pubkey, source, isPrimary },
         }),
       );
     }
+
+    // A released/revoked profile's leftovers, seeded so the #895 case can delete
+    // its on-chain primary row without disturbing the e2e-dev fixture above.
+    const revoked = await prisma.profile.upsert({
+      where: { handle: REVOKED_HANDLE },
+      update: {},
+      create: { handle: REVOKED_HANDLE },
+    });
+    const revokedCli = await prisma.wallet.upsert({
+      where: { pubkey: REVOKED_CLI_WALLET },
+      update: { profileId: revoked.id, source: 'cli', isPrimary: false },
+      create: { profileId: revoked.id, pubkey: REVOKED_CLI_WALLET, source: 'cli' },
+    });
+    await prisma.wallet.upsert({
+      where: { pubkey: REVOKED_ONCHAIN_WALLET },
+      update: { profileId: revoked.id, source: 'onchain', isPrimary: true },
+      create: {
+        profileId: revoked.id,
+        pubkey: REVOKED_ONCHAIN_WALLET,
+        source: 'onchain',
+        isPrimary: true,
+      },
+    });
+    await prisma.contract.upsert({
+      where: { address: REVOKED_CONTRACT },
+      update: {
+        walletId: revokedCli.id,
+        deployerPubkey: REVOKED_CLI_WALLET,
+        network: CONFIGURED_NETWORK,
+      },
+      create: {
+        address: REVOKED_CONTRACT,
+        walletId: revokedCli.id,
+        deployerPubkey: REVOKED_CLI_WALLET,
+        deployedAt: at('2026-03-15T12:00:00Z'),
+        deployTxHash: 'c4'.repeat(32),
+        network: CONFIGURED_NETWORK,
+        wasmHash: null,
+        executableType: 'wasm',
+      },
+    });
 
     // Fixture-only contracts.
     const contracts = [
@@ -200,10 +257,10 @@ export async function seedContractFixture(): Promise<void> {
       create: { wasmHash: WASM_HASH_2, schemaVersion: 1, sdkVersion: '16.1.0', specJson },
     });
 
-    // Fixture-only invocations (composite id `${txHash}:${opIndex}`, as the capture worker writes).
+    // Fixture-only invocations (composite id `${txHash}:${contractId}`, as the capture worker writes).
     for (let i = 0; i < 4; i++) {
       const txHash = `${(0xd0 + i).toString(16)}`.repeat(32);
-      const id = `${txHash}:0`;
+      const id = `${txHash}:${a.id}`;
       const data = {
         contractId: a.id,
         txHash,

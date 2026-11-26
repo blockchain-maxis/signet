@@ -121,6 +121,8 @@ export {
   describeMarks,
   markText,
   writeMarkOf,
+  nodeKindOf,
+  edgeKindOf,
   type MutabilityOverlayInput,
   type RenderOptions,
   type StandaloneSvgOptions,
