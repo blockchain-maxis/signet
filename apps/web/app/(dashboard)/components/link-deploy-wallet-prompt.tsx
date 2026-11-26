@@ -1,12 +1,9 @@
 import { CopyCommand } from './copy-command';
+import { CLI_LINK_COMMAND, CLI_DOCS_URL } from '@/lib/cli-command';
+
+export { CLI_LINK_COMMAND, CLI_DOCS_URL };
 
 const mono = { fontFamily: 'var(--font-mono)' } as const;
-
-/** The terminal command that links a deploy wallet. It takes no handle: the handle is whoever approves in the browser. */
-export const CLI_LINK_COMMAND = 'npx @signet/cli link';
-
-/** Where the CLI is documented. */
-export const CLI_DOCS_URL = 'https://github.com/blockchain-maxis/signet/blob/main/docs/CLI.md';
 
 /**
  * Shown wherever a claimed handle has no linked deploy wallet — the wallet

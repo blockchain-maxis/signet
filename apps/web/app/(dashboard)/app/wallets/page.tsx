@@ -70,7 +70,7 @@ export default async function WalletsPage() {
         {wallets.length === 0 ? (
           <p className="px-6 py-6 text-[13px] leading-[1.7] text-[var(--text-muted)]" style={mono}>
             {registryConfigured
-              ? 'No wallets are linked yet. Claim a handle on-chain and the signing wallet is attributed here automatically, or link a deploy wallet from the terminal with npx @signet/cli link.'
+              ? `No wallets are linked yet. Claim a handle on-chain and the signing wallet is attributed here automatically, or link a deploy wallet from the terminal with ${CLI_LINK_COMMAND}.`
               : 'The Identity Registry is not deployed on this network yet, so on-chain wallet bindings can’t be read.'}
           </p>
         ) : (

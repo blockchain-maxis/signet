@@ -1,4 +1,5 @@
 import { SignetMonogram } from '../(marketing)/components/signet-monogram';
+import { CLI_INSTALL_SENTENCE } from '@/lib/cli-command';
 
 export const metadata = {
   title: 'How it works · Signet',
@@ -143,7 +144,7 @@ export default function HowItWorksPage() {
             <strong className="text-[#f5f4ee]">Published CLI.</strong>{' '}
             The <Code>signet</Code> CLI is built and documented in <Code>docs/CLI.md</Code>:
             linking the deploy wallet you ship contracts from to your claimed handle, and{' '}
-            <Code>signet dev</Code>. It is not on npm yet, so for now it is built from source.
+            <Code>signet dev</Code>. {CLI_INSTALL_SENTENCE}{' '}
             Linking is the step that turns a claimed handle into an indexed profile: a handle
             claimed with a browser wallet points at an address that has usually deployed nothing.
           </span>

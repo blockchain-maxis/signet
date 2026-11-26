@@ -13,6 +13,7 @@ import { loadProfilePageData } from '@/lib/profile-page';
 import { getProfileState } from '@/lib/profile-state';
 import { STELLAR_EXPLORER, STELLAR_NETWORK_NAME } from '@/lib/network';
 import { formatDate } from '@/lib/format-date';
+import { CLI_LINK_COMMAND } from '@/lib/cli-command';
 import OperationsList from './operations-list';
 import { CopyAddress } from './copy-address';
 import { RestoreBinding } from '@/components/restore-binding';
@@ -253,7 +254,7 @@ export default async function ProfilePage({ params }: { params: Promise<{ handle
                 className="mt-4 block max-w-fit bg-[#0a0908] px-4 py-2.5 text-[12px] text-[#f5f4ee] border border-[#1f1d19]"
                 style={{ fontFamily: 'var(--font-mono)' }}
               >
-                npx @signet/cli link
+                {CLI_LINK_COMMAND}
               </code>
             </div>
           ) : (

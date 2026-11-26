@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { SignetMonogram } from '../../(marketing)/components/signet-monogram';
+import { CLI_LINK_COMMAND, CLI_DOCS_URL, CLI_INSTALL_SENTENCE } from '@/lib/cli-command';
 
 export const metadata = {
   title: 'Docs · Signet',
@@ -91,9 +92,9 @@ export default function DocsPage() {
         <p className="mt-4 text-[14px] leading-[1.7] text-[#b8b5a8]">
           Every profile lives at{' '}
           <code className="text-[#f5f4ee]">/p/&#123;handle&#125;</code>. The
-          on-chain operations shown are fetched from the public Stellar Horizon
-          API, and each row links to its transaction on Stellar Expert for
-          independent verification.
+          on-chain operations shown are served from the indexer database with
+          the public Stellar Horizon API as a fallback, and each row links to
+          its transaction on Stellar Expert for independent verification.
         </p>
 
         <H id="reading-a-contract-diagram">Reading a contract diagram</H>
@@ -259,16 +260,26 @@ export default function DocsPage() {
           className="mt-4 overflow-x-auto border border-[#1f1d19] bg-[#0e0d0b] px-5 py-4 text-[12px] leading-[1.7] text-[#b8b5a8]"
           style={{ fontFamily: 'var(--font-mono)' }}
         >
-{`npx @signet/cli link`}
+{CLI_LINK_COMMAND}
         </pre>
         <p className="mt-4 text-[14px] leading-[1.7] text-[#b8b5a8]">
-          The command proves control of the deploy key and associates it with
-          your handle; the indexer then attributes every contract that wallet has
-          deployed and invoked to your profile. This is the path from a claimed
-          handle to an indexed profile — until a deploy wallet is linked, a
-          claimed handle points at an address that has deployed nothing and the
-          profile renders empty. <strong>Terminal linking is not live yet</strong>;
-          the full sequence is specified in <code>docs/CLI.md</code>.
+          Run <code>{CLI_LINK_COMMAND}</code> to start pairing, approve the request at{' '}
+          <Link href="/link" className="text-[var(--text-accent)] underline underline-offset-4">
+            /link
+          </Link>{' '}
+          in your browser, compare the verification code, and sign the challenge with your deploy key.
+          Once approved, the indexer attributes every contract that wallet has deployed and invoked
+          to your profile. Until a deploy wallet is linked, a claimed handle points at an address that
+          has deployed nothing and the profile renders empty. See{' '}
+          <a
+            href={CLI_DOCS_URL}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-[var(--text-accent)] underline underline-offset-4"
+          >
+            docs/CLI.md
+          </a>{' '}
+          for detail.
         </p>
 
         <H id="run-locally">Run a contract locally</H>
@@ -291,8 +302,7 @@ signet dev CASFJHI5PQSRWS7JV25CF7FOMRKIVBP3RXRP3E2GH2CV4BCAG7FUJRCN --path ./con
         </pre>
         <p className="mt-4 text-[14px] leading-[1.7] text-[#b8b5a8]">
           It needs the <code>stellar</code> CLI, Rust with the <code>wasm32v1-none</code>{' '}
-          target, and the <code>signet-simulator</code> next to <code>signet</code>. The CLI
-          is not on npm yet; <code>docs/CLI.md</code> covers building it, and{' '}
+          target, and the <code>signet-simulator</code> next to <code>signet</code>. {CLI_INSTALL_SENTENCE}{' '}
           <code>docs/SANDBOX.md</code> is the full guide, including <code>--ci</code> for
           pull requests.
         </p>
@@ -339,13 +349,9 @@ const profile = await signet.getProfile('yourhandle');
           </li>
           <li>
             <strong>Phase 2 (live):</strong> self-sovereign claims via the
-            on-chain Identity Registry, and the developer dashboard at{' '}
-            <code>/app</code>.
-          </li>
-          <li>
-            <strong>Phase 2 (in progress):</strong> terminal deploy-wallet
-            linking (<code>npx @signet/cli link</code>) and the indexer
-            populating full deployment history.
+            on-chain Identity Registry, the developer dashboard at{' '}
+            <code>/app</code>, and terminal deploy-wallet linking (<code>{CLI_LINK_COMMAND}</code>)
+            populating full deployment history via the indexer.
           </li>
         </ul>
 
