@@ -82,6 +82,8 @@ const FROZEN_CODES = new Map([
   [7, 'WalletAlreadyBound'],
   [8, 'HandleReserved'],
   [9, 'BatchTooLarge'],
+  [10, 'HandleReservedForOther'],
+  [11, 'RegistrySealed'],
 ]);
 
 const broken = [...FROZEN_CODES.entries()].filter(

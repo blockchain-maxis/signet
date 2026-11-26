@@ -77,6 +77,10 @@ enum DataKey {
     /// The binding counter (O(1); enumeration is via events). An upper
     /// bound, not a live total - see [`IdentityRegistry::count`].
     Count,
+    /// handle -> reserved wallet `Address`.
+    Reservation(String),
+    /// Registry migration sealed flag.
+    Sealed,
 }
 
 #[contracterror]
@@ -92,6 +96,8 @@ pub enum Error {
     WalletAlreadyBound = 7,
     HandleReserved = 8,
     BatchTooLarge = 9,
+    HandleReservedForOther = 10,
+    RegistrySealed = 11,
 }
 
 /// A handle was claimed and bound to a wallet.
@@ -146,6 +152,22 @@ pub struct Initialized {
     pub admin: Address,
 }
 
+/// Migration only: `handle` was reserved so that only `wallet` may claim it.
+/// A reservation, not a binding.
+#[contractevent(data_format = "single-value")]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct Reserved {
+    #[topic]
+    pub handle: String,
+    pub wallet: Address,
+}
+
+/// The migration was sealed: no further reservations, and `claim` ignores
+/// the remaining ones. Topic `[Symbol("sealed")]`, data void.
+#[contractevent(data_format = "single-value")]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct Sealed {}
+
 #[contract]
 pub struct IdentityRegistry;
 
@@ -196,13 +218,26 @@ impl IdentityRegistry {
 
     /// Bind `handle` to `wallet`. Requires the wallet's authorization, which
     /// is the cryptographic proof of ownership. Fails if the handle is already
-    /// taken or the wallet already owns a handle.
+    /// taken or the wallet already owns a handle. Until `seal`, a handle
+    /// reserved with `admin_reserve` can only be claimed by the reserved wallet
+    /// (`HandleReservedForOther` otherwise), and that claim consumes the
+    /// reservation.
     pub fn claim(env: Env, handle: String, wallet: Address) -> Result<(), Error> {
         Self::require_initialized(&env)?;
         wallet.require_auth();
         validate_handle(&handle)?;
         if is_reserved_handle(&handle) {
             return Err(Error::HandleReserved);
+        }
+
+        let is_sealed = env.storage().instance().has(&DataKey::Sealed);
+        let res_key = DataKey::Reservation(handle.clone());
+        if !is_sealed {
+            if let Some(reserved_wallet) = env.storage().persistent().get::<_, Address>(&res_key) {
+                if reserved_wallet != wallet {
+                    return Err(Error::HandleReservedForOther);
+                }
+            }
         }
 
         let owner_key = DataKey::Owner(handle.clone());
@@ -212,6 +247,10 @@ impl IdentityRegistry {
         let wallet_key = DataKey::Handle(wallet.clone());
         if env.storage().persistent().has(&wallet_key) {
             return Err(Error::WalletAlreadyBound);
+        }
+
+        if env.storage().persistent().has(&res_key) {
+            env.storage().persistent().remove(&res_key);
         }
 
         env.storage().persistent().set(&owner_key, &wallet);
@@ -295,6 +334,69 @@ impl IdentityRegistry {
         let wallet = Self::resolve(env.clone(), handle.clone()).ok_or(Error::HandleNotFound)?;
         Self::remove_binding(&env, &handle, &wallet);
         Revoked { handle, wallet }.publish(&env);
+        Ok(())
+    }
+
+    /// Reserve `handle` so that only `wallet` may claim it during migration.
+    ///
+    /// Requires admin authorization. Refused if the registry has been sealed
+    /// or if the handle is already bound. Does not create a binding: the wallet
+    /// owner must still call `claim` with their own authorization.
+    pub fn admin_reserve(env: Env, handle: String, wallet: Address) -> Result<(), Error> {
+        let admin: Address = env
+            .storage()
+            .instance()
+            .get(&DataKey::Admin)
+            .ok_or(Error::NotInitialized)?;
+        admin.require_auth();
+
+        if env.storage().instance().has(&DataKey::Sealed) {
+            return Err(Error::RegistrySealed);
+        }
+
+        validate_handle(&handle)?;
+        if is_reserved_handle(&handle) {
+            return Err(Error::HandleReserved);
+        }
+
+        let owner_key = DataKey::Owner(handle.clone());
+        if env.storage().persistent().has(&owner_key) {
+            return Err(Error::HandleTaken);
+        }
+
+        let res_key = DataKey::Reservation(handle.clone());
+        env.storage().persistent().set(&res_key, &wallet);
+        env.storage()
+            .persistent()
+            .extend_ttl(&res_key, BUMP_THRESHOLD, BUMP_LEDGERS);
+        Self::bump_instance(&env);
+
+        Reserved { handle, wallet }.publish(&env);
+        Ok(())
+    }
+
+    /// End the migration period: permanently refuse any further `admin_reserve` calls.
+    ///
+    /// Requires admin authorization. One-way: once sealed, cannot be unsealed and
+    /// subsequent calls return `RegistrySealed`. Because the contract cannot
+    /// enumerate reservations to delete them, after `seal` `claim` simply ignores
+    /// any remaining `Reservation` entry.
+    pub fn seal(env: Env) -> Result<(), Error> {
+        let admin: Address = env
+            .storage()
+            .instance()
+            .get(&DataKey::Admin)
+            .ok_or(Error::NotInitialized)?;
+        admin.require_auth();
+
+        if env.storage().instance().has(&DataKey::Sealed) {
+            return Err(Error::RegistrySealed);
+        }
+
+        env.storage().instance().set(&DataKey::Sealed, &true);
+        Self::bump_instance(&env);
+
+        Sealed {}.publish(&env);
         Ok(())
     }
 

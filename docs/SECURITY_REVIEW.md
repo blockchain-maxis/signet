@@ -246,6 +246,8 @@ wasm; which methods are live is in
 | `release(handle)` | the handle's current owner (resolved on-chain, not passed in) | `release_requires_owner_auth`, `release_rejected_when_authorized_by_wrong_address` |
 | `transfer_handle(handle, new_wallet)` | current owner **and** `new_wallet` | `transfer_handle_requires_current_owner_auth`, `transfer_handle_requires_new_wallet_auth`, `transfer_handle_happy_path` (asserts both auths) |
 | `admin_revoke(handle)` | admin | `admin_revoke_requires_admin_auth`, `admin_revoke_rejected_when_authorized_by_wrong_address` |
+| `admin_reserve(handle, wallet)` | admin | `admin_reserve_requires_admin_auth` |
+| `seal()` | admin | `seal_requires_admin_auth_and_second_seal_fails` |
 | `resolve`, `lookup`, `is_bound`, `count`, `resolve_batch` | nobody (reads) | no `require_auth` in those functions |
 
 - [ ] `transfer_handle` requires `new_wallet`'s signature as well as the
@@ -260,8 +262,10 @@ wasm; which methods are live is in
 
 ### Admin powers
 
-- [ ] The admin can do exactly two things: `admin_revoke` (force-remove a
-      binding) and `set_admin` (rotate the admin key). The admin **cannot
+- [ ] The admin can do exactly two things outside a migration:
+      `admin_revoke` (force-remove a binding) and `set_admin` (rotate the
+      admin key), plus the migration-only `admin_reserve` / `seal` below,
+      which write no binding. The admin **cannot
       create or redirect a binding**. Every write to `DataKey::Owner` /
       `DataKey::Handle` is reached only through `claim` (signed by the wallet),
       `transfer_handle` (signed by the owner and the new wallet) or `remove_binding`, which only
@@ -269,11 +273,21 @@ wasm; which methods are live is in
       ([`identity-registry/README.md`](../packages/contracts/identity-registry/README.md#trust-model)).
 - [ ] The migration-only `admin_reserve` / `seal` entry points narrow **who may
       claim** a reserved handle and never assign one. `admin_reserve` writes a
-      reservation, not a binding, and the reserved wallet still signs its own
-      `claim`. `seal` is one-way and turns the power off for good, so the extra
-      admin power is temporary
+      `DataKey::Reservation`, not a binding, refuses a handle that is already
+      bound, and the reserved wallet still signs its own `claim`, which
+      consumes the reservation; any other wallet's `claim` fails with
+      `HandleReservedForOther`. `seal` is one-way and turns the power off for
+      good: `admin_reserve` and a second `seal` fail with `RegistrySealed`, and
+      `claim` ignores every leftover reservation, so the extra admin power is
+      temporary
       ([`CONTRACT_MIGRATION.md` §4](CONTRACT_MIGRATION.md#4-the-replacement-contract)).
-      `[registry: #982]`
+      Proof: `reserve_then_claim_by_named_wallet_succeeds_and_consumes_reservation`,
+      `claim_by_other_wallet_fails_with_handle_reserved_for_other`,
+      `admin_reserve_of_bound_handle_fails`, `admin_reserve_after_seal_fails`,
+      `after_seal_leftover_reservation_no_longer_blocks_anyone`,
+      `seal_requires_admin_auth_and_second_seal_fails`, and the reserve/seal
+      ops in `count_equals_live_bindings_after_any_sequence`
+      ([`src/property_test.rs`](../packages/contracts/identity-registry/src/property_test.rs)).
 - [ ] There is no upgrade entry point (no `update_current_contract_wasm`
       anywhere in `lib.rs`). Adding one is a change to the trust model, not a
       feature, and needs its own design review.
@@ -345,12 +359,16 @@ wasm; which methods are live is in
       `transferred` carries `(from, to)`. `admin_changed` has the one-element
       topic `(Symbol("admin_changed"),)` with `(old_admin, new_admin)`, and
       `initialized` has the one-element topic `(Symbol("initialized"),)` with
-      `address(admin)`. Each event is declared with `#[contractevent]`, so the
-      wasm's spec lists all six. Each write emits exactly one event, and
-      the tests pin its exact topics and data (#980): `claim_emits_event`,
-      `release_emits_event`, `admin_revoke_emits_event`,
+      `address(admin)`. The migration events are `reserved`
+      (`(Symbol("reserved"), String(handle))` with `address(wallet)`, which
+      binds nothing) and `sealed` (one-element topic, void data). Each event
+      is declared with `#[contractevent]`, so the wasm's spec lists all eight
+      (`contract_spec_declares_every_event`). Each write emits exactly one
+      event, and the tests pin its exact topics and data (#980):
+      `claim_emits_event`, `release_emits_event`, `admin_revoke_emits_event`,
       `transfer_handle_emits_event`, `set_admin_emits_event`,
-      `initialize_emits_event`. Changing a topic, the order of a tuple
+      `initialize_emits_event`, `admin_reserve_emits_event`,
+      `seal_emits_event`. Changing a topic, the order of a tuple
       or a data shape breaks every consumer of the deployed registry. Add a
       new kind rather than reshaping an old one.
 

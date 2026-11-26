@@ -2,7 +2,7 @@
 
 Soroban contract that binds a Stellar wallet to a Signet handle on-chain.
 
-> **Status:** implemented. 49 tests (42 unit tests in `src/test.rs`, 6
+> **Status:** implemented. 58 tests (51 unit tests in `src/test.rs`, 6
 > property tests in `src/property_test.rs`, 1 cost test in `src/cost_test.rs`).
 > CI's `Wasm size budget` step logs the release wasm's current size against its
 > 20 KB budget (see [`../README.md`](../README.md#size-budget)).
@@ -45,6 +45,8 @@ registry and migrating; budget for that rather than assuming a patch path.
 | `release(handle)` | owning wallet | Remove your binding. Emits `released`. |
 | `transfer_handle(handle, new_wallet)` | current owner and `new_wallet` | Move a handle to another wallet, with both wallets' consent. Emits `transferred`. |
 | `admin_revoke(handle)` | `admin` | Moderation force-remove. Emits `revoked`. |
+| `admin_reserve(handle, wallet)` | `admin` | Migration only: until `seal`, only `wallet` may `claim` `handle`. Writes a reservation, not a binding. Emits `reserved`. |
+| `seal()` | `admin` | End the migration for good: refuse further reservations; `claim` ignores any left over. Emits `sealed`. |
 | `resolve(handle) -> Option<Address>` | — | Handle → wallet. |
 | `lookup(wallet) -> Option<String>` | — | Wallet → handle. |
 | `is_bound(handle) -> bool` | — | Whether a handle is taken. |
@@ -63,6 +65,8 @@ The contract declares typed events using `#[contractevent]`:
 | `Transferred` | `[ symbol("transferred"), string(handle) ]` | `[ address(from), address(to) ]` | Handle moved to new wallet. |
 | `AdminChanged` | `[ symbol("admin_changed") ]` | `[ address(old_admin), address(new_admin) ]` | Moderation admin rotated. |
 | `Initialized` | `[ symbol("initialized") ]` | `address(admin)` | Registry initialized with admin. |
+| `Reserved` | `[ symbol("reserved"), string(handle) ]` | `address(wallet)` | Migration only: `handle` reserved for `wallet`. Binds nothing. |
+| `Sealed` | `[ symbol("sealed") ]` | void | Migration sealed. |
 
 ## Storage lifetime
 

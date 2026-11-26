@@ -96,9 +96,9 @@ announcement and the last user signing, every handle on the new registry is
 unclaimed — and `claim` is first-come. Without a reservation, migration day is an
 open squat on every handle in the product.
 
-So the replacement wasm adds two entrypoints (**neither exists in the current
-contract; they are part of the migration deployment, and want their own tests and
-review**):
+So the replacement wasm adds two entrypoints. Both are in `main` (#982, tested in
+`src/test.rs` and the property test) but **not in the deployed wasm**: they ship with
+the migration deployment, and still want their own review before it:
 
 ```rust
 /// Reserve `handle` so that only `wallet` may claim it. Admin-only, and
@@ -107,15 +107,16 @@ review**):
 /// the admin can only narrow who may claim, never assign ownership.
 pub fn admin_reserve(env: Env, handle: String, wallet: Address) -> Result<(), Error>;
 
-/// End the migration: drop every remaining reservation and refuse any further
-/// `admin_reserve`. One-way, admin-only. After this the registry behaves
-/// exactly like the current one.
+/// End the migration: refuse any further `admin_reserve`. After seal, remaining
+/// reservations are ignored (the contract cannot enumerate them to drop them).
+/// One-way, admin-only. After this the registry behaves exactly like the current one.
 pub fn seal(env: Env) -> Result<(), Error>;
 ```
 
 `claim` gains one check: if a reservation exists for the handle and names a
-different wallet, fail. A handle with no reservation stays open to anyone, as
-today.
+different wallet, fail. After `seal`, that check is skipped entirely so any
+remaining reservations no longer block anyone. A handle with no reservation
+stays open to anyone, as today.
 
 The point of `seal` is that the migration's extra admin power is temporary and
 its end is observable on-chain. Publish the seal transaction hash alongside the
