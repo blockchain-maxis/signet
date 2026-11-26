@@ -13,6 +13,7 @@ import {
   type VizTheme,
   type VizTokenName,
 } from './tokens.ts';
+import { groupFunctions } from './group.ts';
 import {
   HEAT_FONT_PX,
   MARK_SLOT,
@@ -33,6 +34,7 @@ import {
   renderLegend,
   sandboxBadge,
   WRITE_MARK_VOCABULARY,
+  type DiagramKind,
   type EdgeKind,
   type NodeKind,
   type WriteMark,
@@ -214,25 +216,26 @@ function placeUnpositioned(model: DiagramModel): DrawnNode[] {
 }
 
 /** The vocabulary kind a drawn node is. */
-function nodeKindOf(node: DrawnNode): NodeKind {
-  switch (node.kind) {
+export function nodeKindOf(node: DrawnNode | PositionedNode | DiagramNode): NodeKind {
+  const n = node as Partial<DrawnNode>;
+  switch (n.kind) {
     case 'function':
-      return node.collapsed ? 'collapsed-group' : 'function';
+      return n.collapsed ? 'collapsed-group' : 'function';
     case 'missing':
       return 'stub';
     case 'callee':
     case 'callees-more':
     case 'call-anchor':
-      return node.kind;
+      return n.kind;
     case 'type':
-      return node.typeKind === 'union' ? 'union' : node.typeKind === 'enum' ? 'enum' : 'struct';
+      return n.typeKind === 'union' ? 'union' : n.typeKind === 'enum' ? 'enum' : 'struct';
     default:
       return node.id.startsWith('fn:') ? 'function' : 'struct';
   }
 }
 
 /** The vocabulary kind a drawn edge is: a call by its evidence, else its first spec kind. */
-function edgeKindOf(edge: DiagramEdge): EdgeKind {
+export function edgeKindOf(edge: DiagramEdge | PositionedEdge): EdgeKind {
   const positioned = edge as Partial<PositionedEdge>;
   if (positioned.call) {
     const evidence = positioned.call.evidence;
@@ -284,21 +287,28 @@ export function renderDiagramSvg(model: DiagramModel, opts: RenderOptions): stri
 
   const functionNodes = model.nodes.filter((n) => n.id.startsWith('fn:'));
   const typeNodes = model.nodes.filter((n) => n.id.startsWith('type:'));
-  const groupCount = new Set(
-    functionNodes.map((n) => n.id.split(':')[1]?.split('_')[0] ?? 'default'),
-  ).size;
+  const collapsedGroups = nodes.flatMap((n) => (n.collapsed ? [n.collapsed] : []));
+  const functionNames = [
+    ...functionNodes.map((n) => n.id.slice('fn:'.length)),
+    ...collapsedGroups.flatMap((g) => g.members),
+  ];
+  const allGroups = groupFunctions(functionNames);
   const calls = (model as Partial<PositionedDiagramModel>).calls;
   const callEdges = edges.filter((e) => (e as Partial<PositionedEdge>).call);
   const calleeCount = nodes.filter((n) => n.kind === 'callee').length;
 
   // A collapsed group (issue 502) counts its members, and as a group.
-  const collapsedGroups = nodes.flatMap((n) => (n.collapsed ? [n.collapsed] : []));
   const functionCount =
     functionNodes.length + collapsedGroups.reduce((sum, g) => sum + g.members.length, 0);
-  const groupText = collapsedGroups.length
-    ? `${groupCount + collapsedGroups.length} groups (${collapsedGroups.length} collapsed)`
-    : `${groupCount} groups`;
-  let desc = `${functionCount} functions in ${groupText}, ${typeNodes.length} types, ${model.edges.length - callEdges.length} references`;
+  let groupPart: string;
+  if (allGroups.length === 0) {
+    groupPart = `${functionCount} functions, ungrouped`;
+  } else if (collapsedGroups.length > 0) {
+    groupPart = `${functionCount} functions in ${allGroups.length} groups (${collapsedGroups.length} collapsed)`;
+  } else {
+    groupPart = `${functionCount} functions in ${allGroups.length} groups`;
+  }
+  let desc = `${groupPart}, ${typeNodes.length} types, ${model.edges.length - callEdges.length} references`;
   if (calls) {
     desc += `; calls ${calleeCount} other contract${calleeCount === 1 ? '' : 's'}`;
     if (calls.hidden > 0) desc += ` and ${calls.hidden} more`;
@@ -310,8 +320,18 @@ export function renderDiagramSvg(model: DiagramModel, opts: RenderOptions): stri
   const positioned = model as Partial<PositionedDiagramModel>;
   const bodyHeight = Math.ceil(Math.max(positioned.height ?? 0, extentY));
 
-  // The legend and provenance line sit under a call graph.
+  // The legend and provenance line sit under a call graph or whenever edges are drawn.
   const legendKinds = new Set<EdgeKind | NodeKind>();
+  if (edges.length > 0) {
+    for (const n of nodes) {
+      legendKinds.add(nodeKindOf(n));
+    }
+    for (const e of edges) {
+      if (!(e as Partial<PositionedEdge>).call) {
+        legendKinds.add(edgeKindOf(e));
+      }
+    }
+  }
   if (calls) legendKinds.add('callee');
   for (const e of callEdges) {
     legendKinds.add(edgeKindOf(e));
@@ -322,6 +342,8 @@ export function renderDiagramSvg(model: DiagramModel, opts: RenderOptions): stri
   if (nodes.some((n) => n.kind === 'call-anchor')) legendKinds.add('call-anchor');
   const provenance = calls ? describeCallWindow(calls) : '';
 
+  const hasLegend = edges.length > 0 || Boolean(calls);
+
   // Wide enough for the diagram, and for every footer line to be read whole.
   const legendTextWidth = [...legendKinds].map((kind) =>
     kind in NODE_VOCABULARY
@@ -331,10 +353,13 @@ export function renderDiagramSvg(model: DiagramModel, opts: RenderOptions): stri
         ) + 40
       : textWidth(EDGE_VOCABULARY[kind as EdgeKind].label, FONT_PX) + 40,
   );
+  const maxLegendWidth = legendTextWidth.length > 0 ? Math.max(...legendTextWidth) : 0;
   const footerTextWidth = calls
-    ? Math.max(textWidth(WEIGHT_NOTE, 12), textWidth(provenance, 12), ...legendTextWidth) +
+    ? Math.max(textWidth(WEIGHT_NOTE, 12), textWidth(provenance, 12), maxLegendWidth) +
       2 * MARGIN
-    : 0;
+    : hasLegend
+      ? maxLegendWidth + 2 * MARGIN
+      : 0;
   // The read/write overlay's key and provenance lines (issue 512).
   const mutability = opts.overlays?.mutability;
   const markLines = mutability
@@ -353,14 +378,14 @@ export function renderDiagramSvg(model: DiagramModel, opts: RenderOptions): stri
     : 0;
   const width = Math.ceil(Math.max(positioned.width ?? 0, extentX, footerTextWidth, markWidth));
 
-  const legend = calls
+  const legend = hasLegend
     ? renderLegend(legendKinds, {
         idPrefix: `${idPrefix}legend`,
         width: width - 2 * MARGIN,
       })
     : '';
   const legendHeight = legend ? Number(/data-legend-height="(\d+)"/.exec(legend)![1]) : 0;
-  const callFooter = calls ? legendHeight + 3 * 20 + 8 : 0;
+  const callFooter = calls ? legendHeight + 3 * 20 + 8 : (hasLegend ? legendHeight : 0);
   const height = bodyHeight + callFooter + markFooter;
 
   const describedByAttr = opts.ariaDescribedBy
@@ -487,14 +512,26 @@ export function renderDiagramSvg(model: DiagramModel, opts: RenderOptions): stri
 
     const cleanQuery = opts.query?.trim().toLowerCase();
     const isMatch = cleanQuery
-      ? node.id.toLowerCase().includes(cleanQuery) || node.label.toLowerCase().includes(cleanQuery)
+      ? node.id.toLowerCase().includes(cleanQuery) ||
+        node.label.toLowerCase().includes(cleanQuery) ||
+        (node.collapsed !== undefined &&
+          node.collapsed.members.some((m) => m.toLowerCase().includes(cleanQuery)))
       : true;
     // The function's read/write mark (issue 512), for the badge and the detail card.
     const markOf =
       mutability && kind === 'function' ? mutability.marks[node.name ?? node.label] : undefined;
     const markKind = mutability && kind === 'function' ? writeMarkOf(markOf) : null;
-    const hidden =
-      (cleanQuery && !isMatch) || (opts.writesOnly && mutability && markKind !== 'write');
+    const hasWritingMember =
+      node.collapsed !== undefined && mutability !== undefined
+        ? node.collapsed.members.some((m) => mutability.marks[m]?.kind === 'writes')
+        : false;
+    const writesHidden =
+      opts.writesOnly && mutability
+        ? node.collapsed !== undefined
+          ? !hasWritingMember
+          : markKind !== 'write'
+        : false;
+    const hidden = (cleanQuery && !isMatch) || writesHidden;
     const filterClass = hidden ? ' viz-dimmed' : cleanQuery ? ' viz-match' : '';
     const stateClass = focusClass + filterClass;
     const containerClass = stateClass ? ` class="${stateClass.trim()}"` : '';
@@ -508,10 +545,14 @@ export function renderDiagramSvg(model: DiagramModel, opts: RenderOptions): stri
         if (mutability!.txHref)
           markAttrs += ` data-mark-href="${escapeXml(mutability!.txHref(example.txHash))}"`;
       }
+    } else if (node.collapsed && hasWritingMember) {
+      markAttrs += ' data-mark="write"';
     }
 
     // A collapsed group (issue 502) says which group its link expands.
-    if (node.collapsed) markAttrs += ` data-group-toggle="${escapeXml(node.collapsed.group)}"`;
+    if (node.collapsed) {
+      markAttrs += ` data-group-toggle="${escapeXml(node.collapsed.group)}" data-members="${escapeXml(node.collapsed.members.join(','))}"`;
+    }
     const diffKind = opts.diff?.[node.id];
     if (diffKind) markAttrs += ` data-diff="${diffKind}"`;
 
@@ -618,6 +659,12 @@ export function renderDiagramSvg(model: DiagramModel, opts: RenderOptions): stri
     svgParts.push(
       `    <text class="diagram-call-provenance" x="8" y="${legendHeight + 32}" font-size="12" fill="${cssVar('muted')}">${escapeXml(provenance)}</text>`,
     );
+    svgParts.push('  </g>');
+  } else if (hasLegend) {
+    svgParts.push(
+      `  <g class="diagram-legend-footer" transform="translate(${MARGIN - 8} ${bodyHeight})">`,
+    );
+    svgParts.push(`    ${legend}`);
     svgParts.push('  </g>');
   }
 
@@ -737,8 +784,43 @@ export function renderStandaloneSvg(
     `WASM hash: ${opts.provenance.wasmHash}`,
     ...(calls ? [describeCallWindow(calls), callSourceLine(calls)] : [INTERFACE_ONLY]),
   ];
-  const width = Math.ceil(Math.max(model.width, ...footer.map((line) => textWidth(line, 12) + 48)));
-  const height = model.height + 36 + footer.length * 20;
+
+  // The legend (issue 952) under the drawing, for the kinds drawn, as on the
+  // page: only when an edge is drawn, so the bare function list has none.
+  const legendKinds = new Set<DiagramKind>();
+  if (routed.length > 0) {
+    for (const node of model.nodes) legendKinds.add(nodeKindOf(node));
+    for (const edge of routed) legendKinds.add(edgeKindOf(edge));
+  }
+  const legendWidths = [...legendKinds].map((kind) =>
+    kind in NODE_VOCABULARY
+      ? textWidth(
+          `${NODE_VOCABULARY[kind as NodeKind].prefix} — ${NODE_VOCABULARY[kind as NodeKind].label}`,
+          12,
+        ) + 40
+      : textWidth(EDGE_VOCABULARY[kind as EdgeKind].label, 12) + 40,
+  );
+  const width = Math.ceil(
+    Math.max(
+      model.width,
+      ...footer.map((line) => textWidth(line, 12) + 48),
+      ...legendWidths.map((w) => w + 2 * MARGIN),
+    ),
+  );
+  // Its arrowheads are the drawing's own (`export-*`, defined below for every
+  // edge kind drawn, so for every one the legend lists): its defs are dropped.
+  const legend =
+    legendKinds.size > 0
+      ? literal(
+          renderLegend(legendKinds, { idPrefix: 'export', width: width - 2 * MARGIN }).replace(
+            /<defs>.*?<\/defs>/,
+            '',
+          ),
+        )
+      : '';
+  const legendHeight = legend ? Number(/data-legend-height="(\d+)"/.exec(legend)![1]) : 0;
+  const footerTop = model.height + legendHeight;
+  const height = footerTop + 36 + footer.length * 20;
 
   let counts = `${model.nodes.length} nodes, ${model.edges.length - callEdges.length} references`;
   if (calls) {
@@ -752,6 +834,7 @@ export function renderStandaloneSvg(
     'text { font-family: monospace; font-size: 14px; }',
     '.footer, .group-label, .count { font-size: 12px; }',
     '.viz-sandbox-badge text { font-size: 9px; }',
+    '.viz-legend-label { font-size: 12px; }',
     ...(opts.theme === 'auto' ? [darkOverrides()] : []),
   ].join('\n');
 
@@ -821,9 +904,13 @@ export function renderStandaloneSvg(
     );
   }
 
+  if (legend) {
+    parts.push(`<g class="export-legend" transform="translate(${MARGIN - 8} ${model.height})">${legend}</g>`);
+  }
+
   footer.forEach((line, index) =>
     parts.push(
-      `<text class="footer" x="24" y="${model.height + 28 + index * 20}" fill="${colour('muted')}">${escapeXml(line)}</text>`,
+      `<text class="footer" x="24" y="${footerTop + 28 + index * 20}" fill="${colour('muted')}">${escapeXml(line)}</text>`,
     ),
   );
   parts.push('</svg>');

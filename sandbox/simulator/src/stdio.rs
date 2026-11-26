@@ -187,9 +187,17 @@ fn parse_entries(keys: &[Vec<u8>], answer: &Value) -> Result<Vec<FetchedEntry>, 
                 "an entry for a key that was not asked for".into(),
             ));
         };
-        let live_until = item["live_until_ledger"]
-            .as_u64()
-            .and_then(|n| u32::try_from(n).ok());
+        let live_until = match item.get("live_until_ledger") {
+            None | Some(Value::Null) => None,
+            Some(value) => match value.as_u64() {
+                Some(until) if until <= u64::from(u32::MAX) => Some(until as u32),
+                _ => {
+                    return Err(FetchError::BadAnswer(
+                        "`live_until_ledger` is not a non-negative integer".into(),
+                    ));
+                }
+            },
+        };
         slot.live_until = live_until;
         slot.entry = if !item["entry_xdr"].is_null() && item.get("entry_xdr").is_some() {
             Some(FetchedBytes::Entry(b64(&item["entry_xdr"], "entry_xdr")?))
@@ -245,6 +253,16 @@ mod tests {
             1 << 20,
         );
         (ch, out)
+    }
+
+    #[test]
+    fn malformed_live_until_ledger_is_a_bad_answer() {
+        let (mut ch, _) = channel(concat!(
+            r#"{"version":1,"id":"sim-1","type":"ledger_entries","entries":[{"key_xdr":"AAAA","entry_xdr":"BBBB","live_until_ledger":"9"}]}"#,
+            "\n"
+        ));
+        let err = ch.fetch(&[vec![0, 0, 0]]).unwrap_err();
+        assert!(matches!(err, FetchError::BadAnswer(ref msg) if msg.contains("live_until_ledger")));
     }
 
     #[test]

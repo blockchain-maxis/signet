@@ -55,6 +55,26 @@ fn invalid_field(id: &Value, path: &str, expected: &str) -> Value {
     )
 }
 
+/// Validate and extract `live_until_ledger` from an entry map.
+/// Absent or null means no TTL (`None`); anything else must be a non-negative integer in `0..=u32::MAX`.
+pub fn parse_live_until(
+    id: &Value,
+    path: &str,
+    item: &Map<String, Value>,
+) -> Result<Option<u32>, Value> {
+    match item.get("live_until_ledger") {
+        None | Some(Value::Null) => Ok(None),
+        Some(value) => match value.as_u64() {
+            Some(until) if until <= u64::from(u32::MAX) => Ok(Some(until as u32)),
+            _ => Err(invalid_field(
+                id,
+                &format!("{path}.live_until_ledger"),
+                "a non-negative integer",
+            )),
+        },
+    }
+}
+
 fn no_open_ledger(id: &Value) -> Value {
     error_message(
         id,
@@ -76,6 +96,32 @@ fn decode_key(lane: &dyn Lane, id: &Value, path: &str, value: &str) -> Result<Ve
     lane.check_ledger_key(&bytes)
         .map_err(|_| invalid_field(id, path, "a base64 LedgerKey"))?;
     Ok(bytes)
+}
+
+pub(crate) fn verify_entry_key(
+    lane: &dyn Lane,
+    id: &Value,
+    path: &str,
+    key_xdr: &[u8],
+    entry_xdr: &[u8],
+) -> Result<(), Value> {
+    let derived = lane
+        .entry_key(entry_xdr)
+        .map_err(|_| invalid_field(id, path, "a base64 LedgerEntry"))?;
+    if derived != key_xdr {
+        let reason = format!(
+            "entry is for {}, not {}",
+            lane.describe_key(&derived),
+            lane.describe_key(key_xdr)
+        );
+        return Err(error_message(
+            id,
+            "bad_request",
+            format!("`{path}`: {reason}"),
+            json!({ "kind": "invalid_field", "path": path, "reason": reason }),
+        ));
+    }
+    Ok(())
 }
 
 /// Base64 `LedgerEntry` XDR, checked by the ledger's own lane.
@@ -240,10 +286,18 @@ pub fn ledger_open(
                 Ok(entry) => entry,
                 Err(error) => return error,
             };
-            let live_until = item
-                .get("live_until_ledger")
-                .and_then(Value::as_u64)
-                .and_then(|n| u32::try_from(n).ok());
+            let entry_path = if item.contains_key("entry_xdr") {
+                format!("{at}.entry_xdr")
+            } else {
+                format!("{at}.data_xdr")
+            };
+            if let Err(error) = verify_entry_key(lane, id, &entry_path, &key, &entry) {
+                return error;
+            }
+            let live_until = match parse_live_until(id, &at, item) {
+                Ok(live_until) => live_until,
+                Err(error) => return error,
+            };
             store.insert_base(&key, entry, live_until, sequence);
         }
     }
@@ -314,18 +368,9 @@ pub fn ledger_put(
             return invalid_field(id, &format!("entries[{index}].key_xdr"), "a string");
         };
         let at = format!("entries[{index}]");
-        let live_until = match item.get("live_until_ledger") {
-            None | Some(Value::Null) => None,
-            Some(value) => match value.as_u64() {
-                Some(until) if until <= u64::from(u32::MAX) => Some(until as u32),
-                _ => {
-                    return invalid_field(
-                        id,
-                        &format!("entries[{index}].live_until_ledger"),
-                        "a non-negative integer",
-                    )
-                }
-            },
+        let live_until = match parse_live_until(id, &at, item) {
+            Ok(live_until) => live_until,
+            Err(error) => return error,
         };
         let key = match decode_key(open.lane, id, &format!("entries[{index}].key_xdr"), key_xdr) {
             Ok(key) => key,
@@ -335,6 +380,14 @@ pub fn ledger_put(
             Ok(entry) => entry,
             Err(error) => return error,
         };
+        let entry_path = if item.contains_key("entry_xdr") {
+            format!("{at}.entry_xdr")
+        } else {
+            format!("{at}.data_xdr")
+        };
+        if let Err(error) = verify_entry_key(open.lane, id, &entry_path, &key, &entry) {
+            return error;
+        }
         writes.push((key, entry, live_until));
     }
 
@@ -356,6 +409,10 @@ pub fn ledger_put(
 /// — so a surprising value is always traceable. An archived entry answers
 /// `entry_xdr: null` with its `live_until_ledger` still set, which is how a
 /// caller tells "expired" from "never existed" (`live_until_ledger: null`).
+/// A key a call deleted in the session, or an override unset, answers both
+/// as null with `deleted: true` and the provenance of the deletion
+/// (`source: session|override`, `lastModifiedLedgerSeq`), so "removed here"
+/// is told from "never existed" too (#934).
 pub fn ledger_get(ledger: &Option<OpenLedger>, id: &Value, object: &Map<String, Value>) -> Value {
     let Some(open) = ledger.as_ref() else {
         return no_open_ledger(id);
@@ -402,6 +459,16 @@ pub fn ledger_get(ledger: &Option<OpenLedger>, id: &Value, object: &Map<String, 
                 "provenance": {
                     "source": provenance.source.as_str(),
                     "fetchedAtLedger": provenance.fetched_at_ledger,
+                    "lastModifiedLedgerSeq": provenance.last_modified_ledger_seq,
+                },
+            }),
+            Lookup::Deleted { provenance } => json!({
+                "key_xdr": key_xdr,
+                "entry_xdr": Value::Null,
+                "live_until_ledger": Value::Null,
+                "deleted": true,
+                "provenance": {
+                    "source": provenance.source.as_str(),
                     "lastModifiedLedgerSeq": provenance.last_modified_ledger_seq,
                 },
             }),
@@ -712,5 +779,248 @@ mod tests {
         );
         assert_eq!(put["type"], "error");
         assert_eq!(put["detail"]["path"], "entries[0].key_xdr");
+    }
+
+    #[test]
+    fn put_with_mismatched_key_and_entry_is_refused_and_writes_nothing() {
+        let mut ledger = None;
+        open(&mut ledger);
+        let put = ledger_put(
+            &mut ledger,
+            &id(),
+            &obj(json!({ "entries": [
+                { "key_xdr": key_b64(1), "entry_xdr": entry_b64(2, 20) },
+            ] })),
+        );
+        assert_eq!(put["type"], "error", "{put}");
+        assert_eq!(put["code"], "bad_request");
+        assert_eq!(put["detail"]["kind"], "invalid_field");
+        assert_eq!(put["detail"]["path"], "entries[0].entry_xdr");
+        let got = ledger_get(&ledger, &id(), &obj(json!({ "keys_xdr": [key_b64(1)] })));
+        assert_eq!(got["entries"][0]["entry_xdr"], Value::Null);
+    }
+
+    #[test]
+    fn open_with_mismatched_key_and_entry_is_refused() {
+        let mut ledger = None;
+        let reply = ledger_open(
+            &mut ledger,
+            &id(),
+            &obj(json!({
+                "network_passphrase": "Test SDF Network ; September 2015",
+                "entries": [
+                    { "key_xdr": key_b64(1), "entry_xdr": entry_b64(2, 20) },
+                ],
+            })),
+        );
+        assert_eq!(reply["type"], "error", "{reply}");
+        assert_eq!(reply["code"], "bad_request");
+        assert_eq!(reply["detail"]["kind"], "invalid_field");
+        assert_eq!(reply["detail"]["path"], "entries[0].entry_xdr");
+        assert!(ledger.is_none());
+    }
+
+    /// Deletes key `n` in the session layer, as a call's writes land there.
+    fn delete_in_session(ledger: &Option<OpenLedger>, n: u32) {
+        let open_ledger = ledger.as_ref().unwrap();
+        open_ledger
+            .store
+            .borrow_mut()
+            .apply_modified([crate::ledger::store::Write {
+                key: fixtures::data_key_xdr(n),
+                entry: None,
+                live_until: None,
+            }]);
+    }
+
+    #[test]
+    fn a_key_deleted_in_the_session_reads_as_deleted_by_the_session() {
+        let mut ledger = None;
+        open(&mut ledger);
+        let put = ledger_put(
+            &mut ledger,
+            &id(),
+            &obj(json!({ "entries": [
+                { "key_xdr": key_b64(1), "entry_xdr": entry_b64(1, 10), "live_until_ledger": 500 },
+            ] })),
+        );
+        assert_eq!(put["written"], 1, "{put}");
+        delete_in_session(&ledger, 1);
+
+        let got = ledger_get(
+            &ledger,
+            &id(),
+            &obj(json!({ "keys_xdr": [key_b64(1), key_b64(2)] })),
+        );
+        assert_eq!(got["type"], "result", "{got}");
+        // The whole answer, so a field added or dropped shows here.
+        assert_eq!(
+            got["entries"][0],
+            json!({
+                "key_xdr": key_b64(1),
+                "entry_xdr": null,
+                "live_until_ledger": null,
+                "deleted": true,
+                "provenance": { "source": "session", "lastModifiedLedgerSeq": 1 },
+            })
+        );
+        // A key that never existed is answered as before: nothing says deleted.
+        assert_eq!(
+            got["entries"][1],
+            json!({ "key_xdr": key_b64(2), "entry_xdr": null, "live_until_ledger": null })
+        );
+    }
+
+    #[test]
+    fn a_key_unset_by_an_override_reads_as_deleted_by_the_override() {
+        let mut ledger = None;
+        open(&mut ledger);
+        {
+            let open_ledger = ledger.as_ref().unwrap();
+            let mut store = open_ledger.store.borrow_mut();
+            store.insert_base(
+                &fixtures::data_key_xdr(1),
+                fixtures::data_entry_xdr(1, 10),
+                Some(500),
+                1,
+            );
+            // What `storage_override` does for `--unset-storage`.
+            store.remove_override(&fixtures::data_key_xdr(1));
+        }
+
+        let got = ledger_get(&ledger, &id(), &obj(json!({ "keys_xdr": [key_b64(1)] })));
+        assert_eq!(
+            got["entries"][0],
+            json!({
+                "key_xdr": key_b64(1),
+                "entry_xdr": null,
+                "live_until_ledger": null,
+                "deleted": true,
+                "provenance": { "source": "override", "lastModifiedLedgerSeq": 1 },
+            })
+        );
+    }
+
+    #[test]
+    fn a_rollback_past_the_delete_reads_the_entry_again() {
+        let mut ledger = None;
+        open(&mut ledger);
+        let put = ledger_put(
+            &mut ledger,
+            &id(),
+            &obj(json!({ "entries": [
+                { "key_xdr": key_b64(1), "entry_xdr": entry_b64(1, 10), "live_until_ledger": 500 },
+            ] })),
+        );
+        assert_eq!(put["written"], 1, "{put}");
+        let taken = ledger_checkpoint(&mut ledger, &id());
+        let handle = taken["checkpoint"].as_str().unwrap().to_string();
+
+        delete_in_session(&ledger, 1);
+        let gone = ledger_get(&ledger, &id(), &obj(json!({ "keys_xdr": [key_b64(1)] })));
+        assert_eq!(gone["entries"][0]["deleted"], true, "{gone}");
+
+        let rolled = ledger_rollback(&mut ledger, &id(), &obj(json!({ "checkpoint": handle })));
+        assert_eq!(rolled["type"], "result", "{rolled}");
+        let back = ledger_get(&ledger, &id(), &obj(json!({ "keys_xdr": [key_b64(1)] })));
+        let entry = &back["entries"][0];
+        assert_eq!(entry["entry_xdr"], entry_b64(1, 10), "{back}");
+        assert_eq!(entry["provenance"]["source"], "override", "{back}");
+        assert!(entry.get("deleted").is_none(), "{back}");
+    }
+
+    #[test]
+    fn only_a_deleted_key_says_deleted() {
+        let mut ledger = None;
+        open(&mut ledger);
+        {
+            let open_ledger = ledger.as_ref().unwrap();
+            let mut store = open_ledger.store.borrow_mut();
+            // Live, then archived once the sequence passes its TTL.
+            store.insert_base(
+                &fixtures::data_key_xdr(1),
+                fixtures::data_entry_xdr(1, 10),
+                Some(500),
+                1,
+            );
+            store.insert_base(
+                &fixtures::data_key_xdr(2),
+                fixtures::data_entry_xdr(2, 20),
+                Some(5),
+                1,
+            );
+            store.set_sequence(10);
+        }
+        let got = ledger_get(
+            &ledger,
+            &id(),
+            &obj(json!({ "keys_xdr": [key_b64(1), key_b64(2), key_b64(3)] })),
+        );
+        let entries = got["entries"].as_array().unwrap();
+        assert_eq!(entries[0]["entry_xdr"], entry_b64(1, 10), "live: {got}");
+        assert_eq!(entries[1]["entry_xdr"], Value::Null, "archived: {got}");
+        assert_eq!(entries[1]["live_until_ledger"], 5, "archived: {got}");
+        assert_eq!(entries[2]["entry_xdr"], Value::Null, "absent: {got}");
+        for entry in entries {
+            assert!(entry.get("deleted").is_none(), "{entry}");
+        }
+    }
+
+    #[test]
+    fn open_validates_live_until_ledger() {
+        let mut ledger = None;
+        let reply_str = ledger_open(
+            &mut ledger,
+            &id(),
+            &obj(json!({
+                "network_passphrase": "Test SDF Network ; September 2015",
+                "entries": [
+                    { "key_xdr": key_b64(1), "entry_xdr": entry_b64(1, 10), "live_until_ledger": "500" },
+                ],
+            })),
+        );
+        assert_eq!(reply_str["type"], "error");
+        assert_eq!(reply_str["detail"]["kind"], "invalid_field");
+        assert_eq!(reply_str["detail"]["path"], "entries[0].live_until_ledger");
+
+        let reply_neg = ledger_open(
+            &mut ledger,
+            &id(),
+            &obj(json!({
+                "network_passphrase": "Test SDF Network ; September 2015",
+                "entries": [
+                    { "key_xdr": key_b64(1), "entry_xdr": entry_b64(1, 10), "live_until_ledger": -1 },
+                ],
+            })),
+        );
+        assert_eq!(reply_neg["type"], "error");
+        assert_eq!(reply_neg["detail"]["kind"], "invalid_field");
+        assert_eq!(reply_neg["detail"]["path"], "entries[0].live_until_ledger");
+
+        // null and absent are accepted
+        let reply_null = ledger_open(
+            &mut ledger,
+            &id(),
+            &obj(json!({
+                "network_passphrase": "Test SDF Network ; September 2015",
+                "entries": [
+                    { "key_xdr": key_b64(1), "entry_xdr": entry_b64(1, 10), "live_until_ledger": null },
+                ],
+            })),
+        );
+        assert_eq!(reply_null["type"], "result");
+
+        let mut ledger2 = None;
+        let reply_absent = ledger_open(
+            &mut ledger2,
+            &id(),
+            &obj(json!({
+                "network_passphrase": "Test SDF Network ; September 2015",
+                "entries": [
+                    { "key_xdr": key_b64(1), "entry_xdr": entry_b64(1, 10) },
+                ],
+            })),
+        );
+        assert_eq!(reply_absent["type"], "result");
     }
 }

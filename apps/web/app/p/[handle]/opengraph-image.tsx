@@ -6,6 +6,7 @@ import {
   formatCount,
   formatStatsWindow,
 } from '@/lib/profiles';
+import { getProfileState } from '@/lib/profile-state';
 
 export const runtime = 'nodejs';
 export const size = { width: 1200, height: 630 };
@@ -18,6 +19,7 @@ export default async function OgImage({ params }: { params: Promise<{ handle: st
   const profile = await getProfile(handle);
   const result = profile ? await getOperationsResult(handle) : null;
   const stats = result ? await getProfileStats(handle, result.operations) : null;
+  const state = profile ? getProfileState(profile) : 'no-wallet';
   // A capped record renders as "412+" rather than "412": the card is the most
   // widely reshared surface, so it must not state a lower bound as a total.
   // Aggregated stats are exact for their represented scope even when the
@@ -52,30 +54,42 @@ export default async function OgImage({ params }: { params: Promise<{ handle: st
           <div style={{ fontSize: 30, color: '#8a8779', marginTop: 8 }}>@{handle}</div>
         </div>
 
-        <div style={{ display: 'flex', gap: 64, fontSize: 26, color: '#b8b5a8' }}>
-          <div style={{ display: 'flex', flexDirection: 'column' }}>
-            <span style={{ fontSize: 56, color: '#f5f4ee' }}>{stats?.reputation ?? 0}</span>
-            <span style={{ color: '#5e5b51' }}>
-              {statsWindow ? `REPUTATION · ${statsWindow.toUpperCase()}` : 'REPUTATION'}
-            </span>
+        {state === 'archived' ? (
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', marginTop: 'auto' }}>
+            <div style={{ fontSize: 48, fontWeight: 700, color: '#f5f4ee', marginBottom: 16 }}>
+              Binding archived
+            </div>
+            <div style={{ fontSize: 24, color: '#8a8779', textAlign: 'center', maxWidth: 800 }}>
+              This handle&apos;s on-chain binding has expired. It can be restored
+              through the Identity Registry.
+            </div>
           </div>
-          <div style={{ display: 'flex', flexDirection: 'column' }}>
-            <span style={{ fontSize: 56, color: '#f5f4ee' }}>
-              {formatCount(stats?.invocations ?? 0, truncated)}
-            </span>
-            <span style={{ color: '#5e5b51' }}>
-              {statsWindow ? `INVOCATIONS · ${statsWindow.toUpperCase()}` : 'INVOCATIONS'}
-            </span>
+        ) : (
+          <div style={{ display: 'flex', gap: 64, fontSize: 26, color: '#b8b5a8' }}>
+            <div style={{ display: 'flex', flexDirection: 'column' }}>
+              <span style={{ fontSize: 56, color: '#f5f4ee' }}>{stats?.reputation ?? 0}</span>
+              <span style={{ color: '#5e5b51' }}>
+                {statsWindow ? `REPUTATION · ${statsWindow.toUpperCase()}` : 'REPUTATION'}
+              </span>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column' }}>
+              <span style={{ fontSize: 56, color: '#f5f4ee' }}>
+                {formatCount(stats?.invocations ?? 0, truncated)}
+              </span>
+              <span style={{ color: '#5e5b51' }}>
+                {statsWindow ? `INVOCATIONS · ${statsWindow.toUpperCase()}` : 'INVOCATIONS'}
+              </span>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column' }}>
+              <span style={{ fontSize: 56, color: '#f5f4ee' }}>
+                {formatCount(stats?.uniqueFunctions ?? 0, truncated)}
+              </span>
+              <span style={{ color: '#5e5b51' }}>
+                {statsWindow ? `FUNCTIONS · ${statsWindow.toUpperCase()}` : 'FUNCTIONS'}
+              </span>
+            </div>
           </div>
-          <div style={{ display: 'flex', flexDirection: 'column' }}>
-            <span style={{ fontSize: 56, color: '#f5f4ee' }}>
-              {formatCount(stats?.uniqueFunctions ?? 0, truncated)}
-            </span>
-            <span style={{ color: '#5e5b51' }}>
-              {statsWindow ? `FUNCTIONS · ${statsWindow.toUpperCase()}` : 'FUNCTIONS'}
-            </span>
-          </div>
-        </div>
+        )}
       </div>
     ),
     size,

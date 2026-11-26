@@ -3,6 +3,7 @@ import { StrKey } from '@stellar/stellar-sdk';
 import { functionArgsSchema, type SpecJson } from '@signet/spec';
 import { ApiError, type Api } from '../api.ts';
 import { FieldInput } from './FieldInput.tsx';
+import { buildCallCommand } from './command.ts';
 import {
   argsJson,
   checkSchema,
@@ -26,6 +27,7 @@ export interface CallResult {
 export interface CallRun {
   readonly target: Target;
   readonly function: string;
+  readonly args?: Record<string, unknown>;
   readonly result?: CallResult;
   readonly error?: string;
 }
@@ -56,11 +58,17 @@ export function CallForm({
   api,
   specs,
   accounts = [],
+  contract,
+  network,
+  buildPath,
   onRuns,
 }: {
   api: Api;
   specs: { deployed: SpecJson | null; local: SpecJson | null };
   accounts?: readonly string[];
+  contract?: string;
+  network?: string;
+  buildPath?: string;
   onRuns?: (runs: CallRun[]) => void;
 }) {
   const [runOn, setRunOn] = useState<RunOn>(specs.deployed ? 'deployed' : 'local');
@@ -76,6 +84,7 @@ export function CallForm({
   const [sequence, setSequence] = useState('');
   const [timestamp, setTimestamp] = useState('');
   const [pending, setPending] = useState(false);
+  const [copyNote, setCopyNote] = useState<string | null>(null);
   const [, setClassified] = useState(0);
   const key = (name: string) => `${spec?.wasmHash ?? ''}:${name}`;
 
@@ -158,17 +167,40 @@ export function CallForm({
       try {
         const result = await api.post<CallResult>('call', { ...body, wasm: target });
         seen.set(`${(target === 'deployed' ? specs.deployed : specs.local)?.wasmHash ?? ''}:${fn}`, classify(result));
-        runs.push({ target, function: fn, result });
+        runs.push({ target, function: fn, args: built.args, result });
       } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
         const field = err instanceof ApiError ? serverFieldError(message, args) : null;
         if (field) setErrors((prev) => ({ ...prev, [field.path]: field.message }));
         else setFormError(message);
-        runs.push({ target, function: fn, error: message });
+        runs.push({ target, function: fn, args: built.args, error: message });
       }
     }
     setPending(false);
     onRuns?.(runs);
+  }
+
+  const cliCommand = buildCallCommand({
+    contract,
+    fn,
+    args: argsJson(args, values).args,
+    authMode,
+    sourceAccount: source,
+    ledgerSequence: sequence,
+    ledgerTimestamp: timestamp,
+    network,
+    runOn,
+    buildPath,
+  });
+
+  async function copyAsCommand() {
+    setCopyNote(null);
+    try {
+      await navigator.clipboard.writeText(cliCommand);
+      setCopyNote('Copied');
+    } catch {
+      setCopyNote('Clipboard unavailable — copy below');
+    }
   }
 
   const control = 'rounded border border-line bg-page px-2 py-1 font-mono text-xs text-ink focus:border-accent focus:outline-none';
@@ -283,11 +315,33 @@ export function CallForm({
             {formError}
           </p>
         )}
-        <div>
+        <div className="flex flex-wrap items-center gap-2">
           <button type="submit" disabled={pending} className={`${button} border-accent text-ink`}>
             {pending ? 'Running…' : runOn === 'both' ? 'Run on both' : 'Run'}
           </button>
+          <button
+            type="button"
+            onClick={copyAsCommand}
+            className={`${button} border-line text-muted hover:text-ink`}
+          >
+            Copy as command
+          </button>
+          {copyNote && (
+            <span role="status" className="text-xs text-muted">
+              {copyNote}
+            </span>
+          )}
         </div>
+        <label className="grid gap-1 text-xs">
+          <span className="text-muted">CLI command</span>
+          <textarea
+            readOnly
+            rows={cliCommand.includes('\n') ? 2 : 1}
+            value={cliCommand}
+            onFocus={(e) => e.currentTarget.select()}
+            className={`${control} w-full resize-none text-muted`}
+          />
+        </label>
       </form>
     </div>
   );

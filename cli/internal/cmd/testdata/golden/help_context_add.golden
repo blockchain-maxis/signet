@@ -3,11 +3,13 @@ $ signet context add --help
 Add a new deployment context
 
 Usage:
-  signet context add <name> --url <url> --network <network> [--source <source>] [flags]
+  signet context add <name> --url <url> [--network <network>] [--rpc-url <url>] [--source <source>] [--force] [flags]
 
 Flags:
+      --force            Replace an existing context of the same name
   -h, --help             help for add
-      --network string   Stellar network (required, e.g. testnet, mainnet)
+      --network string   Stellar network (discovered from stellar.toml if omitted)
+      --rpc-url string   Stellar RPC URL for sandbox commands (optional)
       --source string    Default identity for this context (optional)
       --url string       Signet deployment URL (required)
 

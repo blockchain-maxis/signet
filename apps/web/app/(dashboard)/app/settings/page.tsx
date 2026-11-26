@@ -1,4 +1,6 @@
-import { currentAddress } from '@/lib/server/session';
+import type { ReactNode } from 'react';
+import { formatDate, formatTimeUntil } from '@/lib/format-date';
+import { currentAddress, currentSessionClaims } from '@/lib/server/session';
 import { getAccount } from '@/lib/server/account';
 import { SignOutButton } from './sign-out-button';
 import { SignOutOthersButton } from './sign-out-others-button';
@@ -8,7 +10,14 @@ const display = { fontFamily: 'var(--font-display)' } as const;
 
 export default async function SettingsPage() {
   const address = await currentAddress();
-  const account = address ? await getAccount(address) : null;
+  const [account, session] = address
+    ? await Promise.all([getAccount(address), currentSessionClaims()])
+    : [null, null];
+  const sessionTimes = session && {
+    signedInAt: new Date(session.iat).toISOString(),
+    expiresAt: new Date(session.exp).toISOString(),
+    remaining: formatTimeUntil(session.exp, Date.now()),
+  };
 
   return (
     <section>
@@ -19,7 +28,22 @@ export default async function SettingsPage() {
       <div className="mt-8 max-w-[640px] divide-y divide-[#1f1d19] border border-[#1f1d19]" style={mono}>
         <Row label="Wallet" value={address ?? '—'} />
         <Row label="Handle" value={account?.handle ? `@${account.handle}` : 'Not claimed'} />
-        <Row label="Session" value="Active · expires in 7 days" />
+        <Row
+          label="Session"
+          value={
+            sessionTimes ? (
+              <>
+                Active · expires <SessionDate dateTime={sessionTimes.expiresAt} /> (
+                {sessionTimes.remaining})
+              </>
+            ) : (
+              '—'
+            )
+          }
+        />
+        {sessionTimes && (
+          <Row label="Signed in" value={<SessionDate dateTime={sessionTimes.signedInAt} />} />
+        )}
       </div>
 
       <div className="mt-8">
@@ -52,7 +76,11 @@ export default async function SettingsPage() {
   );
 }
 
-function Row({ label, value }: { label: string; value: string }) {
+function SessionDate({ dateTime }: { dateTime: string }) {
+  return <time dateTime={dateTime}>{formatDate(dateTime, { timeZone: 'UTC' })}</time>;
+}
+
+function Row({ label, value }: { label: string; value: ReactNode }) {
   return (
     <div className="flex flex-wrap items-center justify-between gap-3 px-6 py-4">
       <span className="text-[10px] uppercase tracking-[0.22em] text-[var(--text-muted)]">{label}</span>

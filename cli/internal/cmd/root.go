@@ -4,6 +4,7 @@
 package cmd
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"strings"
@@ -13,6 +14,7 @@ import (
 	"github.com/blockchain-maxis/signet/cli/internal/config"
 	"github.com/blockchain-maxis/signet/cli/internal/exitcode"
 	"github.com/blockchain-maxis/signet/cli/internal/keys"
+	updatecheck "github.com/blockchain-maxis/signet/cli/internal/update"
 )
 
 func newRootCmd(version, commit string) *cobra.Command {
@@ -36,6 +38,7 @@ instance) over its HTTP API.`,
 		SilenceUsage:  true,
 		SilenceErrors: true,
 	}
+	root.SetContext(withDeps(context.Background(), base))
 
 	// --json is defined once, here, for every command. It promises exactly one
 	// JSON object on stdout, or nothing; see internal/output.
@@ -62,46 +65,65 @@ instance) over its HTTP API.`,
 	root.PersistentPreRunE = func(cmd *cobra.Command, _ []string) error {
 		file, err := config.Load()
 		var configErr error
+		// A command that diagnoses the environment runs on defaults and
+		// reports the file/context problem instead of refusing to start (#619).
+		toleratesBadConfig := cmd.Annotations[annotationToleratesBadConfig] == "true"
 		if err != nil {
-			// A command that diagnoses the environment runs on defaults and
-			// reports the file instead of refusing to start (#619).
-			if cmd.Annotations[annotationToleratesBadConfig] != "true" {
+			if !toleratesBadConfig {
 				return fmt.Errorf("%w: reading config file: %w", exitcode.ErrConfiguration, err)
 			}
 			file, configErr = config.File{}, err
 		}
 
-		flagURL, _ := cmd.Flags().GetString("url")
-		flagNetwork, _ := cmd.Flags().GetString("network")
-		flagContext, _ := cmd.Flags().GetString("context")
-		flagSource, _ := cmd.Flags().GetString("source")
-		flagSignWith, _ := cmd.Flags().GetString("sign-with-key")
+		// Read the flags from the ROOT's persistent flag set, never
+		// cmd.Flags(): a subcommand may define a local flag with the same name
+		// (`context add --url/--network/--source`), and those describe the
+		// context being added, not this invocation. Reading cmd.Flags() there
+		// made `context add staging --source charlie` remember charlie as the
+		// current context's identity (#913).
+		persistent := root.PersistentFlags()
+		flagURL, _ := persistent.GetString("url")
+		flagNetwork, _ := persistent.GetString("network")
+		flagContext, _ := persistent.GetString("context")
+		flagSource, _ := persistent.GetString("source")
+		flagSignWith, _ := persistent.GetString("sign-with-key")
 		// Keep the explicit-empty diagnostic tied to --sign-with-key. All other
 		// non-empty identities are validated after precedence is resolved, so a
 		// secret cannot bypass the check through --source, the environment, or a
 		// remembered config value.
-		if cmd.Flags().Changed("sign-with-key") && strings.TrimSpace(flagSignWith) == "" {
+		if persistent.Changed("sign-with-key") && strings.TrimSpace(flagSignWith) == "" {
 			if err := keys.ValidateSignWithKey(flagSignWith); err != nil {
 				return err
 			}
 		}
 		opts := config.ResolveOptions{
 			FlagURL:            flagURL,
-			FlagURLSet:         cmd.Flags().Changed("url"),
+			FlagURLSet:         persistent.Changed("url"),
 			FlagNetwork:        flagNetwork,
-			FlagNetworkSet:     cmd.Flags().Changed("network"),
+			FlagNetworkSet:     persistent.Changed("network"),
 			FlagContext:        flagContext,
-			FlagContextSet:     cmd.Flags().Changed("context"),
+			FlagContextSet:     persistent.Changed("context"),
 			FlagSource:         flagSource,
-			FlagSourceSet:      cmd.Flags().Changed("source"),
+			FlagSourceSet:      persistent.Changed("source"),
 			FlagSignWithKey:    flagSignWith,
-			FlagSignWithKeySet: cmd.Flags().Changed("sign-with-key"),
+			FlagSignWithKeySet: persistent.Changed("sign-with-key"),
 			EnvBaseURL:         os.Getenv(config.EnvBaseURL),
 			EnvNetwork:         os.Getenv(config.EnvNetwork),
 			EnvContext:         os.Getenv(config.EnvContext),
 			EnvSignWithKey:     os.Getenv(config.EnvSignWithKey),
 		}
-		resolved := config.Resolve(opts, file)
+		resolved, resolveErr := config.Resolve(opts, file)
+		if resolveErr != nil {
+			if !toleratesBadConfig {
+				return fmt.Errorf("%w: %w", exitcode.ErrConfiguration, resolveErr)
+			}
+			// Report it, and carry on with defaults so a diagnostic command can
+			// still say what else is wrong.
+			configErr = resolveErr
+			opts.FlagContext, opts.FlagContextSet = "", false
+			opts.EnvContext = ""
+			resolved, _ = config.Resolve(opts, file)
+		}
 		if resolved.Source != "" {
 			if err := keys.ValidateSignWithKey(resolved.Source); err != nil {
 				return err
@@ -110,13 +132,14 @@ instance) over its HTTP API.`,
 		deps := base
 		deps.Config = resolved
 		deps.ConfigError = configErr
-		deps.Insecure, _ = cmd.Flags().GetBool("insecure")
+		deps.Insecure, _ = persistent.GetBool("insecure")
 		cmd.SetContext(withDeps(config.WithResolved(cmd.Context(), resolved), deps))
 
 		// Deliberately only --source: --sign-with-key and STELLAR_SIGN_WITH_KEY
 		// are not written to the config file, because either may carry a secret
-		// and neither is a preference the user asked signet to remember.
-		if opts.FlagSourceSet {
+		// and neither is a preference the user asked signet to remember. A run
+		// that could not resolve its context writes nothing.
+		if opts.FlagSourceSet && resolveErr == nil {
 			if err := config.RememberSourceInContext(resolved.Context, resolved.Source); err != nil {
 				return fmt.Errorf("%w: saving identity to config file: %w", exitcode.ErrConfiguration, err)
 			}
@@ -151,14 +174,58 @@ func Execute(version, commit string) error {
 	return Run(newRootCmd(version, commit))
 }
 
+var lastRunJSON bool
+
+// LastRunJSON reports whether the most recent Run execution had --json requested.
+func LastRunJSON() bool {
+	return lastRunJSON
+}
+
 // Run executes root and, when it returns an error, records that error for
 // `signet bug-report` before returning it unchanged. Recording is best-effort
 // and never alters the error. It is Execute's body and the seam a test uses to
 // exercise last-error persistence without a real process exit.
+//
+// Under --json, Run writes the structured error to stderr on failure so scripts
+// receive machine-readable output rather than human text.
 func Run(root *cobra.Command) error {
 	err := root.Execute()
+	lastRunJSON = jsonRequested(root)
 	if err != nil {
 		recordLastError(err)
+		if lastRunJSON {
+			_ = WriteErrorJSON(root.ErrOrStderr(), err)
+		}
 	}
+	maybeNotifyUpdate(root)
 	return err
+}
+
+// maybeNotifyUpdate checks whether a newer signet release exists and prints a
+// once-a-day notice to stderr for interactive terminal users.
+func maybeNotifyUpdate(root *cobra.Command) {
+	if jsonRequested(root) {
+		return
+	}
+	if os.Getenv("CI") != "" || os.Getenv("SIGNET_NO_UPDATE_CHECK") == "1" {
+		return
+	}
+	deps, err := depsFor(root)
+	if err != nil || updatecheck.IsDevOrPrerelease(deps.Version) {
+		return
+	}
+	stderr := root.ErrOrStderr()
+	if !writerIsTerminal(stderr) {
+		return
+	}
+	opts := deps.updateOptions()
+	if opts.CacheDir == "" {
+		// Without a cache the check would run, and the notice print, on
+		// every command.
+		return
+	}
+	notice, ok := updatecheck.PassiveCheck(context.Background(), deps.Version, opts.CacheDir, opts)
+	if ok && notice != "" {
+		_, _ = fmt.Fprint(stderr, notice)
+	}
 }

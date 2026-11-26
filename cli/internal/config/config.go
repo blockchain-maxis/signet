@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 
 	"github.com/blockchain-maxis/signet/cli/internal/exitcode"
@@ -223,16 +224,35 @@ func Save(f File) error {
 	return os.WriteFile(path, append(data, '\n'), 0o600)
 }
 
+// currentContextName is the name of the active context, defaulting to
+// DefaultContextName when the file names none.
+func (f File) currentContextName() string {
+	if f.Current == "" {
+		return DefaultContextName
+	}
+	return f.Current
+}
+
+// contextNamed returns the context called name and whether the file defines it.
+// A File with no Contexts map at all still supplies the implicit default from
+// its in-memory legacy BaseURL/Source fields.
+func (f File) contextNamed(name string) (Context, bool) {
+	if f.Contexts != nil {
+		c, ok := f.Contexts[name]
+		return c, ok
+	}
+	if name == DefaultContextName && (f.BaseURL != "" || f.Source != "") {
+		return Context{URL: f.BaseURL, Source: f.Source}, true
+	}
+	return Context{}, false
+}
+
 // CurrentContext returns the currently active context, or an empty Context if not found.
 func (f File) CurrentContext() Context {
 	if f.Contexts == nil {
 		return Context{}
 	}
-	name := f.Current
-	if name == "" {
-		name = DefaultContextName
-	}
-	return f.Contexts[name]
+	return f.Contexts[f.currentContextName()]
 }
 
 // UseContext changes the active context to name.
@@ -253,8 +273,9 @@ func (f *File) UseContext(name string) error {
 	return nil
 }
 
-// AddContext adds or updates a named context.
-func (f *File) AddContext(name string, ctx Context) error {
+// AddContext adds a named context, refusing to overwrite an existing one
+// unless force is true.
+func (f *File) AddContext(name string, ctx Context, force bool) error {
 	name = strings.TrimSpace(name)
 	if name == "" {
 		return &ContextError{
@@ -272,6 +293,14 @@ func (f *File) AddContext(name string, ctx Context) error {
 		return &ContextError{
 			Msg:  "--network is required",
 			Code: exitcode.InvalidInput,
+		}
+	}
+	if !force && f.Contexts != nil {
+		if _, exists := f.Contexts[name]; exists {
+			return &ContextError{
+				Msg:  fmt.Sprintf("context %q already exists; pass --force to replace it", name),
+				Code: exitcode.InvalidInput,
+			}
 		}
 	}
 	if f.Contexts == nil {
@@ -315,7 +344,13 @@ func (f *File) RemoveContext(name string) error {
 
 // GetConfig reads a configuration key (url, network, source, rpc-url) from the current context.
 func (f File) GetConfig(key string) (string, error) {
-	ctx := f.CurrentContext()
+	return f.GetConfigIn(f.currentContextName(), key)
+}
+
+// GetConfigIn reads a configuration key (url, network, source, rpc-url) from
+// the named context.
+func (f File) GetConfigIn(name, key string) (string, error) {
+	ctx := f.Contexts[name]
 	switch strings.ToLower(key) {
 	case "url":
 		return ctx.URL, nil
@@ -335,15 +370,20 @@ func (f File) GetConfig(key string) (string, error) {
 
 // SetConfig sets a configuration key (url, network, source, rpc-url) in the current context.
 func (f *File) SetConfig(key, value string) error {
-	curr := f.Current
-	if curr == "" {
-		curr = DefaultContextName
-		f.Current = curr
+	return f.SetConfigIn(f.currentContextName(), key, value)
+}
+
+// SetConfigIn sets a configuration key (url, network, source, rpc-url) in the
+// named context. It leaves File.Current alone: naming a context on the command
+// line says which context to edit, not which one to switch to.
+func (f *File) SetConfigIn(name, key, value string) error {
+	if name == "" {
+		name = DefaultContextName
 	}
 	if f.Contexts == nil {
 		f.Contexts = make(map[string]Context)
 	}
-	ctx := f.Contexts[curr]
+	ctx := f.Contexts[name]
 	switch strings.ToLower(key) {
 	case "url":
 		ctx.URL = value
@@ -359,21 +399,25 @@ func (f *File) SetConfig(key, value string) error {
 			Code: exitcode.InvalidInput,
 		}
 	}
-	f.Contexts[curr] = ctx
+	f.Contexts[name] = ctx
 	return nil
 }
 
 // UnsetConfig unsets a configuration key (url, network, source, rpc-url) in the current context.
 func (f *File) UnsetConfig(key string) error {
-	curr := f.Current
-	if curr == "" {
-		curr = DefaultContextName
-		f.Current = curr
+	return f.UnsetConfigIn(f.currentContextName(), key)
+}
+
+// UnsetConfigIn unsets a configuration key (url, network, source, rpc-url) in
+// the named context, leaving File.Current alone.
+func (f *File) UnsetConfigIn(name, key string) error {
+	if name == "" {
+		name = DefaultContextName
 	}
 	if f.Contexts == nil {
 		f.Contexts = make(map[string]Context)
 	}
-	ctx := f.Contexts[curr]
+	ctx := f.Contexts[name]
 	switch strings.ToLower(key) {
 	case "url":
 		ctx.URL = ""
@@ -389,7 +433,7 @@ func (f *File) UnsetConfig(key string) error {
 			Code: exitcode.InvalidInput,
 		}
 	}
-	f.Contexts[curr] = ctx
+	f.Contexts[name] = ctx
 	return nil
 }
 
@@ -400,24 +444,33 @@ func RememberSource(source string) error {
 
 // RememberSourceInContext updates the Source field of the target context (or current
 // context if empty) in the config file.
+//
+// It never creates a context. Remembering an identity is not a reason to
+// invent a deployment: only the implicit default is materialised, and only
+// when the file has no contexts at all (the first run, before any `signet
+// context add`).
 func RememberSourceInContext(contextName, source string) error {
 	f, err := Load()
 	if err != nil {
 		return err
 	}
-	if f.Contexts == nil {
-		f.Contexts = make(map[string]Context)
-	}
 	target := contextName
 	if target == "" {
-		target = f.Current
+		target = f.currentContextName()
 	}
-	if target == "" {
-		target = DefaultContextName
-		f.Current = target
+	currCtx, ok := f.contextNamed(target)
+	if !ok {
+		if target != DefaultContextName || len(f.Contexts) > 0 {
+			return &ContextError{
+				Msg:  fmt.Sprintf("context %q is not configured; --source does not create contexts", target),
+				Code: exitcode.Configuration,
+			}
+		}
+		if f.Contexts == nil {
+			f.Contexts = make(map[string]Context)
+		}
 	}
-	currCtx := f.Contexts[target]
-	if currCtx.Source == source {
+	if ok && currCtx.Source == source {
 		return nil
 	}
 	currCtx.Source = source
@@ -459,26 +512,26 @@ type ResolveOptions struct {
 // Resolve combines flags, environment, the config file, and built-in defaults
 // into the configuration actually in effect for this invocation:
 // flag > env > current context > default, decided per field.
-func Resolve(opts ResolveOptions, file File) Resolved {
-	contextName := DefaultContextName
-	if file.Current != "" {
-		contextName = file.Current
-	}
+//
+// A context named explicitly by --context or SIGNET_CONTEXT that the file does
+// not define is an error, never a silent fall back to the hosted default: the
+// user named a deployment, and running against a different one is the wrong
+// answer even when it happens to work. The implicit default is different — a
+// machine with no config file at all is a normal first run.
+func Resolve(opts ResolveOptions, file File) (Resolved, error) {
+	contextName := file.currentContextName()
+	explicit := ""
 	if opts.EnvContext != "" {
-		contextName = opts.EnvContext
+		contextName, explicit = opts.EnvContext, EnvContext
 	}
 	if opts.FlagContextSet && opts.FlagContext != "" {
-		contextName = opts.FlagContext
+		contextName, explicit = opts.FlagContext, "--context"
 	}
 
-	var activeCtx Context
-	if file.Contexts != nil {
-		activeCtx = file.Contexts[contextName]
-	} else if contextName == DefaultContextName && (file.BaseURL != "" || file.Source != "") {
-		activeCtx = Context{
-			URL:    file.BaseURL,
-			Source: file.Source,
-		}
+	activeCtx, found := file.contextNamed(contextName)
+	explicitDefault := explicit != "" && contextName == DefaultContextName && len(file.Contexts) == 0
+	if explicit != "" && !found && !explicitDefault {
+		return Resolved{}, missingContextError(contextName, file)
 	}
 
 	r := Resolved{
@@ -522,5 +575,25 @@ func Resolve(opts ResolveOptions, file File) Resolved {
 		r.Source = opts.FlagSignWithKey
 	}
 
-	return r
+	return r, nil
+}
+
+// missingContextError is the configuration error for a context the user named
+// but the file does not define. It names the context and lists the ones that
+// do exist, so a typo is visible in the message rather than in the deployment
+// the CLI silently picked instead.
+func missingContextError(name string, file File) error {
+	names := make([]string, 0, len(file.Contexts))
+	for n := range file.Contexts {
+		names = append(names, n)
+	}
+	sort.Strings(names)
+	existing := "no contexts are configured"
+	if len(names) > 0 {
+		existing = "existing contexts: " + strings.Join(names, ", ")
+	}
+	return &ContextError{
+		Msg:  fmt.Sprintf("context %q is not configured (%s)", name, existing),
+		Code: exitcode.Configuration,
+	}
 }

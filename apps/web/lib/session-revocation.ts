@@ -212,40 +212,45 @@ function prune(rules: RevocationList, onExpired: (key: string) => void): Revocat
 
 // ── Store selection (mirrors `nonce-store.ts`) ───────────────────────────────
 
-let store: RevocationStore = new MemoryRevocationStore();
-let storeResolved = false;
-let initPromise: Promise<void> | null = null;
+const globalForRevocation = globalThis as unknown as {
+  __signetRevocationStore?: RevocationStore;
+  __signetRevocationStoreResolved?: boolean;
+  __signetRevocationInitPromise?: Promise<void> | null;
+  __signetRevocationCached?: RevocationList | null;
+  __signetRevocationCachedAt?: number;
+  __signetRevocationRefreshing?: Promise<void> | null;
+};
+
+function getStore(): RevocationStore {
+  return (globalForRevocation.__signetRevocationStore ??= new MemoryRevocationStore());
+}
 
 export function setRevocationStore(s: RevocationStore): void {
-  store = s;
-  storeResolved = true; // an explicit store wins over env-based auto-detection
+  globalForRevocation.__signetRevocationStore = s;
+  globalForRevocation.__signetRevocationStoreResolved = true; // an explicit store wins over env-based auto-detection
   invalidateCache();
 }
 
 function ensureStore(): Promise<void> {
-  if (storeResolved) return Promise.resolve();
-  if (!initPromise) {
-    initPromise = (async () => {
+  if (globalForRevocation.__signetRevocationStoreResolved) return Promise.resolve();
+  if (!globalForRevocation.__signetRevocationInitPromise) {
+    globalForRevocation.__signetRevocationInitPromise = (async () => {
       const url = process.env.UPSTASH_REDIS_REST_URL;
       const token = process.env.UPSTASH_REDIS_REST_TOKEN;
-      if (store instanceof MemoryRevocationStore && url && token) {
-        store = new UpstashRevocationStore(url, token);
+      if (getStore() instanceof MemoryRevocationStore && url && token) {
+        globalForRevocation.__signetRevocationStore = new UpstashRevocationStore(url, token);
       }
-      storeResolved = true;
+      globalForRevocation.__signetRevocationStoreResolved = true;
     })();
   }
-  return initPromise;
+  return globalForRevocation.__signetRevocationInitPromise;
 }
 
 // ── Cached snapshot ──────────────────────────────────────────────────────────
 
-let cached: RevocationList | null = null;
-let cachedAt = 0;
-let refreshing: Promise<void> | null = null;
-
 function invalidateCache(): void {
-  cached = null;
-  cachedAt = 0;
+  globalForRevocation.__signetRevocationCached = null;
+  globalForRevocation.__signetRevocationCachedAt = 0;
 }
 
 /**
@@ -254,38 +259,45 @@ function invalidateCache(): void {
  */
 async function revocations(): Promise<RevocationList | null> {
   await ensureStore();
+  const cached = globalForRevocation.__signetRevocationCached;
+  const cachedAt = globalForRevocation.__signetRevocationCachedAt ?? 0;
   if (cached && Date.now() - cachedAt < REFRESH_MS) return cached;
 
-  if (!refreshing) {
-    const inflight: Promise<void> = store
+  if (!globalForRevocation.__signetRevocationRefreshing) {
+    const inflight: Promise<void> = getStore()
       .snapshot()
       .then((next) => {
         if (!next) return;
-        cached = next;
-        cachedAt = Date.now();
+        globalForRevocation.__signetRevocationCached = next;
+        globalForRevocation.__signetRevocationCachedAt = Date.now();
       })
       .catch((err: unknown) => {
         logger.error({ err: String(err) }, 'revocation.refreshFailed');
       })
       .finally(() => {
-        if (refreshing === inflight) refreshing = null;
+        if (globalForRevocation.__signetRevocationRefreshing === inflight) {
+          globalForRevocation.__signetRevocationRefreshing = null;
+        }
       });
-    refreshing = inflight;
+    globalForRevocation.__signetRevocationRefreshing = inflight;
   }
-  await refreshing;
+  await globalForRevocation.__signetRevocationRefreshing;
 
-  if (!cached) return null;
-  const staleMs = Date.now() - cachedAt;
+  const currentCached = globalForRevocation.__signetRevocationCached;
+  if (!currentCached) return null;
+  const staleMs = Date.now() - (globalForRevocation.__signetRevocationCachedAt ?? 0);
   if (staleMs > MAX_STALE_MS) {
     logger.error({ staleMs }, 'revocation.snapshotTooStale');
     return null;
   }
-  return cached;
+  return currentCached;
 }
 
 /** Apply a write to this instance's snapshot so it takes effect immediately. */
 function applyLocally(key: string, rule: AddressRule | SessionRule): void {
-  if (cached) cached.set(key, rule);
+  if (globalForRevocation.__signetRevocationCached) {
+    globalForRevocation.__signetRevocationCached.set(key, rule);
+  }
 }
 
 // ── Public API ───────────────────────────────────────────────────────────────
@@ -323,7 +335,7 @@ export async function revokeAddress(
     expires: opts.until,
   };
   const key = addressKey(address);
-  await store.put(key, rule);
+  await getStore().put(key, rule);
   applyLocally(key, rule);
   logger.info({ address, before: rule.before, spared: rule.except ?? null }, 'auth.addressRevoked');
 }
@@ -333,7 +345,7 @@ export async function revokeSession(sid: string, until: number): Promise<void> {
   await ensureStore();
   const rule: SessionRule = { expires: until };
   const key = sessionKey(sid);
-  await store.put(key, rule);
+  await getStore().put(key, rule);
   applyLocally(key, rule);
   logger.info({ sid }, 'auth.sessionRevoked');
 }
@@ -359,9 +371,10 @@ export async function isRevoked(claims: SessionClaims): Promise<boolean> {
 
 /** Test-only: fresh in-memory store, empty cache, auto-detection re-enabled. */
 export function __resetRevocationStore(): void {
+  const store = getStore();
   if (store instanceof MemoryRevocationStore) store.clear();
-  else store = new MemoryRevocationStore();
-  storeResolved = false;
-  initPromise = null;
+  else globalForRevocation.__signetRevocationStore = new MemoryRevocationStore();
+  globalForRevocation.__signetRevocationStoreResolved = false;
+  globalForRevocation.__signetRevocationInitPromise = null;
   invalidateCache();
 }

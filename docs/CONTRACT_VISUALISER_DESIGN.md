@@ -469,11 +469,13 @@ apart:
   and uses the layout cache (§4.2). The fragment route returns only the drawn
   region, which `packages/visualiser/src/interactive/expand.ts` swaps in
   place when a group is expanded.
-- **`diagram.svg`** is the interface alone: no collapsing, no overlays and no
-  links, with the address, network and WASM hash in a footer. Its nodes and
-  edges are drawn in the page's vocabulary (§2.3). It answers 422
-  when the graph has more than `MAX_NODES` nodes. `?view=storage` draws the
-  storage view instead (`renderStorageSvg`).
+- **`diagram.svg`** is the interface alone: no overlays and no links, with
+  the address, network and WASM hash in a footer. It collapses groups as the
+  tab does (`prepareDiagram`, honouring `?expand=`), and draws its nodes and
+  edges in the page's visual vocabulary (`vocabulary.ts`), with the legend
+  for the kinds drawn. It answers 422 when the collapsed graph has more than
+  `MAX_NODES` nodes. `?view=storage` draws the storage view instead
+  (`renderStorageSvg`).
 - **PNG has no route of its own.** The button fetches `diagram.svg` and
   rasterises it on a canvas in the browser.
 - **`signet visualise`** runs the same TypeScript as the site. The Go CLI

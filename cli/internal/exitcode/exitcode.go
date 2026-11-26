@@ -117,26 +117,61 @@ var (
 	ErrInterrupted = errors.New("interrupted")
 )
 
-// sentinelCodes pairs each sentinel above with its exit code, in the same
-// order they're declared — the single source CodeFor and the CLI docs both
-// derive from, so the pairing can't drift between the two.
+// sentinelCodes pairs each sentinel above with its exit code and kind name, in
+// the same order they're declared — the single source CodeFor, KindForCode and
+// the CLI docs all derive from, so the pairing can't drift between them.
 var sentinelCodes = []struct {
 	err  error
 	code int
+	kind string
 }{
-	{ErrConfiguration, Configuration},
-	{ErrNoIdentity, NoIdentity},
-	{ErrSigningFailure, SigningFailure},
-	{ErrNetwork, Network},
-	{ErrTimeout, Timeout},
-	{ErrApprovalRejected, ApprovalRejected},
-	{ErrAlreadyLinked, AlreadyLinked},
-	{ErrDiffFound, DiffFound},
-	{ErrHostUnsupported, HostUnsupported},
-	{ErrBuildFailed, BuildFailed},
-	{ErrSimulator, SimulatorFailure},
-	{ErrNoSpec, NoSpec},
-	{ErrInterrupted, Interrupted},
+	{ErrConfiguration, Configuration, "configuration"},
+	{ErrNoIdentity, NoIdentity, "no_identity"},
+	{ErrSigningFailure, SigningFailure, "signing_failed"},
+	{ErrNetwork, Network, "network"},
+	{ErrTimeout, Timeout, "timeout"},
+	{ErrApprovalRejected, ApprovalRejected, "approval_rejected"},
+	{ErrAlreadyLinked, AlreadyLinked, "already_linked"},
+	{ErrDiffFound, DiffFound, "diff_found"},
+	{ErrHostUnsupported, HostUnsupported, "host_unsupported"},
+	{ErrBuildFailed, BuildFailed, "build_failed"},
+	{ErrSimulator, SimulatorFailure, "simulator_failure"},
+	{ErrNoSpec, NoSpec, "no_spec"},
+	{ErrInterrupted, Interrupted, "interrupted"},
+}
+
+// KindForCode returns the stable kind identifier for a documented exit code.
+func KindForCode(code int) string {
+	switch code {
+	case InvalidInput:
+		return "invalid_input"
+	case Generic:
+		return "generic"
+	case OK:
+		return "ok"
+	default:
+		for _, s := range sentinelCodes {
+			if s.code == code {
+				return s.kind
+			}
+		}
+		return "generic"
+	}
+}
+
+// CodeAndKindFor returns the exit code and kind name for the first sentinel err matches via
+// errors.Is, and true. It returns (Generic, "generic", false) when err doesn't
+// participate in this taxonomy.
+func CodeAndKindFor(err error) (int, string, bool) {
+	if err == nil {
+		return OK, "ok", true
+	}
+	for _, s := range sentinelCodes {
+		if errors.Is(err, s.err) {
+			return s.code, s.kind, true
+		}
+	}
+	return Generic, "generic", false
 }
 
 // CodeFor returns the exit code for the first sentinel err matches via
@@ -145,13 +180,6 @@ var sentinelCodes = []struct {
 // checking the ExitCoder interface (link.ValidationError's mechanism) before
 // finally defaulting to Generic itself.
 func CodeFor(err error) (int, bool) {
-	if err == nil {
-		return OK, true
-	}
-	for _, s := range sentinelCodes {
-		if errors.Is(err, s.err) {
-			return s.code, true
-		}
-	}
-	return Generic, false
+	code, _, ok := CodeAndKindFor(err)
+	return code, ok
 }

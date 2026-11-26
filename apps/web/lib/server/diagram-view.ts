@@ -11,20 +11,15 @@
 
 import { fromSpecJson, type ContractSpec, type SpecJson } from '@signet/spec';
 import {
-  buildContractGraph,
   buildDiagramOutline,
   callersOnly,
-  canonicalExpand,
   CALLEES_MORE_ID,
-  collapseGroups,
-  diagramDecision,
-  functionGroupsOf,
   layoutContractGraph,
+  prepareDiagram,
   renderDiagramSvg,
   renderOutlineHtml,
   typeAnchor,
   withMarks,
-  COLLAPSE_THRESHOLD,
   LAYOUT_VERSION,
   type ActivityOverlay,
   type ActivityRange,
@@ -157,15 +152,14 @@ function cachedLayout(key: string, compute: () => PositionedDiagramModel): Posit
 /** Draws the Diagram tab's diagram for one URL state. */
 export function drawContractDiagram(input: DiagramViewInput): DiagramView {
   const spec = specForGraph(input.spec, input.address, input.network);
-  const full = buildContractGraph(spec);
-  const expanded = canonicalExpand(input.expand ?? null, full);
-  const graph = collapseGroups(full, { expand: expanded });
-  const collapsible =
-    full.nodes.filter((n) => n.kind === 'function').length > COLLAPSE_THRESHOLD &&
-    functionGroupsOf(full).some((g) => g.functions.length > 1);
-  const stateKey = `${input.spec.wasmHash}:${LAYOUT_VERSION}:${expanded.join(',')}`;
-  const specModel = cachedLayout(stateKey, () => layoutContractGraph(graph));
-  const decision = diagramDecision(graph, specModel);
+  const prepared = prepareDiagram(spec, {
+    expand: input.expand,
+    layout: (graph, expanded) => {
+      const stateKey = `${input.spec.wasmHash}:${LAYOUT_VERSION}:${expanded.join(',')}`;
+      return cachedLayout(stateKey, () => layoutContractGraph(graph));
+    },
+  });
+  const { full, graph, model: specModel, decision, expanded, collapsible } = prepared;
 
   // The call graph (#543) rides on the spec diagram; when the interface is not
   // worth drawing, the calls are drawn alone, from the functions that made them.
@@ -229,12 +223,37 @@ export function drawContractDiagram(input: DiagramViewInput): DiagramView {
   const outlineHtml = renderOutlineHtml(outline, hrefForNode);
 
   const cleanQuery = input.query?.trim().toLowerCase();
-  const isFunction = (n: PositionedDiagramModel['nodes'][number]) => n.id.startsWith('fn:');
-  const matches = (n: PositionedDiagramModel['nodes'][number]) =>
-    !cleanQuery || n.id.toLowerCase().includes(cleanQuery) || n.label.toLowerCase().includes(cleanQuery);
-  const totalFunctions = model.nodes.filter(isFunction).length;
-  const matchingFunctions = model.nodes.filter((n) => isFunction(n) && matches(n)).length;
-  const totalMatches = model.nodes.filter(matches).length;
+  let totalFunctions = 0;
+  let matchingFunctions = 0;
+  let totalMatches = 0;
+
+  for (const n of model.nodes) {
+    const isFunction = n.id.startsWith('fn:');
+    const members = n.collapsed?.members;
+    if (isFunction) totalFunctions += 1;
+    else if (members) totalFunctions += members.length;
+
+    if (!cleanQuery) {
+      totalMatches += 1;
+      if (isFunction) matchingFunctions += 1;
+      else if (members) matchingFunctions += members.length;
+      continue;
+    }
+
+    const matchedMembers = members
+      ? members.filter((m) => m.toLowerCase().includes(cleanQuery))
+      : [];
+    const isMatch =
+      n.id.toLowerCase().includes(cleanQuery) ||
+      n.label.toLowerCase().includes(cleanQuery) ||
+      matchedMembers.length > 0;
+
+    if (isMatch) {
+      totalMatches += 1;
+      if (isFunction) matchingFunctions += 1;
+      else if (members) matchingFunctions += matchedMembers.length;
+    }
+  }
 
   let regionHtml = '';
   if (decision.kind === 'draw' || callsAlone) {

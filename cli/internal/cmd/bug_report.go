@@ -49,7 +49,8 @@ github.com/blockchain-maxis/signet issue URL.
 The report is redacted and contains no secret keys, API keys, or Authorization
 values. Nothing is sent anywhere: signet never uploads the report, and it never
 opens the link for you. Review it, then open it yourself.`,
-		Args: cobra.NoArgs,
+		Args:        cobra.NoArgs,
+		Annotations: map[string]string{annotationToleratesBadConfig: "true"},
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			deps, err := depsFor(cmd)
 			if err != nil {

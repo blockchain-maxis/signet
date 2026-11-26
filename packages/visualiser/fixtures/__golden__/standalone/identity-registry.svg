@@ -5,6 +5,7 @@
 <style>text { font-family: monospace; font-size: 14px; }
 .footer, .group-label, .count { font-size: 12px; }
 .viz-sandbox-badge text { font-size: 9px; }
+.viz-legend-label { font-size: 12px; }
 @media (prefers-color-scheme: dark) { [fill="#ffffff"] { fill: #0a0908; } [stroke="#ffffff"] { stroke: #0a0908; } [fill="#f5f4ee"] { fill: #181614; } [stroke="#f5f4ee"] { stroke: #181614; } [fill="#0a0908"] { fill: #f5f4ee; } [stroke="#0a0908"] { stroke: #f5f4ee; } [fill="#5e5b51"] { fill: #9e9a8f; } [stroke="#5e5b51"] { stroke: #9e9a8f; } [fill="#8b1a1a"] { fill: #e05252; } [stroke="#8b1a1a"] { stroke: #e05252; } [fill="#c2410c"] { fill: #fb923c; } [stroke="#c2410c"] { stroke: #fb923c; } [fill="#0369a1"] { fill: #38bdf8; } [stroke="#0369a1"] { stroke: #38bdf8; } [fill="#6d28d9"] { fill: #c084fc; } [stroke="#6d28d9"] { stroke: #c084fc; } [fill="#1d4ed8"] { fill: #60a5fa; } [stroke="#1d4ed8"] { stroke: #60a5fa; } }</style>
 <rect class="canvas" width="588" height="552" fill="#ffffff"/>
 <g data-node-kind="function"><title>claim</title><rect class="viz-shape viz-shape--rounded-rect node" data-node-shape="rounded-rect" fill="#f5f4ee" stroke="#736e62" x="24" y="52" width="84" height="28" rx="6" ry="6"/>

@@ -2,6 +2,7 @@ import { test, expect, type Locator, type Page } from '@playwright/test';
 import { expectNoSeriousA11yViolations } from './a11y';
 import { NO_INTERFACE, DOCS_HANDLE } from './fixtures/docs-failures';
 import {
+  EVENTS_CONTRACT,
   REGISTRY,
   REGISTRY_FUNCTIONS,
   REGISTRY_HANDLE,
@@ -26,6 +27,7 @@ const HAS_DB = Boolean(process.env.DATABASE_URL);
 const registryBase = `/p/${REGISTRY_HANDLE}/contract/${REGISTRY}`;
 const undocumentedBase = `/p/${REGISTRY_HANDLE}/contract/${UNDOCUMENTED}`;
 const typesZooBase = `/p/${REGISTRY_HANDLE}/contract/${TYPES_ZOO}`;
+const eventsBase = `/p/${REGISTRY_HANDLE}/contract/${EVENTS_CONTRACT}`;
 
 const TABS = [
   { name: 'Overview', segment: '' },
@@ -379,5 +381,18 @@ test.describe('contract docs accessibility and layout @db', () => {
     const html = await (await page.request.get(`${typesZooBase}/functions`)).text();
     expect(html).toMatch(/<noscript>\s*<style>[^<]*\[data-docs-search\][^<]*display:\s*none/);
     expect(html.match(/data-testid="function-section"/g)).toHaveLength(14);
+  });
+
+  test('declared events render with #event-<name> anchors and empty contracts show the empty note', async ({
+    page,
+  }) => {
+    await page.goto(`${eventsBase}/types#event-Transfer`);
+    const transfer = page.locator('#event-Transfer');
+    await expect(transfer).toBeInViewport();
+    await expect(transfer).toBeFocused();
+    await expect(transfer.getByRole('table', { name: 'Parameters of Transfer' })).toBeVisible();
+
+    await page.goto(`${registryBase}/types`);
+    await expect(page.getByText('This contract declares no events in its interface.')).toBeVisible();
   });
 });

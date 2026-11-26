@@ -20,13 +20,7 @@ use std::rc::Rc;
 #[cfg(feature = "lane-p28")]
 pub mod p28;
 
-/// A `stellar snapshot create` file read (#554): only the p28 lane carries
-/// the reader.
-#[cfg(feature = "lane-p28")]
-pub use p28::snapshot::read_snapshot;
-
 /// A ledger snapshot's ledger and entries, as plain values and XDR bytes.
-#[cfg(feature = "lane-p28")]
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SnapshotBytes {
     pub protocol_version: u32,
@@ -42,7 +36,6 @@ pub struct SnapshotBytes {
 
 /// One snapshot entry in the pieces RPC gives: key, data, ext, last
 /// modified, live until.
-#[cfg(feature = "lane-p28")]
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct SnapshotEntryBytes {
     pub key_xdr: Vec<u8>,
@@ -474,6 +467,8 @@ pub trait Lane: Sync {
     fn check_ledger_key(&self, key_xdr: &[u8]) -> Result<(), LaneError>;
     /// Whether `entry_xdr` is a `LedgerEntry` this lane can decode.
     fn check_ledger_entry(&self, entry_xdr: &[u8]) -> Result<(), LaneError>;
+    /// Derive the `LedgerKey` XDR implied by `entry_xdr`.
+    fn entry_key(&self, entry_xdr: &[u8]) -> Result<Vec<u8>, LaneError>;
     /// Decode `ContractMaxSizeBytes` from a `ConfigSetting` `LedgerEntry` XDR.
     fn contract_max_size_bytes(&self, entry_xdr: &[u8]) -> Result<u32, LaneError>;
 
@@ -656,6 +651,9 @@ pub trait Lane: Sync {
     /// The error-enum cases a contract error code resolves to; several when
     /// the contract declares more than one error enum (#546).
     fn error_cases(&self, wasm: &[u8], code: u32) -> Result<Vec<ErrorCase>, LaneError>;
+
+    /// Read a `stellar snapshot create` file (#554, #935) into plain values and XDR bytes.
+    fn read_snapshot(&self, text: &str) -> Result<SnapshotBytes, String>;
 }
 
 // ─── Registry ──────────────────────────────────────────────────────────────────

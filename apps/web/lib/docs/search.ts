@@ -1,3 +1,4 @@
+import type { EventEntry } from './event-reference.ts';
 import type { FunctionSection, LinkedPart } from './function-reference.ts';
 import type { TypeEntry } from './type-reference.ts';
 
@@ -70,6 +71,23 @@ export function errorRowSearchText(
   row: { readonly code: number; readonly name: string; readonly doc: string | null },
 ): string {
   return `${enumName} ${row.code} ${row.name} ${row.doc ?? ''}`.toLowerCase();
+}
+
+/**
+ * Builds a lowercase searchable string for a declared contract event section:
+ * event name, prefix topics, param names/types/locations, data format, and doc text.
+ */
+export function eventSearchText(entry: EventEntry): string {
+  const tokens: string[] = [
+    entry.name,
+    entry.dataFormat,
+    ...entry.prefixTopics,
+    ...entry.params.map((p) => `${p.name} ${partsText(p.type)} ${p.location}`),
+  ];
+  if (entry.doc) {
+    tokens.push(entry.doc);
+  }
+  return tokens.join(' ').toLowerCase();
 }
 
 /**
