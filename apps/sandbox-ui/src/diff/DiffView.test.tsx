@@ -8,6 +8,8 @@ import returnChange from '../fixtures/cycles/counter_v2_return.json';
 import authChange from '../fixtures/cycles/auth_signer_changed.json';
 import signatureChange from '../fixtures/cycles/counter_v2_auth.json';
 import layoutFinding from '../fixtures/cycles/profile_v2_field.json';
+import realTxCycle from '../fixtures/cycles/real_tx_fidelity.json';
+import { CycleTable, type Cycle } from '../App.tsx';
 
 const view = (c: unknown) => render(<DiffView cycle={c as DiffCycle} />);
 
@@ -61,4 +63,66 @@ test('layout findings show their evidence, static and replay', () => {
   expect(layout).toHaveTextContent('static: the specs say so');
   expect(layout).toHaveTextContent('replay: a call failed reading it');
   expect(layout).toHaveTextContent('age: field missing from Profile');
+});
+
+test('real transactions show real-tx badge, ledger, and link; low-fidelity is listed apart with reason, and its diffs do not count in the summary', async () => {
+  view(realTxCycle);
+
+  // Summary counts only saved_call (1 behavioural) and tx_high_fidelity (1 breaking).
+  // tx_low_fidelity (5 breaking, 2 behavioural) must NOT be counted in summary.
+  const summary = screen.getByLabelText('Cycle summary');
+  expect(summary).toHaveTextContent('✕breaking 1');
+  expect(summary).toHaveTextContent('!behavioural 1');
+
+  // Listbox has low-fidelity section
+  const list = screen.getByRole('listbox', { name: 'Calls in this cycle' });
+  expect(list).toHaveTextContent('low-fidelity (not counted)');
+
+  // High-fidelity option shows real tx badge
+  const highOption = within(list).getByRole('option', { name: /tx_high_fidelity/ });
+  expect(highOption).toHaveTextContent('real tx');
+
+  // Low-fidelity option shows real tx badge and fidelity reason
+  const lowOption = within(list).getByRole('option', { name: /tx_low_fidelity/ });
+  expect(lowOption).toHaveTextContent('real tx');
+  expect(lowOption).toHaveTextContent('low-fidelity (state changed since ledger 123450)');
+
+  // Select high-fidelity real tx: detail shows badge, ledger, and link
+  await userEvent.click(highOption);
+  const detail = screen.getByRole('region', { name: 'Differences in tx_high_fidelity' });
+  const realSec = within(detail).getByRole('region', { name: 'Real transaction' });
+  expect(realSec).toHaveTextContent('real tx');
+  expect(realSec).toHaveTextContent('ledger 123456');
+  const link = within(realSec).getByRole('link', { name: /0123…def/ });
+  expect(link).toHaveAttribute('href', (realTxCycle.outcomes[1] as any).real.link);
+  expect(link).toHaveAttribute('rel', 'noopener noreferrer');
+
+  // Select low-fidelity real tx: detail shows badge, ledger, link, and reason
+  await userEvent.click(lowOption);
+  const lowDetail = screen.getByRole('region', { name: 'Differences in tx_low_fidelity' });
+  const lowRealSec = within(lowDetail).getByRole('region', { name: 'Real transaction' });
+  expect(lowRealSec).toHaveTextContent('real tx');
+  expect(lowRealSec).toHaveTextContent('ledger 123450');
+  expect(lowRealSec).toHaveTextContent('the deployed code fails here now');
+});
+
+test('CycleTable: real-tx row shows badge, ledger and link; low-fidelity row is listed apart with reason', () => {
+  render(<CycleTable cycle={{ state: 'ok', value: realTxCycle as unknown as Cycle }} />);
+
+  // Table has "low-fidelity (not counted)" subheader
+  expect(screen.getByText('low-fidelity (not counted)')).toBeInTheDocument();
+
+  // High-fidelity row has "real tx" badge, ledger, and link
+  const highRow = screen.getByRole('row', { name: /tx_high_fidelity/ });
+  expect(within(highRow).getByText('real tx')).toBeInTheDocument();
+  expect(within(highRow).getByText('ledger 123456')).toBeInTheDocument();
+  const highLink = within(highRow).getByRole('link');
+  expect(highLink).toHaveAttribute('href', (realTxCycle.outcomes[1] as any).real.link);
+  expect(highLink).toHaveAttribute('rel', 'noopener noreferrer');
+
+  // Low-fidelity row has "real tx" badge, ledger, link, and reason
+  const lowRow = screen.getByRole('row', { name: /tx_low_fidelity/ });
+  expect(within(lowRow).getByText('real tx')).toBeInTheDocument();
+  expect(within(lowRow).getByText('ledger 123450')).toBeInTheDocument();
+  expect(within(lowRow).getByText(/low-fidelity \(state changed since ledger 123450\)/)).toBeInTheDocument();
 });

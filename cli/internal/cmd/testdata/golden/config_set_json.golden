@@ -1,0 +1,6 @@
+$ signet config set source carol --json
+-- stdout --
+{"context":"default","key":"source","value":"carol"}
+-- stderr --
+(empty)
+-- exit 0 --

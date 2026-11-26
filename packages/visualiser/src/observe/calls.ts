@@ -28,7 +28,7 @@
  */
 
 import { classifyLedgerKey } from '@signet/spec';
-import { Address, StrKey, xdr } from '@stellar/stellar-sdk';
+import { Address, StrKey, scValToNative, xdr } from '@stellar/stellar-sdk';
 
 /** How an edge is known, weakest to strongest. */
 export type CallEvidence = 'footprint' | 'event' | 'auth-tree';
@@ -195,6 +195,45 @@ export function invokedFunction(envelope: EnvelopeInput, contract: string): stri
     }
   }
   return null;
+}
+
+/**
+ * Decodes the target contract address and invoked function name from a Horizon
+ * `invoke_host_function` operation's `parameters` array.
+ *
+ * For an `InvokeContract` host function:
+ * - parameters[0] is `{ type: "Address", value: <base64 ScVal> }` (the contract)
+ * - parameters[1] is `{ type: "Sym", value: <base64 ScVal> }` (the function)
+ *
+ * Returns `{ contract: null, fn: null }` for non-invoke host functions or malformed input.
+ */
+export function decodeInvokeParameters(
+  parameters: Array<{ type?: string; value?: string }> | unknown,
+): { contract: string | null; fn: string | null } {
+  if (!Array.isArray(parameters) || parameters.length < 2) {
+    return { contract: null, fn: null };
+  }
+  try {
+    const [p0, p1] = parameters;
+    if (!p0?.value || !p1?.value) {
+      return { contract: null, fn: null };
+    }
+    const val0 = xdr.ScVal.fromXDR(p0.value, 'base64');
+    const val1 = xdr.ScVal.fromXDR(p1.value, 'base64');
+    if (val0.switch().name !== 'scvAddress' || val1.switch().name !== 'scvSymbol') {
+      return { contract: null, fn: null };
+    }
+    const scAddress = val0.address();
+    const contract = contractAddress(scAddress);
+    const nativeFn = scValToNative(val1);
+    const fn = typeof nativeFn === 'string' && nativeFn.length > 0 ? nativeFn : null;
+    if (!contract || !fn) {
+      return { contract: null, fn: null };
+    }
+    return { contract, fn };
+  } catch {
+    return { contract: null, fn: null };
+  }
 }
 
 /** Call edges out of `contract` observed in one transaction. */

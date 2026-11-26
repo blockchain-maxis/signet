@@ -133,6 +133,10 @@ impl IdentityRegistry {
         env.storage().instance().set(&DataKey::Admin, &new_admin);
         Self::bump_instance(&env);
 
+        // `Events::publish` is deprecated in favour of `#[contractevent]`.
+        // Moving the registry's events over is #981; until then the warning
+        // is allowed for this call only, so clippy can run with -D warnings.
+        #[allow(deprecated)]
         env.events().publish(
             (soroban_sdk::Symbol::new(&env, "admin_changed"),),
             (admin, new_admin),
@@ -174,18 +178,23 @@ impl IdentityRegistry {
         env.storage().instance().set(&DataKey::Count, &(count + 1));
         Self::bump_instance(&env);
 
+        // Deprecated in favour of `#[contractevent]`: see `set_admin`, and #981.
+        #[allow(deprecated)]
         env.events()
             .publish((symbol_short!("claimed"), handle), wallet);
         Ok(())
     }
 
-    /// Transfer a handle to a new wallet. Requires authentication from the current owner.
+    /// Transfer a handle to a new wallet. Requires authentication from both the
+    /// current owner and the new wallet, so a handle can never be bound to a
+    /// wallet that did not agree to it.
     /// Fails if the handle is not found or if the target wallet already holds a handle.
     pub fn transfer_handle(env: Env, handle: String, new_wallet: Address) -> Result<(), Error> {
         Self::require_initialized(&env)?;
         let current_owner =
             Self::resolve(env.clone(), handle.clone()).ok_or(Error::HandleNotFound)?;
         current_owner.require_auth();
+        new_wallet.require_auth();
 
         let new_wallet_key = DataKey::Handle(new_wallet.clone());
         if env.storage().persistent().has(&new_wallet_key) {
@@ -208,6 +217,8 @@ impl IdentityRegistry {
             .extend_ttl(&new_wallet_key, BUMP_THRESHOLD, BUMP_LEDGERS);
         Self::bump_instance(&env);
 
+        // Deprecated in favour of `#[contractevent]`: see `set_admin`, and #981.
+        #[allow(deprecated)]
         env.events().publish(
             (soroban_sdk::Symbol::new(&env, "transferred"), handle),
             (current_owner, new_wallet),
@@ -241,6 +252,10 @@ impl IdentityRegistry {
     /// Resolve a handle to its owning wallet, if bound.
     pub fn resolve(env: Env, handle: String) -> Option<Address> {
         Self::bump_instance(&env);
+        Self::resolve_owner(&env, handle)
+    }
+
+    fn resolve_owner(env: &Env, handle: String) -> Option<Address> {
         let key = DataKey::Owner(handle);
         let res: Option<Address> = env.storage().persistent().get(&key);
         if res.is_some() {
@@ -296,7 +311,7 @@ impl IdentityRegistry {
         }
         let mut results: Vec<Option<Address>> = Vec::new(&env);
         for handle in handles.iter() {
-            let addr = Self::resolve(env.clone(), handle);
+            let addr = Self::resolve_owner(&env, handle);
             results.push_back(addr);
         }
         Ok(results)
@@ -351,6 +366,8 @@ impl IdentityRegistry {
             .set(&DataKey::Count, &count.saturating_sub(1));
         Self::bump_instance(env);
 
+        // Deprecated in favour of `#[contractevent]`: see `set_admin`, and #981.
+        #[allow(deprecated)]
         env.events()
             .publish((event_name, handle.clone()), wallet.clone());
     }
@@ -393,5 +410,6 @@ fn is_reserved_handle(handle: &String) -> bool {
     false
 }
 
+mod cost_test;
 mod property_test;
 mod test;

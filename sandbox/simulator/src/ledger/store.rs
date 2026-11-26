@@ -12,7 +12,10 @@
 //!
 //! The topmost layer that knows a key answers for it; a deletion is a
 //! [`Slot::Tombstone`], so a session delete hides a base entry without
-//! touching it. Checkpoints freeze the session's current patch and cost
+//! touching it, and the key reads as [`Lookup::Deleted`], which names the
+//! layer that hid it, not as a key no layer ever held (#934).
+//!
+//! Checkpoints freeze the session's current patch and cost
 //! O(changed entries) — never a copy of the whole map — so ten thousand of
 //! them hold exactly the entries that were written between them, which
 //! [`LayeredStore::stored_entry_count`] makes assertable.
@@ -73,9 +76,8 @@ enum Slot {
         provenance: Provenance,
     },
     Tombstone {
-        // Kept so a deletion is traceable like any write (`ledger_get` does
-        // not report deletions yet).
-        #[allow(dead_code)]
+        // Kept so a deletion is traceable like any write: `ledger_get`
+        // answers `deleted` with it (#934).
         provenance: Provenance,
     },
 }
@@ -94,6 +96,11 @@ pub enum Lookup {
         live_until: u32,
         provenance: Provenance,
     },
+    /// A layer above the fork removed the key: a call in the session deleted
+    /// it, or an override unset it (#934). It reads as no entry, and the
+    /// provenance says which layer hid it and at which sequence.
+    Deleted { provenance: Provenance },
+    /// No layer holds anything at the key.
     Absent,
 }
 
@@ -310,7 +317,10 @@ impl LayeredStore {
     /// Resolve one key with overlay precedence and archival applied.
     pub fn lookup(&self, key: &[u8]) -> Lookup {
         match self.slot_for(key) {
-            None | Some(Slot::Tombstone { .. }) => Lookup::Absent,
+            None => Lookup::Absent,
+            Some(Slot::Tombstone { provenance }) => Lookup::Deleted {
+                provenance: *provenance,
+            },
             Some(Slot::Entry {
                 entry,
                 live_until,
@@ -333,14 +343,14 @@ impl LayeredStore {
 
 impl ByteSnapshotSource for LayeredStore {
     /// The live view: a live entry with its expiry, `None` for anything
-    /// else, an archived entry included. Calls read through the fork's
+    /// else, an archived or a deleted one included. Calls read through the fork's
     /// source instead, which gives the host archived entries as they are.
     fn get(&self, key_xdr: &[u8]) -> SourceResult {
         Ok(match self.lookup(key_xdr) {
             Lookup::Live {
                 entry, live_until, ..
             } => Some((entry, live_until)),
-            Lookup::Archived { .. } | Lookup::Absent => None,
+            Lookup::Archived { .. } | Lookup::Deleted { .. } | Lookup::Absent => None,
         })
     }
 }
@@ -417,7 +427,7 @@ mod tests {
         let mut store = LayeredStore::new(100);
         store.insert_base(&key(1), entry(1, 10), Some(1_000), 42);
         store.apply_modified([delete(1)]);
-        assert!(matches!(store.lookup(&key(1)), Lookup::Absent));
+        assert!(matches!(store.lookup(&key(1)), Lookup::Deleted { .. }));
 
         // Rolling the session away brings the base entry back untouched.
         let cp = {
@@ -425,7 +435,7 @@ mod tests {
             fresh.insert_base(&key(1), entry(1, 10), Some(1_000), 42);
             let cp = fresh.checkpoint();
             fresh.apply_modified([delete(1)]);
-            assert!(matches!(fresh.lookup(&key(1)), Lookup::Absent));
+            assert!(matches!(fresh.lookup(&key(1)), Lookup::Deleted { .. }));
             fresh.rollback(cp).unwrap();
             assert_eq!(live_value(&fresh, 1), Some(10));
             cp
@@ -537,5 +547,112 @@ mod tests {
         };
         assert_eq!(session.source, Source::Session);
         assert_eq!(session.last_modified_ledger_seq, 105);
+    }
+
+    #[test]
+    fn a_session_delete_reads_as_deleted_by_the_session() {
+        let mut store = LayeredStore::new(100);
+        store.insert_base(&key(1), entry(1, 10), Some(1_000), 42);
+        store.set_sequence(105);
+        store.apply_modified([delete(1)]);
+
+        let Lookup::Deleted { provenance } = store.lookup(&key(1)) else {
+            panic!("expected deleted, got {:?}", store.lookup(&key(1)));
+        };
+        assert_eq!(
+            provenance,
+            Provenance {
+                source: Source::Session,
+                fetched_at_ledger: None,
+                last_modified_ledger_seq: 105,
+            }
+        );
+        // It reads as no entry, and it is known, so nothing refetches it.
+        assert!(ByteSnapshotSource::get(&store, &key(1)).unwrap().is_none());
+        assert!(store.knows(&key(1)));
+    }
+
+    #[test]
+    fn an_override_unset_reads_as_deleted_by_the_override() {
+        let mut store = LayeredStore::new(100);
+        store.insert_base(&key(1), entry(1, 10), Some(1_000), 42);
+        store.set_sequence(107);
+        store.remove_override(&key(1));
+
+        let Lookup::Deleted { provenance } = store.lookup(&key(1)) else {
+            panic!("expected deleted, got {:?}", store.lookup(&key(1)));
+        };
+        assert_eq!(
+            provenance,
+            Provenance {
+                source: Source::Override,
+                fetched_at_ledger: None,
+                last_modified_ledger_seq: 107,
+            }
+        );
+        assert!(ByteSnapshotSource::get(&store, &key(1)).unwrap().is_none());
+        assert!(store.knows(&key(1)));
+    }
+
+    #[test]
+    fn a_rollback_past_the_delete_makes_the_entry_live_again() {
+        let mut store = LayeredStore::new(100);
+        store.insert_base(&key(1), entry(1, 10), Some(1_000), 42);
+        let before = store.checkpoint();
+        store.apply_modified([delete(1)]);
+        assert!(matches!(store.lookup(&key(1)), Lookup::Deleted { .. }));
+
+        store.rollback(before).unwrap();
+        let Lookup::Live { provenance, .. } = store.lookup(&key(1)) else {
+            panic!("expected live, got {:?}", store.lookup(&key(1)));
+        };
+        assert_eq!(provenance.source, Source::Fork);
+        assert_eq!(live_value(&store, 1), Some(10));
+
+        // A delete frozen in a checkpoint is still a delete after a rollback
+        // to that checkpoint.
+        store.apply_modified([delete(1)]);
+        let after = store.checkpoint();
+        store.apply_modified([write(1, 11)]);
+        assert_eq!(live_value(&store, 1), Some(11));
+        store.rollback(after).unwrap();
+        assert!(matches!(store.lookup(&key(1)), Lookup::Deleted { .. }));
+    }
+
+    #[test]
+    fn the_topmost_layer_decides_between_deleted_and_live() {
+        let mut store = LayeredStore::new(100);
+        store.insert_base(&key(1), entry(1, 10), Some(1_000), 42);
+
+        // An override unset under a session write: the write is what reads.
+        store.remove_override(&key(1));
+        store.apply_modified([write(1, 30)]);
+        assert_eq!(live_value(&store, 1), Some(30));
+
+        // A session delete over an override entry: the session hid it.
+        store.insert_override(&key(2), entry(2, 20), Some(1_000));
+        store.apply_modified([delete(2)]);
+        let Lookup::Deleted { provenance } = store.lookup(&key(2)) else {
+            panic!("expected deleted, got {:?}", store.lookup(&key(2)));
+        };
+        assert_eq!(provenance.source, Source::Session);
+
+        // An override set again over its own unset brings the key back.
+        store.remove_override(&key(3));
+        assert!(matches!(store.lookup(&key(3)), Lookup::Deleted { .. }));
+        store.insert_override(&key(3), entry(3, 3), Some(1_000));
+        assert_eq!(live_value(&store, 3), Some(3));
+    }
+
+    #[test]
+    fn a_key_no_layer_holds_is_absent_not_deleted() {
+        let mut store = LayeredStore::new(100);
+        assert!(matches!(store.lookup(&key(1)), Lookup::Absent));
+
+        // A key the network said it does not have is absent too: nothing
+        // here removed it.
+        store.insert_absent(&key(2));
+        assert!(matches!(store.lookup(&key(2)), Lookup::Absent));
+        assert!(store.knows(&key(2)));
     }
 }

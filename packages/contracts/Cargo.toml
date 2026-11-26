@@ -5,6 +5,8 @@ members = ["identity-registry"]
 [workspace.dependencies]
 soroban-sdk = "29"
 proptest = "1"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
 
 [profile.release]
 opt-level = "z"
