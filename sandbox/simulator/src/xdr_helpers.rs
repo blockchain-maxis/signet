@@ -11,6 +11,8 @@
 use base64::engine::general_purpose::STANDARD as BASE64;
 use base64::Engine;
 use serde_json::{json, Map, Value};
+use sha2::{Digest, Sha256};
+use std::collections::HashMap;
 
 use crate::dispatch::error_message;
 use crate::lanes::{KeyRequest, Lane, LaneError, LaneRegistry};
@@ -305,7 +307,7 @@ pub fn entries_describe(
             json!({ "kind": "invalid_field", "path": "entries", "reason": "expected an array" }),
         );
     };
-    let described: Vec<Value> = entries
+    let assembled: Vec<Option<Vec<u8>>> = entries
         .iter()
         .map(|e| {
             let data = e["data_xdr"].as_str().and_then(|t| BASE64.decode(t).ok());
@@ -318,7 +320,45 @@ pub fn entries_describe(
             };
             data.zip(seq)
                 .and_then(|(data, seq)| lane.assemble_entry(&data, seq, ext.as_deref()).ok())
-                .and_then(|entry| lane.describe_entry(&entry).ok())
+        })
+        .collect();
+    // Each contract's code, when the batch holds its instance and code (a
+    // fork cache does), so storage keys are written against its spec the
+    // way storage_override reads them.
+    let mut code: HashMap<[u8; 32], &[u8]> = HashMap::new();
+    let mut runs: HashMap<String, [u8; 32]> = HashMap::new();
+    let wasms: Vec<Option<Vec<u8>>> = assembled
+        .iter()
+        .map(|e| e.as_deref().and_then(|e| lane.code_wasm(e).ok()))
+        .collect();
+    for wasm in wasms.iter().flatten() {
+        code.insert(Sha256::digest(wasm).into(), wasm.as_slice());
+    }
+    for entry in assembled.iter().flatten() {
+        let owner = lane
+            .entry_key(entry)
+            .ok()
+            .and_then(|key| lane.instance_owner(&key));
+        if let Some((contract, Some(hash))) =
+            owner.map(|c| (c, lane.instance_info(entry).ok().and_then(|i| i.wasm_hash)))
+        {
+            runs.insert(contract, hash);
+        }
+    }
+    let described: Vec<Value> = assembled
+        .iter()
+        .map(|entry| {
+            entry
+                .as_deref()
+                .and_then(|entry| {
+                    let wasm = lane
+                        .entry_key(entry)
+                        .ok()
+                        .and_then(|key| lane.key_contract(&key))
+                        .and_then(|contract| runs.get(&contract))
+                        .and_then(|hash| code.get(hash).copied());
+                    lane.describe_entry(entry, wasm).ok()
+                })
                 .unwrap_or_else(|| json!({ "kind": "undecodable" }))
         })
         .collect();
