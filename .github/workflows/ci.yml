@@ -505,7 +505,7 @@ jobs:
       - name: Install wabt (wat2wasm for no_spec.wat)
         run: sudo apt-get update && sudo apt-get install -y wabt
 
-      # Rebuilds the four Rust fixtures, recompiles no_spec.wat and
+      # Rebuilds the six Rust fixtures, recompiles no_spec.wat and
       # regenerates corrupt_section.wasm, then fails on any byte difference
       # against the committed packages/spec/fixtures/*.wasm.
       - name: Verify fixtures match a fresh build

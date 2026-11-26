@@ -5,7 +5,8 @@ and cannot run a Go binary directly, so this package is a small shim that
 execs the prebuilt binary published for your platform:
 
 ```bash
-npx @signet/cli link alice --public-key G... --json
+npx @signet/cli link
+npx @signet/cli sandbox doctor
 ```
 
 npm resolves exactly one of the following `optionalDependencies` for the

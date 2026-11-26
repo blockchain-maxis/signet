@@ -22,9 +22,10 @@ export interface ForkEntry {
     readonly contract?: string;
     readonly durability?: string;
     readonly key?: unknown;
+    readonly key_expression?: string | null;
     readonly value?: unknown;
     readonly executable?: string;
-    readonly storage?: readonly { key: unknown; value: unknown }[];
+    readonly storage?: readonly { key: unknown; key_expression?: string | null; value: unknown }[];
     readonly hash?: string;
     readonly bytes?: number;
   };
@@ -74,11 +75,11 @@ export function forkRows(entries: readonly ForkEntry[]): Row[] {
     if (d?.kind === 'instance') {
       rows.push({ label: `instance (${d.executable ?? 'executable'})`, durability: 'instance', value: `${d.storage?.length ?? 0} keys`, liveUntil, drifted, keyExpression: null });
       for (const item of d.storage ?? []) {
-        const expr = keyExpression(item.key);
+        const expr = item.key_expression ?? null;
         rows.push({ label: `instance ${expr ?? show(item.key)}`, durability: 'instance', value: show(item.value), liveUntil, drifted, keyExpression: expr });
       }
     } else if (d?.kind === 'contract_data') {
-      const expr = keyExpression(d.key);
+      const expr = d.key_expression ?? null;
       rows.push({ label: `${d.durability} ${expr ?? show(d.key)}`, durability: d.durability ?? null, value: show(d.value), liveUntil, drifted, keyExpression: expr });
     } else if (d?.kind === 'contract_code') {
       rows.push({ label: `code ${d.hash?.slice(0, 8) ?? ''}…`, durability: null, value: `${d.bytes ?? 0} bytes`, liveUntil, drifted, keyExpression: null });
