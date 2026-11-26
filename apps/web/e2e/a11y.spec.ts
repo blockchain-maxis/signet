@@ -3,6 +3,7 @@ import { Keypair } from '@stellar/stellar-sdk';
 import { DECORATIVE_FOOTER_WORDMARK, expectNoSeriousA11yViolations } from './a11y';
 import { apiSignIn } from './support';
 import { CONTRACT_A, FIXTURE_HANDLE } from './fixtures/contracts';
+import { listOperations, loadApiDocument } from '../lib/docs/api-reference';
 
 // Keep entrance animations at their visible resting state before axe scans.
 test.use({ contextOptions: { reducedMotion: 'reduce' } });
@@ -24,13 +25,24 @@ test.use({ contextOptions: { reducedMotion: 'reduce' } });
  */
 const HAS_DB = Boolean(process.env.DATABASE_URL);
 
+const apiOperations = listOperations(loadApiDocument());
+
 const PUBLIC_ROUTES = [
   { label: 'landing', path: '/' },
   { label: 'handles', path: '/handles' },
+  { label: 'handles (page 2)', path: '/handles?page=2' },
   { label: 'how it works', path: '/how-it-works' },
   { label: 'docs', path: '/docs' },
+  { label: 'docs: api overview', path: '/docs/api' },
+  ...apiOperations.map((op) => ({
+    label: `docs: api ${op.operationId}`,
+    path: `/docs/api/${op.operationId}`,
+  })),
+  { label: 'not found', path: '/p/this-handle-does-not-exist' },
+  { label: 'link: no code', path: '/link' },
+  { label: 'link: signed out gate', path: '/link?code=x' },
   { label: 'dashboard (signed out)', path: '/app' },
-] as const;
+];
 
 test.describe('public route accessibility', () => {
   for (const route of PUBLIC_ROUTES) {

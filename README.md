@@ -11,7 +11,7 @@ Signet is a verifiable developer career record built on Stellar/Soroban. Develop
 | **Web app** (`apps/web`) | Vercel | Deployed — landing, `/how-it-works`, `/handles`, `/p/{handle}` profiles and contract pages, `/docs` and `/docs/api`, the public `/api/v1`, SIWS auth |
 | **Indexer** (`apps/indexer`) | GHCR image, opt-in [`deploy.yml`](.github/workflows/deploy.yml) | Code-complete, not provisioned — needs a Postgres to point at |
 | **PostgreSQL** (`packages/db`) | — | Prisma schema + migrations committed; no hosted instance |
-| **CLI** (`signet`, `cli/`) | npm (not yet) | Built: `link`, `status`, `whoami`, and `signet dev`, the local contract sandbox ([`docs/SANDBOX.md`](docs/SANDBOX.md)). Not published to npm yet; build it from source per [`docs/CLI.md`](docs/CLI.md) |
+| **CLI** (`signet`, `cli/`) | npm (not yet) | Built: `link`, `unlink`, `status`, `whoami`, `dev` (the local contract sandbox, [`docs/SANDBOX.md`](docs/SANDBOX.md)), `sandbox` (call, fork, forks, replay, state, export, fidelity, doctor), `visualise`, `doctor`, `context`, `config`, `identity`, `bug-report`, `completion`, and `version`. Not published to npm yet; build it from source per [`docs/CLI.md`](docs/CLI.md) |
 
 Point the app at the deployed registry with:
 
@@ -23,7 +23,7 @@ NEXT_PUBLIC_IDENTITY_REGISTRY_ID=CASFJHI5PQSRWS7JV25CF7FOMRKIVBP3RXRP3E2GH2CV4BC
 renders a handle only when the indexer's database or a live `resolve` against the
 registry knows it, with activity from the database or Horizon — anything else is a 404.
 `/handles` discovers candidate handles from the indexer's database (or, without one,
-the registry's `claimed`/`released` event stream), confirms each one with a `resolve`
+the registry's `claimed`/`released`/`revoked`/`transferred` event stream), confirms each one with a `resolve`
 call before listing it, and takes its headline number from the contract's own
 `count()`. With no contract id configured, the page says so and lists nothing.
 
@@ -74,11 +74,11 @@ the rules are [`docs/API_V1.md`](docs/API_V1.md), the reference pages are `/docs
 
 ## Also implemented
 
-- **On-chain Identity Registry — deployed to testnet** — a real Soroban contract (`packages/contracts/identity-registry`) binds a wallet to a handle via a signed `claim`; ownership is enforced by `require_auth`. Live at `CASFJHI5PQSRWS7JV25CF7FOMRKIVBP3RXRP3E2GH2CV4BCAG7FUJRCN` since 2026-07-09 (see [Status](#status)). 24 unit tests, builds to wasm.
+- **On-chain Identity Registry — deployed to testnet** — a real Soroban contract (`packages/contracts/identity-registry`) binds a wallet to a handle via a signed `claim`; ownership is enforced by `require_auth`. Live at `CASFJHI5PQSRWS7JV25CF7FOMRKIVBP3RXRP3E2GH2CV4BCAG7FUJRCN` since 2026-07-09 (see [Status](#status)). Covered by unit and property tests, builds to wasm.
 - **Wallet connect + claim flow — live** — `Connect wallet` / `Claim your handle` use Stellar Wallets Kit and submit a real on-chain `claim` against the deployed registry (`apps/web/lib/{wallet,registry}.ts`) whenever `NEXT_PUBLIC_IDENTITY_REGISTRY_ID` is set. With no contract id configured, `claimHandle` throws `RegistryNotConfiguredError` and the UI says this deployment is not configured against a registry, rather than showing a broken button.
-- **Public handle directory** — `/handles` discovers candidates from the indexer's database or, without one, the registry's `claimed`/`released` event stream over Soroban RPC, and confirms each with `resolve` (`apps/web/lib/directory.ts`).
+- **Public handle directory** — `/handles` discovers candidates from the indexer's database or, without one, the registry's `claimed`/`released`/`revoked`/`transferred` event stream over Soroban RPC, and confirms each with `resolve` (`apps/web/lib/directory.ts`).
 - **Real API + SDK** — a versioned REST API under `/api/v1` ([docs/API_V1.md](docs/API_V1.md)); `@signet/sdk` reads it with typed errors. Both covered by tests.
-- **CI gates** lint · typecheck · test · build, plus a Rust contract job.
+- **CI gates** — 18 jobs in [`ci.yml`](.github/workflows/ci.yml) covering lint, typecheck, tests across TypeScript, Rust, and Go, e2e browser flows, docs drift, sandbox fidelity, and fixture parity.
 
 ## What's coming next (Phase 2)
 
@@ -125,14 +125,13 @@ prerequisites, deploy key + Friendbot, wasm build, `infra/deploy-contract.sh`,
 statement, an itemized budget, dated milestones through 2027-04-30, and a
 fix-log of resolved issues with the tests that keep them closed.
 
-Design notes for roadmap items, written before the code so the shape is settled
-first:
+Design and architecture notes for shipped features:
 
 | Note | Item |
 |------|------|
 | [`docs/CONTRACT_DOCS_DESIGN.md`](docs/CONTRACT_DOCS_DESIGN.md) | Generating contract reference documentation from the deployed WASM's `contractspecv0` section |
-| [`docs/CONTRACT_SANDBOX_DESIGN.md`](docs/CONTRACT_SANDBOX_DESIGN.md) | Running a deployed contract's functions from a profile — RPC simulation first, embedded host second |
-| [`docs/CONTRACT_VISUALISER_DESIGN.md`](docs/CONTRACT_VISUALISER_DESIGN.md) | Rendering a deployed contract's call surface, type graph, and (later) call graph as a diagram a non-developer can read |
+| [`docs/CONTRACT_SANDBOX_DESIGN.md`](docs/CONTRACT_SANDBOX_DESIGN.md) | Local contract sandbox and multi-lane simulator architecture |
+| [`docs/CONTRACT_VISUALISER_DESIGN.md`](docs/CONTRACT_VISUALISER_DESIGN.md) | Rendering a deployed contract's call surface, type graph, and call graph as a diagram a non-developer can read |
 | [`docs/API_V1.md`](docs/API_V1.md) | The public `/api/v1` contract: versioning, envelope and error codes, pagination, CORS, caching and rate limits |
 
 ## Architecture
@@ -144,13 +143,15 @@ Both flows are code-complete; the sketch below marks which pieces are running.
 
 ```
 browser ──▶  apps/web (Next.js)                                   [DEPLOYED]
-             /p/{handle} · /handles · /how-it-works · /api/trpc · /api/auth
+             /p/{handle} · /p/{handle}/contract/{address} · /handles
+             /how-it-works · /api/v1 · /api/trpc · /api/auth
                   │                                    │
     reads profile │                                    │ submits signed claim
     (DB first,    │                                    ▼
      chain        │            Identity Registry (Soroban)  [DEPLOYED 2026-07-09]
      fallback)    │            testnet · CASFJHI5…AG7FUJRCN
-                  │                                    │ emits claimed / released
+                  │                                    │ emits claimed / released /
+                  │                                    │ revoked / transferred
                   │                                    ▼
                   │            apps/indexer (worker)        [OPERATIONAL-ONLY]
                   │            attestation ← Soroban RPC getEvents
@@ -158,7 +159,8 @@ browser ──▶  apps/web (Next.js)                                   [DEPLOYE
                   │                                    │ upserts
                   ▼                                    ▼
              packages/db (PostgreSQL)                       [OPERATIONAL-ONLY]
-             Profile · Wallet · Contract · Operation · ContractSnapshot
+             Profile · Wallet · Contract · ContractSpec · ContractWasmVersion
+             ContractInvocation · Operation · ContractSnapshot · ApiKey
 ```
 
 `/handles` reads the registry's event stream over Soroban RPC directly — the
@@ -166,14 +168,14 @@ indexer's Postgres sync is an accelerant for it, not a dependency.
 
 **Deployed & serving traffic**
 
-- `apps/web` on Vercel — landing, `/how-it-works`, `/handles`, `/p/{handle}` profiles, tRPC API, SIWS auth
-- `packages/contracts/identity-registry` — Soroban contract on Stellar **testnet**, 24 `cargo test` unit tests, builds to wasm
+- `apps/web` on Vercel — landing, `/how-it-works`, `/handles`, `/p/{handle}` profiles and `/p/{handle}/contract/{address}` contract pages, `/api/v1` REST API, tRPC API, SIWS auth
+- `packages/contracts/identity-registry` — Soroban contract on Stellar **testnet**, builds to wasm (see [Status](#status))
 
 **Operational-only** — built and tested, needs provisioning to go live
 
 - `apps/indexer` — attestation + deployment + operations + activity workers; needs `DATABASE_URL`
 - `packages/db` — Prisma schema + committed migrations; no hosted Postgres yet
-- `packages/sdk` — external SDK over the tRPC API; in-tree, not yet published to npm
+- `packages/sdk` — external SDK over the `/api/v1` REST API; in-tree, not yet published to npm
 
 ## Running the indexer
 
@@ -194,14 +196,21 @@ set from the event stream.
 
 | Path | Purpose |
 |------|---------|
-| `apps/web` | Next.js App Router + tRPC API |
+| `apps/web` | Next.js App Router, tRPC API, and public `/api/v1` REST API |
 | `apps/indexer` | Long-running TypeScript indexer worker |
-| `packages/contracts` | Soroban Rust contracts |
+| `apps/sandbox-ui` | Local web UI for contract simulator inspection and state debugging |
+| `packages/contracts` | Soroban Rust contracts (`identity-registry`) |
 | `packages/db` | Prisma schema + generated client |
-| `packages/sdk` | External SDK for integrators |
+| `packages/fixtures` | Test fixtures and on-chain ledger entry capture scripts |
+| `packages/sdk` | External TypeScript SDK over `/api/v1` |
+| `packages/spec` | Contract spec decoder (`contractspecv0` section to JSON) |
 | `packages/types` | Shared TypeScript types |
-| `cli` | `signet` CLI (Go) — links wallets, manages keys, talks to a Signet deployment |
-| `infra` | Local dev infra (Docker Postgres) |
+| `packages/visualiser` | Interactive contract call graph and diagram renderer |
+| `cli` | `signet` CLI (Go) — links wallets, manages keys, local sandbox, talks to a Signet deployment |
+| `sandbox` | Local Soroban contract sandbox and multi-lane simulator (Rust) |
+| `examples` | SDK integration examples |
+| `scripts` | Repository tooling and documentation drift verification |
+| `infra` | Local dev infra (Docker Postgres) and contract deployment (`infra/deploy-contract.sh`) |
 
 ## Scripts
 
@@ -219,13 +228,13 @@ set from the event stream.
 
 ## Tests
 
-| Suite | Count |
-|-------|-------|
-| `pnpm test` | **208** — `@signet/web` 137 · `@signet/indexer` 36 · `@signet/sdk` 26 · `@signet/types` 9 (`db` has no tests yet) |
-| `cargo test` | **30** — `packages/contracts/identity-registry` |
+All packages and apps are covered by unit, integration, property, and end-to-end tests across 18 CI jobs ([`ci.yml`](.github/workflows/ci.yml)):
 
-Both are CI gates ([`ci.yml`](.github/workflows/ci.yml)), alongside `lint`,
-`typecheck`, `build` and the wasm contract build.
+- **TypeScript tests** (`pnpm test`) — unit and integration test suites across `apps/web`, `apps/indexer`, `apps/sandbox-ui`, `packages/sdk`, `packages/types`, `packages/spec`, `packages/visualiser`, and `packages/fixtures`
+- **Soroban contract tests** (`cargo test` in `packages/contracts`) — unit and proptest suites for the Identity Registry contract
+- **Rust simulator tests** (`cargo test` in `sandbox/simulator`) — unit, snapshot, and multi-lane fidelity tests
+- **Go CLI tests** (`go test ./...` in `cli`) — command parsing, flag validation, and IPC bridge tests
+- **CI verification gates** — lint, typecheck, build, browser e2e, docs drift check, and fixture parity
 
 ## Releases and changelog
 
@@ -235,6 +244,8 @@ Both are CI gates ([`ci.yml`](.github/workflows/ci.yml)), alongside `lint`,
 ## License
 
 Signet is licensed under the Apache License 2.0 — see [`LICENSE`](LICENSE) for the
-full text. This covers every workspace package (`@signet/sdk`, `@signet/types`,
-`@signet/db`, `@signet/web`, `@signet/indexer`) and the Soroban
-`identity-registry` contract.
+full text. This covers every workspace package and app (`@signet/web`, `@signet/indexer`,
+`@signet/sandbox-ui`, `@signet/sdk`, `@signet/types`, `@signet/db`, `@signet/spec`,
+`@signet/visualiser`, `@signet/fixtures`), the `signet` CLI (`cli/`), the
+`signet-simulator` sandbox (`sandbox/`), and the Soroban `identity-registry` contract
+(`packages/contracts/identity-registry`).

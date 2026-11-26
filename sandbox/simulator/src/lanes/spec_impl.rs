@@ -1579,6 +1579,95 @@ pub fn generic(val: &ScVal) -> Result<Value, LaneError> {
 
 // ── Storage expressions (#559) ─────────────────────────────────────────
 
+impl Spec {
+    /// A storage key as the storage expression (#559) `storage_override`
+    /// reads back to the same key, against this spec (the contract's, or an
+    /// empty one when it has none). A `#[contracttype]` case the spec
+    /// declares takes JSON arguments, as the case's types encode them
+    /// (`Owner("alice")`, `Point(5, 9)`); any other key is typed
+    /// (`u32:5`, `address:"G…"`). `None` when no expression reads back to
+    /// exactly this key.
+    pub fn key_expression(&self, val: &ScVal) -> Option<String> {
+        let expr = self.expression_of(val)?;
+        (self.storage_val(&expr, "key").ok()? == *val).then_some(expr)
+    }
+
+    fn expression_of(&self, val: &ScVal) -> Option<String> {
+        let quoted = |text: String| serde_json::to_string(&text).ok();
+        Some(match val {
+            ScVal::Symbol(s) => format!("symbol:{}", quoted(s.0.to_utf8_string_lossy())?),
+            // A bare string reads as a string unless it is a strkey.
+            ScVal::String(s) => {
+                let text = s.0.to_utf8_string_lossy();
+                if ScAddress::from_str(&text).is_ok() {
+                    format!("string:{}", quoted(text)?)
+                } else {
+                    quoted(text)?
+                }
+            }
+            ScVal::Address(a) => format!("address:{}", quoted(a.to_string())?),
+            ScVal::U32(n) => format!("u32:{n}"),
+            ScVal::I32(n) => format!("i32:{n}"),
+            ScVal::U64(n) => format!("u64:\"{n}\""),
+            ScVal::I64(n) => format!("i64:\"{n}\""),
+            ScVal::Timepoint(t) => format!("timepoint:\"{}\"", t.0),
+            ScVal::Duration(d) => format!("duration:\"{}\"", d.0),
+            ScVal::U128(p) => format!("u128:\"{}\"", (u128::from(p.hi) << 64) | u128::from(p.lo)),
+            ScVal::I128(p) => format!("i128:\"{}\"", (i128::from(p.hi) << 64) | i128::from(p.lo)),
+            ScVal::U256(p) => format!(
+                "u256:\"{}\"",
+                u256_text([p.hi_hi, p.hi_lo, p.lo_hi, p.lo_lo])
+            ),
+            ScVal::I256(p) => format!(
+                "i256:\"{}\"",
+                i256_text([p.hi_hi as u64, p.hi_lo, p.lo_hi, p.lo_lo])
+            ),
+            ScVal::Bytes(b) => format!("bytes:\"{}\"", b64(b.as_slice())),
+            ScVal::Bool(b) => b.to_string(),
+            ScVal::Void => "void:null".to_string(),
+            // A `#[contracttype]` case: a vec of its symbol and arguments.
+            ScVal::Vec(Some(items)) if !items.is_empty() => {
+                let ScVal::Symbol(tag) = &items[0] else {
+                    return None;
+                };
+                let tag = tag.0.to_utf8_string_lossy();
+                let ident = tag.chars().next().is_some_and(|c| c.is_ascii_alphabetic())
+                    && tag.chars().all(|c| c.is_ascii_alphanumeric() || c == '_');
+                if !ident || tag == "true" || tag == "false" {
+                    return None;
+                }
+                let rest = &items[1..];
+                if rest.is_empty() {
+                    return Some(tag);
+                }
+                let args = match self.union_with_case(&tag).and(self.case_types(&tag)) {
+                    // Declared by the spec: JSON, as the case's types read it.
+                    Some(types) => {
+                        if types.len() != rest.len() {
+                            return None;
+                        }
+                        types
+                            .iter()
+                            .zip(rest)
+                            .map(|(ty, item)| {
+                                let v = self.decode(ty, item, "key", 0).ok()?;
+                                serde_json::to_string(&v).ok()
+                            })
+                            .collect::<Option<Vec<_>>>()?
+                    }
+                    // Not in the spec: each argument is its own expression.
+                    None => rest
+                        .iter()
+                        .map(|item| self.expression_of(item))
+                        .collect::<Option<Vec<_>>>()?,
+                };
+                format!("{tag}({})", args.join(", "))
+            }
+            _ => return None,
+        })
+    }
+}
+
 fn primitive(name: &str) -> Option<ScSpecTypeDef> {
     Some(match name {
         "bool" => ScSpecTypeDef::Bool,

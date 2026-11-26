@@ -36,3 +36,21 @@ func ExitCode(err error) int {
 	}
 	return exitcode.Generic
 }
+
+// ExitKind maps err to the stable kind name for structured errors:
+//  1. exitcode.CodeAndKindFor's sentinel taxonomy
+//  2. The ExitCoder interface mapped via exitcode.KindForCode
+//  3. exitcode.Generic -> "generic"
+func ExitKind(err error) string {
+	if err == nil {
+		return "ok"
+	}
+	if _, kind, ok := exitcode.CodeAndKindFor(err); ok {
+		return kind
+	}
+	var coder ExitCoder
+	if errors.As(err, &coder) {
+		return exitcode.KindForCode(coder.ExitCode())
+	}
+	return exitcode.KindForCode(exitcode.Generic)
+}

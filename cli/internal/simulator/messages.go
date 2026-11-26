@@ -1016,15 +1016,17 @@ type EntriesDescribeResult struct {
 // DescribedEntry is one entry in plain terms: an instance with its storage
 // map, contract data with durability, key and value, or code by hash.
 type DescribedEntry struct {
-	Kind       string          `json:"kind"`
-	Contract   string          `json:"contract,omitempty"`
-	Durability string          `json:"durability,omitempty"`
-	Key        json.RawMessage `json:"key,omitempty"`
-	Value      json.RawMessage `json:"value,omitempty"`
-	Executable string          `json:"executable,omitempty"`
-	Storage    []struct {
-		Key   json.RawMessage `json:"key"`
-		Value json.RawMessage `json:"value"`
+	Kind          string          `json:"kind"`
+	Contract      string          `json:"contract,omitempty"`
+	Durability    string          `json:"durability,omitempty"`
+	Key           json.RawMessage `json:"key,omitempty"`
+	KeyExpression *string         `json:"key_expression,omitempty"`
+	Value         json.RawMessage `json:"value,omitempty"`
+	Executable    string          `json:"executable,omitempty"`
+	Storage       []struct {
+		Key           json.RawMessage `json:"key"`
+		KeyExpression *string         `json:"key_expression,omitempty"`
+		Value         json.RawMessage `json:"value"`
 	} `json:"storage,omitempty"`
 	Hash  string `json:"hash,omitempty"`
 	Bytes int    `json:"bytes,omitempty"`

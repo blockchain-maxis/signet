@@ -1,4 +1,4 @@
-import { test, before, beforeEach, after } from 'node:test';
+import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { execSync } from 'node:child_process';
 import { PrismaClient, Prisma } from '@signet/db';
@@ -19,7 +19,22 @@ test('Indexer workers integration with real migrated Postgres', { skip: !shouldR
     log: ['error'],
   });
 
-  before(async () => {
+  // Every indexer-related table, in dependency order. The suite shares its
+  // database with the e2e run that follows it in CI, so it leaves no rows
+  // behind: the tables are emptied before each case and once more at the end.
+  async function wipe() {
+    await prisma.contractSnapshot.deleteMany();
+    await prisma.contractInvocation.deleteMany();
+    await prisma.contractWasmVersion.deleteMany();
+    await prisma.operation.deleteMany();
+    await prisma.pairingState.deleteMany();
+    await prisma.contract.deleteMany();
+    await prisma.wallet.deleteMany();
+    await prisma.profile.deleteMany();
+    await prisma.indexerCursor.deleteMany();
+  }
+
+  t.before(async () => {
     // Ensure migrations are deployed against the test database
     try {
       execSync('pnpm db:deploy', {
@@ -31,21 +46,14 @@ test('Indexer workers integration with real migrated Postgres', { skip: !shouldR
     }
   });
 
-  beforeEach(async () => {
-    // Clean all indexer-related tables in dependency order
-    await prisma.contractSnapshot.deleteMany();
-    await prisma.contractInvocation.deleteMany();
-    await prisma.contractWasmVersion.deleteMany();
-    await prisma.operation.deleteMany();
-    await prisma.pairingState.deleteMany();
-    await prisma.contract.deleteMany();
-    await prisma.wallet.deleteMany();
-    await prisma.profile.deleteMany();
-    await prisma.indexerCursor.deleteMany();
-  });
+  t.beforeEach(wipe);
 
-  after(async () => {
-    await prisma.$disconnect();
+  t.after(async () => {
+    try {
+      await wipe();
+    } finally {
+      await prisma.$disconnect();
+    }
   });
 
   const CONTRACT_ONE = 'CAAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQCAIBAEAQC526';
@@ -196,7 +204,7 @@ test('Indexer workers integration with real migrated Postgres', { skip: !shouldR
       };
 
       const mockRpc = {
-        getLatestLedger: async () => ({ sequence: 4887010 } as any),
+        getLatestLedger: async () => ({ sequence: 4887010 }) as any,
         getEvents: async () => ({
           latestLedger: 4887010,
           events: [

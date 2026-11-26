@@ -6,6 +6,7 @@ import {
   NetworkError,
   NotFoundError,
   RateLimitedError,
+  UnauthorizedError,
   UnavailableError,
   ValidationError,
 } from './errors.ts';
@@ -184,6 +185,24 @@ test('a 400 is a ValidationError with the code and the parameter', async () => {
   assert.equal(calls.length, 1, 'a 4xx is an answer, not retried');
 });
 
+test('a 401 envelope throws UnauthorizedError with code: unauthorized after a single fetch', async () => {
+  const { fetchImpl, calls } = mockFetch({
+    status: 401,
+    body: v1Error('unauthorized', 'API key revoked.'),
+  });
+  await assert.rejects(
+    client(fetchImpl, { maxRetries: 3 }).getProfile('alice'),
+    (err: unknown) => {
+      assert.ok(err instanceof UnauthorizedError);
+      assert.equal(err.status, 401);
+      assert.equal(err.code, 'unauthorized');
+      assert.equal(err.message, 'API key revoked.');
+      return true;
+    },
+  );
+  assert.equal(calls.length, 1, 'a 401 is never retried');
+});
+
 test('a 404 outside the nullable lookups is a NotFoundError with its code', async () => {
   const { fetchImpl } = mockFetch({ status: 404, body: v1Error('not_found', 'nope') });
   await assert.rejects(client(fetchImpl).request('/profiles/ghost/wallets'), (err: unknown) => {
@@ -339,6 +358,46 @@ test('every request carries an abort signal', async () => {
   await client(spy).getProfile('alice');
   assert.ok(seenSignal instanceof AbortSignal);
   assert.equal(seenSignal?.aborted, false);
+});
+
+test('aborting mid-request rejects with the abort reason and no retry', async () => {
+  const controller = new AbortController();
+  const customReason = new Error('cancelled by caller');
+  let calls = 0;
+  const hanging = (async (_url: string | URL | Request, init?: RequestInit) => {
+    calls++;
+    return new Promise<Response>((_resolve, reject) => {
+      init?.signal?.addEventListener('abort', () => {
+        reject(init.signal?.reason ?? new Error('aborted'));
+      });
+      setTimeout(() => controller.abort(customReason), 10);
+    });
+  }) as unknown as typeof fetch;
+
+  await assert.rejects(
+    client(hanging, { maxRetries: 3 }).getProfile('alice', { signal: controller.signal }),
+    (err: unknown) => {
+      assert.equal(err, customReason);
+      return true;
+    },
+  );
+  assert.equal(calls, 1, 'do not retry after caller abort');
+});
+
+test('an already-aborted signal makes no fetch', async () => {
+  const controller = new AbortController();
+  const customReason = new Error('already aborted');
+  controller.abort(customReason);
+  const { fetchImpl, calls } = mockFetch({ body: { data: profile } });
+
+  await assert.rejects(
+    client(fetchImpl).getProfile('alice', { signal: controller.signal }),
+    (err: unknown) => {
+      assert.equal(err, customReason);
+      return true;
+    },
+  );
+  assert.equal(calls.length, 0);
 });
 
 test('the default fetch is called bound to globalThis, as browsers require', async () => {

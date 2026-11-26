@@ -1,8 +1,8 @@
 # Design: contract documentation generated from the on-chain spec
 
-**Status:** design note. Nothing here is built yet — this document exists to
-decide the shape before code, and to hand the sandbox and visualiser roadmap
-items a spec reader they can share rather than each writing their own.
+**Status:** shipped. The whole of the design described here has shipped:
+`@signet/spec`, the contract route and tabs, the per-function page, stubs,
+changelog, and search.
 
 Every Soroban contract carries its own interface inside the deployed WASM. Given
 a contract address and an RPC endpoint, that is enough to produce accurate
@@ -43,27 +43,23 @@ contract's age, and it is free once the module is already parsed.
 
 Three steps, all read-only, no signature, no fee:
 
-1. **Fetch the WASM.** `rpc.Server#getContractWasmByContractId(address)` — one
-   call. It resolves the contract instance ledger entry, reads the executable's
-   WASM hash, fetches the matching `ContractCode` entry, and returns the bytes.
-   No separate hash lookup is needed.
-2. **Pull the custom section.** `WebAssembly.Module.customSections(module,
-'contractspecv0')`. This is a platform API — it works in Node and in the
-   browser, and it does not require a WASM parser dependency.
-3. **Decode the entries.**
-
-```ts
-const reader = new XdrReader(Buffer.from(section));
-const entries: xdr.ScSpecEntry[] = [];
-while (!reader.eof) entries.push(xdr.ScSpecEntry.read(reader));
-```
-
-> **Gotcha worth writing down.** `xdr.ScSpecEntry.fromXDR(section)` fails with
-> _"source buffer not entirely consumed"_. The section is a bare concatenation
-> of entries with no length prefix and no envelope, so it has to be read
-> sequentially with a cursor. Anyone reaching for the obvious one-liner will
-> hit this; it cost time to find and is the single least obvious thing in the
-> whole path.
+1. **Fetch the WASM.** Both readers live in [`packages/spec/src/fetch.ts`](../packages/spec/src/fetch.ts).
+   `fetchContractSpec(address)` reads the contract instance entry with
+   `getLedgerEntries` to get the executable's WASM hash (a Stellar Asset
+   Contract stops here with `NoInterface`), fetches the module with
+   `rpc.Server#getContractWasmByContractId(address)`, and checks that the
+   fetched bytes hash to the instance's WASM hash.
+   `fetchContractSpecByHash(wasmHash)` skips the instance and reads the
+   `ContractCode` ledger entry for that hash directly with `getLedgerEntries`,
+   then checks the bytes against the requested hash.
+2. **Pull the custom section.** Rather than depending on runtime WASM engines or
+   untyped `WebAssembly.Module.customSections`, `@signet/spec` uses its own
+   binary section walker ([`packages/spec/src/wasm-sections.ts`](../packages/spec/src/wasm-sections.ts))
+   with safety caps (`MAX_WASM_BYTES` at 256 KB, `MAX_WASM_SECTIONS` at 1,024,
+   and `MAX_SPEC_ENTRIES` at 1,024), tested against hostile inputs by a dedicated
+   fuzz suite ([`packages/spec/src/property-fuzz.test.ts`](../packages/spec/src/property-fuzz.test.ts)).
+3. **Decode the entries.** Decoded via `new contract.Spec(section)` and converted
+   into structured models with typed failures ([`packages/spec/src/errors.ts`](../packages/spec/src/errors.ts)).
 
 The registry decodes to 9 entries: 8 `scSpecEntryFunctionV0` and 1
 `scSpecEntryUdtErrorEnumV0`.
@@ -99,13 +95,20 @@ ship before the bridge exists.
 
 ### 1.5 Failure modes
 
-Each has a distinct display, because they mean different things to a reader:
+Failures map to a typed taxonomy ([`packages/spec/src/errors.ts`](../packages/spec/src/errors.ts)).
+The contract page's copy for each failure comes from `failureCopy` in
+[`apps/web/lib/contract-overview.ts`](../apps/web/lib/contract-overview.ts);
+`classifySpecError` there maps each error's `kind` to the state shown.
 
-| Condition                     | Cause                                                                         | Shown as                                                                                                     |
-| ----------------------------- | ----------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
-| Contract not found            | Address never deployed, or archived and not restored                          | "Not found on `<network>`" — with the address, so a wrong-network mistake is obvious                         |
-| No `contractspecv0` section   | Not built with `soroban-sdk` — hand-written WASM, or a Stellar Asset Contract | "This contract publishes no interface" — a statement about the contract, not an error                        |
-| Section present, decode fails | A spec format newer than the pinned SDK                                       | "Interface could not be read" + the SDK version — and it is logged, because it means the SDK needs upgrading |
+| Condition | Error / state | Cause | Shown as |
+| --- | --- | --- | --- |
+| Contract not found | `ContractNotFound` | Address never deployed, or archived and not restored | "Not found on `<network>`" |
+| WASM not found | `WasmNotFound` | No contract-code ledger entry for the WASM hash (expired or evicted) | "Code not found on `<network>`" |
+| No interface | `NoInterface` (`no_section`, `stellar_asset_contract`, `empty_section`) | Not built with `soroban-sdk`, a Stellar Asset Contract, or an empty custom section | "This contract publishes no interface" |
+| Decode failure | `InterfaceUnreadable` | A spec format newer than the pinned SDK | "Interface could not be read" + SDK version |
+| RPC unavailable | `RpcUnavailable` | RPC node unreachable, timeout, or fetched bytes that do not match the expected hash (#944) | "Interface is unavailable right now" |
+| Invalid WASM | `InvalidWasm` | Bad magic number or version, truncated section, or size cap exceeded | No copy of its own: `classifySpecError` maps it to the unavailable state, "Interface is unavailable right now" |
+| Wrong network | `wrong_network` (loader state, not a `@signet/spec` error) | The contract's network is not the one this deployment reads; `loadContractSpec` in [`apps/web/lib/server/contract-spec.ts`](../apps/web/lib/server/contract-spec.ts) returns it before any RPC call or cache read (#464) | "This contract is on `<network>`" |
 
 None of these may render as a generic error page. A contract that publishes no
 interface is a fact about that contract and belongs on the page.
@@ -244,17 +247,23 @@ Consequences that all fall out for free:
 
 ### 4.2 Storage
 
-The `Contract` model already stores `address`, `deployTxHash`, `network` and
-timestamps but no WASM hash. Add:
+The `ContractSpec` table ([`packages/db/prisma/schema.prisma`](../packages/db/prisma/schema.prisma)),
+implemented via `PrismaSpecCache` ([`apps/web/lib/server/spec-store.ts`](../apps/web/lib/server/spec-store.ts)),
+is keyed by `wasmHash` alone. It stores:
 
-- `wasmHash` on `Contract` — the hash observed at index time, so a stale row is
-  detectable without a fetch.
-- A `ContractSpec` table keyed by `wasmHash`, holding the decoded entries and
-  the extraction's SDK version. Many contracts to one spec.
+- `wasmHash` — lowercase hex SHA-256 of the WASM bytecode.
+- `schemaVersion` — shape version of the stored payload (`SPEC_SCHEMA_VERSION = 1`, #434).
+- `sdkVersion` — `@stellar/stellar-sdk` version that extracted the entries (`RUNNING_SDK_VERSION = '16.1.0'`).
+- `specJson` — the serialised `SpecJson` payload.
+- `extractedAt` — timestamp when extracted.
 
-Recording the SDK version alongside the entries is what makes an SDK upgrade
-re-extractable: a spec decoded by an older SDK that skipped an unknown entry arm
-can be found and redone.
+**The stale-SDK rule:** `isStale(row)` in [`apps/web/lib/server/spec-store.ts`](../apps/web/lib/server/spec-store.ts)
+checks whether the stored row was extracted by an older SDK version or older schema version.
+If stale, the row is re-extracted and overwritten on access rather than served to users.
+
+**Cache-key rule (#944):** A resolved spec's `wasmHash` must strictly equal its cache key.
+`assertHashMatches` in [`packages/spec/src/resolve.ts`](../packages/spec/src/resolve.ts)
+verifies this before caching, preventing mismatched bytecode from polluting the cache.
 
 ### 4.3 Refresh trigger
 
@@ -273,48 +282,22 @@ uses) handles the rest.
 
 ## 5. The shared spec reader
 
-Three roadmap items read the same data: auto-docs (this note), the sandbox, and
-the visualiser. They must not each write their own reader — three parsers means
-three answers to "what does this contract expose", and the two that are wrong
-will not announce themselves.
+The shared spec reader lives in [`packages/spec`](../packages/spec) (`@signet/spec`).
+It serves auto-docs, the sandbox, the visualiser, and the public REST API:
 
-**Decision: one module, in TypeScript, owning everything up to the decoded
-spec.** Auto-docs is the first consumer and therefore where it lands, but it is
-written as a shared dependency from the start.
-
-Its surface:
-
-```ts
-/** Fetch and decode a deployed contract's interface. */
-fetchContractSpec(address: string, network: Network): Promise<ContractSpec>
-
-/** Decode an already-fetched module — the pure half, and the testable one. */
-parseContractSpec(wasm: Uint8Array): ContractSpec
-
-interface ContractSpec {
-  wasmHash: string;
-  entries: xdr.ScSpecEntry[];   // raw, for consumers needing arms this API omits
-  spec: contract.Spec;          // the SDK wrapper: jsonSchema, conversions
-  functions: SpecFunction[];    // name, doc, inputs, outputs — flattened
-  types: SpecType[];            // structs, unions, enums
-  errors: SpecError[];          // the error enum, with docs
-  build?: { rustVersion?: string; sdkVersion?: string };  // contractmetav0
-}
-```
-
-Why this split:
-
-- `parseContractSpec` takes bytes, so every consumer's tests run against a
-  fixture WASM with no network. The registry's 6,240-byte module is a good
-  first fixture: 8 functions, all documented, plus an error enum.
-- `entries` and `spec` are both exposed. The flattened views serve documentation
-  rendering; the sandbox needs `spec.jsonSchema()` and the conversion helpers,
-  and the visualiser will want arms this interface does not enumerate. Hiding
-  the SDK object behind a lossy abstraction would just push each consumer to
-  re-decode.
-- Fetch and parse are separate because they fail differently — a network error
-  and an undecodable section need different messages (§1.5), and merging them
-  loses that.
+- **Browser-safe core (`@signet/spec`):** Pure parser, schema checkers, diffing,
+  and formatting. Decodes WASM custom sections into `SpecJson` ([`packages/spec/src/types.ts`](../packages/spec/src/types.ts))
+  with functions, arguments, return types, custom types, error enums, and build provenance.
+- **Network fetch (`@signet/spec/fetch`):** `fetchContractSpec(address, opts)` and
+  `fetchContractSpecByHash(wasmHash, opts)` in [`packages/spec/src/fetch.ts`](../packages/spec/src/fetch.ts)
+  pull the instance entry and bytecode over Soroban RPC.
+- **Cached resolver (`@signet/spec/resolve`):** `getContractSpec(address, opts)`
+  in [`packages/spec/src/resolve.ts`](../packages/spec/src/resolve.ts) walks a cache chain
+  (in-memory LRU, then the Postgres `ContractSpec` store via `PrismaSpecCache`) and executes
+  single-flight in-flight deduplication (`inFlight`) so concurrent requests for the same WASM hash
+  share a single RPC download.
+- **Opt-in Orbital fallback:** If a contract has no embedded spec section, the resolver can query
+  the Orbital registry when `SIGNET_SPEC_ORBITAL_FALLBACK=1` ([`packages/spec/src/fallback/orbital.ts`](../packages/spec/src/fallback/orbital.ts)).
 
 The reader owns fetching, decoding and the `ContractSpec` cache (§4). It does
 not own rendering, execution, or anything protocol-version-gated: those belong
@@ -337,18 +320,21 @@ spend its whole budget on the part only it needs — executing the thing.
 
 ---
 
-## Open questions
+## Decisions and open questions
 
-- **Does the docs page belong behind a profile at all?** `/p/{handle}/contract/{address}`
-  ties the contract to a developer's record, which is the Signet framing. But
-  the same generated docs are useful for any address, and a
-  `/contract/{address}` route with no handle would serve a reader arriving from
-  an explorer. Deferred: the profile-scoped route is the one this product needs
-  first, and the second is additive.
-- **How much of the type graph is rendered inline?** A deeply nested user-defined
-  type could dominate a page. Inline for the first level, linked beyond it, is
-  the likely answer — but it needs a real contract with a large type graph to
-  decide against, and the registry (one error enum, no structs) is not it.
+### Decisions
+
+- **Does the docs page belong behind a profile at all?**
+  Shipped both: `/p/{handle}/contract/{address}` provides the profile-bound developer context,
+  while a handle-less reader is available via the public REST API at
+  `GET /api/v1/contracts/{address}/spec` ([`apps/web/app/api/v1/contracts/[address]/spec/route.ts`](../apps/web/app/api/v1/contracts/[address]/spec/route.ts)).
+- **How much of the type graph is rendered inline? (#490)**
+  Decided in #490: The interface view flattens user-defined types into an interactive closure
+  ([`packages/spec/src/closure.ts`](../packages/spec/src/closure.ts)), expanding referenced
+  structs, unions, and enums with type links rather than deep recursive inline nesting.
+
+### Still open
+
 - **Should `contractmetav0` provenance be surfaced on `/p/{handle}` too?**
-  "Built with soroban-sdk 26.1.0" is a signal about a contract's age that a
-  reader scanning a profile might want before clicking through.
+  "Built with soroban-sdk 26.1.0" is surfaced on the contract page header, but is still not shown
+  in the compact contract summary list on the developer's canonical `/p/{handle}` profile page.
