@@ -41,7 +41,7 @@ node "$HERE/scripts/make-corrupt-section.mjs" \
   "$FIXTURES/identity-registry.wasm" "$OUT/corrupt_section.wasm"
 
 fail=0
-for name in types_zoo undocumented events errors_multi no_spec corrupt_section; do
+for name in types_zoo undocumented events errors_multi upgrade_v1 upgrade_v2 no_spec corrupt_section; do
   built="$OUT/$name.wasm"
   committed="$FIXTURES/$name.wasm"
   if [ "$MODE" = "--build" ]; then

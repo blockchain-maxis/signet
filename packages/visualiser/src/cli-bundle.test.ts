@@ -7,6 +7,12 @@
  * standalone golden the package itself renders (`__golden__/standalone/`).
  * A stale bundle fails here and in `scripts/check-visualiser-bundle.mjs`.
  *
+ * The bundle is also held to the Diagram tab's pipeline (#955): for every
+ * fixture, with its groups collapsed and with its largest group expanded, it
+ * must decide what the tab decides and draw the nodes the tab draws. The web
+ * app's `lib/server/diagram-parity.test.ts` compares the tab, the export and
+ * `visualise()` the same way.
+ *
  * `UPDATE_GOLDEN=1 pnpm --filter @signet/visualiser test` rewrites the
  * goldens from the package (never from the bundle).
  */
@@ -18,6 +24,11 @@ import { existsSync, mkdirSync, readdirSync, readFileSync, writeFileSync } from 
 import { join } from 'node:path';
 import { env } from 'node:process';
 import { toSpecJson } from '@signet/spec';
+import { canonicalExpand, collapseGroups, functionGroupsOf } from './collapse.ts';
+import { diagramDecision } from './decide.ts';
+import { buildContractGraph } from './graph.ts';
+import { groupExpandKey } from './group.ts';
+import { layoutContractGraph } from './layout.ts';
 import { FIXTURES_DIR, loadFixture, readFixture } from './load-fixture.ts';
 import { visualise, type VisualiseInput } from './visualise.ts';
 
@@ -73,6 +84,11 @@ test('the bundle defines signetVisualise and nothing else on the global object',
   assert.deepEqual(Object.keys(context), ['signetVisualise']);
 });
 
+test('visualise on axelar-its returns decision.kind === "draw"', () => {
+  const out = visualise(inputFor('axelar-its'));
+  assert.equal(out.decision.kind, 'draw');
+});
+
 for (const name of fixtureNames()) {
   test(`the bundle's SVG for ${name} is byte-identical to the package's golden`, () => {
     const golden = join(GOLDEN_DIR, `${name}.svg`);
@@ -100,3 +116,108 @@ for (const name of fixtureNames()) {
     assert.equal(got.wasmHash, readFixture(name).wasmHash);
   });
 }
+
+// The bundle against the Diagram tab's pipeline (#955).
+
+/** `signetVisualise` takes the expanded groups as `expand` (#946). */
+type InputWithExpand = VisualiseInput & { readonly expand?: string[] };
+
+interface State {
+  readonly label: string;
+  /** Group keys, as `?expand=` carries them. */
+  readonly expand: string[];
+}
+
+/** Groups collapsed, and the group with the most functions expanded; ties go to the first by name. */
+function statesOf(name: string): State[] {
+  const groups = functionGroupsOf(buildContractGraph(loadFixture(name)));
+  const [largest] = [...groups].sort(
+    (a, b) => b.functions.length - a.functions.length || a.name.localeCompare(b.name),
+  );
+  const key = largest ? groupExpandKey(largest, groups) : null;
+  return [
+    { label: 'groups collapsed', expand: [] },
+    ...(key === null ? [] : [{ label: `group "${key}" expanded`, expand: [key] }]),
+  ];
+}
+
+/**
+ * What the Diagram tab does before it draws (`drawContractDiagram` in
+ * `apps/web/lib/server/diagram-view.ts`): collapse the groups the URL does
+ * not expand, lay the result out, then decide on it.
+ */
+function tabPipeline(name: string, expand: readonly string[]) {
+  const full = buildContractGraph(loadFixture(name));
+  const graph = collapseGroups(full, { expand: canonicalExpand(expand, full) });
+  return { graph, decision: diagramDecision(graph, layoutContractGraph(graph)) };
+}
+
+function unescapeXml(text: string): string {
+  return text
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&(apos|#39);/g, "'")
+    .replace(/&amp;/g, '&');
+}
+
+/** The node titles of a standalone SVG, sorted. The root's own title carries an id and is not one. */
+function nodeTitles(svg: string): string[] {
+  return [...svg.matchAll(/<title>([^<]*)<\/title>/g)]
+    .map(([, title]) => unescapeXml(title!))
+    .sort();
+}
+
+for (const name of fixtureNames()) {
+  for (const state of statesOf(name)) {
+    const where = `${name}, ${state.label}`;
+
+    test(`the bundle decides and draws ${where}, as the Diagram tab's pipeline does`, () => {
+      const tab = tabPipeline(name, state.expand);
+      const input: InputWithExpand = {
+        ...inputFor(name),
+        ...(state.expand.length > 0 && { expand: state.expand }),
+      };
+      const source = visualise(input);
+      const bundle = runBundle(bundleRealm(), input);
+
+      // When the sources agree with the tab and the bundle does not, the bundle is what is behind.
+      const sourceAgrees = source.decision.kind === tab.decision.kind;
+      assert.ok(
+        sourceAgrees && bundle.decision.kind === tab.decision.kind,
+        `${where}: the Diagram tab's pipeline decides ${tab.decision.kind}, ` +
+          `visualise() decides ${source.decision.kind}, ` +
+          `the committed bundle decides ${bundle.decision.kind}.` +
+          (sourceAgrees
+            ? ' The bundle is stale: rebuild it with packages/visualiser/scripts/build-cli-bundle.mts.'
+            : ''),
+      );
+      if (tab.decision.kind !== 'draw') return;
+
+      const drawn = tab.graph.nodes.map((n) => n.name).sort();
+      assert.deepEqual(
+        nodeTitles(source.svg),
+        drawn,
+        `${where}: visualise() and the Diagram tab's pipeline draw different nodes`,
+      );
+      assert.deepEqual(
+        nodeTitles(bundle.svg),
+        drawn,
+        `${where}: the committed bundle and the Diagram tab's pipeline draw different nodes: rebuild it with packages/visualiser/scripts/build-cli-bundle.mts`,
+      );
+    });
+  }
+}
+
+// On fixtures small enough to draw without collapsing, a bundle that never
+// collapses would agree with the tab. The comparison means something only
+// while a committed fixture is drawn with collapsed groups.
+test('a fixture is drawn only because its groups collapse', () => {
+  const collapsing = fixtureNames().filter((name) => {
+    const { graph, decision } = tabPipeline(name, []);
+    return (
+      decision.kind === 'draw' && graph.nodes.some((n) => n.kind === 'function' && n.collapsed)
+    );
+  });
+  assert.ok(collapsing.length >= 1, 'no committed fixture is drawn with collapsed groups');
+});

@@ -77,6 +77,42 @@
                 "type": "string",
                 "minLength": 1,
                 "description": "instance, contract_data, contract_code, undecodable, or the entry type's name"
+              },
+              "contract": {
+                "type": "string"
+              },
+              "durability": {
+                "type": "string"
+              },
+              "key": {},
+              "key_expression": {
+                "type": ["string", "null"],
+                "description": "The key as a storage expression, for storage_override; null when ambiguous or not writable"
+              },
+              "value": {},
+              "executable": {
+                "type": "string"
+              },
+              "storage": {
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "key": {},
+                    "key_expression": {
+                      "type": ["string", "null"],
+                      "description": "The key as a storage expression, for storage_override; null when ambiguous or not writable"
+                    },
+                    "value": {}
+                  },
+                  "required": ["key", "value"]
+                }
+              },
+              "hash": {
+                "type": "string"
+              },
+              "bytes": {
+                "type": "integer"
               }
             },
             "required": ["kind"]

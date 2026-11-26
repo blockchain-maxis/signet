@@ -6,7 +6,8 @@ Usage:
   signet version [flags]
 
 Flags:
-  -h, --help   help for version
+      --check   check for newer signet releases
+  -h, --help    help for version
 
 Global Flags:
       --context string         deployment context to use (overrides SIGNET_CONTEXT and the config file's current context)
