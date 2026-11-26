@@ -27,7 +27,6 @@ var (
 		0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f, 0x10,
 	}
 	mainnetPassphrase   = "Public Global Stellar Network ; September 2015"
-	testServerPublicKey = encodeAccountID(testServerKey)
 	testClientPublicKey = encodeAccountID(testClientKey)
 )
 

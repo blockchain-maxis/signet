@@ -641,7 +641,7 @@ involve a pairing:
 
 Before handing the challenge transaction envelope to `stellar tx sign`, `signet link` and `signet unlink` verify the transaction's shape and parameters (`link.VerifyChallenge`):
 
-- **Envelope version:** must be a v1 transaction envelope (`ENVELOPE_TYPE_TX`).
+- **Envelope version:** must be a v1 transaction envelope (XDR envelope type 2).
 - **Sequence number:** must be `0`.
 - **Operations:** every operation must be `manage_data`.
 - **First operation source:** the first operation's source account must match the local identity's public key being proved.
