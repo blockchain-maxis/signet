@@ -166,7 +166,7 @@ async function main() {
         nodeEnv: process.env.NODE_ENV,
       },
       {
-        store: prisma as unknown as DevSeedStore,
+        store: prisma,
         reader,
         logger,
       },
