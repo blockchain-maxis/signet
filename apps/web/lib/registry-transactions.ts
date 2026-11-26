@@ -21,7 +21,7 @@ import {
  * carries an empty footprint and restores nothing.
  *
  * Lives apart from `registry.ts` so that module can keep importing the SDK
- * lazily; `restoreHandleBinding` imports this one the same way.
+ * lazily; `restoreHandleBinding` and `releaseHandle` import this one the same way.
  */
 export function buildRestoreTransaction(
   account: Account,
