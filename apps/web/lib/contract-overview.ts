@@ -16,7 +16,7 @@
  */
 
 import { xdr } from '@stellar/stellar-sdk';
-import { buildSpecViews, type SpecJson } from '@signet/spec';
+import { buildEvents, buildSpecViews, type SpecJson } from '@signet/spec';
 
 /**
  * Fill a `SpecJson`'s flattened views from its `entriesXdr` when they are
@@ -32,10 +32,19 @@ import { buildSpecViews, type SpecJson } from '@signet/spec';
  * never guessed.
  */
 export function withFlattenedViews(json: SpecJson): SpecJson {
-  const empty = json.functions.length === 0 && json.types.length === 0 && json.errors.length === 0;
-  if (!empty || json.entriesXdr.length === 0) return json;
+  if (json.entriesXdr.length === 0) return json;
+  const viewsEmpty =
+    json.functions.length === 0 && json.types.length === 0 && json.errors.length === 0;
+  const eventsEmpty = (json.events?.length ?? 0) === 0;
+  if (!viewsEmpty && !eventsEmpty) return json;
   const entries = json.entriesXdr.map((entry) => xdr.ScSpecEntry.fromXDR(entry, 'base64'));
-  return { ...json, ...buildSpecViews(entries) };
+  const events = eventsEmpty ? buildEvents(entries) : json.events;
+  if (!viewsEmpty && events.length === 0) return json;
+  return {
+    ...json,
+    ...(viewsEmpty ? buildSpecViews(entries) : {}),
+    ...(eventsEmpty && events.length > 0 ? { events } : {}),
+  };
 }
 
 /** The slice of a decoded spec the overview reads; `SpecJson` satisfies it. */

@@ -608,9 +608,11 @@ signet dev CASF…RCN --path ./contract --localnet
 
 - **Start or reuse.** A network already answering at
   `http://localhost:8000/rpc` with the passphrase
-  `Standalone Network ; February 2017` is used as it is and left running
-  when `signet dev` exits (along with `.signet/localnet.json`). Otherwise
-  signet runs `stellar container start local --protocol-version <the fork's protocol>`
+  `Standalone Network ; February 2017` **and the same protocol version as the fork**
+  is used as it is and left running when `signet dev` exits (along with
+  `.signet/localnet.json`); a protocol mismatch stops with configuration exit 3 and asks
+  you to stop it with `stellar container stop local`. Otherwise signet runs
+  `stellar container start local --protocol-version <the fork's protocol>`
   (with `--localnet-limits` passed as `--limits`) and waits for it to be
   healthy, then stops it (`stellar container stop local`) and removes
   `.signet/localnet.json` when the session ends unless `--localnet-keep` is

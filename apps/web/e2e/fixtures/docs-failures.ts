@@ -198,8 +198,8 @@ export async function seedDocsFailureFixture(): Promise<void> {
     });
     const wallet = await prisma.wallet.upsert({
       where: { pubkey: WALLET_3 },
-      update: { profileId: profile.id },
-      create: { profileId: profile.id, pubkey: WALLET_3, source: 'cli', isPrimary: true },
+      update: { profileId: profile.id, source: 'onchain', isPrimary: true },
+      create: { profileId: profile.id, pubkey: WALLET_3, source: 'onchain', isPrimary: true },
     });
     const rows = [
       { address: NO_INTERFACE, tx: 'd4', wasm: EMPTY_WASM_HASH.toString('hex'), type: 'wasm' },

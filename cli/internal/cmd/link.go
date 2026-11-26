@@ -3,6 +3,7 @@ package cmd
 import (
 	"bufio"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"net/url"
@@ -137,7 +138,10 @@ error. signet status shows the same progress later.`,
 
 			out := linkResult{Result: result}
 			if wait > 0 && result.Handle != "" {
-				out.Indexing = waitForIndexing(cmd.Context(), client, result.Handle, publicKey, wait, printer.Progress)
+				// The signal context, not cmd.Context(): Ctrl-C during the
+				// wait must stop the polling, not be swallowed (#914). The
+				// NotifyContext is still registered until RunE returns.
+				out.Indexing = waitForIndexing(ctx, client, result.Handle, publicKey, wait, printer.Progress)
 			}
 
 			return printer.Result(out, func(w io.Writer) error {
@@ -157,6 +161,10 @@ error. signet status shows the same progress later.`,
 				if ix := out.Indexing; ix != nil {
 					if ix.Done {
 						_, err := fmt.Fprintf(w, "indexed: %s found\n", contractsPhrase(ix.contractCount()))
+						return err
+					}
+					if ix.Interrupted {
+						_, err := fmt.Fprint(w, "stopped waiting; check `signet status` later\n")
 						return err
 					}
 					_, err := fmt.Fprint(w, "still indexing, check `signet status` later\n")
@@ -181,11 +189,14 @@ type linkResult struct {
 	Indexing *linkIndexing `json:"indexing,omitempty"`
 }
 
-// linkIndexing is --wait's outcome. Done is false when the wait ran out.
+// linkIndexing is --wait's outcome. Done is false when the wait ran out or
+// was interrupted; Interrupted is true only when the wait was stopped by
+// cancelling the context (Ctrl-C), not by running out of time.
 type linkIndexing struct {
-	Done       bool `json:"done"`
-	Contracts  *int `json:"contracts,omitempty"`
-	LowerBound bool `json:"contractsLowerBound,omitempty"`
+	Done        bool `json:"done"`
+	Interrupted bool `json:"interrupted,omitempty"`
+	Contracts   *int `json:"contracts,omitempty"`
+	LowerBound  bool `json:"contractsLowerBound,omitempty"`
 }
 
 func (ix *linkIndexing) contractCount() pair.ContractCount {
@@ -203,7 +214,10 @@ var linkWaitInterval = 5 * time.Second
 // waitForIndexing polls the handle's wallets until the linked one is no
 // longer waiting for the indexer, or the wait runs out (#630). Running out,
 // or a deployment that cannot answer, is not a failure: the link itself
-// succeeded.
+// succeeded. Cancelling ctx (Ctrl-C) stops the polling at once and reports
+// it as interrupted, still without failing the link (#914): the caller
+// distinguishes the two by whether the context was cancelled rather than
+// the timeout firing.
 func waitForIndexing(ctx context.Context, client *pair.Client, handle, publicKey string, wait time.Duration, progress func(string)) *linkIndexing {
 	ctx, cancel := context.WithTimeout(ctx, wait)
 	defer cancel()
@@ -218,7 +232,10 @@ func waitForIndexing(ctx context.Context, client *pair.Client, handle, publicKey
 		}
 		select {
 		case <-ctx.Done():
-			return &linkIndexing{Done: false}
+			// A cancelled parent reports context.Canceled; the timeout
+			// reports context.DeadlineExceeded. Only the first is an
+			// interruption.
+			return &linkIndexing{Done: false, Interrupted: errors.Is(ctx.Err(), context.Canceled)}
 		case <-time.After(linkWaitInterval):
 		}
 	}

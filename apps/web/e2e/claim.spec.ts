@@ -1,6 +1,9 @@
 import { test, expect, type Page } from '@playwright/test';
 import { Keypair } from '@stellar/stellar-sdk';
+import { expectNoSeriousA11yViolations } from './a11y';
 import { stubWallet } from './support';
+
+test.use({ contextOptions: { reducedMotion: 'reduce' } });
 
 // The claim form: validation and error states. Opening it needs a connected
 // wallet (the form only renders with an address), so each test stubs the
@@ -83,4 +86,88 @@ test('escape abandons the claim form', async ({ page }) => {
   await expect(page.getByPlaceholder('your-handle')).toHaveCount(0);
   // Back to the CTA, ready to reopen.
   await expect(page.getByRole('button', { name: /claim your handle/i }).first()).toBeVisible();
+});
+
+test('a taken handle disables Claim and says so', async ({ page }) => {
+  await page.route('**/api/v1/lookup/*', (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ data: { handle: null } }),
+    }),
+  );
+  await page.route('**/api/v1/resolve/taken-name', (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ data: { handle: 'taken-name', wallet: 'GAAA' } }),
+    }),
+  );
+
+  await openClaimForm(page);
+  const input = page.getByPlaceholder('your-handle');
+  await input.fill('taken-name');
+
+  await expect(page.getByText('Handle is already taken')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Claim', exact: true })).toBeDisabled();
+  await expect(input).toHaveAttribute('aria-invalid', 'true');
+});
+
+test('a wallet that already holds @x sees that message instead of the form', async ({ page }) => {
+  const kp = Keypair.random();
+  await page.route(`**/api/v1/lookup/${kp.publicKey()}`, (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ data: { address: kp.publicKey(), handle: 'x' } }),
+    }),
+  );
+
+  await stubWallet(page, kp);
+  await page.goto('/');
+  await page
+    .getByRole('button', { name: /claim your handle/i })
+    .first()
+    .click();
+
+  await expect(page.getByText('This wallet already holds @x.')).toBeVisible();
+  await expect(page.getByPlaceholder('your-handle')).toHaveCount(0);
+});
+
+test('the open claim form has no serious accessibility violations', async ({ page }) => {
+  await page.route('**/api/v1/lookup/*', (route) =>
+    route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify({ data: { handle: null } }),
+    }),
+  );
+  await openClaimForm(page);
+  // The hero fades out while scrolled away, and its subtitle, claim row and footnote fade in one
+  // after another. Return to the top and wait until every piece of visible hero text rests at full
+  // opacity, so axe measures the real colours rather than a frame of an entrance animation.
+  await page.evaluate(() => window.scrollTo(0, 0));
+  await expect
+    .poll(() =>
+      page.getByRole('heading', { level: 1 }).evaluate((h1) => {
+        const hero = h1.closest('section') ?? document.body;
+        const effectiveOpacity = (el: Element): number => {
+          let opacity = 1;
+          for (let node: Element | null = el; node; node = node.parentElement) {
+            opacity *= Number(getComputedStyle(node).opacity);
+          }
+          return opacity;
+        };
+        return [hero, ...hero.querySelectorAll('*')].every((el) => {
+          const hasText = [...el.childNodes].some(
+            (n) => n.nodeType === Node.TEXT_NODE && n.textContent?.trim(),
+          );
+          // Disabled controls and decoration are exempt from contrast, and may be dimmed on purpose.
+          if (!hasText || el.closest('[aria-hidden="true"], :disabled')) return true;
+          return effectiveOpacity(el) >= 0.99;
+        });
+      }),
+    )
+    .toBe(true);
+  await expectNoSeriousA11yViolations(page, 'claim form open');
 });

@@ -1,0 +1,6 @@
+$ signet config get url --json
+-- stdout --
+{"context":"default","key":"url","value":"https://signet.example.com"}
+-- stderr --
+(empty)
+-- exit 0 --

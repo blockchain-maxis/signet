@@ -79,6 +79,57 @@ for (const type of schemaTypes) {
     fail('docs/CLI_RUST_BRIDGE.md', `message type \`${type}\` has a schema but is not documented`);
 }
 
+// Every error code and detail.kind listed in schema/v1/error.json must match docs/CLI_RUST_BRIDGE.md.
+const errorSchema = JSON.parse(fs.readFileSync(path.join(schemaDir, 'error.json'), 'utf8'));
+const schemaKindsByCode = new Map();
+for (const rule of errorSchema.allOf ?? []) {
+  const code = rule?.if?.properties?.code?.const;
+  const kinds = rule?.then?.properties?.detail?.properties?.kind?.enum;
+  if (typeof code === 'string' && Array.isArray(kinds)) {
+    schemaKindsByCode.set(code, new Set(kinds));
+  }
+}
+
+const errorsHeadingIdx = doc.indexOf('#### Errors');
+const docKindsByCode = new Map();
+if (errorsHeadingIdx === -1) {
+  fail('docs/CLI_RUST_BRIDGE.md', 'missing #### Errors section');
+} else {
+  const section = doc.slice(errorsHeadingIdx).split(/\n#{1,4}\s+/)[0];
+  for (const line of section.split(/\r?\n/)) {
+    if (!line.startsWith('|')) continue;
+    const cells = line.split('|').slice(1, -1).map((c) => c.trim());
+    if (cells.length < 3) continue;
+    const codeMatch = cells[0].match(/^`([a-z0-9_]+)`$/);
+    if (!codeMatch || codeMatch[1] === 'code') continue;
+    const kinds = [...cells[2].matchAll(/`([a-z0-9_]+)`/g)].map((m) => m[1]);
+    docKindsByCode.set(codeMatch[1], new Set(kinds));
+  }
+}
+
+for (const [code, schemaKinds] of schemaKindsByCode) {
+  const docKinds = docKindsByCode.get(code);
+  if (!docKinds) {
+    fail('docs/CLI_RUST_BRIDGE.md', `error code \`${code}\` is in error.json but missing from Errors table`);
+    continue;
+  }
+  for (const k of schemaKinds) {
+    if (!docKinds.has(k)) {
+      fail('docs/CLI_RUST_BRIDGE.md', `error code \`${code}\` missing detail.kind \`${k}\` from schema/v1/error.json`);
+    }
+  }
+  for (const k of docKinds) {
+    if (!schemaKinds.has(k)) {
+      fail('docs/CLI_RUST_BRIDGE.md', `error code \`${code}\` documents detail.kind \`${k}\` not present in schema/v1/error.json`);
+    }
+  }
+}
+for (const code of docKindsByCode.keys()) {
+  if (!schemaKindsByCode.has(code)) {
+    fail('docs/CLI_RUST_BRIDGE.md', `Errors table lists unknown error code \`${code}\` not in schema/v1/error.json`);
+  }
+}
+
 const OWN_SCHEMA = new Set(['hello_ack', 'contract_error', 'error']);
 const validate = (id, where, value) => {
   const check = ajv.getSchema(id);

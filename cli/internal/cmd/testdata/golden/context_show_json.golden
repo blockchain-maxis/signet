@@ -1,0 +1,6 @@
+$ signet context show --json
+-- stdout --
+{"name":"default","url":"https://signet.example.com","network":"testnet","source":"alice"}
+-- stderr --
+(empty)
+-- exit 0 --

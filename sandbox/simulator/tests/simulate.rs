@@ -1965,6 +1965,78 @@ fn storage_overrides_change_what_a_call_sees(lane: u32) {
     );
 }
 
+/// #934: a key an override unset or a session deleted is state the network
+/// does not have. `ledger_get` says which layer hid it, a run that reads it
+/// is `seeded`, and the network is not asked for it again.
+fn a_removed_key_is_reported_and_a_call_that_reads_it_is_seeded(lane: u32) {
+    // Dry runs, so that no call leaves a write of its own in the session.
+    let traced = |sim: &mut Sim| {
+        sim.send(json!({
+            "type": "simulate", "contract_id": REGISTRY, "function": "resolve",
+            "args": { "handle": "alice" }, "trace": true, "dry_run": true,
+        }))
+    };
+
+    // An override unsets the key.
+    let mut sim = forked(lane);
+    let before = traced(&mut sim);
+    assert_eq!(before["type"], "result", "{before}");
+    assert_eq!(before["trace"]["seeded"], false, "all fetched: {before}");
+    let unset = sim.send(json!({
+        "type": "storage_override", "contract_id": REGISTRY, "durability": "persistent",
+        "key": r#"Owner("alice")"#, "unset": true,
+    }));
+    assert_eq!(unset["removed"], true, "{unset}");
+    let key = unset["key_xdr"].clone();
+    let got = sim.send(json!({ "type": "ledger_get", "keys_xdr": [key] }));
+    assert_eq!(
+        got["entries"][0],
+        json!({
+            "key_xdr": key,
+            "entry_xdr": null,
+            "live_until_ledger": null,
+            "deleted": true,
+            "provenance": { "source": "override", "lastModifiedLedgerSeq": FORK_LEDGER },
+        }),
+        "{got}"
+    );
+    let fetched = sim.fetched.len();
+    let after = traced(&mut sim);
+    assert_eq!(after["return_value"], Value::Null, "{after}");
+    assert_eq!(
+        after["trace"]["seeded"], true,
+        "an unset key is not the network's: {after}"
+    );
+    assert_eq!(sim.fetched.len(), fetched, "{:?}", sim.fetched);
+
+    // A session deletes the key.
+    let mut sim = forked(lane);
+    assert_eq!(traced(&mut sim)["trace"]["seeded"], false);
+    let applied = sim.send(json!({
+        "type": "ledger_apply", "entries": [{ "key_xdr": key, "entry_xdr": null }],
+    }));
+    assert_eq!(applied["applied"], 1, "{applied}");
+    let got = sim.send(json!({ "type": "ledger_get", "keys_xdr": [key] }));
+    assert_eq!(
+        got["entries"][0],
+        json!({
+            "key_xdr": key,
+            "entry_xdr": null,
+            "live_until_ledger": null,
+            "deleted": true,
+            "provenance": { "source": "session", "lastModifiedLedgerSeq": FORK_LEDGER },
+        }),
+        "{got}"
+    );
+    let fetched = sim.fetched.len();
+    let after = traced(&mut sim);
+    assert_eq!(
+        after["trace"]["seeded"], true,
+        "a deleted key is not the network's: {after}"
+    );
+    assert_eq!(sim.fetched.len(), fetched, "{:?}", sim.fetched);
+}
+
 /// The same suite on every lane (#538): each test above runs once per
 /// ledger protocol the binary carries.
 /// #636: a real transaction is replayed with its own argument XDR. The same
@@ -2152,6 +2224,10 @@ macro_rules! on_lane {
             #[test]
             fn storage_overrides_change_what_a_call_sees() {
                 super::storage_overrides_change_what_a_call_sees($protocol)
+            }
+            #[test]
+            fn a_removed_key_is_reported_and_a_call_that_reads_it_is_seeded() {
+                super::a_removed_key_is_reported_and_a_call_that_reads_it_is_seeded($protocol)
             }
             #[test]
             fn a_call_takes_its_arguments_as_xdr() {

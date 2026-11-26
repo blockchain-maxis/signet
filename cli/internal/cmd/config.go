@@ -14,6 +14,20 @@ func init() {
 	register(groupDeployments, newConfigCmd)
 }
 
+// resolvedContextName is the context this invocation acts on: the one
+// --context or SIGNET_CONTEXT resolved, not whatever the file happens to call
+// current. Without a resolved context (only possible if the root's
+// PersistentPreRunE never ran) it falls back to the file's current context.
+func resolvedContextName(cmd *cobra.Command, f config.File) string {
+	if r, ok := config.FromContext(cmd.Context()); ok && r.Context != "" {
+		return r.Context
+	}
+	if f.Current != "" {
+		return f.Current
+	}
+	return config.DefaultContextName
+}
+
 func newConfigCmd() *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "config",
@@ -44,13 +58,15 @@ func newConfigGetCmd() *cobra.Command {
 			if err != nil {
 				return fmt.Errorf("%w: reading config: %w", exitcode.ErrConfiguration, err)
 			}
-			val, err := f.GetConfig(key)
+			name := resolvedContextName(cmd, f)
+			val, err := f.GetConfigIn(name, key)
 			if err != nil {
 				return err
 			}
 
 			printer := printerFor(cmd)
-			return printer.Result(map[string]string{"key": key, "value": val}, func(w io.Writer) error {
+			res := map[string]string{"context": name, "key": key, "value": val}
+			return printer.Result(res, func(w io.Writer) error {
 				_, err := fmt.Fprintln(w, val)
 				return err
 			})
@@ -69,16 +85,12 @@ func newConfigSetCmd() *cobra.Command {
 			if err != nil {
 				return fmt.Errorf("%w: reading config: %w", exitcode.ErrConfiguration, err)
 			}
-			if err := f.SetConfig(key, value); err != nil {
+			curr := resolvedContextName(cmd, f)
+			if err := f.SetConfigIn(curr, key, value); err != nil {
 				return err
 			}
 			if err := config.Save(f); err != nil {
 				return fmt.Errorf("%w: saving config: %w", exitcode.ErrConfiguration, err)
-			}
-
-			curr := f.Current
-			if curr == "" {
-				curr = config.DefaultContextName
 			}
 
 			printer := printerFor(cmd)
@@ -106,16 +118,12 @@ func newConfigUnsetCmd() *cobra.Command {
 			if err != nil {
 				return fmt.Errorf("%w: reading config: %w", exitcode.ErrConfiguration, err)
 			}
-			if err := f.UnsetConfig(key); err != nil {
+			curr := resolvedContextName(cmd, f)
+			if err := f.UnsetConfigIn(curr, key); err != nil {
 				return err
 			}
 			if err := config.Save(f); err != nil {
 				return fmt.Errorf("%w: saving config: %w", exitcode.ErrConfiguration, err)
-			}
-
-			curr := f.Current
-			if curr == "" {
-				curr = config.DefaultContextName
 			}
 
 			printer := printerFor(cmd)

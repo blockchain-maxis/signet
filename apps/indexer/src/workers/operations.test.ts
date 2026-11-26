@@ -862,3 +862,27 @@ test("recorded: a tick over the deployer's pages stores its host-function operat
   );
   assert.equal(hostFunctionOps.filter((op) => op.function === INVOKE).length, 51);
 });
+
+test('a record with parameters stores decodedFunction and contractAddress', async () => {
+  const opWithParams = invokeOp('op-with-params', {
+    parameters: [
+      {
+        value: 'AAAAEgAAAAH4oodbFBaefih5JVDOHOcj/rPQqTNF2uc5cYzP8paqaw==',
+        type: 'Address',
+      },
+      {
+        value: 'AAAADwAAAAx3cml0ZV9wcmljZXM=',
+        type: 'Sym',
+      },
+    ],
+  });
+  const horizon = horizonReturning([opWithParams]);
+  const { store, rows } = memoryStore([WALLET]);
+
+  await runOperationsWorker(horizon, store);
+
+  const stored = rows.get('op-with-params');
+  assert.ok(stored);
+  assert.equal(stored.decodedFunction, 'write_prices');
+  assert.equal(stored.contractAddress, 'CD4KFB23CQLJ47RIPESVBTQ444R75M6QVEZULWXHHFYYZT7SS2VGXOPW');
+});

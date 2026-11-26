@@ -260,6 +260,11 @@ impl Lane for HostLane {
         decode::<LedgerEntry>(entry_xdr, "LedgerEntry").map(|_| ())
     }
 
+    fn entry_key(&self, entry_xdr: &[u8]) -> Result<Vec<u8>, LaneError> {
+        let entry: LedgerEntry = decode(entry_xdr, "LedgerEntry")?;
+        encode(&entry.to_key(), "LedgerKey")
+    }
+
     fn contract_max_size_bytes(&self, entry_xdr: &[u8]) -> Result<u32, LaneError> {
         use soroban_env_host::xdr::ConfigSettingEntry;
         let entry: LedgerEntry = decode(entry_xdr, "LedgerEntry")?;

@@ -7,8 +7,10 @@ import { parseContractSpec, toSpecJson } from '@signet/spec';
 import { buildFunctionReference } from './function-reference.ts';
 import { buildTypeReference } from './type-reference.ts';
 import { buildErrorReference } from './error-reference.ts';
+import { buildEventReference } from './event-reference.ts';
 import {
   errorRowSearchText,
+  eventSearchText,
   formatMatchAnnouncement,
   functionSearchText,
   matchesSearchQuery,
@@ -76,4 +78,20 @@ test('typeSearchText and errorRowSearchText index types, fields, variants, and e
 test('formatMatchAnnouncement returns a readable count string', () => {
   assert.equal(formatMatchAnnouncement(1, 14, 'functions'), '1 of 14 functions matching');
   assert.equal(formatMatchAnnouncement(0, 5, 'items'), '0 of 5 items matching');
+});
+
+test('eventSearchText indexes declared contract events so search finds them by name', () => {
+  const spec = toSpecJson(parseContractSpec(readFileSync(join(FIXTURES, 'events.wasm'))));
+  const eventRef = buildEventReference(spec, '/p/dev/contract/C123/types');
+
+  const searchable = eventRef.events.map((ev) => ({
+    name: ev.name,
+    text: eventSearchText(ev),
+  }));
+
+  const byName = searchable.filter((s) => matchesSearchQuery(s.text, 'transfer'));
+  assert.deepEqual(byName.map((s) => s.name), ['Transfer']);
+
+  const byParam = searchable.filter((s) => matchesSearchQuery(s.text, 'seq'));
+  assert.deepEqual(byParam.map((s) => s.name), ['Checkpoint']);
 });
