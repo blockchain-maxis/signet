@@ -590,6 +590,7 @@ test('a successful worker writes lastSuccessAt and leaves lastFailureAt unchange
   );
 
   const entry = heartbeats.activity;
+  assert.ok(entry, 'the activity heartbeat must exist');
   assert.ok(entry.lastSuccessAt instanceof Date, 'lastSuccessAt must be written');
   assert.equal(entry.lastFailureAt, previousFailureAt, 'lastFailureAt must remain unchanged');
   assert.equal(entry.lastError, 'some error', 'lastError must remain unchanged');
