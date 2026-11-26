@@ -319,3 +319,160 @@ test('listDirectory falls back to the event stream when there is no durable sour
     delete process.env.REGISTRY_CONTRACT_ID;
   }
 });
+
+test('listDirectory paginates candidates and resolves at most pageSize candidates with bounded concurrency', async () => {
+  process.env.REGISTRY_CONTRACT_ID = CONTRACT_ID;
+  try {
+    let resolveCalls = 0;
+    let countCalls = 0;
+    let activeConcurrency = 0;
+    let maxConcurrency = 0;
+
+    const server: SimulatingServer = {
+      async simulateTransaction(tx: Transaction) {
+        activeConcurrency++;
+        maxConcurrency = Math.max(maxConcurrency, activeConcurrency);
+        try {
+          await new Promise((r) => setTimeout(r, 10));
+          const op = tx.operations[0] as Operation.InvokeHostFunction;
+          const invoke = op.func.invokeContract();
+          const fn = invoke.functionName().toString();
+          if (fn === 'count') {
+            countCalls++;
+            return { result: { retval: nativeToScVal(100, { type: 'u32' }) } };
+          }
+          if (fn === 'resolve') {
+            resolveCalls++;
+            return {
+              result: {
+                retval: nativeToScVal(WALLET, { type: 'address' }),
+              },
+            };
+          }
+          return { result: { retval: nativeToScVal(null) } };
+        } finally {
+          activeConcurrency--;
+        }
+      },
+    };
+
+    const candidates = Array.from({ length: 100 }, (_, i) => ({
+      pubkey: WALLET,
+      profile: { handle: `cand-${String(i).padStart(3, '0')}` },
+    }));
+
+    const result = await listDirectory({
+      server,
+      store: storeStub(candidates),
+      page: 1,
+      pageSize: 24,
+    });
+
+    assert.equal(result.registryConfigured, true);
+    assert.equal(result.totalCandidates, 100);
+    assert.equal(result.totalPages, 5);
+    assert.equal(result.page, 1);
+    assert.equal(result.entries.length, 24);
+    assert.equal(resolveCalls, 24, 'must only resolve visible slice of 24 candidates');
+    assert.equal(countCalls, 1, 'must call count once');
+    assert.ok(maxConcurrency <= 8, `concurrency (${maxConcurrency}) must not exceed 8`);
+  } finally {
+    delete process.env.REGISTRY_CONTRACT_ID;
+  }
+});
+
+test('listDirectory with query filters candidates before resolving', async () => {
+  process.env.REGISTRY_CONTRACT_ID = CONTRACT_ID;
+  try {
+    const resolvedHandles: string[] = [];
+    const server: SimulatingServer = {
+      async simulateTransaction(tx: Transaction) {
+        const op = tx.operations[0] as Operation.InvokeHostFunction;
+        const invoke = op.func.invokeContract();
+        const fn = invoke.functionName().toString();
+        if (fn === 'count') {
+          return { result: { retval: nativeToScVal(5, { type: 'u32' }) } };
+        }
+        if (fn === 'resolve') {
+          const handle = scValToNative(invoke.args()[0]!) as string;
+          resolvedHandles.push(handle);
+          return {
+            result: {
+              retval: nativeToScVal(WALLET, { type: 'address' }),
+            },
+          };
+        }
+        return { result: { retval: nativeToScVal(null) } };
+      },
+    };
+
+    const store = storeStub([
+      { pubkey: WALLET, profile: { handle: 'alice' } },
+      { pubkey: WALLET, profile: { handle: 'albert' } },
+      { pubkey: WALLET, profile: { handle: 'alex' } },
+      { pubkey: WALLET, profile: { handle: 'bob' } },
+      { pubkey: WALLET, profile: { handle: 'carol' } },
+    ]);
+
+    const result = await listDirectory({
+      server,
+      store,
+      q: 'al',
+    });
+
+    assert.equal(result.totalCandidates, 3);
+    assert.deepEqual(resolvedHandles.sort(), ['albert', 'alex', 'alice']);
+    assert.deepEqual(result.entries.map((e) => e.handle).sort(), ['albert', 'alex', 'alice']);
+  } finally {
+    delete process.env.REGISTRY_CONTRACT_ID;
+  }
+});
+
+test('listDirectory with invalid query returns empty candidates without resolving', async () => {
+  process.env.REGISTRY_CONTRACT_ID = CONTRACT_ID;
+  try {
+    let resolveCalled = false;
+    const server: SimulatingServer = {
+      async simulateTransaction(tx: Transaction) {
+        const op = tx.operations[0] as Operation.InvokeHostFunction;
+        const invoke = op.func.invokeContract();
+        if (invoke.functionName().toString() === 'resolve') {
+          resolveCalled = true;
+        }
+        return { result: { retval: nativeToScVal(null) } };
+      },
+    };
+
+    const result = await listDirectory({
+      server,
+      store: storeStub([{ pubkey: WALLET, profile: { handle: 'alice' } }]),
+      q: 'invalid!query@',
+    });
+
+    assert.equal(result.totalCandidates, 0);
+    assert.equal(result.entries.length, 0);
+    assert.equal(resolveCalled, false);
+  } finally {
+    delete process.env.REGISTRY_CONTRACT_ID;
+  }
+});
+
+test('listDirectory tracks unconfirmed candidates on the current page', async () => {
+  process.env.REGISTRY_CONTRACT_ID = CONTRACT_ID;
+  try {
+    const server = registryStub({ alice: WALLET }, 2);
+    const result = await listDirectory({
+      server,
+      store: storeStub([
+        { pubkey: WALLET, profile: { handle: 'alice' } },
+        { pubkey: WALLET, profile: { handle: 'bob' } },
+      ]),
+    });
+
+    assert.equal(result.unconfirmedOnPage, 1);
+    assert.equal(result.entries.filter((e) => e.bound).length, 1);
+    assert.equal(result.entries.filter((e) => !e.bound).length, 1);
+  } finally {
+    delete process.env.REGISTRY_CONTRACT_ID;
+  }
+});

@@ -78,3 +78,81 @@ func TestVisualiseRefusesAWasmWithoutASpec(t *testing.T) {
 		t.Fatalf("--open: %v", err)
 	}
 }
+
+func TestVisualiseNetworkAndRPC(t *testing.T) {
+	wasm, _ := filepath.Abs(filepath.Join("..", "..", "..", "packages", "spec", "fixtures", "identity-registry.wasm"))
+
+	t.Run("mainnet env uses mainnet", func(t *testing.T) {
+		e := newCallEnv(t)
+		e.stellar = fakeStellar(t)
+		t.Setenv("FAKESTELLAR_FETCH_WASM", wasm)
+		t.Setenv("SIGNET_NETWORK", "mainnet")
+		log := filepath.Join(t.TempDir(), "args.log")
+		t.Setenv("FAKESTELLAR_ARGS_LOG", log)
+
+		out := filepath.Join(t.TempDir(), "out.svg")
+		if _, stderr, err := e.cli("visualise", registryContract, "--out", out); err != nil {
+			t.Fatalf("%v\n%s", err, stderr)
+		}
+		raw, err := os.ReadFile(log)
+		if err != nil {
+			t.Fatal(err)
+		}
+		args := strings.TrimSpace(string(raw))
+		if !strings.Contains(args, "--network mainnet") {
+			t.Fatalf("expected --network mainnet in args, got: %s", args)
+		}
+	})
+
+	t.Run("context rpcUrl passes rpc-url and passphrase", func(t *testing.T) {
+		e := newCallEnv(t)
+		e.stellar = fakeStellar(t)
+		t.Setenv("FAKESTELLAR_FETCH_WASM", wasm)
+		log := filepath.Join(t.TempDir(), "args.log")
+		t.Setenv("FAKESTELLAR_ARGS_LOG", log)
+
+		if _, stderr, err := e.cli("config", "set", "rpc-url", "https://context-rpc.example"); err != nil {
+			t.Fatalf("config set rpc-url: %v\n%s", err, stderr)
+		}
+
+		out := filepath.Join(t.TempDir(), "out.svg")
+		if _, stderr, err := e.cli("visualise", registryContract, "--out", out); err != nil {
+			t.Fatalf("%v\n%s", err, stderr)
+		}
+		raw, err := os.ReadFile(log)
+		if err != nil {
+			t.Fatal(err)
+		}
+		args := strings.TrimSpace(string(raw))
+		if !strings.Contains(args, "--rpc-url https://context-rpc.example") {
+			t.Fatalf("expected --rpc-url in args, got: %s", args)
+		}
+		if !strings.Contains(args, "--network-passphrase") {
+			t.Fatalf("expected --network-passphrase in args, got: %s", args)
+		}
+	})
+
+	t.Run("futurenet with rpc-url is accepted", func(t *testing.T) {
+		e := newCallEnv(t)
+		e.stellar = fakeStellar(t)
+		t.Setenv("FAKESTELLAR_FETCH_WASM", wasm)
+		log := filepath.Join(t.TempDir(), "args.log")
+		t.Setenv("FAKESTELLAR_ARGS_LOG", log)
+
+		out := filepath.Join(t.TempDir(), "out.svg")
+		if _, stderr, err := e.cli("visualise", registryContract, "--network", "futurenet", "--rpc-url", "https://futurenet.example", "--out", out); err != nil {
+			t.Fatalf("%v\n%s", err, stderr)
+		}
+		raw, err := os.ReadFile(log)
+		if err != nil {
+			t.Fatal(err)
+		}
+		args := strings.TrimSpace(string(raw))
+		if !strings.Contains(args, "--rpc-url https://futurenet.example") {
+			t.Fatalf("expected --rpc-url in args, got: %s", args)
+		}
+		if !strings.Contains(args, "Test SDF Future Network") {
+			t.Fatalf("expected futurenet passphrase in args, got: %s", args)
+		}
+	})
+}

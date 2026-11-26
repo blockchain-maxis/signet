@@ -89,9 +89,13 @@
                   }
                 ]
               },
+              "deleted": {
+                "const": true,
+                "description": "Present when the key was deleted in the session or unset by an override (#934): entry_xdr and live_until_ledger are null, and provenance names the layer that hid the key. Left out of every other answer."
+              },
               "provenance": {
                 "type": "object",
-                "description": "Which layer answered, and when it was fetched or last written (#530). Absent for a key the ledger does not know.",
+                "description": "Which layer answered, and when it was fetched or last written (#530). For a deleted key, the layer that removed it. Absent for a key the ledger does not know.",
                 "properties": {
                   "source": {
                     "enum": [
@@ -129,6 +133,41 @@
               "key_xdr",
               "entry_xdr"
             ],
+            "if": {
+              "properties": {
+                "deleted": {
+                  "const": true
+                }
+              },
+              "required": [
+                "deleted"
+              ]
+            },
+            "then": {
+              "properties": {
+                "entry_xdr": {
+                  "type": "null"
+                },
+                "live_until_ledger": {
+                  "type": "null"
+                },
+                "provenance": {
+                  "type": "object",
+                  "properties": {
+                    "source": {
+                      "enum": [
+                        "override",
+                        "session"
+                      ]
+                    }
+                  }
+                }
+              },
+              "required": [
+                "live_until_ledger",
+                "provenance"
+              ]
+            },
             "additionalProperties": false
           }
         }

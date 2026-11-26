@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {
   isValidHandle,
   getProfile,
+  getProfileWithDeps,
   getOperations,
   getPagedOperations,
   listHandles,
@@ -18,6 +19,11 @@ import {
   formatCount,
   getOperationsRetentionDays,
   formatStatsWindow,
+  safeDbProfile,
+  safeDbHandles,
+  safeDbOperationsResult,
+  liveProfileWhere,
+  type ProfilesDb,
 } from './profiles.ts';
 
 test('isValidHandle accepts the registry charset', () => {
@@ -272,4 +278,116 @@ test('getProfileStats loads its own operations when none are supplied', async ()
 
 test('safeDbProfileStats rejects invalid handles without a DB round trip', async () => {
   assert.equal(await safeDbProfileStats('../../etc/passwd'), null);
+});
+
+/**
+ * A stub `ProfilesDb` over in-memory rows. It applies the shared
+ * `liveProfileWhere` fragment the Prisma reads use, so the released-handle rule
+ * is exercised without Postgres. `alice` is what a `released`/`revoked` event
+ * leaves behind: the Profile row and a CLI-linked deploy wallet, no on-chain
+ * primary. `bob` still has one.
+ */
+type FakeWallet = { id: string; pubkey: string; isPrimary: boolean; source: string };
+type FakeProfile = {
+  handle: string;
+  displayName?: string | null;
+  bio?: string | null;
+  createdAt?: Date;
+  wallets: FakeWallet[];
+};
+
+const ALICE_CLI_WALLET = `G${'A'.repeat(55)}`;
+const BOB_ONCHAIN_WALLET = `G${'B'.repeat(55)}`;
+
+function onChainPrimary(profile: FakeProfile): FakeWallet | undefined {
+  const { wallets } = liveProfileWhere(profile.handle);
+  return profile.wallets.find(
+    (w) => w.isPrimary === wallets.some.isPrimary && w.source === wallets.some.source,
+  );
+}
+
+function stubProfilesDb(profiles: FakeProfile[]): ProfilesDb {
+  const live = (handle: string) => {
+    const { handle: normalized } = liveProfileWhere(handle);
+    const profile = profiles.find((p) => p.handle === normalized);
+    return profile && onChainPrimary(profile) ? profile : null;
+  };
+  return {
+    findProfile: async (handle) => {
+      const profile = live(handle);
+      if (!profile) return null;
+      return {
+        name: profile.displayName ?? profile.handle,
+        wallet: onChainPrimary(profile)!.pubkey,
+        bio: profile.bio ?? '',
+        joined: (profile.createdAt ?? new Date('2026-01-01T00:00:00Z')).toISOString().slice(0, 10),
+        source: 'database',
+      };
+    },
+    listHandles: async () => profiles.filter((p) => onChainPrimary(p)).map((p) => p.handle),
+    findOperations: async (handle) =>
+      live(handle) ? { operations: [], truncated: false, cap: null } : null,
+    findPagedOperations: async (handle) => (live(handle) ? { data: [], total: 0 } : null),
+    findStats: async (handle) =>
+      live(handle) ? { invocations: 0, uniqueFunctions: 0, reputation: 0 } : null,
+  };
+}
+
+const stubDb = stubProfilesDb([
+  {
+    handle: 'alice',
+    displayName: 'Alice',
+    bio: 'impersonator',
+    wallets: [{ id: 'w1', pubkey: ALICE_CLI_WALLET, isPrimary: true, source: 'cli' }],
+  },
+  {
+    handle: 'bob',
+    displayName: 'Bob',
+    bio: 'builder',
+    createdAt: new Date('2026-01-02T00:00:00Z'),
+    wallets: [
+      { id: 'w2', pubkey: BOB_ONCHAIN_WALLET, isPrimary: true, source: 'onchain' },
+      { id: 'w3', pubkey: `G${'C'.repeat(55)}`, isPrimary: false, source: 'cli' },
+    ],
+  },
+]);
+
+test('a profile with only CLI-linked wallets is not returned', async () => {
+  // A release deletes only the on-chain primary wallet row; the leftovers must
+  // not render, so the lookup misses and `getProfile` falls through to chain.
+  assert.equal(await safeDbProfile('alice', stubDb), null);
+  assert.equal(await getProfileWithDeps('alice', { db: stubDb }), null);
+});
+
+test('a profile with an on-chain primary is unchanged', async () => {
+  assert.deepEqual(await safeDbProfile('bob', stubDb), {
+    name: 'Bob',
+    wallet: BOB_ONCHAIN_WALLET,
+    bio: 'builder',
+    joined: '2026-01-02',
+    source: 'database',
+  });
+});
+
+test('a profile with only CLI-linked wallets is not listed, paged, or aggregated', async () => {
+  // The sitemap reads listAllHandles, which unions the live database handles
+  // with live chain bindings (unconfigured here, so empty).
+  assert.deepEqual(await listAllHandles(stubDb), ['bob']);
+  assert.deepEqual(await safeDbHandles(stubDb), ['bob']);
+  assert.equal(await safeDbOperationsResult('alice', stubDb), null);
+  assert.equal(await getPagedOperations('alice', 0, 25, stubDb), null);
+  assert.equal(await safeDbProfileStats('alice', stubDb), null);
+
+  // The same reads still answer for a live profile.
+  assert.deepEqual(await safeDbOperationsResult('bob', stubDb), {
+    operations: [],
+    truncated: false,
+    cap: null,
+  });
+  assert.deepEqual(await getPagedOperations('bob', 0, 25, stubDb), { data: [], total: 0 });
+  assert.deepEqual(await safeDbProfileStats('bob', stubDb), {
+    invocations: 0,
+    uniqueFunctions: 0,
+    reputation: 0,
+  });
 });

@@ -20,7 +20,7 @@
     },
     "seeded": {
       "type": "boolean",
-      "description": "True when the run saw anything but the network's own state: an entry the fork did not fetch (installed, written by a session, put, swapped) or a moved ledger. A seeded run shows what the code does, not what happened on chain."
+      "description": "True when the run saw anything but the network's own state: an entry the fork did not fetch (installed, written by a session, put, swapped), a key a session deleted or an override unset, or a moved ledger. A seeded run shows what the code does, not what happened on chain."
     },
     "frames": {
       "type": "array",

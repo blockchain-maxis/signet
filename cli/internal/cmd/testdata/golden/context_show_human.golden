@@ -1,0 +1,9 @@
+$ signet context show
+-- stdout --
+Context: default
+URL:     https://signet.example.com
+Network: testnet
+Source:  alice
+-- stderr --
+(empty)
+-- exit 0 --
