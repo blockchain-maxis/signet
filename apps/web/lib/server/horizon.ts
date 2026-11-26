@@ -12,6 +12,7 @@
  */
 
 import type { Operation } from '../profiles.ts';
+import { decodeInvokeParameters } from '@signet/visualiser';
 import { cache } from 'react';
 import { logger } from '../logger.ts';
 import { STELLAR_NETWORK } from '../chain.ts';
@@ -57,6 +58,7 @@ interface HorizonOperationRecord {
   type: string;
   type_i: number;
   function?: string;
+  parameters?: Array<{ type?: string; value?: string }>;
   source_account?: string;
   created_at: string;
   transaction_hash?: string;
@@ -82,16 +84,17 @@ interface HorizonOperationsPage {
 
 /**
  * Map a raw Horizon operation record to our `Operation` shape.
- * `decoded_function` is not available from Horizon directly — it comes from
- * the indexer's XDR decoding. We leave it undefined here; the UI falls back
- * to `function` (the raw HostFunctionType string) and then `invoke_contract`.
+ * Decodes function name and contract address using `decodeInvokeParameters`
+ * from the Horizon record parameters.
  */
 function mapRecord(record: HorizonOperationRecord): Operation {
+  const decoded = decodeInvokeParameters(record.parameters);
   return {
     id: record.id,
     type: record.type,
     function: record.function,
-    decoded_function: undefined,
+    decoded_function: decoded.fn ?? undefined,
+    contract: decoded.contract ?? undefined,
     source_account: record.source_account,
     created_at: record.created_at,
     transaction_hash: record.transaction_hash,
