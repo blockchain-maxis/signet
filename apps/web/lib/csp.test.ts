@@ -276,12 +276,15 @@ test('frame-ancestors falls back to none when value contains semicolon or newlin
   try {
     // Semicolon injection attempt
     process.env.FRAME_ANCESTORS_ALLOWLIST = 'https://a.example; script-src https:';
-    const embedPath = '/p/aquawolf/contract/CASFJHI5PQSRWS7JV25CF7FOMRKIVBP3RXRP3E2GH2CV4BCAG7FUJRCN/embed';
+    const embedPath =
+      '/p/aquawolf/contract/CASFJHI5PQSRWS7JV25CF7FOMRKIVBP3RXRP3E2GH2CV4BCAG7FUJRCN/embed';
     const cspSemi = buildCsp('n', { path: embedPath });
     assert.equal(directive(cspSemi, 'frame-ancestors'), "frame-ancestors 'none'");
     assert.equal(warnings.length, 1);
-    assert.equal(warnings[0].msg, 'csp.invalidFrameAncestors');
-    assert.equal(warnings[0].fields.value, 'https://a.example; script-src https:');
+    const warning0 = warnings[0];
+    assert.ok(warning0);
+    assert.equal(warning0.msg, 'csp.invalidFrameAncestors');
+    assert.equal(warning0.fields.value, 'https://a.example; script-src https:');
 
     // Repeated call with the same invalid value logs only once
     buildCsp('n', { path: embedPath });
@@ -292,8 +295,10 @@ test('frame-ancestors falls back to none when value contains semicolon or newlin
     const cspNewline = buildCsp('n', { path: embedPath });
     assert.equal(directive(cspNewline, 'frame-ancestors'), "frame-ancestors 'none'");
     assert.equal(warnings.length, 2);
-    assert.equal(warnings[1].msg, 'csp.invalidFrameAncestors');
-    assert.equal(warnings[1].fields.value, 'https://a.example\nhttps://*.b.example');
+    const warning1 = warnings[1];
+    assert.ok(warning1);
+    assert.equal(warning1.msg, 'csp.invalidFrameAncestors');
+    assert.equal(warning1.fields.value, 'https://a.example\nhttps://*.b.example');
   } finally {
     if (prevAllowlist === undefined) {
       delete process.env.FRAME_ANCESTORS_ALLOWLIST;
