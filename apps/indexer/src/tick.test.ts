@@ -58,12 +58,22 @@ function fakeWorkers(): { workers: TickWorkers; ran: string[]; cursorSaves: numb
     };
   const workers: TickWorkers = {
     attestation: ok('attestation', { eventsDecoded: 2 }),
-    deployment: ok('deployment', { highestLedger: 5_000, walletsScanned: 3, contractsFound: 1, walletsStopped: 0 }),
+    deployment: ok('deployment', {
+      highestLedger: 5_000,
+      walletsScanned: 3,
+      contractsFound: 1,
+      walletsStopped: 0,
+    }),
     activity: ok('activity', { snapshotsWritten: 4 }),
     operations: ok('operations', { opsUpserted: 7 }),
     invocations: ok('invocations', { invocationsUpserted: 6 }),
     executableRefresh: ok('executable-refresh', { wasmChanged: 5 }),
-    prune: ok('prune', { opsPruned: 9, snapshotsPruned: 8, invocationsPruned: 10, pairingsPruned: 11 }),
+    prune: ok('prune', {
+      opsPruned: 9,
+      snapshotsPruned: 8,
+      invocationsPruned: 10,
+      pairingsPruned: 11,
+    }),
     saveCursor: async (highestLedger) => {
       ran.push('cursor');
       cursorSaves.push(highestLedger);
@@ -243,7 +253,12 @@ test('a failed save of the main cursor is reported without losing the tick', asy
 
 test('the main cursor is not saved when the deployment worker saw no ledger', async () => {
   const { workers, ran, cursorSaves } = fakeWorkers();
-  workers.deployment = async () => ({ highestLedger: 0, walletsScanned: 3, contractsFound: 0, walletsStopped: 0 });
+  workers.deployment = async () => ({
+    highestLedger: 0,
+    walletsScanned: 3,
+    contractsFound: 0,
+    walletsStopped: 0,
+  });
 
   const { result: summary } = await captureLogs(() => runTick(workers));
 
@@ -535,7 +550,10 @@ test('a failing worker writes lastFailureAt and leaves lastSuccessAt unchanged',
   assert.equal(entry.lastSuccessAt, previousSuccessAt, 'lastSuccessAt must remain unchanged');
   assert.ok(entry.lastFailureAt instanceof Date, 'lastFailureAt must be written');
   assert.ok(!entry.lastError?.includes('https://'), 'lastError must not contain URLs');
-  assert.ok(entry.lastError?.includes('rpc connection refused to'), 'lastError must contain description');
+  assert.ok(
+    entry.lastError?.includes('rpc connection refused to'),
+    'lastError must contain description',
+  );
 });
 
 test('a successful worker writes lastSuccessAt and leaves lastFailureAt unchanged', async () => {
@@ -564,7 +582,12 @@ test('a successful worker writes lastSuccessAt and leaves lastFailureAt unchange
     },
   };
 
-  await runWorker('activity', async () => ({ snapshotsWritten: 3 }), { snapshotsWritten: 0 }, fakeHeartbeatStore);
+  await runWorker(
+    'activity',
+    async () => ({ snapshotsWritten: 3 }),
+    { snapshotsWritten: 0 },
+    fakeHeartbeatStore,
+  );
 
   const entry = heartbeats.activity;
   assert.ok(entry.lastSuccessAt instanceof Date, 'lastSuccessAt must be written');
