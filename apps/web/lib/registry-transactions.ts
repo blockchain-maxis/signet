@@ -1,7 +1,9 @@
 import {
   BASE_FEE,
+  Contract,
   Operation,
   TransactionBuilder,
+  nativeToScVal,
   rpc,
   type Account,
   type Transaction,
@@ -19,7 +21,7 @@ import {
  * carries an empty footprint and restores nothing.
  *
  * Lives apart from `registry.ts` so that module can keep importing the SDK
- * lazily; `restoreHandleBinding` imports this one the same way.
+ * lazily; `restoreHandleBinding` and `releaseHandle` import this one the same way.
  */
 export function buildRestoreTransaction(
   account: Account,
@@ -37,6 +39,25 @@ export function buildRestoreTransaction(
   return new TransactionBuilder(account, { fee, networkPassphrase })
     .setSorobanData(transactionData.build())
     .addOperation(Operation.restoreFootprint({}))
+    .setTimeout(60)
+    .build();
+}
+
+/**
+ * Build the un-simulated `release(handle)` invocation (#898): one
+ * `invokeHostFunction` with the handle as an `ScString`. Pure, like the
+ * restore builder; `releaseHandle` simulates, signs and submits it.
+ */
+export function buildReleaseTransaction(
+  account: Account,
+  handle: string,
+  contractId: string,
+  networkPassphrase: string,
+): Transaction {
+  return new TransactionBuilder(account, { fee: BASE_FEE, networkPassphrase })
+    .addOperation(
+      new Contract(contractId).call('release', nativeToScVal(handle, { type: 'string' })),
+    )
     .setTimeout(60)
     .build();
 }

@@ -1,0 +1,2591 @@
+{
+  "network": "testnet",
+  "rpcUrl": "https://horizon-testnet.stellar.org",
+  "capturedAt": "2026-11-23T05:51:44.380Z",
+  "latestLedger": 5877892,
+  "request": {
+    "endpoint": "horizon",
+    "methodOrPath": "/accounts/GC6IQQHUT4BXZYCJEM4AOKFD6ASWSXCEDXYPVA5NFKXSGOSRJX72KJMC/operations?order=desc&limit=50"
+  },
+  "payload": {
+    "_links": {
+      "self": {
+        "href": "https://horizon-testnet.stellar.org/accounts/GC6IQQHUT4BXZYCJEM4AOKFD6ASWSXCEDXYPVA5NFKXSGOSRJX72KJMC/operations?cursor=&limit=50&order=desc"
+      },
+      "next": {
+        "href": "https://horizon-testnet.stellar.org/accounts/GC6IQQHUT4BXZYCJEM4AOKFD6ASWSXCEDXYPVA5NFKXSGOSRJX72KJMC/operations?cursor=20989775758503937&limit=50&order=desc"
+      },
+      "prev": {
+        "href": "https://horizon-testnet.stellar.org/accounts/GC6IQQHUT4BXZYCJEM4AOKFD6ASWSXCEDXYPVA5NFKXSGOSRJX72KJMC/operations?cursor=20990291154591745&limit=50&order=asc"
+      }
+    },
+    "_embedded": {
+      "records": [
+        {
+          "_links": {
+            "self": {
+              "href": "https://horizon-testnet.stellar.org/operations/20990291154591745"
+            },
+            "transaction": {
+              "href": "https://horizon-testnet.stellar.org/transactions/7f76721b6556965abe0e3031eeac74fd831748b41b26aacb495ee0fb0d2913a0"
+            },
+            "effects": {
+              "href": "https://horizon-testnet.stellar.org/operations/20990291154591745/effects"
+            },
+            "succeeds": {
+              "href": "https://horizon-testnet.stellar.org/effects?order=desc&cursor=20990291154591745"
+            },
+            "precedes": {
+              "href": "https://horizon-testnet.stellar.org/effects?order=asc&cursor=20990291154591745"
+            }
+          },
+          "id": "20990291154591745",
+          "paging_token": "20990291154591745",
+          "transaction_successful": true,
+          "source_account": "GC6IQQHUT4BXZYCJEM4AOKFD6ASWSXCEDXYPVA5NFKXSGOSRJX72KJMC",
+          "type": "invoke_host_function",
+          "type_i": 24,
+          "created_at": "2026-09-26T21:51:42Z",
+          "transaction_hash": "7f76721b6556965abe0e3031eeac74fd831748b41b26aacb495ee0fb0d2913a0",
+          "function": "HostFunctionTypeHostFunctionTypeInvokeContract",
+          "parameters": [
+            {
+              "value": "AAAAEgAAAAEQjiuy4ZLwyxefFayrEiEBj0wfMKY0IaUIJujjjfvQ1w==",
+              "type": "Address"
+            },
+            {
+              "value": "AAAADwAAAA1jbGFpbV9yZXZlbnVlAAAA",
+              "type": "Sym"
+            },
+            {
+              "value": "AAAAEgAAAAAAAAAAvIhA9J8DfOBJIzgHKKPwJWlcRB3w+oOtKq8jOlFN/6U=",
+              "type": "Address"
+            },
+            {
+              "value": "AAAAEAAAAAEAAAABAAAAEQAAAAEAAAACAAAADwAAAAVhc3NldAAAAAAAABIAAAABTmPWa1xPKHbNFJXMGJPaRF6jjmFPD8H17Zcjrmv478cAAAAPAAAABmh1Yl9pZAAAAAAAAwAAAAE=",
+              "type": "Vec"
+            }
+          ],
+          "address": "",
+          "salt": "",
+          "asset_balance_changes": [
+            {
+              "asset_type": "credit_alphanum4",
+              "asset_code": "ST19",
+              "asset_issuer": "GC6IQQHUT4BXZYCJEM4AOKFD6ASWSXCEDXYPVA5NFKXSGOSRJX72KJMC",
+              "type": "transfer",
+              "from": "CA2FJRXCABKMOVHZMKK2XOGAIZCB43WPIGKUUV2HC33H4U5HDIMRSVPF",
+              "to": "CAII4K5S4GJPBSYXT4K2ZKYSEEAY6TA7GCTDIINFBATORY4N7PINPPPB",
+              "amount": "0.0001051"
+            },
+            {
+              "asset_type": "credit_alphanum4",
+              "asset_code": "ST19",
+              "asset_issuer": "GC6IQQHUT4BXZYCJEM4AOKFD6ASWSXCEDXYPVA5NFKXSGOSRJX72KJMC",
+              "type": "burn",
+              "from": "CAII4K5S4GJPBSYXT4K2ZKYSEEAY6TA7GCTDIINFBATORY4N7PINPPPB",
+              "amount": "0.0001051"
+            }
+          ]
+        },
+        {
+          "_links": {
+            "self": {
+              "href": "https://horizon-testnet.stellar.org/operations/20990282564648961"
+            },
+            "transaction": {
+              "href": "https://horizon-testnet.stellar.org/transactions/13b0458b9188d5755aadc7f4f1d0e5bad92e92571741a3c72e2961075f09f128"
+            },
+            "effects": {
+              "href": "https://horizon-testnet.stellar.org/operations/20990282564648961/effects"
+            },
+            "succeeds": {
+              "href": "https://horizon-testnet.stellar.org/effects?order=desc&cursor=20990282564648961"
+            },
+            "precedes": {
+              "href": "https://horizon-testnet.stellar.org/effects?order=asc&cursor=20990282564648961"
+            }
+          },
+          "id": "20990282564648961",
+          "paging_token": "20990282564648961",
+          "transaction_successful": true,
+          "source_account": "GC6IQQHUT4BXZYCJEM4AOKFD6ASWSXCEDXYPVA5NFKXSGOSRJX72KJMC",
+          "type": "invoke_host_function",
+          "type_i": 24,
+          "created_at": "2026-09-26T21:51:32Z",
+          "transaction_hash": "13b0458b9188d5755aadc7f4f1d0e5bad92e92571741a3c72e2961075f09f128",
+          "function": "HostFunctionTypeHostFunctionTypeInvokeContract",
+          "parameters": [
+            {
+              "value": "AAAAEgAAAAEQjiuy4ZLwyxefFayrEiEBj0wfMKY0IaUIJujjjfvQ1w==",
+              "type": "Address"
+            },
+            {
+              "value": "AAAADwAAAA1jbGFpbV9yZXZlbnVlAAAA",
+              "type": "Sym"
+            },
+            {
+              "value": "AAAAEgAAAAAAAAAAvIhA9J8DfOBJIzgHKKPwJWlcRB3w+oOtKq8jOlFN/6U=",
+              "type": "Address"
+            },
+            {
+              "value": "AAAAEAAAAAEAAAABAAAAEQAAAAEAAAACAAAADwAAAAVhc3NldAAAAAAAABIAAAABIdwyqaBsjanBiwN+WITEnsuc52xJpOuJ7gwGM+9dbYcAAAAPAAAABmh1Yl9pZAAAAAAAAwAAAAE=",
+              "type": "Vec"
+            }
+          ],
+          "address": "",
+          "salt": "",
+          "asset_balance_changes": [
+            {
+              "asset_type": "credit_alphanum4",
+              "asset_code": "ST14",
+              "asset_issuer": "GC6IQQHUT4BXZYCJEM4AOKFD6ASWSXCEDXYPVA5NFKXSGOSRJX72KJMC",
+              "type": "transfer",
+              "from": "CA2FJRXCABKMOVHZMKK2XOGAIZCB43WPIGKUUV2HC33H4U5HDIMRSVPF",
+              "to": "CAII4K5S4GJPBSYXT4K2ZKYSEEAY6TA7GCTDIINFBATORY4N7PINPPPB",
+              "amount": "0.0000065"
+            },
+            {
+              "asset_type": "credit_alphanum4",
+              "asset_code": "ST14",
+              "asset_issuer": "GC6IQQHUT4BXZYCJEM4AOKFD6ASWSXCEDXYPVA5NFKXSGOSRJX72KJMC",
+              "type": "burn",
+              "from": "CAII4K5S4GJPBSYXT4K2ZKYSEEAY6TA7GCTDIINFBATORY4N7PINPPPB",
+              "amount": "0.0000065"
+            }
+          ]
+        },
+        {
+          "_links": {
+            "self": {
+              "href": "https://horizon-testnet.stellar.org/operations/20990278269673473"
+            },
+            "transaction": {
+              "href": "https://horizon-testnet.stellar.org/transactions/424f0eb8910a2d90c5c66c45383b2730c54cd7d02e922d4b6aafb2b63ed2b0c5"
+            },
+            "effects": {
+              "href": "https://horizon-testnet.stellar.org/operations/20990278269673473/effects"
+            },
+            "succeeds": {
+              "href": "https://horizon-testnet.stellar.org/effects?order=desc&cursor=20990278269673473"
+            },
+            "precedes": {
+              "href": "https://horizon-testnet.stellar.org/effects?order=asc&cursor=20990278269673473"
+            }
+          },
+          "id": "20990278269673473",
+          "paging_token": "20990278269673473",
+          "transaction_successful": true,
+          "source_account": "GC6IQQHUT4BXZYCJEM4AOKFD6ASWSXCEDXYPVA5NFKXSGOSRJX72KJMC",
+          "type": "invoke_host_function",
+          "type_i": 24,
+          "created_at": "2026-09-26T21:51:27Z",
+          "transaction_hash": "424f0eb8910a2d90c5c66c45383b2730c54cd7d02e922d4b6aafb2b63ed2b0c5",
+          "function": "HostFunctionTypeHostFunctionTypeInvokeContract",
+          "parameters": [
+            {
+              "value": "AAAAEgAAAAEQjiuy4ZLwyxefFayrEiEBj0wfMKY0IaUIJujjjfvQ1w==",
+              "type": "Address"
+            },
+            {
+              "value": "AAAADwAAAA1jbGFpbV9yZXZlbnVlAAAA",
+              "type": "Sym"
+            },
+            {
+              "value": "AAAAEgAAAAAAAAAAvIhA9J8DfOBJIzgHKKPwJWlcRB3w+oOtKq8jOlFN/6U=",
+              "type": "Address"
+            },
+            {
+              "value": "AAAAEAAAAAEAAAABAAAAEQAAAAEAAAACAAAADwAAAAVhc3NldAAAAAAAABIAAAAB3jubbpdAFUDaLafGnZYbZ6fJSmPAC1foso0A9EinADEAAAAPAAAABmh1Yl9pZAAAAAAAAwAAAAE=",
+              "type": "Vec"
+            }
+          ],
+          "address": "",
+          "salt": "",
+          "asset_balance_changes": [
+            {
+              "asset_type": "credit_alphanum4",
+              "asset_code": "ST13",
+              "asset_issuer": "GC6IQQHUT4BXZYCJEM4AOKFD6ASWSXCEDXYPVA5NFKXSGOSRJX72KJMC",
+              "type": "transfer",
+              "from": "CA2FJRXCABKMOVHZMKK2XOGAIZCB43WPIGKUUV2HC33H4U5HDIMRSVPF",
+              "to": "CAII4K5S4GJPBSYXT4K2ZKYSEEAY6TA7GCTDIINFBATORY4N7PINPPPB",
+              "amount": "0.0000067"
+            },
+            {
+              "asset_type": "credit_alphanum4",
+              "asset_code": "ST13",
+              "asset_issuer": "GC6IQQHUT4BXZYCJEM4AOKFD6ASWSXCEDXYPVA5NFKXSGOSRJX72KJMC",
+              "type": "burn",
+              "from": "CAII4K5S4GJPBSYXT4K2ZKYSEEAY6TA7GCTDIINFBATORY4N7PINPPPB",
+              "amount": "0.0000067"
+            }
+          ]
+        },
+        {
+          "_links": {
+            "self": {
+              "href": "https://horizon-testnet.stellar.org/operations/20990273974718465"
+            },
+            "transaction": {
+              "href": "https://horizon-testnet.stellar.org/transactions/12dea2d8a8a7f8a151eec842d644fb43adf8db85991eeca82c50cd0a5afe80f4"
+            },
+            "effects": {
+              "href": "https://horizon-testnet.stellar.org/operations/20990273974718465/effects"
+            },
+            "succeeds": {
+              "href": "https://horizon-testnet.stellar.org/effects?order=desc&cursor=20990273974718465"
+            },
+            "precedes": {
+              "href": "https://horizon-testnet.stellar.org/effects?order=asc&cursor=20990273974718465"
+            }
+          },
+          "id": "20990273974718465",
+          "paging_token": "20990273974718465",
+          "transaction_successful": true,
+          "source_account": "GC6IQQHUT4BXZYCJEM4AOKFD6ASWSXCEDXYPVA5NFKXSGOSRJX72KJMC",
+          "type": "invoke_host_function",
+          "type_i": 24,
+          "created_at": "2026-09-26T21:51:22Z",
+          "transaction_hash": "12dea2d8a8a7f8a151eec842d644fb43adf8db85991eeca82c50cd0a5afe80f4",
+          "function": "HostFunctionTypeHostFunctionTypeInvokeContract",
+          "parameters": [
+            {
+              "value": "AAAAEgAAAAEQjiuy4ZLwyxefFayrEiEBj0wfMKY0IaUIJujjjfvQ1w==",
+              "type": "Address"
+            },
+            {
+              "value": "AAAADwAAAA1jbGFpbV9yZXZlbnVlAAAA",
+              "type": "Sym"
+            },
+            {
+              "value": "AAAAEgAAAAAAAAAAvIhA9J8DfOBJIzgHKKPwJWlcRB3w+oOtKq8jOlFN/6U=",
+              "type": "Address"
+            },
+            {
+              "value": "AAAAEAAAAAEAAAABAAAAEQAAAAEAAAACAAAADwAAAAVhc3NldAAAAAAAABIAAAABedVirchi7top5l3vRcW4cUjjdRwdNmUwwzafKT71UKgAAAAPAAAABmh1Yl9pZAAAAAAAAwAAAAE=",
+              "type": "Vec"
+            }
+          ],
+          "address": "",
+          "salt": "",
+          "asset_balance_changes": [
+            {
+              "asset_type": "credit_alphanum4",
+              "asset_code": "ST12",
+              "asset_issuer": "GC6IQQHUT4BXZYCJEM4AOKFD6ASWSXCEDXYPVA5NFKXSGOSRJX72KJMC",
+              "type": "transfer",
+              "from": "CA2FJRXCABKMOVHZMKK2XOGAIZCB43WPIGKUUV2HC33H4U5HDIMRSVPF",
+              "to": "CAII4K5S4GJPBSYXT4K2ZKYSEEAY6TA7GCTDIINFBATORY4N7PINPPPB",
+              "amount": "0.0000066"
+            },
+            {
+              "asset_type": "credit_alphanum4",
+              "asset_code": "ST12",
+              "asset_issuer": "GC6IQQHUT4BXZYCJEM4AOKFD6ASWSXCEDXYPVA5NFKXSGOSRJX72KJMC",
+              "type": "burn",
+              "from": "CAII4K5S4GJPBSYXT4K2ZKYSEEAY6TA7GCTDIINFBATORY4N7PINPPPB",
+              "amount": "0.0000066"
+            }
+          ]
+        },
+        {
+          "_links": {
+            "self": {
+              "href": "https://horizon-testnet.stellar.org/operations/20990269679763457"
+            },
+            "transaction": {
+              "href": "https://horizon-testnet.stellar.org/transactions/dafc0e1224e7d9de51c69bf0194f3a923d826a187f7e678bb7ecd2ee3361e290"
+            },
+            "effects": {
+              "href": "https://horizon-testnet.stellar.org/operations/20990269679763457/effects"
+            },
+            "succeeds": {
+              "href": "https://horizon-testnet.stellar.org/effects?order=desc&cursor=20990269679763457"
+            },
+            "precedes": {
+              "href": "https://horizon-testnet.stellar.org/effects?order=asc&cursor=20990269679763457"
+            }
+          },
+          "id": "20990269679763457",
+          "paging_token": "20990269679763457",
+          "transaction_successful": true,
+          "source_account": "GC6IQQHUT4BXZYCJEM4AOKFD6ASWSXCEDXYPVA5NFKXSGOSRJX72KJMC",
+          "type": "invoke_host_function",
+          "type_i": 24,
+          "created_at": "2026-09-26T21:51:17Z",
+          "transaction_hash": "dafc0e1224e7d9de51c69bf0194f3a923d826a187f7e678bb7ecd2ee3361e290",
+          "function": "HostFunctionTypeHostFunctionTypeInvokeContract",
+          "parameters": [
+            {
+              "value": "AAAAEgAAAAEQjiuy4ZLwyxefFayrEiEBj0wfMKY0IaUIJujjjfvQ1w==",
+              "type": "Address"
+            },
+            {
+              "value": "AAAADwAAAA1jbGFpbV9yZXZlbnVlAAAA",
+              "type": "Sym"
+            },
+            {
+              "value": "AAAAEgAAAAAAAAAAvIhA9J8DfOBJIzgHKKPwJWlcRB3w+oOtKq8jOlFN/6U=",
+              "type": "Address"
+            },
+            {
+              "value": "AAAAEAAAAAEAAAABAAAAEQAAAAEAAAACAAAADwAAAAVhc3NldAAAAAAAABIAAAABP4WKOhZWORVAUSX3oWL0dEGHu05dbb1xKyERBHDrYrMAAAAPAAAABmh1Yl9pZAAAAAAAAwAAAAE=",
+              "type": "Vec"
+            }
+          ],
+          "address": "",
+          "salt": "",
+          "asset_balance_changes": [
+            {
+              "asset_type": "credit_alphanum4",
+              "asset_code": "ST11",
+              "asset_issuer": "GC6IQQHUT4BXZYCJEM4AOKFD6ASWSXCEDXYPVA5NFKXSGOSRJX72KJMC",
+              "type": "transfer",
+              "from": "CA2FJRXCABKMOVHZMKK2XOGAIZCB43WPIGKUUV2HC33H4U5HDIMRSVPF",
+              "to": "CAII4K5S4GJPBSYXT4K2ZKYSEEAY6TA7GCTDIINFBATORY4N7PINPPPB",
+              "amount": "0.0000065"
+            },
+            {
+              "asset_type": "credit_alphanum4",
+              "asset_code": "ST11",
+              "asset_issuer": "GC6IQQHUT4BXZYCJEM4AOKFD6ASWSXCEDXYPVA5NFKXSGOSRJX72KJMC",
+              "type": "burn",
+              "from": "CAII4K5S4GJPBSYXT4K2ZKYSEEAY6TA7GCTDIINFBATORY4N7PINPPPB",
+              "amount": "0.0000065"
+            }
+          ]
+        },
+        {
+          "_links": {
+            "self": {
+              "href": "https://horizon-testnet.stellar.org/operations/20990265384779777"
+            },
+            "transaction": {
+              "href": "https://horizon-testnet.stellar.org/transactions/bd612040ee387a077099f4e7677e8923d004967dc2cf97307a9f866c44d80dbb"
+            },
+            "effects": {
+              "href": "https://horizon-testnet.stellar.org/operations/20990265384779777/effects"
+            },
+            "succeeds": {
+              "href": "https://horizon-testnet.stellar.org/effects?order=desc&cursor=20990265384779777"
+            },
+            "precedes": {
+              "href": "https://horizon-testnet.stellar.org/effects?order=asc&cursor=20990265384779777"
+            }
+          },
+          "id": "20990265384779777",
+          "paging_token": "20990265384779777",
+          "transaction_successful": true,
+          "source_account": "GC6IQQHUT4BXZYCJEM4AOKFD6ASWSXCEDXYPVA5NFKXSGOSRJX72KJMC",
+          "type": "invoke_host_function",
+          "type_i": 24,
+          "created_at": "2026-09-26T21:51:12Z",
+          "transaction_hash": "bd612040ee387a077099f4e7677e8923d004967dc2cf97307a9f866c44d80dbb",
+          "function": "HostFunctionTypeHostFunctionTypeInvokeContract",
+          "parameters": [
+            {
+              "value": "AAAAEgAAAAEQjiuy4ZLwyxefFayrEiEBj0wfMKY0IaUIJujjjfvQ1w==",
+              "type": "Address"
+            },
+            {
+              "value": "AAAADwAAAA1jbGFpbV9yZXZlbnVlAAAA",
+              "type": "Sym"
+            },
+            {
+              "value": "AAAAEgAAAAAAAAAAvIhA9J8DfOBJIzgHKKPwJWlcRB3w+oOtKq8jOlFN/6U=",
+              "type": "Address"
+            },
+            {
+              "value": "AAAAEAAAAAEAAAABAAAAEQAAAAEAAAACAAAADwAAAAVhc3NldAAAAAAAABIAAAABw9fDt6YGqi6Q7WrQKPpieCoYnTFPB4mlAoIPww41F3cAAAAPAAAABmh1Yl9pZAAAAAAAAwAAAAE=",
+              "type": "Vec"
+            }
+          ],
+          "address": "",
+          "salt": "",
+          "asset_balance_changes": [
+            {
+              "asset_type": "credit_alphanum4",
+              "asset_code": "ST10",
+              "asset_issuer": "GC6IQQHUT4BXZYCJEM4AOKFD6ASWSXCEDXYPVA5NFKXSGOSRJX72KJMC",
+              "type": "transfer",
+              "from": "CA2FJRXCABKMOVHZMKK2XOGAIZCB43WPIGKUUV2HC33H4U5HDIMRSVPF",
+              "to": "CAII4K5S4GJPBSYXT4K2ZKYSEEAY6TA7GCTDIINFBATORY4N7PINPPPB",
+              "amount": "0.0000067"
+            },
+            {
+              "asset_type": "credit_alphanum4",
+              "asset_code": "ST10",
+              "asset_issuer": "GC6IQQHUT4BXZYCJEM4AOKFD6ASWSXCEDXYPVA5NFKXSGOSRJX72KJMC",
+              "type": "burn",
+              "from": "CAII4K5S4GJPBSYXT4K2ZKYSEEAY6TA7GCTDIINFBATORY4N7PINPPPB",
+              "amount": "0.0000067"
+            }
+          ]
+        },
+        {
+          "_links": {
+            "self": {
+              "href": "https://horizon-testnet.stellar.org/operations/20990261089824769"
+            },
+            "transaction": {
+              "href": "https://horizon-testnet.stellar.org/transactions/38027f2fded1438103fbe44782556186c7d7899feae584e44210ab176dbf3cac"
+            },
+            "effects": {
+              "href": "https://horizon-testnet.stellar.org/operations/20990261089824769/effects"
+            },
+            "succeeds": {
+              "href": "https://horizon-testnet.stellar.org/effects?order=desc&cursor=20990261089824769"
+            },
+            "precedes": {
+              "href": "https://horizon-testnet.stellar.org/effects?order=asc&cursor=20990261089824769"
+            }
+          },
+          "id": "20990261089824769",
+          "paging_token": "20990261089824769",
+          "transaction_successful": true,
+          "source_account": "GC6IQQHUT4BXZYCJEM4AOKFD6ASWSXCEDXYPVA5NFKXSGOSRJX72KJMC",
+          "type": "invoke_host_function",
+          "type_i": 24,
+          "created_at": "2026-09-26T21:51:07Z",
+          "transaction_hash": "38027f2fded1438103fbe44782556186c7d7899feae584e44210ab176dbf3cac",
+          "function": "HostFunctionTypeHostFunctionTypeInvokeContract",
+          "parameters": [
+            {
+              "value": "AAAAEgAAAAEQjiuy4ZLwyxefFayrEiEBj0wfMKY0IaUIJujjjfvQ1w==",
+              "type": "Address"
+            },
+            {
+              "value": "AAAADwAAAA1jbGFpbV9yZXZlbnVlAAAA",
+              "type": "Sym"
+            },
+            {
+              "value": "AAAAEgAAAAAAAAAAvIhA9J8DfOBJIzgHKKPwJWlcRB3w+oOtKq8jOlFN/6U=",
+              "type": "Address"
+            },
+            {
+              "value": "AAAAEAAAAAEAAAABAAAAEQAAAAEAAAACAAAADwAAAAVhc3NldAAAAAAAABIAAAABDLCAur3ulzW0cowoC9Ua6hkiyXUwvAmY+UjbvC0vSnYAAAAPAAAABmh1Yl9pZAAAAAAAAwAAAAE=",
+              "type": "Vec"
+            }
+          ],
+          "address": "",
+          "salt": "",
+          "asset_balance_changes": [
+            {
+              "asset_type": "credit_alphanum4",
+              "asset_code": "ST04",
+              "asset_issuer": "GC6IQQHUT4BXZYCJEM4AOKFD6ASWSXCEDXYPVA5NFKXSGOSRJX72KJMC",
+              "type": "transfer",
+              "from": "CA2FJRXCABKMOVHZMKK2XOGAIZCB43WPIGKUUV2HC33H4U5HDIMRSVPF",
+              "to": "CAII4K5S4GJPBSYXT4K2ZKYSEEAY6TA7GCTDIINFBATORY4N7PINPPPB",
+              "amount": "0.2933332"
+            },
+            {
+              "asset_type": "credit_alphanum4",
+              "asset_code": "ST04",
+              "asset_issuer": "GC6IQQHUT4BXZYCJEM4AOKFD6ASWSXCEDXYPVA5NFKXSGOSRJX72KJMC",
+              "type": "burn",
+              "from": "CAII4K5S4GJPBSYXT4K2ZKYSEEAY6TA7GCTDIINFBATORY4N7PINPPPB",
+              "amount": "0.2933332"
+            }
+          ]
+        },
+        {
+          "_links": {
+            "self": {
+              "href": "https://horizon-testnet.stellar.org/operations/20990256794841089"
+            },
+            "transaction": {
+              "href": "https://horizon-testnet.stellar.org/transactions/c7d564ae3cafebac2d50dd5a4c06196018e6a3fcba7a5b669890872a95dd96b5"
+            },
+            "effects": {
+              "href": "https://horizon-testnet.stellar.org/operations/20990256794841089/effects"
+            },
+            "succeeds": {
+              "href": "https://horizon-testnet.stellar.org/effects?order=desc&cursor=20990256794841089"
+            },
+            "precedes": {
+              "href": "https://horizon-testnet.stellar.org/effects?order=asc&cursor=20990256794841089"
+            }
+          },
+          "id": "20990256794841089",
+          "paging_token": "20990256794841089",
+          "transaction_successful": true,
+          "source_account": "GC6IQQHUT4BXZYCJEM4AOKFD6ASWSXCEDXYPVA5NFKXSGOSRJX72KJMC",
+          "type": "invoke_host_function",
+          "type_i": 24,
+          "created_at": "2026-09-26T21:51:02Z",
+          "transaction_hash": "c7d564ae3cafebac2d50dd5a4c06196018e6a3fcba7a5b669890872a95dd96b5",
+          "function": "HostFunctionTypeHostFunctionTypeInvokeContract",
+          "parameters": [
+            {
+              "value": "AAAAEgAAAAEQjiuy4ZLwyxefFayrEiEBj0wfMKY0IaUIJujjjfvQ1w==",
+              "type": "Address"
+            },
+            {
+              "value": "AAAADwAAAA1jbGFpbV9yZXZlbnVlAAAA",
+              "type": "Sym"
+            },
+            {
+              "value": "AAAAEgAAAAAAAAAAvIhA9J8DfOBJIzgHKKPwJWlcRB3w+oOtKq8jOlFN/6U=",
+              "type": "Address"
+            },
+            {
+              "value": "AAAAEAAAAAEAAAABAAAAEQAAAAEAAAACAAAADwAAAAVhc3NldAAAAAAAABIAAAABK5HpqbtZUD4WNK5xdmUey1K0ws7f7cVCfmIAFRupExIAAAAPAAAABmh1Yl9pZAAAAAAAAwAAAAE=",
+              "type": "Vec"
+            }
+          ],
+          "address": "",
+          "salt": "",
+          "asset_balance_changes": [
+            {
+              "asset_type": "credit_alphanum4",
+              "asset_code": "ST03",
+              "asset_issuer": "GC6IQQHUT4BXZYCJEM4AOKFD6ASWSXCEDXYPVA5NFKXSGOSRJX72KJMC",
+              "type": "transfer",
+              "from": "CA2FJRXCABKMOVHZMKK2XOGAIZCB43WPIGKUUV2HC33H4U5HDIMRSVPF",
+              "to": "CAII4K5S4GJPBSYXT4K2ZKYSEEAY6TA7GCTDIINFBATORY4N7PINPPPB",
+              "amount": "0.2933332"
+            },
+            {
+              "asset_type": "credit_alphanum4",
+              "asset_code": "ST03",
+              "asset_issuer": "GC6IQQHUT4BXZYCJEM4AOKFD6ASWSXCEDXYPVA5NFKXSGOSRJX72KJMC",
+              "type": "burn",
+              "from": "CAII4K5S4GJPBSYXT4K2ZKYSEEAY6TA7GCTDIINFBATORY4N7PINPPPB",
+              "amount": "0.2933332"
+            }
+          ]
+        },
+        {
+          "_links": {
+            "self": {
+              "href": "https://horizon-testnet.stellar.org/operations/20990252499881985"
+            },
+            "transaction": {
+              "href": "https://horizon-testnet.stellar.org/transactions/b6541387df7530b462d741cb9eb6834cbd1243cf1f3a186d5e3832d6e4d65ab1"
+            },
+            "effects": {
+              "href": "https://horizon-testnet.stellar.org/operations/20990252499881985/effects"
+            },
+            "succeeds": {
+              "href": "https://horizon-testnet.stellar.org/effects?order=desc&cursor=20990252499881985"
+            },
+            "precedes": {
+              "href": "https://horizon-testnet.stellar.org/effects?order=asc&cursor=20990252499881985"
+            }
+          },
+          "id": "20990252499881985",
+          "paging_token": "20990252499881985",
+          "transaction_successful": true,
+          "source_account": "GC6IQQHUT4BXZYCJEM4AOKFD6ASWSXCEDXYPVA5NFKXSGOSRJX72KJMC",
+          "type": "invoke_host_function",
+          "type_i": 24,
+          "created_at": "2026-09-26T21:50:57Z",
+          "transaction_hash": "b6541387df7530b462d741cb9eb6834cbd1243cf1f3a186d5e3832d6e4d65ab1",
+          "function": "HostFunctionTypeHostFunctionTypeInvokeContract",
+          "parameters": [
+            {
+              "value": "AAAAEgAAAAEQjiuy4ZLwyxefFayrEiEBj0wfMKY0IaUIJujjjfvQ1w==",
+              "type": "Address"
+            },
+            {
+              "value": "AAAADwAAAA1jbGFpbV9yZXZlbnVlAAAA",
+              "type": "Sym"
+            },
+            {
+              "value": "AAAAEgAAAAAAAAAAvIhA9J8DfOBJIzgHKKPwJWlcRB3w+oOtKq8jOlFN/6U=",
+              "type": "Address"
+            },
+            {
+              "value": "AAAAEAAAAAEAAAABAAAAEQAAAAEAAAACAAAADwAAAAVhc3NldAAAAAAAABIAAAABjb3bxW7+4KqJvmUEH/VZJEkBHD/0z0Wsg/JWnTDGk14AAAAPAAAABmh1Yl9pZAAAAAAAAwAAAAE=",
+              "type": "Vec"
+            }
+          ],
+          "address": "",
+          "salt": "",
+          "asset_balance_changes": [
+            {
+              "asset_type": "credit_alphanum4",
+              "asset_code": "ST02",
+              "asset_issuer": "GC6IQQHUT4BXZYCJEM4AOKFD6ASWSXCEDXYPVA5NFKXSGOSRJX72KJMC",
+              "type": "transfer",
+              "from": "CA2FJRXCABKMOVHZMKK2XOGAIZCB43WPIGKUUV2HC33H4U5HDIMRSVPF",
+              "to": "CAII4K5S4GJPBSYXT4K2ZKYSEEAY6TA7GCTDIINFBATORY4N7PINPPPB",
+              "amount": "0.2933332"
+            },
+            {
+              "asset_type": "credit_alphanum4",
+              "asset_code": "ST02",
+              "asset_issuer": "GC6IQQHUT4BXZYCJEM4AOKFD6ASWSXCEDXYPVA5NFKXSGOSRJX72KJMC",
+              "type": "burn",
+              "from": "CAII4K5S4GJPBSYXT4K2ZKYSEEAY6TA7GCTDIINFBATORY4N7PINPPPB",
+              "amount": "0.2933332"
+            }
+          ]
+        },
+        {
+          "_links": {
+            "self": {
+              "href": "https://horizon-testnet.stellar.org/operations/20990248204918785"
+            },
+            "transaction": {
+              "href": "https://horizon-testnet.stellar.org/transactions/b2813e73514075eef264ecc3f3967cbb133e1fd4c38b3a48bc48f276df5180da"
+            },
+            "effects": {
+              "href": "https://horizon-testnet.stellar.org/operations/20990248204918785/effects"
+            },
+            "succeeds": {
+              "href": "https://horizon-testnet.stellar.org/effects?order=desc&cursor=20990248204918785"
+            },
+            "precedes": {
+              "href": "https://horizon-testnet.stellar.org/effects?order=asc&cursor=20990248204918785"
+            }
+          },
+          "id": "20990248204918785",
+          "paging_token": "20990248204918785",
+          "transaction_successful": true,
+          "source_account": "GC6IQQHUT4BXZYCJEM4AOKFD6ASWSXCEDXYPVA5NFKXSGOSRJX72KJMC",
+          "type": "invoke_host_function",
+          "type_i": 24,
+          "created_at": "2026-09-26T21:50:52Z",
+          "transaction_hash": "b2813e73514075eef264ecc3f3967cbb133e1fd4c38b3a48bc48f276df5180da",
+          "function": "HostFunctionTypeHostFunctionTypeInvokeContract",
+          "parameters": [
+            {
+              "value": "AAAAEgAAAAEQjiuy4ZLwyxefFayrEiEBj0wfMKY0IaUIJujjjfvQ1w==",
+              "type": "Address"
+            },
+            {
+              "value": "AAAADwAAAA1jbGFpbV9yZXZlbnVlAAAA",
+              "type": "Sym"
+            },
+            {
+              "value": "AAAAEgAAAAAAAAAAvIhA9J8DfOBJIzgHKKPwJWlcRB3w+oOtKq8jOlFN/6U=",
+              "type": "Address"
+            },
+            {
+              "value": "AAAAEAAAAAEAAAABAAAAEQAAAAEAAAACAAAADwAAAAVhc3NldAAAAAAAABIAAAABnTXcu01OTSdzNr/T690jvKeGAoUhEoAPO8WNjPoIfBgAAAAPAAAABmh1Yl9pZAAAAAAAAwAAAAE=",
+              "type": "Vec"
+            }
+          ],
+          "address": "",
+          "salt": "",
+          "asset_balance_changes": [
+            {
+              "asset_type": "credit_alphanum4",
+              "asset_code": "ST01",
+              "asset_issuer": "GC6IQQHUT4BXZYCJEM4AOKFD6ASWSXCEDXYPVA5NFKXSGOSRJX72KJMC",
+              "type": "transfer",
+              "from": "CA2FJRXCABKMOVHZMKK2XOGAIZCB43WPIGKUUV2HC33H4U5HDIMRSVPF",
+              "to": "CAII4K5S4GJPBSYXT4K2ZKYSEEAY6TA7GCTDIINFBATORY4N7PINPPPB",
+              "amount": "0.2933332"
+            },
+            {
+              "asset_type": "credit_alphanum4",
+              "asset_code": "ST01",
+              "asset_issuer": "GC6IQQHUT4BXZYCJEM4AOKFD6ASWSXCEDXYPVA5NFKXSGOSRJX72KJMC",
+              "type": "burn",
+              "from": "CAII4K5S4GJPBSYXT4K2ZKYSEEAY6TA7GCTDIINFBATORY4N7PINPPPB",
+              "amount": "0.2933332"
+            }
+          ]
+        },
+        {
+          "_links": {
+            "self": {
+              "href": "https://horizon-testnet.stellar.org/operations/20990243909976065"
+            },
+            "transaction": {
+              "href": "https://horizon-testnet.stellar.org/transactions/bbe2de6889d954ce520cbfef4963f04996fedc1d0ce0f8b7bb95594a56108f30"
+            },
+            "effects": {
+              "href": "https://horizon-testnet.stellar.org/operations/20990243909976065/effects"
+            },
+            "succeeds": {
+              "href": "https://horizon-testnet.stellar.org/effects?order=desc&cursor=20990243909976065"
+            },
+            "precedes": {
+              "href": "https://horizon-testnet.stellar.org/effects?order=asc&cursor=20990243909976065"
+            }
+          },
+          "id": "20990243909976065",
+          "paging_token": "20990243909976065",
+          "transaction_successful": true,
+          "source_account": "GC6IQQHUT4BXZYCJEM4AOKFD6ASWSXCEDXYPVA5NFKXSGOSRJX72KJMC",
+          "type": "invoke_host_function",
+          "type_i": 24,
+          "created_at": "2026-09-26T21:50:47Z",
+          "transaction_hash": "bbe2de6889d954ce520cbfef4963f04996fedc1d0ce0f8b7bb95594a56108f30",
+          "function": "HostFunctionTypeHostFunctionTypeInvokeContract",
+          "parameters": [
+            {
+              "value": "AAAAEgAAAAEQjiuy4ZLwyxefFayrEiEBj0wfMKY0IaUIJujjjfvQ1w==",
+              "type": "Address"
+            },
+            {
+              "value": "AAAADwAAAA1jbGFpbV9yZXZlbnVlAAAA",
+              "type": "Sym"
+            },
+            {
+              "value": "AAAAEgAAAAAAAAAAvIhA9J8DfOBJIzgHKKPwJWlcRB3w+oOtKq8jOlFN/6U=",
+              "type": "Address"
+            },
+            {
+              "value": "AAAAEAAAAAEAAAABAAAAEQAAAAEAAAACAAAADwAAAAVhc3NldAAAAAAAABIAAAABkXnR2NVmZT9bdtsZHyyPJIi+rdwIuDnGBbJ2PzQeGOgAAAAPAAAABmh1Yl9pZAAAAAAAAwAAAAE=",
+              "type": "Vec"
+            }
+          ],
+          "address": "",
+          "salt": "",
+          "asset_balance_changes": [
+            {
+              "asset_type": "credit_alphanum4",
+              "asset_code": "ST00",
+              "asset_issuer": "GC6IQQHUT4BXZYCJEM4AOKFD6ASWSXCEDXYPVA5NFKXSGOSRJX72KJMC",
+              "type": "transfer",
+              "from": "CA2FJRXCABKMOVHZMKK2XOGAIZCB43WPIGKUUV2HC33H4U5HDIMRSVPF",
+              "to": "CAII4K5S4GJPBSYXT4K2ZKYSEEAY6TA7GCTDIINFBATORY4N7PINPPPB",
+              "amount": "0.2933332"
+            },
+            {
+              "asset_type": "credit_alphanum4",
+              "asset_code": "ST00",
+              "asset_issuer": "GC6IQQHUT4BXZYCJEM4AOKFD6ASWSXCEDXYPVA5NFKXSGOSRJX72KJMC",
+              "type": "burn",
+              "from": "CAII4K5S4GJPBSYXT4K2ZKYSEEAY6TA7GCTDIINFBATORY4N7PINPPPB",
+              "amount": "0.2933332"
+            }
+          ]
+        },
+        {
+          "_links": {
+            "self": {
+              "href": "https://horizon-testnet.stellar.org/operations/20990102176043009"
+            },
+            "transaction": {
+              "href": "https://horizon-testnet.stellar.org/transactions/c424f73636dc9b8fdf7a1cc727c7bde2eda43bcd900df2fa66ce054d7bf0feb6"
+            },
+            "effects": {
+              "href": "https://horizon-testnet.stellar.org/operations/20990102176043009/effects"
+            },
+            "succeeds": {
+              "href": "https://horizon-testnet.stellar.org/effects?order=desc&cursor=20990102176043009"
+            },
+            "precedes": {
+              "href": "https://horizon-testnet.stellar.org/effects?order=asc&cursor=20990102176043009"
+            }
+          },
+          "id": "20990102176043009",
+          "paging_token": "20990102176043009",
+          "transaction_successful": true,
+          "source_account": "GC6IQQHUT4BXZYCJEM4AOKFD6ASWSXCEDXYPVA5NFKXSGOSRJX72KJMC",
+          "type": "invoke_host_function",
+          "type_i": 24,
+          "created_at": "2026-09-26T21:48:02Z",
+          "transaction_hash": "c424f73636dc9b8fdf7a1cc727c7bde2eda43bcd900df2fa66ce054d7bf0feb6",
+          "function": "HostFunctionTypeHostFunctionTypeInvokeContract",
+          "parameters": [
+            {
+              "value": "AAAAEgAAAAH5Folf9lvtcnUvQfJI2YBoMaTPjC0BX8OE08RcXZJ3gA==",
+              "type": "Address"
+            },
+            {
+              "value": "AAAADwAAABJ0cmFuc2Zlcl9vd25lcnNoaXAAAA==",
+              "type": "Sym"
+            },
+            {
+              "value": "AAAAEgAAAAAAAAAAI4Mic2CTxCSCw8tdnAUeKhCfRrKle18TgQHxSVkwyqw=",
+              "type": "Address"
+            },
+            {
+              "value": "AAAAAwBKlkk=",
+              "type": "U32"
+            }
+          ],
+          "address": "",
+          "salt": "",
+          "asset_balance_changes": null
+        },
+        {
+          "_links": {
+            "self": {
+              "href": "https://horizon-testnet.stellar.org/operations/20990093586079745"
+            },
+            "transaction": {
+              "href": "https://horizon-testnet.stellar.org/transactions/073ef7282bc0dcf01316f207d30873730d94b21c3db6c423a0a95664904852b0"
+            },
+            "effects": {
+              "href": "https://horizon-testnet.stellar.org/operations/20990093586079745/effects"
+            },
+            "succeeds": {
+              "href": "https://horizon-testnet.stellar.org/effects?order=desc&cursor=20990093586079745"
+            },
+            "precedes": {
+              "href": "https://horizon-testnet.stellar.org/effects?order=asc&cursor=20990093586079745"
+            }
+          },
+          "id": "20990093586079745",
+          "paging_token": "20990093586079745",
+          "transaction_successful": true,
+          "source_account": "GC6IQQHUT4BXZYCJEM4AOKFD6ASWSXCEDXYPVA5NFKXSGOSRJX72KJMC",
+          "type": "invoke_host_function",
+          "type_i": 24,
+          "created_at": "2026-09-26T21:47:52Z",
+          "transaction_hash": "073ef7282bc0dcf01316f207d30873730d94b21c3db6c423a0a95664904852b0",
+          "function": "HostFunctionTypeHostFunctionTypeInvokeContract",
+          "parameters": [
+            {
+              "value": "AAAAEgAAAAH5Folf9lvtcnUvQfJI2YBoMaTPjC0BX8OE08RcXZJ3gA==",
+              "type": "Address"
+            },
+            {
+              "value": "AAAADwAAAApwdXJnZV9mZWVkAAA=",
+              "type": "Sym"
+            },
+            {
+              "value": "AAAADgAAAARYTE1Y",
+              "type": "Str"
+            }
+          ],
+          "address": "",
+          "salt": "",
+          "asset_balance_changes": null
+        },
+        {
+          "_links": {
+            "self": {
+              "href": "https://horizon-testnet.stellar.org/operations/20990084996157441"
+            },
+            "transaction": {
+              "href": "https://horizon-testnet.stellar.org/transactions/31b4c32a7d3adf3ff4e5bd8521a5497ff736957f7abd7cd526a78aca650e715d"
+            },
+            "effects": {
+              "href": "https://horizon-testnet.stellar.org/operations/20990084996157441/effects"
+            },
+            "succeeds": {
+              "href": "https://horizon-testnet.stellar.org/effects?order=desc&cursor=20990084996157441"
+            },
+            "precedes": {
+              "href": "https://horizon-testnet.stellar.org/effects?order=asc&cursor=20990084996157441"
+            }
+          },
+          "id": "20990084996157441",
+          "paging_token": "20990084996157441",
+          "transaction_successful": true,
+          "source_account": "GC6IQQHUT4BXZYCJEM4AOKFD6ASWSXCEDXYPVA5NFKXSGOSRJX72KJMC",
+          "type": "invoke_host_function",
+          "type_i": 24,
+          "created_at": "2026-09-26T21:47:42Z",
+          "transaction_hash": "31b4c32a7d3adf3ff4e5bd8521a5497ff736957f7abd7cd526a78aca650e715d",
+          "function": "HostFunctionTypeHostFunctionTypeInvokeContract",
+          "parameters": [
+            {
+              "value": "AAAAEgAAAAH5Folf9lvtcnUvQfJI2YBoMaTPjC0BX8OE08RcXZJ3gA==",
+              "type": "Address"
+            },
+            {
+              "value": "AAAADwAAAAtyZW1vdmVfZmVlZAA=",
+              "type": "Sym"
+            },
+            {
+              "value": "AAAAEAAAAAEAAAACAAAADwAAAAVPdGhlcgAAAAAAAA8AAAAEVVNEWA==",
+              "type": "Vec"
+            }
+          ],
+          "address": "",
+          "salt": "",
+          "asset_balance_changes": null
+        },
+        {
+          "_links": {
+            "self": {
+              "href": "https://horizon-testnet.stellar.org/operations/20990050636447745"
+            },
+            "transaction": {
+              "href": "https://horizon-testnet.stellar.org/transactions/29fb72e3343488e6e72fea5a4e77464efbf59030c690f4c36e433f7541379eb1"
+            },
+            "effects": {
+              "href": "https://horizon-testnet.stellar.org/operations/20990050636447745/effects"
+            },
+            "succeeds": {
+              "href": "https://horizon-testnet.stellar.org/effects?order=desc&cursor=20990050636447745"
+            },
+            "precedes": {
+              "href": "https://horizon-testnet.stellar.org/effects?order=asc&cursor=20990050636447745"
+            }
+          },
+          "id": "20990050636447745",
+          "paging_token": "20990050636447745",
+          "transaction_successful": true,
+          "source_account": "GC6IQQHUT4BXZYCJEM4AOKFD6ASWSXCEDXYPVA5NFKXSGOSRJX72KJMC",
+          "type": "invoke_host_function",
+          "type_i": 24,
+          "created_at": "2026-09-26T21:47:02Z",
+          "transaction_hash": "29fb72e3343488e6e72fea5a4e77464efbf59030c690f4c36e433f7541379eb1",
+          "function": "HostFunctionTypeHostFunctionTypeInvokeContract",
+          "parameters": [
+            {
+              "value": "AAAAEgAAAAH5Folf9lvtcnUvQfJI2YBoMaTPjC0BX8OE08RcXZJ3gA==",
+              "type": "Address"
+            },
+            {
+              "value": "AAAADwAAAA1yZWdpc3Rlcl9mZWVkAAAA",
+              "type": "Sym"
+            },
+            {
+              "value": "AAAADgAAAAdVUEdSQURFAA==",
+              "type": "Str"
+            }
+          ],
+          "address": "",
+          "salt": "",
+          "asset_balance_changes": null
+        },
+        {
+          "_links": {
+            "self": {
+              "href": "https://horizon-testnet.stellar.org/operations/20990042046476289"
+            },
+            "transaction": {
+              "href": "https://horizon-testnet.stellar.org/transactions/77897e04660bbe1fa2d16890e9ef14dd340450dde9cd215a8ee6df9e7e17c70f"
+            },
+            "effects": {
+              "href": "https://horizon-testnet.stellar.org/operations/20990042046476289/effects"
+            },
+            "succeeds": {
+              "href": "https://horizon-testnet.stellar.org/effects?order=desc&cursor=20990042046476289"
+            },
+            "precedes": {
+              "href": "https://horizon-testnet.stellar.org/effects?order=asc&cursor=20990042046476289"
+            }
+          },
+          "id": "20990042046476289",
+          "paging_token": "20990042046476289",
+          "transaction_successful": true,
+          "source_account": "GC6IQQHUT4BXZYCJEM4AOKFD6ASWSXCEDXYPVA5NFKXSGOSRJX72KJMC",
+          "type": "invoke_host_function",
+          "type_i": 24,
+          "created_at": "2026-09-26T21:46:52Z",
+          "transaction_hash": "77897e04660bbe1fa2d16890e9ef14dd340450dde9cd215a8ee6df9e7e17c70f",
+          "function": "HostFunctionTypeHostFunctionTypeInvokeContract",
+          "parameters": [
+            {
+              "value": "AAAAEgAAAAH5Folf9lvtcnUvQfJI2YBoMaTPjC0BX8OE08RcXZJ3gA==",
+              "type": "Address"
+            },
+            {
+              "value": "AAAADwAAAAd1cGdyYWRlAA==",
+              "type": "Sym"
+            },
+            {
+              "value": "AAAADQAAACBaV5pj7r75I77NITgutJZ4xRGfiiO2oNDpVlqbU9Ul9w==",
+              "type": "Bytes"
+            }
+          ],
+          "address": "",
+          "salt": "",
+          "asset_balance_changes": null
+        },
+        {
+          "_links": {
+            "self": {
+              "href": "https://horizon-testnet.stellar.org/operations/20990033456558081"
+            },
+            "transaction": {
+              "href": "https://horizon-testnet.stellar.org/transactions/339de0c15f7da7192b8e8d8e400fa581adfe4a2e31329d3fbb166cdaabe7d655"
+            },
+            "effects": {
+              "href": "https://horizon-testnet.stellar.org/operations/20990033456558081/effects"
+            },
+            "succeeds": {
+              "href": "https://horizon-testnet.stellar.org/effects?order=desc&cursor=20990033456558081"
+            },
+            "precedes": {
+              "href": "https://horizon-testnet.stellar.org/effects?order=asc&cursor=20990033456558081"
+            }
+          },
+          "id": "20990033456558081",
+          "paging_token": "20990033456558081",
+          "transaction_successful": true,
+          "source_account": "GC6IQQHUT4BXZYCJEM4AOKFD6ASWSXCEDXYPVA5NFKXSGOSRJX72KJMC",
+          "type": "invoke_host_function",
+          "type_i": 24,
+          "created_at": "2026-09-26T21:46:42Z",
+          "transaction_hash": "339de0c15f7da7192b8e8d8e400fa581adfe4a2e31329d3fbb166cdaabe7d655",
+          "function": "HostFunctionTypeHostFunctionTypeInvokeContract",
+          "parameters": [
+            {
+              "value": "AAAAEgAAAAH5Folf9lvtcnUvQfJI2YBoMaTPjC0BX8OE08RcXZJ3gA==",
+              "type": "Address"
+            },
+            {
+              "value": "AAAADwAAAA5zZXRfcmVzb2x1dGlvbgAA",
+              "type": "Sym"
+            },
+            {
+              "value": "AAAAAwAAADw=",
+              "type": "U32"
+            }
+          ],
+          "address": "",
+          "salt": "",
+          "asset_balance_changes": null
+        },
+        {
+          "_links": {
+            "self": {
+              "href": "https://horizon-testnet.stellar.org/operations/20990024866656257"
+            },
+            "transaction": {
+              "href": "https://horizon-testnet.stellar.org/transactions/35c6dd69eee01b4a2602b1cded2adb6bc18947af80903e2ff7f47eec64d74aad"
+            },
+            "effects": {
+              "href": "https://horizon-testnet.stellar.org/operations/20990024866656257/effects"
+            },
+            "succeeds": {
+              "href": "https://horizon-testnet.stellar.org/effects?order=desc&cursor=20990024866656257"
+            },
+            "precedes": {
+              "href": "https://horizon-testnet.stellar.org/effects?order=asc&cursor=20990024866656257"
+            }
+          },
+          "id": "20990024866656257",
+          "paging_token": "20990024866656257",
+          "transaction_successful": true,
+          "source_account": "GC6IQQHUT4BXZYCJEM4AOKFD6ASWSXCEDXYPVA5NFKXSGOSRJX72KJMC",
+          "type": "invoke_host_function",
+          "type_i": 24,
+          "created_at": "2026-09-26T21:46:32Z",
+          "transaction_hash": "35c6dd69eee01b4a2602b1cded2adb6bc18947af80903e2ff7f47eec64d74aad",
+          "function": "HostFunctionTypeHostFunctionTypeInvokeContract",
+          "parameters": [
+            {
+              "value": "AAAAEgAAAAH5Folf9lvtcnUvQfJI2YBoMaTPjC0BX8OE08RcXZJ3gA==",
+              "type": "Address"
+            },
+            {
+              "value": "AAAADwAAAA9yZWNvbXB1dGVfZmVlZHMA",
+              "type": "Sym"
+            },
+            {
+              "value": "AAAAEAAAAAEAAAABAAAADgAAAARYTE1Y",
+              "type": "Vec"
+            }
+          ],
+          "address": "",
+          "salt": "",
+          "asset_balance_changes": null
+        },
+        {
+          "_links": {
+            "self": {
+              "href": "https://horizon-testnet.stellar.org/operations/20990020571668481"
+            },
+            "transaction": {
+              "href": "https://horizon-testnet.stellar.org/transactions/e53f2546725e5087d0dc8e77884c793adc29fb93a0552921c688f004b7c561d6"
+            },
+            "effects": {
+              "href": "https://horizon-testnet.stellar.org/operations/20990020571668481/effects"
+            },
+            "succeeds": {
+              "href": "https://horizon-testnet.stellar.org/effects?order=desc&cursor=20990020571668481"
+            },
+            "precedes": {
+              "href": "https://horizon-testnet.stellar.org/effects?order=asc&cursor=20990020571668481"
+            }
+          },
+          "id": "20990020571668481",
+          "paging_token": "20990020571668481",
+          "transaction_successful": true,
+          "source_account": "GC6IQQHUT4BXZYCJEM4AOKFD6ASWSXCEDXYPVA5NFKXSGOSRJX72KJMC",
+          "type": "invoke_host_function",
+          "type_i": 24,
+          "created_at": "2026-09-26T21:46:27Z",
+          "transaction_hash": "e53f2546725e5087d0dc8e77884c793adc29fb93a0552921c688f004b7c561d6",
+          "function": "HostFunctionTypeHostFunctionTypeInvokeContract",
+          "parameters": [
+            {
+              "value": "AAAAEgAAAAH5Folf9lvtcnUvQfJI2YBoMaTPjC0BX8OE08RcXZJ3gA==",
+              "type": "Address"
+            },
+            {
+              "value": "AAAADwAAAAphZGRfc2lnbmVyAAA=",
+              "type": "Sym"
+            },
+            {
+              "value": "AAAAEgAAAAAAAAAA+5ocTMRcNqy7f7JP7lI5ihLzvBQXAOrrd/MmCU9IyYY=",
+              "type": "Address"
+            }
+          ],
+          "address": "",
+          "salt": "",
+          "asset_balance_changes": null
+        },
+        {
+          "_links": {
+            "self": {
+              "href": "https://horizon-testnet.stellar.org/operations/20990016276684801"
+            },
+            "transaction": {
+              "href": "https://horizon-testnet.stellar.org/transactions/34367528c78036940b7dff96551bee38312fd308d5ac670d77125ee291181f9c"
+            },
+            "effects": {
+              "href": "https://horizon-testnet.stellar.org/operations/20990016276684801/effects"
+            },
+            "succeeds": {
+              "href": "https://horizon-testnet.stellar.org/effects?order=desc&cursor=20990016276684801"
+            },
+            "precedes": {
+              "href": "https://horizon-testnet.stellar.org/effects?order=asc&cursor=20990016276684801"
+            }
+          },
+          "id": "20990016276684801",
+          "paging_token": "20990016276684801",
+          "transaction_successful": true,
+          "source_account": "GC6IQQHUT4BXZYCJEM4AOKFD6ASWSXCEDXYPVA5NFKXSGOSRJX72KJMC",
+          "type": "invoke_host_function",
+          "type_i": 24,
+          "created_at": "2026-09-26T21:46:22Z",
+          "transaction_hash": "34367528c78036940b7dff96551bee38312fd308d5ac670d77125ee291181f9c",
+          "function": "HostFunctionTypeHostFunctionTypeInvokeContract",
+          "parameters": [
+            {
+              "value": "AAAAEgAAAAH5Folf9lvtcnUvQfJI2YBoMaTPjC0BX8OE08RcXZJ3gA==",
+              "type": "Address"
+            },
+            {
+              "value": "AAAADwAAAA1yZW1vdmVfc2lnbmVyAAAA",
+              "type": "Sym"
+            },
+            {
+              "value": "AAAAEgAAAAAAAAAA+5ocTMRcNqy7f7JP7lI5ihLzvBQXAOrrd/MmCU9IyYY=",
+              "type": "Address"
+            }
+          ],
+          "address": "",
+          "salt": "",
+          "asset_balance_changes": null
+        },
+        {
+          "_links": {
+            "self": {
+              "href": "https://horizon-testnet.stellar.org/operations/20990011981717505"
+            },
+            "transaction": {
+              "href": "https://horizon-testnet.stellar.org/transactions/4832be7d61ea9a6b370d3451782ea5d730be7be0b547d1a187ac5ea28c99be6a"
+            },
+            "effects": {
+              "href": "https://horizon-testnet.stellar.org/operations/20990011981717505/effects"
+            },
+            "succeeds": {
+              "href": "https://horizon-testnet.stellar.org/effects?order=desc&cursor=20990011981717505"
+            },
+            "precedes": {
+              "href": "https://horizon-testnet.stellar.org/effects?order=asc&cursor=20990011981717505"
+            }
+          },
+          "id": "20990011981717505",
+          "paging_token": "20990011981717505",
+          "transaction_successful": true,
+          "source_account": "GC6IQQHUT4BXZYCJEM4AOKFD6ASWSXCEDXYPVA5NFKXSGOSRJX72KJMC",
+          "type": "invoke_host_function",
+          "type_i": 24,
+          "created_at": "2026-09-26T21:46:17Z",
+          "transaction_hash": "4832be7d61ea9a6b370d3451782ea5d730be7be0b547d1a187ac5ea28c99be6a",
+          "function": "HostFunctionTypeHostFunctionTypeInvokeContract",
+          "parameters": [
+            {
+              "value": "AAAAEgAAAAH5Folf9lvtcnUvQfJI2YBoMaTPjC0BX8OE08RcXZJ3gA==",
+              "type": "Address"
+            },
+            {
+              "value": "AAAADwAAAA9yZWNvbXB1dGVfZmVlZHMA",
+              "type": "Sym"
+            },
+            {
+              "value": "AAAAEAAAAAEAAAABAAAADgAAAARVU0RY",
+              "type": "Vec"
+            }
+          ],
+          "address": "",
+          "salt": "",
+          "asset_balance_changes": null
+        },
+        {
+          "_links": {
+            "self": {
+              "href": "https://horizon-testnet.stellar.org/operations/20989981916950529"
+            },
+            "transaction": {
+              "href": "https://horizon-testnet.stellar.org/transactions/b9ce1ee72e2a6500f4f3c16aa50209cf3f1b24e6c0c1ed944e25c323756fb14c"
+            },
+            "effects": {
+              "href": "https://horizon-testnet.stellar.org/operations/20989981916950529/effects"
+            },
+            "succeeds": {
+              "href": "https://horizon-testnet.stellar.org/effects?order=desc&cursor=20989981916950529"
+            },
+            "precedes": {
+              "href": "https://horizon-testnet.stellar.org/effects?order=asc&cursor=20989981916950529"
+            }
+          },
+          "id": "20989981916950529",
+          "paging_token": "20989981916950529",
+          "transaction_successful": true,
+          "source_account": "GC6IQQHUT4BXZYCJEM4AOKFD6ASWSXCEDXYPVA5NFKXSGOSRJX72KJMC",
+          "type": "invoke_host_function",
+          "type_i": 24,
+          "created_at": "2026-09-26T21:45:42Z",
+          "transaction_hash": "b9ce1ee72e2a6500f4f3c16aa50209cf3f1b24e6c0c1ed944e25c323756fb14c",
+          "function": "HostFunctionTypeHostFunctionTypeInvokeContract",
+          "parameters": [
+            {
+              "value": "AAAAEgAAAAH5Folf9lvtcnUvQfJI2YBoMaTPjC0BX8OE08RcXZJ3gA==",
+              "type": "Address"
+            },
+            {
+              "value": "AAAADwAAAA5zZXRfcmVzb2x1dGlvbgAA",
+              "type": "Sym"
+            },
+            {
+              "value": "AAAAAwAAAAA=",
+              "type": "U32"
+            }
+          ],
+          "address": "",
+          "salt": "",
+          "asset_balance_changes": null
+        },
+        {
+          "_links": {
+            "self": {
+              "href": "https://horizon-testnet.stellar.org/operations/20989977622016001"
+            },
+            "transaction": {
+              "href": "https://horizon-testnet.stellar.org/transactions/59e06dbf06eaaaeaacb3d82035a15006556cbff1096eef002d8975262e855b72"
+            },
+            "effects": {
+              "href": "https://horizon-testnet.stellar.org/operations/20989977622016001/effects"
+            },
+            "succeeds": {
+              "href": "https://horizon-testnet.stellar.org/effects?order=desc&cursor=20989977622016001"
+            },
+            "precedes": {
+              "href": "https://horizon-testnet.stellar.org/effects?order=asc&cursor=20989977622016001"
+            }
+          },
+          "id": "20989977622016001",
+          "paging_token": "20989977622016001",
+          "transaction_successful": true,
+          "source_account": "GC6IQQHUT4BXZYCJEM4AOKFD6ASWSXCEDXYPVA5NFKXSGOSRJX72KJMC",
+          "type": "invoke_host_function",
+          "type_i": 24,
+          "created_at": "2026-09-26T21:45:37Z",
+          "transaction_hash": "59e06dbf06eaaaeaacb3d82035a15006556cbff1096eef002d8975262e855b72",
+          "function": "HostFunctionTypeHostFunctionTypeInvokeContract",
+          "parameters": [
+            {
+              "value": "AAAAEgAAAAH5Folf9lvtcnUvQfJI2YBoMaTPjC0BX8OE08RcXZJ3gA==",
+              "type": "Address"
+            },
+            {
+              "value": "AAAADwAAAAhhZGRfZmVlZA==",
+              "type": "Sym"
+            },
+            {
+              "value": "AAAADgAAAARVU0RY",
+              "type": "Str"
+            },
+            {
+              "value": "AAAAEAAAAAEAAAACAAAADwAAAAVPdGhlcgAAAAAAAA8AAAAEVVNEWA==",
+              "type": "Vec"
+            }
+          ],
+          "address": "",
+          "salt": "",
+          "asset_balance_changes": null
+        },
+        {
+          "_links": {
+            "self": {
+              "href": "https://horizon-testnet.stellar.org/operations/20989973327032321"
+            },
+            "transaction": {
+              "href": "https://horizon-testnet.stellar.org/transactions/48a0f74cbfb87584e65e3c59b1cc022adff236ef46527413764a2d40a49dfe57"
+            },
+            "effects": {
+              "href": "https://horizon-testnet.stellar.org/operations/20989973327032321/effects"
+            },
+            "succeeds": {
+              "href": "https://horizon-testnet.stellar.org/effects?order=desc&cursor=20989973327032321"
+            },
+            "precedes": {
+              "href": "https://horizon-testnet.stellar.org/effects?order=asc&cursor=20989973327032321"
+            }
+          },
+          "id": "20989973327032321",
+          "paging_token": "20989973327032321",
+          "transaction_successful": true,
+          "source_account": "GC6IQQHUT4BXZYCJEM4AOKFD6ASWSXCEDXYPVA5NFKXSGOSRJX72KJMC",
+          "type": "invoke_host_function",
+          "type_i": 24,
+          "created_at": "2026-09-26T21:45:32Z",
+          "transaction_hash": "48a0f74cbfb87584e65e3c59b1cc022adff236ef46527413764a2d40a49dfe57",
+          "function": "HostFunctionTypeHostFunctionTypeInvokeContract",
+          "parameters": [
+            {
+              "value": "AAAAEgAAAAH5Folf9lvtcnUvQfJI2YBoMaTPjC0BX8OE08RcXZJ3gA==",
+              "type": "Address"
+            },
+            {
+              "value": "AAAADwAAAA1yZWdpc3Rlcl9mZWVkAAAA",
+              "type": "Sym"
+            },
+            {
+              "value": "AAAADgAAAARYTE1Y",
+              "type": "Str"
+            }
+          ],
+          "address": "",
+          "salt": "",
+          "asset_balance_changes": null
+        },
+        {
+          "_links": {
+            "self": {
+              "href": "https://horizon-testnet.stellar.org/operations/20989969032056833"
+            },
+            "transaction": {
+              "href": "https://horizon-testnet.stellar.org/transactions/6ef756e88b8bcb0fe11847e510aa5e5bdb33f4151d2200a4d29035d25b2775d0"
+            },
+            "effects": {
+              "href": "https://horizon-testnet.stellar.org/operations/20989969032056833/effects"
+            },
+            "succeeds": {
+              "href": "https://horizon-testnet.stellar.org/effects?order=desc&cursor=20989969032056833"
+            },
+            "precedes": {
+              "href": "https://horizon-testnet.stellar.org/effects?order=asc&cursor=20989969032056833"
+            }
+          },
+          "id": "20989969032056833",
+          "paging_token": "20989969032056833",
+          "transaction_successful": true,
+          "source_account": "GC6IQQHUT4BXZYCJEM4AOKFD6ASWSXCEDXYPVA5NFKXSGOSRJX72KJMC",
+          "type": "invoke_host_function",
+          "type_i": 24,
+          "created_at": "2026-09-26T21:45:27Z",
+          "transaction_hash": "6ef756e88b8bcb0fe11847e510aa5e5bdb33f4151d2200a4d29035d25b2775d0",
+          "function": "HostFunctionTypeHostFunctionTypeInvokeContract",
+          "parameters": [
+            {
+              "value": "AAAAEgAAAAH5Folf9lvtcnUvQfJI2YBoMaTPjC0BX8OE08RcXZJ3gA==",
+              "type": "Address"
+            },
+            {
+              "value": "AAAADwAAAA5zZXRfcmVzb2x1dGlvbgAA",
+              "type": "Sym"
+            },
+            {
+              "value": "AAAAAwAAADw=",
+              "type": "U32"
+            }
+          ],
+          "address": "",
+          "salt": "",
+          "asset_balance_changes": null
+        },
+        {
+          "_links": {
+            "self": {
+              "href": "https://horizon-testnet.stellar.org/operations/20989964737105921"
+            },
+            "transaction": {
+              "href": "https://horizon-testnet.stellar.org/transactions/8334b8a65f2b93a69ab2cbea66c548e774ef917fcd5b3b7074244ce2ce77762f"
+            },
+            "effects": {
+              "href": "https://horizon-testnet.stellar.org/operations/20989964737105921/effects"
+            },
+            "succeeds": {
+              "href": "https://horizon-testnet.stellar.org/effects?order=desc&cursor=20989964737105921"
+            },
+            "precedes": {
+              "href": "https://horizon-testnet.stellar.org/effects?order=asc&cursor=20989964737105921"
+            }
+          },
+          "id": "20989964737105921",
+          "paging_token": "20989964737105921",
+          "transaction_successful": true,
+          "source_account": "GC6IQQHUT4BXZYCJEM4AOKFD6ASWSXCEDXYPVA5NFKXSGOSRJX72KJMC",
+          "type": "invoke_host_function",
+          "type_i": 24,
+          "created_at": "2026-09-26T21:45:22Z",
+          "transaction_hash": "8334b8a65f2b93a69ab2cbea66c548e774ef917fcd5b3b7074244ce2ce77762f",
+          "function": "HostFunctionTypeHostFunctionTypeInvokeContract",
+          "parameters": [
+            {
+              "value": "AAAAEgAAAAH5Folf9lvtcnUvQfJI2YBoMaTPjC0BX8OE08RcXZJ3gA==",
+              "type": "Address"
+            },
+            {
+              "value": "AAAADwAAABpzZXRfbWF4X2NsdXN0ZXJfc3ByZWFkX2JwcwAA",
+              "type": "Sym"
+            },
+            {
+              "value": "AAAAAwAAAMg=",
+              "type": "U32"
+            }
+          ],
+          "address": "",
+          "salt": "",
+          "asset_balance_changes": null
+        },
+        {
+          "_links": {
+            "self": {
+              "href": "https://horizon-testnet.stellar.org/operations/20989960442105857"
+            },
+            "transaction": {
+              "href": "https://horizon-testnet.stellar.org/transactions/1080574f34933072c2ce3287ab7c5757dbbf388d8aa6feae668d4ec04ff62230"
+            },
+            "effects": {
+              "href": "https://horizon-testnet.stellar.org/operations/20989960442105857/effects"
+            },
+            "succeeds": {
+              "href": "https://horizon-testnet.stellar.org/effects?order=desc&cursor=20989960442105857"
+            },
+            "precedes": {
+              "href": "https://horizon-testnet.stellar.org/effects?order=asc&cursor=20989960442105857"
+            }
+          },
+          "id": "20989960442105857",
+          "paging_token": "20989960442105857",
+          "transaction_successful": true,
+          "source_account": "GC6IQQHUT4BXZYCJEM4AOKFD6ASWSXCEDXYPVA5NFKXSGOSRJX72KJMC",
+          "type": "invoke_host_function",
+          "type_i": 24,
+          "created_at": "2026-09-26T21:45:17Z",
+          "transaction_hash": "1080574f34933072c2ce3287ab7c5757dbbf388d8aa6feae668d4ec04ff62230",
+          "function": "HostFunctionTypeHostFunctionTypeInvokeContract",
+          "parameters": [
+            {
+              "value": "AAAAEgAAAAH5Folf9lvtcnUvQfJI2YBoMaTPjC0BX8OE08RcXZJ3gA==",
+              "type": "Address"
+            },
+            {
+              "value": "AAAADwAAAB1zZXRfbWF4X3JlbGF0aXZlX3NrZXdfc2Vjb25kcwAAAA==",
+              "type": "Sym"
+            },
+            {
+              "value": "AAAABQAAAAAAAAB4",
+              "type": "U64"
+            }
+          ],
+          "address": "",
+          "salt": "",
+          "asset_balance_changes": null
+        },
+        {
+          "_links": {
+            "self": {
+              "href": "https://horizon-testnet.stellar.org/operations/20989956147146753"
+            },
+            "transaction": {
+              "href": "https://horizon-testnet.stellar.org/transactions/5e4834ac1f1a79ab1498a8285b0a17105588d4053e7bd8d4373a310aeec148e0"
+            },
+            "effects": {
+              "href": "https://horizon-testnet.stellar.org/operations/20989956147146753/effects"
+            },
+            "succeeds": {
+              "href": "https://horizon-testnet.stellar.org/effects?order=desc&cursor=20989956147146753"
+            },
+            "precedes": {
+              "href": "https://horizon-testnet.stellar.org/effects?order=asc&cursor=20989956147146753"
+            }
+          },
+          "id": "20989956147146753",
+          "paging_token": "20989956147146753",
+          "transaction_successful": true,
+          "source_account": "GC6IQQHUT4BXZYCJEM4AOKFD6ASWSXCEDXYPVA5NFKXSGOSRJX72KJMC",
+          "type": "invoke_host_function",
+          "type_i": 24,
+          "created_at": "2026-09-26T21:45:12Z",
+          "transaction_hash": "5e4834ac1f1a79ab1498a8285b0a17105588d4053e7bd8d4373a310aeec148e0",
+          "function": "HostFunctionTypeHostFunctionTypeInvokeContract",
+          "parameters": [
+            {
+              "value": "AAAAEgAAAAH5Folf9lvtcnUvQfJI2YBoMaTPjC0BX8OE08RcXZJ3gA==",
+              "type": "Address"
+            },
+            {
+              "value": "AAAADwAAAB5zZXRfbWF4X3N1Ym1pc3Npb25fYWdlX3NlY29uZHMAAA==",
+              "type": "Sym"
+            },
+            {
+              "value": "AAAABQAAAAAAAAOE",
+              "type": "U64"
+            }
+          ],
+          "address": "",
+          "salt": "",
+          "asset_balance_changes": null
+        },
+        {
+          "_links": {
+            "self": {
+              "href": "https://horizon-testnet.stellar.org/operations/20989951852191745"
+            },
+            "transaction": {
+              "href": "https://horizon-testnet.stellar.org/transactions/5faab062fbbaaab3abdd46b350238903304500d87c5f962ce98c3a1af88a2385"
+            },
+            "effects": {
+              "href": "https://horizon-testnet.stellar.org/operations/20989951852191745/effects"
+            },
+            "succeeds": {
+              "href": "https://horizon-testnet.stellar.org/effects?order=desc&cursor=20989951852191745"
+            },
+            "precedes": {
+              "href": "https://horizon-testnet.stellar.org/effects?order=asc&cursor=20989951852191745"
+            }
+          },
+          "id": "20989951852191745",
+          "paging_token": "20989951852191745",
+          "transaction_successful": true,
+          "source_account": "GC6IQQHUT4BXZYCJEM4AOKFD6ASWSXCEDXYPVA5NFKXSGOSRJX72KJMC",
+          "type": "invoke_host_function",
+          "type_i": 24,
+          "created_at": "2026-09-26T21:45:07Z",
+          "transaction_hash": "5faab062fbbaaab3abdd46b350238903304500d87c5f962ce98c3a1af88a2385",
+          "function": "HostFunctionTypeHostFunctionTypeInvokeContract",
+          "parameters": [
+            {
+              "value": "AAAAEgAAAAH5Folf9lvtcnUvQfJI2YBoMaTPjC0BX8OE08RcXZJ3gA==",
+              "type": "Address"
+            },
+            {
+              "value": "AAAADwAAABVzZXRfbWF4X3N0YWxlX3NlY29uZHMAAAA=",
+              "type": "Sym"
+            },
+            {
+              "value": "AAAABQAAAAAAAA4Q",
+              "type": "U64"
+            }
+          ],
+          "address": "",
+          "salt": "",
+          "asset_balance_changes": null
+        },
+        {
+          "_links": {
+            "self": {
+              "href": "https://horizon-testnet.stellar.org/operations/20989947557187585"
+            },
+            "transaction": {
+              "href": "https://horizon-testnet.stellar.org/transactions/5736eeee9d95bd03175ff6418f999eed2e731c2c35a1eaec0895d4365bfc67f5"
+            },
+            "effects": {
+              "href": "https://horizon-testnet.stellar.org/operations/20989947557187585/effects"
+            },
+            "succeeds": {
+              "href": "https://horizon-testnet.stellar.org/effects?order=desc&cursor=20989947557187585"
+            },
+            "precedes": {
+              "href": "https://horizon-testnet.stellar.org/effects?order=asc&cursor=20989947557187585"
+            }
+          },
+          "id": "20989947557187585",
+          "paging_token": "20989947557187585",
+          "transaction_successful": true,
+          "source_account": "GC6IQQHUT4BXZYCJEM4AOKFD6ASWSXCEDXYPVA5NFKXSGOSRJX72KJMC",
+          "type": "invoke_host_function",
+          "type_i": 24,
+          "created_at": "2026-09-26T21:45:02Z",
+          "transaction_hash": "5736eeee9d95bd03175ff6418f999eed2e731c2c35a1eaec0895d4365bfc67f5",
+          "function": "HostFunctionTypeHostFunctionTypeInvokeContract",
+          "parameters": [
+            {
+              "value": "AAAAEgAAAAH5Folf9lvtcnUvQfJI2YBoMaTPjC0BX8OE08RcXZJ3gA==",
+              "type": "Address"
+            },
+            {
+              "value": "AAAADwAAAA1zZXRfdGhyZXNob2xkAAAA",
+              "type": "Sym"
+            },
+            {
+              "value": "AAAAAwAAAAI=",
+              "type": "U32"
+            }
+          ],
+          "address": "",
+          "salt": "",
+          "asset_balance_changes": null
+        },
+        {
+          "_links": {
+            "self": {
+              "href": "https://horizon-testnet.stellar.org/operations/20989943262236673"
+            },
+            "transaction": {
+              "href": "https://horizon-testnet.stellar.org/transactions/2696857f4fe2013a1519f9312cc5911c11e518ad963a8bcbc3a34ad8106b800b"
+            },
+            "effects": {
+              "href": "https://horizon-testnet.stellar.org/operations/20989943262236673/effects"
+            },
+            "succeeds": {
+              "href": "https://horizon-testnet.stellar.org/effects?order=desc&cursor=20989943262236673"
+            },
+            "precedes": {
+              "href": "https://horizon-testnet.stellar.org/effects?order=asc&cursor=20989943262236673"
+            }
+          },
+          "id": "20989943262236673",
+          "paging_token": "20989943262236673",
+          "transaction_successful": true,
+          "source_account": "GC6IQQHUT4BXZYCJEM4AOKFD6ASWSXCEDXYPVA5NFKXSGOSRJX72KJMC",
+          "type": "invoke_host_function",
+          "type_i": 24,
+          "created_at": "2026-09-26T21:44:57Z",
+          "transaction_hash": "2696857f4fe2013a1519f9312cc5911c11e518ad963a8bcbc3a34ad8106b800b",
+          "function": "HostFunctionTypeHostFunctionTypeInvokeContract",
+          "parameters": [
+            {
+              "value": "AAAAEgAAAAH5Folf9lvtcnUvQfJI2YBoMaTPjC0BX8OE08RcXZJ3gA==",
+              "type": "Address"
+            },
+            {
+              "value": "AAAADwAAAA1zZXRfdGhyZXNob2xkAAAA",
+              "type": "Sym"
+            },
+            {
+              "value": "AAAAAwAAAAM=",
+              "type": "U32"
+            }
+          ],
+          "address": "",
+          "salt": "",
+          "asset_balance_changes": null
+        },
+        {
+          "_links": {
+            "self": {
+              "href": "https://horizon-testnet.stellar.org/operations/20989938967269377"
+            },
+            "transaction": {
+              "href": "https://horizon-testnet.stellar.org/transactions/1b98636131e06252e3d1534f856b31c89407513d17991dc44fced2477f8b3aa1"
+            },
+            "effects": {
+              "href": "https://horizon-testnet.stellar.org/operations/20989938967269377/effects"
+            },
+            "succeeds": {
+              "href": "https://horizon-testnet.stellar.org/effects?order=desc&cursor=20989938967269377"
+            },
+            "precedes": {
+              "href": "https://horizon-testnet.stellar.org/effects?order=asc&cursor=20989938967269377"
+            }
+          },
+          "id": "20989938967269377",
+          "paging_token": "20989938967269377",
+          "transaction_successful": true,
+          "source_account": "GC6IQQHUT4BXZYCJEM4AOKFD6ASWSXCEDXYPVA5NFKXSGOSRJX72KJMC",
+          "type": "invoke_host_function",
+          "type_i": 24,
+          "created_at": "2026-09-26T21:44:52Z",
+          "transaction_hash": "1b98636131e06252e3d1534f856b31c89407513d17991dc44fced2477f8b3aa1",
+          "function": "HostFunctionTypeHostFunctionTypeInvokeContract",
+          "parameters": [
+            {
+              "value": "AAAAEgAAAAH5Folf9lvtcnUvQfJI2YBoMaTPjC0BX8OE08RcXZJ3gA==",
+              "type": "Address"
+            },
+            {
+              "value": "AAAADwAAAA1yZW1vdmVfc2lnbmVyAAAA",
+              "type": "Sym"
+            },
+            {
+              "value": "AAAAEgAAAAAAAAAAnSPCjMkZivJCRa3GN+GCi0VF/U46/gEhx8TevGiqP1o=",
+              "type": "Address"
+            }
+          ],
+          "address": "",
+          "salt": "",
+          "asset_balance_changes": null
+        },
+        {
+          "_links": {
+            "self": {
+              "href": "https://horizon-testnet.stellar.org/operations/20989934672334849"
+            },
+            "transaction": {
+              "href": "https://horizon-testnet.stellar.org/transactions/1670eafcf5bcead142f7181116139a6fed9f44a58a9cb6b41d96d67d83f08988"
+            },
+            "effects": {
+              "href": "https://horizon-testnet.stellar.org/operations/20989934672334849/effects"
+            },
+            "succeeds": {
+              "href": "https://horizon-testnet.stellar.org/effects?order=desc&cursor=20989934672334849"
+            },
+            "precedes": {
+              "href": "https://horizon-testnet.stellar.org/effects?order=asc&cursor=20989934672334849"
+            }
+          },
+          "id": "20989934672334849",
+          "paging_token": "20989934672334849",
+          "transaction_successful": true,
+          "source_account": "GC6IQQHUT4BXZYCJEM4AOKFD6ASWSXCEDXYPVA5NFKXSGOSRJX72KJMC",
+          "type": "invoke_host_function",
+          "type_i": 24,
+          "created_at": "2026-09-26T21:44:47Z",
+          "transaction_hash": "1670eafcf5bcead142f7181116139a6fed9f44a58a9cb6b41d96d67d83f08988",
+          "function": "HostFunctionTypeHostFunctionTypeInvokeContract",
+          "parameters": [
+            {
+              "value": "AAAAEgAAAAH5Folf9lvtcnUvQfJI2YBoMaTPjC0BX8OE08RcXZJ3gA==",
+              "type": "Address"
+            },
+            {
+              "value": "AAAADwAAAAphZGRfc2lnbmVyAAA=",
+              "type": "Sym"
+            },
+            {
+              "value": "AAAAEgAAAAAAAAAAnSPCjMkZivJCRa3GN+GCi0VF/U46/gEhx8TevGiqP1o=",
+              "type": "Address"
+            }
+          ],
+          "address": "",
+          "salt": "",
+          "asset_balance_changes": null
+        },
+        {
+          "_links": {
+            "self": {
+              "href": "https://horizon-testnet.stellar.org/operations/20989930377355265"
+            },
+            "transaction": {
+              "href": "https://horizon-testnet.stellar.org/transactions/e9a948c910b0d0a7d74863ec065c0583dcb2a2bef98a9ffb0bb23f05ac3ad594"
+            },
+            "effects": {
+              "href": "https://horizon-testnet.stellar.org/operations/20989930377355265/effects"
+            },
+            "succeeds": {
+              "href": "https://horizon-testnet.stellar.org/effects?order=desc&cursor=20989930377355265"
+            },
+            "precedes": {
+              "href": "https://horizon-testnet.stellar.org/effects?order=asc&cursor=20989930377355265"
+            }
+          },
+          "id": "20989930377355265",
+          "paging_token": "20989930377355265",
+          "transaction_successful": true,
+          "source_account": "GC6IQQHUT4BXZYCJEM4AOKFD6ASWSXCEDXYPVA5NFKXSGOSRJX72KJMC",
+          "type": "invoke_host_function",
+          "type_i": 24,
+          "created_at": "2026-09-26T21:44:42Z",
+          "transaction_hash": "e9a948c910b0d0a7d74863ec065c0583dcb2a2bef98a9ffb0bb23f05ac3ad594",
+          "function": "HostFunctionTypeHostFunctionTypeInvokeContract",
+          "parameters": [
+            {
+              "value": "AAAAEgAAAAH5Folf9lvtcnUvQfJI2YBoMaTPjC0BX8OE08RcXZJ3gA==",
+              "type": "Address"
+            },
+            {
+              "value": "AAAADwAAAA1zZXRfdGhyZXNob2xkAAAA",
+              "type": "Sym"
+            },
+            {
+              "value": "AAAAAwAAAAI=",
+              "type": "U32"
+            }
+          ],
+          "address": "",
+          "salt": "",
+          "asset_balance_changes": null
+        },
+        {
+          "_links": {
+            "self": {
+              "href": "https://horizon-testnet.stellar.org/operations/20989926082383873"
+            },
+            "transaction": {
+              "href": "https://horizon-testnet.stellar.org/transactions/929401bdfeb9960dbee222862e81fe0e9daf1d34354c5768698de1b1bb327432"
+            },
+            "effects": {
+              "href": "https://horizon-testnet.stellar.org/operations/20989926082383873/effects"
+            },
+            "succeeds": {
+              "href": "https://horizon-testnet.stellar.org/effects?order=desc&cursor=20989926082383873"
+            },
+            "precedes": {
+              "href": "https://horizon-testnet.stellar.org/effects?order=asc&cursor=20989926082383873"
+            }
+          },
+          "id": "20989926082383873",
+          "paging_token": "20989926082383873",
+          "transaction_successful": true,
+          "source_account": "GC6IQQHUT4BXZYCJEM4AOKFD6ASWSXCEDXYPVA5NFKXSGOSRJX72KJMC",
+          "type": "invoke_host_function",
+          "type_i": 24,
+          "created_at": "2026-09-26T21:44:37Z",
+          "transaction_hash": "929401bdfeb9960dbee222862e81fe0e9daf1d34354c5768698de1b1bb327432",
+          "function": "HostFunctionTypeHostFunctionTypeCreateContractV2",
+          "parameters": [
+            {
+              "value": "AAAAEgAAAAAAAAAAvIhA9J8DfOBJIzgHKKPwJWlcRB3w+oOtKq8jOlFN/6U=",
+              "type": "Address"
+            },
+            {
+              "value": "AAAAEAAAAAEAAAADAAAAEgAAAAAAAAAA+5ocTMRcNqy7f7JP7lI5ihLzvBQXAOrrd/MmCU9IyYYAAAASAAAAAAAAAAAjgyJzYJPEJILDy12cBR4qEJ9GsqV7XxOBAfFJWTDKrAAAABIAAAAAAAAAAIejameUBgwxjh0fE6w7Jck5rrYwnOAWkwzyrMJHXYW6",
+              "type": "Vec"
+            },
+            {
+              "value": "AAAAAwAAAAI=",
+              "type": "U32"
+            },
+            {
+              "value": "AAAAAwAAADw=",
+              "type": "U32"
+            }
+          ],
+          "address": "GC6IQQHUT4BXZYCJEM4AOKFD6ASWSXCEDXYPVA5NFKXSGOSRJX72KJMC",
+          "salt": "44050090798343009067662050409133973711361337930582745476716646464415895057974",
+          "asset_balance_changes": null
+        },
+        {
+          "_links": {
+            "self": {
+              "href": "https://horizon-testnet.stellar.org/operations/20989900312584193"
+            },
+            "transaction": {
+              "href": "https://horizon-testnet.stellar.org/transactions/b15a7b3987836ad19be8fdcde9a983891af6e4ccb7084fe9b9269dfdfeb3189b"
+            },
+            "effects": {
+              "href": "https://horizon-testnet.stellar.org/operations/20989900312584193/effects"
+            },
+            "succeeds": {
+              "href": "https://horizon-testnet.stellar.org/effects?order=desc&cursor=20989900312584193"
+            },
+            "precedes": {
+              "href": "https://horizon-testnet.stellar.org/effects?order=asc&cursor=20989900312584193"
+            }
+          },
+          "id": "20989900312584193",
+          "paging_token": "20989900312584193",
+          "transaction_successful": true,
+          "source_account": "GC6IQQHUT4BXZYCJEM4AOKFD6ASWSXCEDXYPVA5NFKXSGOSRJX72KJMC",
+          "type": "invoke_host_function",
+          "type_i": 24,
+          "created_at": "2026-09-26T21:44:07Z",
+          "transaction_hash": "b15a7b3987836ad19be8fdcde9a983891af6e4ccb7084fe9b9269dfdfeb3189b",
+          "function": "HostFunctionTypeHostFunctionTypeInvokeContract",
+          "parameters": [
+            {
+              "value": "AAAAEgAAAAHmJTk35FO5rAwHHMEsPM3KuiwqUn0pDQOqlQYPEUkoNw==",
+              "type": "Address"
+            },
+            {
+              "value": "AAAADwAAAAlzZXRfcHJpY2UAAAA=",
+              "type": "Sym"
+            },
+            {
+              "value": "AAAADgAAAARTVDA0",
+              "type": "Str"
+            },
+            {
+              "value": "AAAACgAAAAAAAAAACFOg0jE8AAA=",
+              "type": "I128"
+            }
+          ],
+          "address": "",
+          "salt": "",
+          "asset_balance_changes": null
+        },
+        {
+          "_links": {
+            "self": {
+              "href": "https://horizon-testnet.stellar.org/operations/20989896017580033"
+            },
+            "transaction": {
+              "href": "https://horizon-testnet.stellar.org/transactions/0ab65a33b284460f27af3f520180038ba8e846c28c8f2f7ec74e668f62bd6f1c"
+            },
+            "effects": {
+              "href": "https://horizon-testnet.stellar.org/operations/20989896017580033/effects"
+            },
+            "succeeds": {
+              "href": "https://horizon-testnet.stellar.org/effects?order=desc&cursor=20989896017580033"
+            },
+            "precedes": {
+              "href": "https://horizon-testnet.stellar.org/effects?order=asc&cursor=20989896017580033"
+            }
+          },
+          "id": "20989896017580033",
+          "paging_token": "20989896017580033",
+          "transaction_successful": true,
+          "source_account": "GC6IQQHUT4BXZYCJEM4AOKFD6ASWSXCEDXYPVA5NFKXSGOSRJX72KJMC",
+          "type": "invoke_host_function",
+          "type_i": 24,
+          "created_at": "2026-09-26T21:44:02Z",
+          "transaction_hash": "0ab65a33b284460f27af3f520180038ba8e846c28c8f2f7ec74e668f62bd6f1c",
+          "function": "HostFunctionTypeHostFunctionTypeInvokeContract",
+          "parameters": [
+            {
+              "value": "AAAAEgAAAAFjED5yl2ONcdXtnDA4+olkOF08vnbTnmm5GH5AFHg89Q==",
+              "type": "Address"
+            },
+            {
+              "value": "AAAADwAAAAlzZXRfcHJpY2UAAAA=",
+              "type": "Sym"
+            },
+            {
+              "value": "AAAAEAAAAAEAAAACAAAADwAAAAdTdGVsbGFyAAAAABIAAAABDLCAur3ulzW0cowoC9Ua6hkiyXUwvAmY+UjbvC0vSnY=",
+              "type": "Vec"
+            },
+            {
+              "value": "AAAACgAAAAAAAAAACFOg0jE8AAA=",
+              "type": "I128"
+            }
+          ],
+          "address": "",
+          "salt": "",
+          "asset_balance_changes": null
+        },
+        {
+          "_links": {
+            "self": {
+              "href": "https://horizon-testnet.stellar.org/operations/20989891722637313"
+            },
+            "transaction": {
+              "href": "https://horizon-testnet.stellar.org/transactions/d348220ac9d02de6f66a20edcfa98c24a372ea2e8ea834a4e17139f933f1e485"
+            },
+            "effects": {
+              "href": "https://horizon-testnet.stellar.org/operations/20989891722637313/effects"
+            },
+            "succeeds": {
+              "href": "https://horizon-testnet.stellar.org/effects?order=desc&cursor=20989891722637313"
+            },
+            "precedes": {
+              "href": "https://horizon-testnet.stellar.org/effects?order=asc&cursor=20989891722637313"
+            }
+          },
+          "id": "20989891722637313",
+          "paging_token": "20989891722637313",
+          "transaction_successful": true,
+          "source_account": "GC6IQQHUT4BXZYCJEM4AOKFD6ASWSXCEDXYPVA5NFKXSGOSRJX72KJMC",
+          "type": "invoke_host_function",
+          "type_i": 24,
+          "created_at": "2026-09-26T21:43:57Z",
+          "transaction_hash": "d348220ac9d02de6f66a20edcfa98c24a372ea2e8ea834a4e17139f933f1e485",
+          "function": "HostFunctionTypeHostFunctionTypeInvokeContract",
+          "parameters": [
+            {
+              "value": "AAAAEgAAAAES6KxTLRdytNNOoYrN3v4GZDBlmMS/VAbGZrkwCmVRfQ==",
+              "type": "Address"
+            },
+            {
+              "value": "AAAADwAAAAlzZXRfcHJpY2UAAAA=",
+              "type": "Sym"
+            },
+            {
+              "value": "AAAADgAAAARTVDAz",
+              "type": "Str"
+            },
+            {
+              "value": "AAAACgAAAAAAAAAACFOg0jE8AAA=",
+              "type": "I128"
+            }
+          ],
+          "address": "",
+          "salt": "",
+          "asset_balance_changes": null
+        },
+        {
+          "_links": {
+            "self": {
+              "href": "https://horizon-testnet.stellar.org/operations/20989887427661825"
+            },
+            "transaction": {
+              "href": "https://horizon-testnet.stellar.org/transactions/cffaea1c0cd94259d947605b27ee1bf68bc56952a858cb3964fc50ae715ede6a"
+            },
+            "effects": {
+              "href": "https://horizon-testnet.stellar.org/operations/20989887427661825/effects"
+            },
+            "succeeds": {
+              "href": "https://horizon-testnet.stellar.org/effects?order=desc&cursor=20989887427661825"
+            },
+            "precedes": {
+              "href": "https://horizon-testnet.stellar.org/effects?order=asc&cursor=20989887427661825"
+            }
+          },
+          "id": "20989887427661825",
+          "paging_token": "20989887427661825",
+          "transaction_successful": true,
+          "source_account": "GC6IQQHUT4BXZYCJEM4AOKFD6ASWSXCEDXYPVA5NFKXSGOSRJX72KJMC",
+          "type": "invoke_host_function",
+          "type_i": 24,
+          "created_at": "2026-09-26T21:43:52Z",
+          "transaction_hash": "cffaea1c0cd94259d947605b27ee1bf68bc56952a858cb3964fc50ae715ede6a",
+          "function": "HostFunctionTypeHostFunctionTypeInvokeContract",
+          "parameters": [
+            {
+              "value": "AAAAEgAAAAHbl8wn7s5hxt0Uq4cPsSPdjVSzvIjcYuPIpd9pYcfQHA==",
+              "type": "Address"
+            },
+            {
+              "value": "AAAADwAAAAlzZXRfcHJpY2UAAAA=",
+              "type": "Sym"
+            },
+            {
+              "value": "AAAAEAAAAAEAAAACAAAADwAAAAdTdGVsbGFyAAAAABIAAAABK5HpqbtZUD4WNK5xdmUey1K0ws7f7cVCfmIAFRupExI=",
+              "type": "Vec"
+            },
+            {
+              "value": "AAAACgAAAAAAAAAACFOg0jE8AAA=",
+              "type": "I128"
+            }
+          ],
+          "address": "",
+          "salt": "",
+          "asset_balance_changes": null
+        },
+        {
+          "_links": {
+            "self": {
+              "href": "https://horizon-testnet.stellar.org/operations/20989883132706817"
+            },
+            "transaction": {
+              "href": "https://horizon-testnet.stellar.org/transactions/b17572ecde5a2ba503b58130859ffce62ebd762ecf51f900eea5c0020f80fa66"
+            },
+            "effects": {
+              "href": "https://horizon-testnet.stellar.org/operations/20989883132706817/effects"
+            },
+            "succeeds": {
+              "href": "https://horizon-testnet.stellar.org/effects?order=desc&cursor=20989883132706817"
+            },
+            "precedes": {
+              "href": "https://horizon-testnet.stellar.org/effects?order=asc&cursor=20989883132706817"
+            }
+          },
+          "id": "20989883132706817",
+          "paging_token": "20989883132706817",
+          "transaction_successful": true,
+          "source_account": "GC6IQQHUT4BXZYCJEM4AOKFD6ASWSXCEDXYPVA5NFKXSGOSRJX72KJMC",
+          "type": "invoke_host_function",
+          "type_i": 24,
+          "created_at": "2026-09-26T21:43:47Z",
+          "transaction_hash": "b17572ecde5a2ba503b58130859ffce62ebd762ecf51f900eea5c0020f80fa66",
+          "function": "HostFunctionTypeHostFunctionTypeInvokeContract",
+          "parameters": [
+            {
+              "value": "AAAAEgAAAAHLuaypcpjGzGBOHWT9VRN+J1xPGAH9uyMS5qBntBMo8g==",
+              "type": "Address"
+            },
+            {
+              "value": "AAAADwAAAAlzZXRfcHJpY2UAAAA=",
+              "type": "Sym"
+            },
+            {
+              "value": "AAAADgAAAARTVDAy",
+              "type": "Str"
+            },
+            {
+              "value": "AAAACgAAAAAAAAAACFOg0jE8AAA=",
+              "type": "I128"
+            }
+          ],
+          "address": "",
+          "salt": "",
+          "asset_balance_changes": null
+        },
+        {
+          "_links": {
+            "self": {
+              "href": "https://horizon-testnet.stellar.org/operations/20989878837714945"
+            },
+            "transaction": {
+              "href": "https://horizon-testnet.stellar.org/transactions/0f7d907d9bb1f839cd37c3bc48fef144a7af1d016e61b5d21e28d2790f1aed02"
+            },
+            "effects": {
+              "href": "https://horizon-testnet.stellar.org/operations/20989878837714945/effects"
+            },
+            "succeeds": {
+              "href": "https://horizon-testnet.stellar.org/effects?order=desc&cursor=20989878837714945"
+            },
+            "precedes": {
+              "href": "https://horizon-testnet.stellar.org/effects?order=asc&cursor=20989878837714945"
+            }
+          },
+          "id": "20989878837714945",
+          "paging_token": "20989878837714945",
+          "transaction_successful": true,
+          "source_account": "GC6IQQHUT4BXZYCJEM4AOKFD6ASWSXCEDXYPVA5NFKXSGOSRJX72KJMC",
+          "type": "invoke_host_function",
+          "type_i": 24,
+          "created_at": "2026-09-26T21:43:42Z",
+          "transaction_hash": "0f7d907d9bb1f839cd37c3bc48fef144a7af1d016e61b5d21e28d2790f1aed02",
+          "function": "HostFunctionTypeHostFunctionTypeInvokeContract",
+          "parameters": [
+            {
+              "value": "AAAAEgAAAAG6nach1Y86fcF3D6Yu70oIvGbvwm48llL3ECJ9Z2bg0g==",
+              "type": "Address"
+            },
+            {
+              "value": "AAAADwAAAAlzZXRfcHJpY2UAAAA=",
+              "type": "Sym"
+            },
+            {
+              "value": "AAAAEAAAAAEAAAACAAAADwAAAAdTdGVsbGFyAAAAABIAAAABjb3bxW7+4KqJvmUEH/VZJEkBHD/0z0Wsg/JWnTDGk14=",
+              "type": "Vec"
+            },
+            {
+              "value": "AAAACgAAAAAAAAAACFOg0jE8AAA=",
+              "type": "I128"
+            }
+          ],
+          "address": "",
+          "salt": "",
+          "asset_balance_changes": null
+        },
+        {
+          "_links": {
+            "self": {
+              "href": "https://horizon-testnet.stellar.org/operations/20989874542751745"
+            },
+            "transaction": {
+              "href": "https://horizon-testnet.stellar.org/transactions/5fee87779350237e6ccc16b92c38bb044a45e60fad5402d71ef055bfdb1befde"
+            },
+            "effects": {
+              "href": "https://horizon-testnet.stellar.org/operations/20989874542751745/effects"
+            },
+            "succeeds": {
+              "href": "https://horizon-testnet.stellar.org/effects?order=desc&cursor=20989874542751745"
+            },
+            "precedes": {
+              "href": "https://horizon-testnet.stellar.org/effects?order=asc&cursor=20989874542751745"
+            }
+          },
+          "id": "20989874542751745",
+          "paging_token": "20989874542751745",
+          "transaction_successful": true,
+          "source_account": "GC6IQQHUT4BXZYCJEM4AOKFD6ASWSXCEDXYPVA5NFKXSGOSRJX72KJMC",
+          "type": "invoke_host_function",
+          "type_i": 24,
+          "created_at": "2026-09-26T21:43:37Z",
+          "transaction_hash": "5fee87779350237e6ccc16b92c38bb044a45e60fad5402d71ef055bfdb1befde",
+          "function": "HostFunctionTypeHostFunctionTypeInvokeContract",
+          "parameters": [
+            {
+              "value": "AAAAEgAAAAHKdWBO317cREQ8P/+r+Xc29gSJJjWn7Mq+hA+QriBCGQ==",
+              "type": "Address"
+            },
+            {
+              "value": "AAAADwAAAAlzZXRfcHJpY2UAAAA=",
+              "type": "Sym"
+            },
+            {
+              "value": "AAAADgAAAARTVDAx",
+              "type": "Str"
+            },
+            {
+              "value": "AAAACgAAAAAAAAAACFOg0jE8AAA=",
+              "type": "I128"
+            }
+          ],
+          "address": "",
+          "salt": "",
+          "asset_balance_changes": null
+        },
+        {
+          "_links": {
+            "self": {
+              "href": "https://horizon-testnet.stellar.org/operations/20989870247813121"
+            },
+            "transaction": {
+              "href": "https://horizon-testnet.stellar.org/transactions/b15aaff8e8255eb54ca9158685ec3d175cbb94c5f04112a3f9964efe478d5f3b"
+            },
+            "effects": {
+              "href": "https://horizon-testnet.stellar.org/operations/20989870247813121/effects"
+            },
+            "succeeds": {
+              "href": "https://horizon-testnet.stellar.org/effects?order=desc&cursor=20989870247813121"
+            },
+            "precedes": {
+              "href": "https://horizon-testnet.stellar.org/effects?order=asc&cursor=20989870247813121"
+            }
+          },
+          "id": "20989870247813121",
+          "paging_token": "20989870247813121",
+          "transaction_successful": true,
+          "source_account": "GC6IQQHUT4BXZYCJEM4AOKFD6ASWSXCEDXYPVA5NFKXSGOSRJX72KJMC",
+          "type": "invoke_host_function",
+          "type_i": 24,
+          "created_at": "2026-09-26T21:43:32Z",
+          "transaction_hash": "b15aaff8e8255eb54ca9158685ec3d175cbb94c5f04112a3f9964efe478d5f3b",
+          "function": "HostFunctionTypeHostFunctionTypeInvokeContract",
+          "parameters": [
+            {
+              "value": "AAAAEgAAAAH/CqDMs4B3tkSS16d43ixIrUBuY1OhCwzTxalKhWN3nA==",
+              "type": "Address"
+            },
+            {
+              "value": "AAAADwAAAAlzZXRfcHJpY2UAAAA=",
+              "type": "Sym"
+            },
+            {
+              "value": "AAAAEAAAAAEAAAACAAAADwAAAAdTdGVsbGFyAAAAABIAAAABnTXcu01OTSdzNr/T690jvKeGAoUhEoAPO8WNjPoIfBg=",
+              "type": "Vec"
+            },
+            {
+              "value": "AAAACgAAAAAAAAAACFOg0jE8AAA=",
+              "type": "I128"
+            }
+          ],
+          "address": "",
+          "salt": "",
+          "asset_balance_changes": null
+        },
+        {
+          "_links": {
+            "self": {
+              "href": "https://horizon-testnet.stellar.org/operations/20989865952833537"
+            },
+            "transaction": {
+              "href": "https://horizon-testnet.stellar.org/transactions/979a15b683ba8c23f5149b8f7af1f7e6990822a6ba20059253f7f53f516ddc74"
+            },
+            "effects": {
+              "href": "https://horizon-testnet.stellar.org/operations/20989865952833537/effects"
+            },
+            "succeeds": {
+              "href": "https://horizon-testnet.stellar.org/effects?order=desc&cursor=20989865952833537"
+            },
+            "precedes": {
+              "href": "https://horizon-testnet.stellar.org/effects?order=asc&cursor=20989865952833537"
+            }
+          },
+          "id": "20989865952833537",
+          "paging_token": "20989865952833537",
+          "transaction_successful": true,
+          "source_account": "GC6IQQHUT4BXZYCJEM4AOKFD6ASWSXCEDXYPVA5NFKXSGOSRJX72KJMC",
+          "type": "invoke_host_function",
+          "type_i": 24,
+          "created_at": "2026-09-26T21:43:27Z",
+          "transaction_hash": "979a15b683ba8c23f5149b8f7af1f7e6990822a6ba20059253f7f53f516ddc74",
+          "function": "HostFunctionTypeHostFunctionTypeInvokeContract",
+          "parameters": [
+            {
+              "value": "AAAAEgAAAAEXoRF4rtEfdW0aK0HQBHuV2A9Hmg+gYIrAg7E1R1cdZQ==",
+              "type": "Address"
+            },
+            {
+              "value": "AAAADwAAAAlzZXRfcHJpY2UAAAA=",
+              "type": "Sym"
+            },
+            {
+              "value": "AAAADgAAAARTVDAw",
+              "type": "Str"
+            },
+            {
+              "value": "AAAACgAAAAAAAAAACFOg0jE8AAA=",
+              "type": "I128"
+            }
+          ],
+          "address": "",
+          "salt": "",
+          "asset_balance_changes": null
+        },
+        {
+          "_links": {
+            "self": {
+              "href": "https://horizon-testnet.stellar.org/operations/20989861657853953"
+            },
+            "transaction": {
+              "href": "https://horizon-testnet.stellar.org/transactions/8ba03a87dc970a6e198cd1f6a67216096747f3d9b51afae50c328c1512539f9d"
+            },
+            "effects": {
+              "href": "https://horizon-testnet.stellar.org/operations/20989861657853953/effects"
+            },
+            "succeeds": {
+              "href": "https://horizon-testnet.stellar.org/effects?order=desc&cursor=20989861657853953"
+            },
+            "precedes": {
+              "href": "https://horizon-testnet.stellar.org/effects?order=asc&cursor=20989861657853953"
+            }
+          },
+          "id": "20989861657853953",
+          "paging_token": "20989861657853953",
+          "transaction_successful": true,
+          "source_account": "GC6IQQHUT4BXZYCJEM4AOKFD6ASWSXCEDXYPVA5NFKXSGOSRJX72KJMC",
+          "type": "invoke_host_function",
+          "type_i": 24,
+          "created_at": "2026-09-26T21:43:22Z",
+          "transaction_hash": "8ba03a87dc970a6e198cd1f6a67216096747f3d9b51afae50c328c1512539f9d",
+          "function": "HostFunctionTypeHostFunctionTypeInvokeContract",
+          "parameters": [
+            {
+              "value": "AAAAEgAAAAHaIurVGcKJZ+PFP3S/oARW4mQQKzgKQAs6LrsSG4a2ww==",
+              "type": "Address"
+            },
+            {
+              "value": "AAAADwAAAAlzZXRfcHJpY2UAAAA=",
+              "type": "Sym"
+            },
+            {
+              "value": "AAAAEAAAAAEAAAACAAAADwAAAAdTdGVsbGFyAAAAABIAAAABkXnR2NVmZT9bdtsZHyyPJIi+rdwIuDnGBbJ2PzQeGOg=",
+              "type": "Vec"
+            },
+            {
+              "value": "AAAACgAAAAAAAAAACFOg0jE8AAA=",
+              "type": "I128"
+            }
+          ],
+          "address": "",
+          "salt": "",
+          "asset_balance_changes": null
+        },
+        {
+          "_links": {
+            "self": {
+              "href": "https://horizon-testnet.stellar.org/operations/20989792938389505"
+            },
+            "transaction": {
+              "href": "https://horizon-testnet.stellar.org/transactions/d4d4097c6def87903e4a93198929e4da1515af8f3005a50fc46c827638cd215c"
+            },
+            "effects": {
+              "href": "https://horizon-testnet.stellar.org/operations/20989792938389505/effects"
+            },
+            "succeeds": {
+              "href": "https://horizon-testnet.stellar.org/effects?order=desc&cursor=20989792938389505"
+            },
+            "precedes": {
+              "href": "https://horizon-testnet.stellar.org/effects?order=asc&cursor=20989792938389505"
+            }
+          },
+          "id": "20989792938389505",
+          "paging_token": "20989792938389505",
+          "transaction_successful": true,
+          "source_account": "GC6IQQHUT4BXZYCJEM4AOKFD6ASWSXCEDXYPVA5NFKXSGOSRJX72KJMC",
+          "type": "invoke_host_function",
+          "type_i": 24,
+          "created_at": "2026-09-26T21:42:02Z",
+          "transaction_hash": "d4d4097c6def87903e4a93198929e4da1515af8f3005a50fc46c827638cd215c",
+          "function": "HostFunctionTypeHostFunctionTypeInvokeContract",
+          "parameters": [
+            {
+              "value": "AAAAEgAAAAFooyMb9LQa9qwG8rvEn3V/r4DUCD+x1T6w0PYKWgKkmA==",
+              "type": "Address"
+            },
+            {
+              "value": "AAAADwAAAApzZXRfb3JhY2xlAAA=",
+              "type": "Sym"
+            },
+            {
+              "value": "AAAAEAAAAAEAAAACAAAADwAAAAVUb2tlbgAAAAAAABIAAAABIdwyqaBsjanBiwN+WITEnsuc52xJpOuJ7gwGM+9dbYc=",
+              "type": "Vec"
+            },
+            {
+              "value": "AAAAEQAAAAEAAAAHAAAADwAAAA5hc3NldF9kZWNpbWFscwAAAAAAAwAAAAcAAAAPAAAADGluZGVwZW5kZW5jZQAAABAAAAABAAAAAQAAAA8AAAAPUmVxdWlyZURpc2pvaW50AAAAAA8AAAAXbWF4X3ByaWNlX3N0YWxlX3NlY29uZHMAAAAABQAAAAAAAA4QAAAADwAAABRtYXhfc2FuaXR5X3ByaWNlX3dhZAAAAAoAAAAAAAAANjXJrcXeoAAAAAAADwAAABRtaW5fc2FuaXR5X3ByaWNlX3dhZAAAAAoAAAAAAAAAAAADjX6kxoAAAAAADwAAAAdzb3VyY2VzAAAAABAAAAABAAAAAgAAABAAAAABAAAAAgAAAA8AAAAERmVlZAAAABEAAAABAAAAAwAAAA8AAAAIZGVjaW1hbHMAAAADAAAADgAAAA8AAAARbWF4X3N0YWxlX3NlY29uZHMAAAAAAAAFAAAAAAAADhAAAAAPAAAACHByb3ZpZGVyAAAAEAAAAAEAAAACAAAADwAAAAlSZWZsZWN0b3IAAAAAAAARAAAAAQAAAAMAAAAPAAAABWFzc2V0AAAAAAAAEAAAAAEAAAACAAAADwAAAAdTdGVsbGFyAAAAABIAAAABIdwyqaBsjanBiwN+WITEnsuc52xJpOuJ7gwGM+9dbYcAAAAPAAAACGNvbnRyYWN0AAAAEgAAAAGcTQzo/oDqw/3EJYOiUpuERXWlyvWsLVytKH/bb2qVFAAAAA8AAAAJcmVhZF9tb2RlAAAAAAAAEAAAAAEAAAACAAAADwAAAARUd2FwAAAAAwAAAAMAAAAQAAAAAQAAAAIAAAAPAAAABEZlZWQAAAARAAAAAQAAAAMAAAAPAAAACGRlY2ltYWxzAAAAAwAAAAgAAAAPAAAAEW1heF9zdGFsZV9zZWNvbmRzAAAAAAAABQAAAAAAAA4QAAAADwAAAAhwcm92aWRlcgAAABAAAAABAAAAAgAAAA8AAAAIUmVkU3RvbmUAAAARAAAAAQAAAAMAAAAPAAAACGNvbnRyYWN0AAAAEgAAAAEf2aQuh5QPTiP9YolSG8uCFBR66HZsLlw3gS7CFd7qSwAAAA8AAAAHZmVlZF9pZAAAAAAOAAAABFNUMTQAAAAPAAAABm5hdHVyZQAAAAAAEAAAAAEAAAABAAAADwAAAAtGdW5kYW1lbnRhbAAAAAAPAAAACXRvbGVyYW5jZQAAAAAAABEAAAABAAAAAgAAAA8AAAAPbG93ZXJfcmF0aW9fYnBzAAAAAAMAACU0AAAADwAAAA91cHBlcl9yYXRpb19icHMAAAAAAwAAKQQ=",
+              "type": "Map"
+            }
+          ],
+          "address": "",
+          "salt": "",
+          "asset_balance_changes": null
+        },
+        {
+          "_links": {
+            "self": {
+              "href": "https://horizon-testnet.stellar.org/operations/20989788643409921"
+            },
+            "transaction": {
+              "href": "https://horizon-testnet.stellar.org/transactions/0c2356668a41ffeda4ad8bb796a299948086683193599a33f92d0f44123d824b"
+            },
+            "effects": {
+              "href": "https://horizon-testnet.stellar.org/operations/20989788643409921/effects"
+            },
+            "succeeds": {
+              "href": "https://horizon-testnet.stellar.org/effects?order=desc&cursor=20989788643409921"
+            },
+            "precedes": {
+              "href": "https://horizon-testnet.stellar.org/effects?order=asc&cursor=20989788643409921"
+            }
+          },
+          "id": "20989788643409921",
+          "paging_token": "20989788643409921",
+          "transaction_successful": true,
+          "source_account": "GC6IQQHUT4BXZYCJEM4AOKFD6ASWSXCEDXYPVA5NFKXSGOSRJX72KJMC",
+          "type": "invoke_host_function",
+          "type_i": 24,
+          "created_at": "2026-09-26T21:41:57Z",
+          "transaction_hash": "0c2356668a41ffeda4ad8bb796a299948086683193599a33f92d0f44123d824b",
+          "function": "HostFunctionTypeHostFunctionTypeInvokeContract",
+          "parameters": [
+            {
+              "value": "AAAAEgAAAAFooyMb9LQa9qwG8rvEn3V/r4DUCD+x1T6w0PYKWgKkmA==",
+              "type": "Address"
+            },
+            {
+              "value": "AAAADwAAAApzZXRfb3JhY2xlAAA=",
+              "type": "Sym"
+            },
+            {
+              "value": "AAAAEAAAAAEAAAACAAAADwAAAAVUb2tlbgAAAAAAABIAAAAB3jubbpdAFUDaLafGnZYbZ6fJSmPAC1foso0A9EinADE=",
+              "type": "Vec"
+            },
+            {
+              "value": "AAAAEQAAAAEAAAAHAAAADwAAAA5hc3NldF9kZWNpbWFscwAAAAAAAwAAAAcAAAAPAAAADGluZGVwZW5kZW5jZQAAABAAAAABAAAAAQAAAA8AAAAPUmVxdWlyZURpc2pvaW50AAAAAA8AAAAXbWF4X3ByaWNlX3N0YWxlX3NlY29uZHMAAAAABQAAAAAAAA4QAAAADwAAABRtYXhfc2FuaXR5X3ByaWNlX3dhZAAAAAoAAAAAAAAANjXJrcXeoAAAAAAADwAAABRtaW5fc2FuaXR5X3ByaWNlX3dhZAAAAAoAAAAAAAAAAAADjX6kxoAAAAAADwAAAAdzb3VyY2VzAAAAABAAAAABAAAAAgAAABAAAAABAAAAAgAAAA8AAAAERmVlZAAAABEAAAABAAAAAwAAAA8AAAAIZGVjaW1hbHMAAAADAAAADgAAAA8AAAARbWF4X3N0YWxlX3NlY29uZHMAAAAAAAAFAAAAAAAADhAAAAAPAAAACHByb3ZpZGVyAAAAEAAAAAEAAAACAAAADwAAAAlSZWZsZWN0b3IAAAAAAAARAAAAAQAAAAMAAAAPAAAABWFzc2V0AAAAAAAAEAAAAAEAAAACAAAADwAAAAdTdGVsbGFyAAAAABIAAAAB3jubbpdAFUDaLafGnZYbZ6fJSmPAC1foso0A9EinADEAAAAPAAAACGNvbnRyYWN0AAAAEgAAAAHWtbLqjmM9+G0OME+SKJp8WOhm0VS+WdRHWXQhO8TskgAAAA8AAAAJcmVhZF9tb2RlAAAAAAAAEAAAAAEAAAACAAAADwAAAARUd2FwAAAAAwAAAAMAAAAQAAAAAQAAAAIAAAAPAAAABEZlZWQAAAARAAAAAQAAAAMAAAAPAAAACGRlY2ltYWxzAAAAAwAAAAgAAAAPAAAAEW1heF9zdGFsZV9zZWNvbmRzAAAAAAAABQAAAAAAAA4QAAAADwAAAAhwcm92aWRlcgAAABAAAAABAAAAAgAAAA8AAAAIUmVkU3RvbmUAAAARAAAAAQAAAAMAAAAPAAAACGNvbnRyYWN0AAAAEgAAAAE7z77WO0aKdG1gL9mwPDGsuf+huij975gzpkejVBwoXAAAAA8AAAAHZmVlZF9pZAAAAAAOAAAABFNUMTMAAAAPAAAABm5hdHVyZQAAAAAAEAAAAAEAAAABAAAADwAAAAtGdW5kYW1lbnRhbAAAAAAPAAAACXRvbGVyYW5jZQAAAAAAABEAAAABAAAAAgAAAA8AAAAPbG93ZXJfcmF0aW9fYnBzAAAAAAMAACU0AAAADwAAAA91cHBlcl9yYXRpb19icHMAAAAAAwAAKQQ=",
+              "type": "Map"
+            }
+          ],
+          "address": "",
+          "salt": "",
+          "asset_balance_changes": null
+        },
+        {
+          "_links": {
+            "self": {
+              "href": "https://horizon-testnet.stellar.org/operations/20989784348434433"
+            },
+            "transaction": {
+              "href": "https://horizon-testnet.stellar.org/transactions/4d565a035182f8b282165678f19f093e5e11a9414f6a78dbb0c1c222d23fe08a"
+            },
+            "effects": {
+              "href": "https://horizon-testnet.stellar.org/operations/20989784348434433/effects"
+            },
+            "succeeds": {
+              "href": "https://horizon-testnet.stellar.org/effects?order=desc&cursor=20989784348434433"
+            },
+            "precedes": {
+              "href": "https://horizon-testnet.stellar.org/effects?order=asc&cursor=20989784348434433"
+            }
+          },
+          "id": "20989784348434433",
+          "paging_token": "20989784348434433",
+          "transaction_successful": true,
+          "source_account": "GC6IQQHUT4BXZYCJEM4AOKFD6ASWSXCEDXYPVA5NFKXSGOSRJX72KJMC",
+          "type": "invoke_host_function",
+          "type_i": 24,
+          "created_at": "2026-09-26T21:41:52Z",
+          "transaction_hash": "4d565a035182f8b282165678f19f093e5e11a9414f6a78dbb0c1c222d23fe08a",
+          "function": "HostFunctionTypeHostFunctionTypeInvokeContract",
+          "parameters": [
+            {
+              "value": "AAAAEgAAAAFooyMb9LQa9qwG8rvEn3V/r4DUCD+x1T6w0PYKWgKkmA==",
+              "type": "Address"
+            },
+            {
+              "value": "AAAADwAAAApzZXRfb3JhY2xlAAA=",
+              "type": "Sym"
+            },
+            {
+              "value": "AAAAEAAAAAEAAAACAAAADwAAAAVUb2tlbgAAAAAAABIAAAABedVirchi7top5l3vRcW4cUjjdRwdNmUwwzafKT71UKg=",
+              "type": "Vec"
+            },
+            {
+              "value": "AAAAEQAAAAEAAAAHAAAADwAAAA5hc3NldF9kZWNpbWFscwAAAAAAAwAAAAcAAAAPAAAADGluZGVwZW5kZW5jZQAAABAAAAABAAAAAQAAAA8AAAAPUmVxdWlyZURpc2pvaW50AAAAAA8AAAAXbWF4X3ByaWNlX3N0YWxlX3NlY29uZHMAAAAABQAAAAAAAA4QAAAADwAAABRtYXhfc2FuaXR5X3ByaWNlX3dhZAAAAAoAAAAAAAAANjXJrcXeoAAAAAAADwAAABRtaW5fc2FuaXR5X3ByaWNlX3dhZAAAAAoAAAAAAAAAAAADjX6kxoAAAAAADwAAAAdzb3VyY2VzAAAAABAAAAABAAAAAgAAABAAAAABAAAAAgAAAA8AAAAERmVlZAAAABEAAAABAAAAAwAAAA8AAAAIZGVjaW1hbHMAAAADAAAADgAAAA8AAAARbWF4X3N0YWxlX3NlY29uZHMAAAAAAAAFAAAAAAAADhAAAAAPAAAACHByb3ZpZGVyAAAAEAAAAAEAAAACAAAADwAAAAlSZWZsZWN0b3IAAAAAAAARAAAAAQAAAAMAAAAPAAAABWFzc2V0AAAAAAAAEAAAAAEAAAACAAAADwAAAAdTdGVsbGFyAAAAABIAAAABedVirchi7top5l3vRcW4cUjjdRwdNmUwwzafKT71UKgAAAAPAAAACGNvbnRyYWN0AAAAEgAAAAGRl3bi/+h4taFIKNyJTzZWTnZTnB9pj+s2A5kZSpF1kgAAAA8AAAAJcmVhZF9tb2RlAAAAAAAAEAAAAAEAAAACAAAADwAAAARUd2FwAAAAAwAAAAMAAAAQAAAAAQAAAAIAAAAPAAAABEZlZWQAAAARAAAAAQAAAAMAAAAPAAAACGRlY2ltYWxzAAAAAwAAAAgAAAAPAAAAEW1heF9zdGFsZV9zZWNvbmRzAAAAAAAABQAAAAAAAA4QAAAADwAAAAhwcm92aWRlcgAAABAAAAABAAAAAgAAAA8AAAAIUmVkU3RvbmUAAAARAAAAAQAAAAMAAAAPAAAACGNvbnRyYWN0AAAAEgAAAAHZylw7jufJNI/qjdKe2X/2VUbSQjDpafxEYu8Z/AuYvgAAAA8AAAAHZmVlZF9pZAAAAAAOAAAABFNUMTIAAAAPAAAABm5hdHVyZQAAAAAAEAAAAAEAAAABAAAADwAAAAtGdW5kYW1lbnRhbAAAAAAPAAAACXRvbGVyYW5jZQAAAAAAABEAAAABAAAAAgAAAA8AAAAPbG93ZXJfcmF0aW9fYnBzAAAAAAMAACU0AAAADwAAAA91cHBlcl9yYXRpb19icHMAAAAAAwAAKQQ=",
+              "type": "Map"
+            }
+          ],
+          "address": "",
+          "salt": "",
+          "asset_balance_changes": null
+        },
+        {
+          "_links": {
+            "self": {
+              "href": "https://horizon-testnet.stellar.org/operations/20989780053475329"
+            },
+            "transaction": {
+              "href": "https://horizon-testnet.stellar.org/transactions/bad9199260d94c1dc10d5699364dc6e5fbd3525cca2b01e395314babcf88e798"
+            },
+            "effects": {
+              "href": "https://horizon-testnet.stellar.org/operations/20989780053475329/effects"
+            },
+            "succeeds": {
+              "href": "https://horizon-testnet.stellar.org/effects?order=desc&cursor=20989780053475329"
+            },
+            "precedes": {
+              "href": "https://horizon-testnet.stellar.org/effects?order=asc&cursor=20989780053475329"
+            }
+          },
+          "id": "20989780053475329",
+          "paging_token": "20989780053475329",
+          "transaction_successful": true,
+          "source_account": "GC6IQQHUT4BXZYCJEM4AOKFD6ASWSXCEDXYPVA5NFKXSGOSRJX72KJMC",
+          "type": "invoke_host_function",
+          "type_i": 24,
+          "created_at": "2026-09-26T21:41:47Z",
+          "transaction_hash": "bad9199260d94c1dc10d5699364dc6e5fbd3525cca2b01e395314babcf88e798",
+          "function": "HostFunctionTypeHostFunctionTypeInvokeContract",
+          "parameters": [
+            {
+              "value": "AAAAEgAAAAFooyMb9LQa9qwG8rvEn3V/r4DUCD+x1T6w0PYKWgKkmA==",
+              "type": "Address"
+            },
+            {
+              "value": "AAAADwAAAApzZXRfb3JhY2xlAAA=",
+              "type": "Sym"
+            },
+            {
+              "value": "AAAAEAAAAAEAAAACAAAADwAAAAVUb2tlbgAAAAAAABIAAAABP4WKOhZWORVAUSX3oWL0dEGHu05dbb1xKyERBHDrYrM=",
+              "type": "Vec"
+            },
+            {
+              "value": "AAAAEQAAAAEAAAAHAAAADwAAAA5hc3NldF9kZWNpbWFscwAAAAAAAwAAAAcAAAAPAAAADGluZGVwZW5kZW5jZQAAABAAAAABAAAAAQAAAA8AAAAPUmVxdWlyZURpc2pvaW50AAAAAA8AAAAXbWF4X3ByaWNlX3N0YWxlX3NlY29uZHMAAAAABQAAAAAAAA4QAAAADwAAABRtYXhfc2FuaXR5X3ByaWNlX3dhZAAAAAoAAAAAAAAANjXJrcXeoAAAAAAADwAAABRtaW5fc2FuaXR5X3ByaWNlX3dhZAAAAAoAAAAAAAAAAAADjX6kxoAAAAAADwAAAAdzb3VyY2VzAAAAABAAAAABAAAAAgAAABAAAAABAAAAAgAAAA8AAAAERmVlZAAAABEAAAABAAAAAwAAAA8AAAAIZGVjaW1hbHMAAAADAAAADgAAAA8AAAARbWF4X3N0YWxlX3NlY29uZHMAAAAAAAAFAAAAAAAADhAAAAAPAAAACHByb3ZpZGVyAAAAEAAAAAEAAAACAAAADwAAAAlSZWZsZWN0b3IAAAAAAAARAAAAAQAAAAMAAAAPAAAABWFzc2V0AAAAAAAAEAAAAAEAAAACAAAADwAAAAdTdGVsbGFyAAAAABIAAAABP4WKOhZWORVAUSX3oWL0dEGHu05dbb1xKyERBHDrYrMAAAAPAAAACGNvbnRyYWN0AAAAEgAAAAF9MRQlBoFlqsYl4mIohMJZ5XO5UfRUQmpd33MuukDGtQAAAA8AAAAJcmVhZF9tb2RlAAAAAAAAEAAAAAEAAAACAAAADwAAAARUd2FwAAAAAwAAAAMAAAAQAAAAAQAAAAIAAAAPAAAABEZlZWQAAAARAAAAAQAAAAMAAAAPAAAACGRlY2ltYWxzAAAAAwAAAAgAAAAPAAAAEW1heF9zdGFsZV9zZWNvbmRzAAAAAAAABQAAAAAAAA4QAAAADwAAAAhwcm92aWRlcgAAABAAAAABAAAAAgAAAA8AAAAIUmVkU3RvbmUAAAARAAAAAQAAAAMAAAAPAAAACGNvbnRyYWN0AAAAEgAAAAFNfqt86ExeBzf4XpiIze6D1DkxnAbRo0DObpytYor/qAAAAA8AAAAHZmVlZF9pZAAAAAAOAAAABFNUMTEAAAAPAAAABm5hdHVyZQAAAAAAEAAAAAEAAAABAAAADwAAAAtGdW5kYW1lbnRhbAAAAAAPAAAACXRvbGVyYW5jZQAAAAAAABEAAAABAAAAAgAAAA8AAAAPbG93ZXJfcmF0aW9fYnBzAAAAAAMAACU0AAAADwAAAA91cHBlcl9yYXRpb19icHMAAAAAAwAAKQQ=",
+              "type": "Map"
+            }
+          ],
+          "address": "",
+          "salt": "",
+          "asset_balance_changes": null
+        },
+        {
+          "_links": {
+            "self": {
+              "href": "https://horizon-testnet.stellar.org/operations/20989775758503937"
+            },
+            "transaction": {
+              "href": "https://horizon-testnet.stellar.org/transactions/da11d9e4f8a6f77b36dfdd8b67b52dc30f44b10ccde9927a30be5750aa935b32"
+            },
+            "effects": {
+              "href": "https://horizon-testnet.stellar.org/operations/20989775758503937/effects"
+            },
+            "succeeds": {
+              "href": "https://horizon-testnet.stellar.org/effects?order=desc&cursor=20989775758503937"
+            },
+            "precedes": {
+              "href": "https://horizon-testnet.stellar.org/effects?order=asc&cursor=20989775758503937"
+            }
+          },
+          "id": "20989775758503937",
+          "paging_token": "20989775758503937",
+          "transaction_successful": true,
+          "source_account": "GC6IQQHUT4BXZYCJEM4AOKFD6ASWSXCEDXYPVA5NFKXSGOSRJX72KJMC",
+          "type": "invoke_host_function",
+          "type_i": 24,
+          "created_at": "2026-09-26T21:41:42Z",
+          "transaction_hash": "da11d9e4f8a6f77b36dfdd8b67b52dc30f44b10ccde9927a30be5750aa935b32",
+          "function": "HostFunctionTypeHostFunctionTypeInvokeContract",
+          "parameters": [
+            {
+              "value": "AAAAEgAAAAFooyMb9LQa9qwG8rvEn3V/r4DUCD+x1T6w0PYKWgKkmA==",
+              "type": "Address"
+            },
+            {
+              "value": "AAAADwAAAApzZXRfb3JhY2xlAAA=",
+              "type": "Sym"
+            },
+            {
+              "value": "AAAAEAAAAAEAAAACAAAADwAAAAVUb2tlbgAAAAAAABIAAAABw9fDt6YGqi6Q7WrQKPpieCoYnTFPB4mlAoIPww41F3c=",
+              "type": "Vec"
+            },
+            {
+              "value": "AAAAEQAAAAEAAAAHAAAADwAAAA5hc3NldF9kZWNpbWFscwAAAAAAAwAAAAcAAAAPAAAADGluZGVwZW5kZW5jZQAAABAAAAABAAAAAQAAAA8AAAAPUmVxdWlyZURpc2pvaW50AAAAAA8AAAAXbWF4X3ByaWNlX3N0YWxlX3NlY29uZHMAAAAABQAAAAAAAA4QAAAADwAAABRtYXhfc2FuaXR5X3ByaWNlX3dhZAAAAAoAAAAAAAAANjXJrcXeoAAAAAAADwAAABRtaW5fc2FuaXR5X3ByaWNlX3dhZAAAAAoAAAAAAAAAAAADjX6kxoAAAAAADwAAAAdzb3VyY2VzAAAAABAAAAABAAAAAgAAABAAAAABAAAAAgAAAA8AAAAERmVlZAAAABEAAAABAAAAAwAAAA8AAAAIZGVjaW1hbHMAAAADAAAADgAAAA8AAAARbWF4X3N0YWxlX3NlY29uZHMAAAAAAAAFAAAAAAAADhAAAAAPAAAACHByb3ZpZGVyAAAAEAAAAAEAAAACAAAADwAAAAlSZWZsZWN0b3IAAAAAAAARAAAAAQAAAAMAAAAPAAAABWFzc2V0AAAAAAAAEAAAAAEAAAACAAAADwAAAAdTdGVsbGFyAAAAABIAAAABw9fDt6YGqi6Q7WrQKPpieCoYnTFPB4mlAoIPww41F3cAAAAPAAAACGNvbnRyYWN0AAAAEgAAAAGN9aHB6Mli1sVx4IOEi6DTB9lBolCWNM7SmU019drdyQAAAA8AAAAJcmVhZF9tb2RlAAAAAAAAEAAAAAEAAAACAAAADwAAAARUd2FwAAAAAwAAAAMAAAAQAAAAAQAAAAIAAAAPAAAABEZlZWQAAAARAAAAAQAAAAMAAAAPAAAACGRlY2ltYWxzAAAAAwAAAAgAAAAPAAAAEW1heF9zdGFsZV9zZWNvbmRzAAAAAAAABQAAAAAAAA4QAAAADwAAAAhwcm92aWRlcgAAABAAAAABAAAAAgAAAA8AAAAIUmVkU3RvbmUAAAARAAAAAQAAAAMAAAAPAAAACGNvbnRyYWN0AAAAEgAAAAE4sfjhCc6PK0+MWsWRsWATCWDIHJcAWASXLyEoAWyr5wAAAA8AAAAHZmVlZF9pZAAAAAAOAAAABFNUMTAAAAAPAAAABm5hdHVyZQAAAAAAEAAAAAEAAAABAAAADwAAAAtGdW5kYW1lbnRhbAAAAAAPAAAACXRvbGVyYW5jZQAAAAAAABEAAAABAAAAAgAAAA8AAAAPbG93ZXJfcmF0aW9fYnBzAAAAAAMAACU0AAAADwAAAA91cHBlcl9yYXRpb19icHMAAAAAAwAAKQQ=",
+              "type": "Map"
+            }
+          ],
+          "address": "",
+          "salt": "",
+          "asset_balance_changes": null
+        }
+      ]
+    }
+  }
+}

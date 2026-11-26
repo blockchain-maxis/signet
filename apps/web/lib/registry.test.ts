@@ -11,7 +11,7 @@ import {
   rpc,
   xdr,
 } from '@stellar/stellar-sdk';
-import { buildRestoreTransaction } from './registry-transactions.ts';
+import { buildReleaseTransaction, buildRestoreTransaction } from './registry-transactions.ts';
 
 // The persistent entry an archived binding lives in, as the preamble names it.
 const ARCHIVED_KEY = xdr.LedgerKey.contractData(
@@ -68,4 +68,19 @@ test('a simulation without a restore preamble is not in an archived state', () =
     () => buildRestoreTransaction(account(), simulation(null), Networks.TESTNET),
     /not in an archived state/,
   );
+});
+
+test('the release is one invokeHostFunction calling release with the handle as an ScString', () => {
+  const registry = StrKey.encodeContract(Buffer.alloc(32, 0x7e));
+  const tx = buildReleaseTransaction(account(), 'alice', registry, Networks.TESTNET);
+
+  assert.equal(tx.operations.length, 1);
+  const body = tx.toEnvelope().v1().tx().operations()[0]!.body();
+  assert.equal(body.switch().name, 'invokeHostFunction');
+  const call = body.invokeHostFunctionOp().hostFunction().invokeContract();
+  assert.equal(Address.fromScAddress(call.contractAddress()).toString(), registry);
+  assert.equal(call.functionName().toString(), 'release');
+  assert.equal(call.args().length, 1);
+  assert.equal(call.args()[0]!.switch().name, 'scvString');
+  assert.equal(call.args()[0]!.str().toString(), 'alice');
 });

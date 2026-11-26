@@ -11,6 +11,7 @@ import (
 	"github.com/blockchain-maxis/signet/cli/internal/api"
 	"github.com/blockchain-maxis/signet/cli/internal/exitcode"
 	"github.com/blockchain-maxis/signet/cli/internal/loopback"
+	"github.com/blockchain-maxis/signet/cli/internal/networkcheck"
 	"github.com/blockchain-maxis/signet/cli/internal/pair"
 	"github.com/blockchain-maxis/signet/cli/internal/redact"
 	"github.com/blockchain-maxis/signet/cli/internal/spec"
@@ -41,6 +42,8 @@ type Deps struct {
 	// Complete submits the signed challenge and reports what was linked.
 	// handoffCode is empty unless the developer typed one.
 	Complete func(ctx context.Context, state, signedXDR, handoffCode string) (pair.Completed, error)
+	// Discovery is what the deployment published in its stellar.toml, if discovered.
+	Discovery api.Discovery
 	// Challenge fetches an unsigned SEP-10 challenge for an account, and the
 	// network passphrase the deployment says it was built for.
 	Challenge func(ctx context.Context, account string) (unsignedXDR, networkPassphrase string, err error)
@@ -181,6 +184,15 @@ func Run(ctx context.Context, baseURL, network, source, publicKey string, deps D
 
 	unsigned, passphrase, err := deps.Challenge(ctx, publicKey)
 	if err != nil {
+		return Result{}, err
+	}
+	disc := deps.Discovery
+	if disc.NetworkPassphrase == "" {
+		if p, ok := networkcheck.PassphraseFor(network); ok {
+			disc.NetworkPassphrase = p
+		}
+	}
+	if err := VerifyChallenge(unsigned, passphrase, publicKey, spec.CliLinkPurposeLink, disc); err != nil {
 		return Result{}, err
 	}
 	signed, err := deps.Sign(unsigned, passphrase)

@@ -4,6 +4,8 @@ import { currentAddress, currentSessionClaims } from '@/lib/server/session';
 import { getAccount } from '@/lib/server/account';
 import { SignOutButton } from './sign-out-button';
 import { SignOutOthersButton } from './sign-out-others-button';
+import { ReleaseHandleSection } from './release-handle-section';
+import { REGISTRY_CONTRACT_ID } from '@/lib/chain';
 
 const mono = { fontFamily: 'var(--font-mono)' } as const;
 const display = { fontFamily: 'var(--font-display)' } as const;
@@ -51,8 +53,7 @@ export default async function SettingsPage() {
           End session
         </div>
         <p className="mt-2 max-w-[560px] text-[13px] leading-[1.7] text-[#8a8779]" style={mono}>
-          Signing out clears your session cookie and disconnects the wallet on this device. Handle
-          release is an on-chain action performed from the Identity Registry, not here.
+          Signing out clears your session cookie and disconnects the wallet on this device.
         </p>
         <div className="mt-5">
           <SignOutButton />
@@ -72,6 +73,11 @@ export default async function SettingsPage() {
           <SignOutOthersButton />
         </div>
       </div>
+
+      {/* Only the handle's on-chain owner can release it (#898). */}
+      {account?.handle && account.isPrimary && (
+        <ReleaseHandleSection handle={account.handle} registryContract={REGISTRY_CONTRACT_ID} />
+      )}
     </section>
   );
 }
