@@ -15,7 +15,7 @@ import {
   challengeHash,
   mintSep10Session,
 } from './sep10.ts';
-import { __resetNonceStore } from './nonce-store.ts';
+import { __resetNonceStore, setNonceStore } from './nonce-store.ts';
 
 // `getServerKeypair()` caches on first call, so this must be set before any
 // test invokes it (directly or via `buildChallenge`/`verifyChallenge`).
@@ -219,10 +219,7 @@ test('authenticateWithSep10: a bad signature does not spend the challenge', asyn
   const signed = tx.toEnvelope().toXDR('base64');
 
   // Bad signature is rejected
-  await assert.rejects(
-    authenticateWithSep10(signed),
-    (err: Error) => err instanceof Sep10Error,
-  );
+  await assert.rejects(authenticateWithSep10(signed), (err: Error) => err instanceof Sep10Error);
 
   // The challenge should still be spendable by the correct signer
   const tx2 = TransactionBuilder.fromXDR(challenge, getNetworkPassphrase());
@@ -258,4 +255,32 @@ test('mintSep10Session returns token and cookie', () => {
   assert.equal(cookie.options.sameSite, 'lax');
   assert.equal(cookie.options.path, '/');
   assert.equal(cookie.options.maxAge, 7 * 24 * 60 * 60);
+});
+
+test('authenticateWithSep10: a failing nonce store fails closed and mints nothing', async (t) => {
+  let consumed = 0;
+  setNonceStore({
+    consume: async () => {
+      consumed += 1;
+      throw new Error('nonce store unreachable');
+    },
+  });
+  t.after(() => __resetNonceStore());
+
+  const client = Keypair.random();
+  const tx = TransactionBuilder.fromXDR(buildChallenge(client.publicKey()), getNetworkPassphrase());
+  tx.sign(client);
+  const signed = tx.toEnvelope().toXDR('base64');
+
+  // The route's order: authenticate, then mint only on success.
+  let minted: ReturnType<typeof mintSep10Session> | null = null;
+  await assert.rejects(
+    (async () => {
+      minted = mintSep10Session(await authenticateWithSep10(signed));
+    })(),
+    // Not a Sep10Error, so the route answers 503 rather than 401.
+    (err: Error) => !(err instanceof Sep10Error) && err.message === 'nonce store unreachable',
+  );
+  assert.equal(consumed, 1, 'the spend was attempted after a valid signature');
+  assert.equal(minted, null, 'no JWT or session cookie was minted');
 });

@@ -1,9 +1,8 @@
 import { createHmac, randomUUID, timingSafeEqual } from 'node:crypto';
 import { Keypair, TransactionBuilder, WebAuth } from '@stellar/stellar-sdk';
 import { normalizeNetwork, networkPassphrase } from '@signet/types';
-import { getAuthSecret } from './auth.ts';
+import { getAuthSecret, issueSession, SESSION_COOKIE } from './auth.ts';
 import { spendChallenge } from './server/challenge-spend.ts';
-import { issueSession, SESSION_COOKIE } from './auth.ts';
 import { logger } from './logger.ts';
 
 const CHALLENGE_TIMEOUT_SECONDS = 5 * 60;
@@ -169,7 +168,11 @@ export async function authenticateWithSep10(transactionXdr: string): Promise<str
  */
 export function mintSep10Session(clientAccountId: string): {
   token: string;
-  cookie: { name: string; value: string; options: { httpOnly: boolean; secure: boolean; sameSite: 'lax'; path: string; maxAge: number } };
+  cookie: {
+    name: string;
+    value: string;
+    options: { httpOnly: boolean; secure: boolean; sameSite: 'lax'; path: string; maxAge: number };
+  };
 } {
   const token = issueJwt(clientAccountId);
   const cookieValue = issueSession(clientAccountId);
@@ -192,7 +195,9 @@ export function mintSep10Session(clientAccountId: string): {
 // ── JWT (the spec's response token) ─────────────────────────────────────────
 
 const b64url = (input: Buffer | string): string =>
-  Buffer.from(input as string).toString('base64url').replace(/=+$/, '');
+  Buffer.from(input as string)
+    .toString('base64url')
+    .replace(/=+$/, '');
 
 function sign(data: string): string {
   return createHmac('sha256', getAuthSecret()).update(data).digest('base64url');

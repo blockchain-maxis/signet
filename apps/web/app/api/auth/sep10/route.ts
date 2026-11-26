@@ -81,7 +81,10 @@ export async function POST(req: Request) {
 
   const { transaction } = (await req.json().catch(() => ({}))) as { transaction?: string };
   if (!transaction) {
-    return NextResponse.json({ error: 'transaction is required' }, { status: 400, headers: CORS_HEADERS });
+    return NextResponse.json(
+      { error: 'transaction is required' },
+      { status: 400, headers: CORS_HEADERS },
+    );
   }
 
   let clientAccountId: string;
@@ -97,7 +100,10 @@ export async function POST(req: Request) {
     }
     // A nonce store failure (or any other unexpected error) fails closed with 503.
     logger.error({ err: String(err) }, 'sep10.unexpectedError');
-    return NextResponse.json({ error: 'Unable to process challenge' }, { status: 503, headers: CORS_HEADERS });
+    return NextResponse.json(
+      { error: 'Unable to process challenge' },
+      { status: 503, headers: CORS_HEADERS },
+    );
   }
 
   const { token, cookie } = mintSep10Session(clientAccountId);
