@@ -45,6 +45,7 @@ export default async function ProfilePage({ params }: { params: Promise<{ handle
   const {
     profile,
     operations,
+    total,
     truncated,
     cap,
     source,
@@ -286,7 +287,12 @@ export default async function ProfilePage({ params }: { params: Promise<{ handle
               {
                 // Without the full history the earliest record we hold is not
                 // the developer's first activity, so the label stops claiming it.
-                label: truncated || historyWindowed ? 'Earliest shown' : 'First activity',
+                // The first page alone (`total > operations.length`) is not the
+                // full history either, even when the record behind it is complete.
+                label:
+                  truncated || historyWindowed || total > operations.length
+                    ? 'Earliest shown'
+                    : 'First activity',
                 value: oldest ? formatDate(oldest.created_at, { day: undefined }) : '—',
               },
               { label: 'Latest activity', value: newest ? formatDate(newest.created_at) : '—' },
@@ -323,9 +329,7 @@ export default async function ProfilePage({ params }: { params: Promise<{ handle
           <SectionLabel>
             Soroban invocations
             <span className="ml-1 text-[var(--text-muted)]">
-              {truncated
-                ? `· ${operations.length} shown · partial record`
-                : `· ${operations.length} indexed`}
+              {truncated ? `· ${total} shown · partial record` : `· ${total} indexed`}
             </span>
           </SectionLabel>
 
@@ -335,10 +339,9 @@ export default async function ProfilePage({ params }: { params: Promise<{ handle
                 className="text-[12px] leading-[1.7] text-amber-300"
                 style={{ fontFamily: 'var(--font-mono)' }}
               >
-                Partial record — this account has more history than is shown.{' '}
-                {source === 'horizon'
-                  ? `Without an indexer, activity is read straight from Horizon, which we page through only as far as the ${cap} most recent operations.`
-                  : `The indexer read only the ${cap} most recent operations for this wallet.`}{' '}
+                Partial record — this account has more history than is shown. Without an indexer,
+                activity is read straight from Horizon, which we page through only as far as the{' '}
+                {cap} most recent operations.{' '}
                 {statsTruncated
                   ? 'Counts above are lower bounds, and older invocations are not listed.'
                   : statsWindow
@@ -359,8 +362,8 @@ export default async function ProfilePage({ params }: { params: Promise<{ handle
 
           <OperationsList
             handle={handle}
-            initialOperations={operations.slice(0, 25)}
-            total={operations.length}
+            initialOperations={operations}
+            total={total}
             truncated={truncated}
             cap={cap}
           />

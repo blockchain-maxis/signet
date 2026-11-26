@@ -3,6 +3,7 @@ package cmd
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -103,7 +104,7 @@ func fakeDeployment(t *testing.T, identity pair.Identity) (*httptest.Server, *re
 		if r.URL.Path == "/api/cli-link" {
 			log.recordPurpose(r.URL.Query().Get("purpose"))
 			w.Header().Set("Content-Type", "application/json")
-			_, _ = w.Write([]byte(`{"transaction":"AAAAchallenge","network_passphrase":"Test SDF Network ; September 2015"}`))
+			_, _ = fmt.Fprintf(w, `{"transaction":%q,"network_passphrase":"Test SDF Network ; September 2015"}`, testChallengeFor("unlink", identity.PublicKey))
 			return
 		}
 		if strings.HasPrefix(r.URL.Path, "/api/v1/lookup/") {

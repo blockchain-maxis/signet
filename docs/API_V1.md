@@ -283,6 +283,34 @@ no (404), by the same rule as the contract page `/p/{handle}/contract/{address}`
   layer could answer is a 503.
 - `Cache-Control: public, s-maxage=300` on a 200.
 
+### Contract invocations
+
+`GET /api/v1/profiles/{handle}/contracts/{address}/invocations` (#970) lists
+recorded invocations of a contract deployed by a handle:
+
+- Enforces the same attribution rule: an unattributed contract returns the same 404
+  as the contract endpoint.
+- `data`: `[{ txHash, ledger, createdAt, sourceAccount, function, successful }]`,
+  ordered newest first.
+- Keyset cursor pagination over `(createdAt, id)` tiebreak.
+- `?mine=true` filters invocations called from the handle's own linked wallets.
+- `meta`: `{ nextCursor, total, source, countedSince, totalIsFloor }` reflecting
+  the latest contract snapshot.
+- Without a database: `data: []` with `meta.source: "none"`.
+- `Cache-Control: public, s-maxage=30, stale-while-revalidate=60`.
+
+### Contract WASM upgrade history
+
+`GET /api/v1/profiles/{handle}/contracts/{address}/versions` (#970) returns the
+WASM upgrade history of a contract deployed by a handle:
+
+- Enforces the same attribution rule and 404 on unattributed contracts.
+- `data`: `[{ wasmHash, observedAt, observedLedger }]`, ordered newest first.
+- `meta`: `{ source, detectionStartsAt, windowSentence, headerNote }`, derived via
+  `describeUpgrades`.
+- Without a database: `data: []` with `meta.source: "none"`.
+- `Cache-Control: public, s-maxage=60, stale-while-revalidate=300`.
+
 ### Which handle is a wallet linked to?
 
 `GET /api/v1/lookup/{address}` (#645) is the reverse of resolve: which handle,
