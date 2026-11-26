@@ -14,6 +14,7 @@ import (
 	"github.com/blockchain-maxis/signet/cli/internal/exitcode"
 	"github.com/blockchain-maxis/signet/cli/internal/jsonschema"
 	"github.com/blockchain-maxis/signet/cli/internal/pair"
+	"github.com/blockchain-maxis/signet/cli/internal/redact"
 	"github.com/blockchain-maxis/signet/cli/internal/simulator"
 	"github.com/blockchain-maxis/signet/cli/internal/spec"
 )
@@ -157,11 +158,12 @@ func TestJSONErrorDetailsAndCodes(t *testing.T) {
 	})
 
 	t.Run("simulator_error_detail_and_stderr", func(t *testing.T) {
+		secret := "S" + strings.Repeat("A", 55)
 		simErr := &simulator.Error{
 			Code:    "internal_panic",
 			Message: "simulator trapped",
-			Detail:  map[string]any{"trap": "unreachable"},
-			Stderr:  []string{"panicked at wasm.rs:42", "stack backtrace: ..."},
+			Detail:  map[string]any{"trap": "unreachable", "seed": "signing with " + secret},
+			Stderr:  []string{"panicked at wasm.rs:42", "secret key: " + secret},
 		}
 
 		root := newRootCmd("dev", "none")
@@ -208,7 +210,27 @@ func TestJSONErrorDetailsAndCodes(t *testing.T) {
 		}
 		stderrList, ok := detail["stderr"].([]any)
 		if !ok || len(stderrList) != 2 {
-			t.Errorf("detail.stderr = %v, want 2 lines", detail["stderr"])
+			t.Fatalf("detail.stderr = %v, want 2 lines", detail["stderr"])
+		}
+		if stderrList[0] != "panicked at wasm.rs:42" {
+			t.Errorf("detail.stderr[0] = %v, want the first stderr line", stderrList[0])
+		}
+		if stderrList[1] != "secret key: "+redact.Placeholder {
+			t.Errorf("detail.stderr[1] = %v, want the secret redacted", stderrList[1])
+		}
+		if detail["seed"] != "signing with "+redact.Placeholder {
+			t.Errorf("detail.seed = %v, want the secret redacted", detail["seed"])
+		}
+		if raw := stderr.String(); strings.Contains(raw, secret) {
+			t.Errorf("stderr leaks the secret: %s", raw)
+		}
+
+		msg, _ := errObj["message"].(string)
+		if msg != "simulator error (internal_panic): simulator trapped" {
+			t.Errorf("message = %q, want it without the stderr tail", msg)
+		}
+		if strings.Contains(msg, "panicked at") || strings.Contains(msg, "last lines") {
+			t.Errorf("message carries the stderr tail: %q", msg)
 		}
 	})
 }

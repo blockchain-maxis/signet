@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"io"
+	"strings"
 
 	"github.com/blockchain-maxis/signet/cli/internal/api"
 	"github.com/blockchain-maxis/signet/cli/internal/redact"
@@ -36,7 +37,7 @@ func JSONError(err error) CliError {
 	}
 
 	code, detail := extractErrorDetails(err)
-	msg := redact.Secrets(err.Error())
+	msg := redact.Secrets(messageWithoutStderrTail(err))
 
 	return CliError{
 		Error: ErrorBody{
@@ -65,14 +66,14 @@ func extractErrorDetails(err error) (string, map[string]any) {
 		if len(simErr.Detail) > 0 {
 			detail = make(map[string]any, len(simErr.Detail)+1)
 			for k, v := range simErr.Detail {
-				detail[k] = v
+				detail[k] = redactValue(v)
 			}
 		}
 		if len(simErr.Stderr) > 0 {
 			if detail == nil {
 				detail = make(map[string]any)
 			}
-			detail["stderr"] = simErr.Stderr
+			detail["stderr"] = redactLines(simErr.Stderr)
 		}
 		return code, detail
 	}
@@ -80,7 +81,7 @@ func extractErrorDetails(err error) (string, map[string]any) {
 	var simStartErr *simulator.StartError
 	if errors.As(err, &simStartErr) {
 		if len(simStartErr.Stderr) > 0 {
-			detail = map[string]any{"stderr": simStartErr.Stderr}
+			detail = map[string]any{"stderr": redactLines(simStartErr.Stderr)}
 		}
 		return code, detail
 	}
@@ -94,6 +95,53 @@ func extractErrorDetails(err error) (string, map[string]any) {
 	}
 
 	return code, detail
+}
+
+// messageWithoutStderrTail is err's message minus the simulator's stderr tail,
+// which simulator.Error.Error appends. The tail belongs in detail.stderr only.
+func messageWithoutStderrTail(err error) string {
+	msg := err.Error()
+	var simErr *simulator.Error
+	if errors.As(err, &simErr) && len(simErr.Stderr) > 0 {
+		bare := *simErr
+		bare.Stderr = nil
+		msg = strings.Replace(msg, simErr.Error(), bare.Error(), 1)
+	}
+	return msg
+}
+
+// redactLines passes every stderr line through redact.Secrets.
+func redactLines(lines []string) []string {
+	out := make([]string, len(lines))
+	for i, line := range lines {
+		out[i] = redact.Secrets(line)
+	}
+	return out
+}
+
+// redactValue redacts the strings in a simulator detail value, descending
+// into nested objects and arrays.
+func redactValue(v any) any {
+	switch t := v.(type) {
+	case string:
+		return redact.Secrets(t)
+	case map[string]any:
+		out := make(map[string]any, len(t))
+		for k, inner := range t {
+			out[k] = redactValue(inner)
+		}
+		return out
+	case []any:
+		out := make([]any, len(t))
+		for i, inner := range t {
+			out[i] = redactValue(inner)
+		}
+		return out
+	case []string:
+		return redactLines(t)
+	default:
+		return v
+	}
 }
 
 // WriteErrorJSON writes exactly one line to w representing the structured JSON error.
