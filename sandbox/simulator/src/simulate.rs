@@ -26,7 +26,7 @@ use crate::lanes::{
 };
 use crate::ledger::fetch::FetchingSource;
 use crate::ledger::store::{LayeredStore, Write};
-use crate::ledger::verbs::{entry_of, verify_entry_key, OpenLedger};
+use crate::ledger::verbs::{entry_of, parse_live_until, verify_entry_key, OpenLedger};
 use crate::spec_verbs::{fetch_failed, wasm_of_contract};
 use crate::PROTOCOL_VERSION;
 
@@ -539,7 +539,8 @@ fn related_contracts(
                     | crate::ledger::store::Lookup::Archived { entry, .. } => {
                         lane.instance_info(&entry).ok()
                     }
-                    crate::ledger::store::Lookup::Absent => None,
+                    crate::ledger::store::Lookup::Deleted { .. }
+                    | crate::ledger::store::Lookup::Absent => None,
                 });
             if let Some(info) = info {
                 item["executable"] = json!(info.executable);
@@ -1166,10 +1167,10 @@ pub fn ledger_apply(
                 return reply;
             }
         }
-        let live_until = item
-            .get("live_until_ledger")
-            .and_then(Value::as_u64)
-            .and_then(|n| u32::try_from(n).ok());
+        let live_until = match parse_live_until(id, &at, item) {
+            Ok(live_until) => live_until,
+            Err(reply) => return reply,
+        };
         writes.push(Write {
             key,
             entry,
@@ -1235,10 +1236,10 @@ pub fn ledger_import(
         if let Err(reply) = verify_entry_key(open.lane, id, &entry_path, &key, &entry) {
             return reply;
         }
-        let live_until = item
-            .get("live_until_ledger")
-            .and_then(Value::as_u64)
-            .and_then(|n| u32::try_from(n).ok());
+        let live_until = match parse_live_until(id, &at, item) {
+            Ok(live_until) => live_until,
+            Err(reply) => return reply,
+        };
         store.insert_base(&key, entry, live_until, sequence);
     }
     let imported = entries.len();
@@ -1454,4 +1455,150 @@ pub fn storage_override(
             "live_until_ledger": live_until,
         }),
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::ledger::verbs::ledger_open;
+
+    #[cfg(feature = "lane-p28")]
+    use crate::lanes::p28::fixtures;
+    #[cfg(all(not(feature = "lane-p28"), feature = "lane-p29"))]
+    use crate::lanes::p29::fixtures;
+
+    fn key_b64(n: u32) -> String {
+        BASE64.encode(fixtures::data_key_xdr(n))
+    }
+
+    fn entry_b64(n: u32, v: u32) -> String {
+        BASE64.encode(fixtures::data_entry_xdr(n, v))
+    }
+
+    fn obj(raw: Value) -> Map<String, Value> {
+        raw.as_object().unwrap().clone()
+    }
+
+    fn id() -> Value {
+        Value::String("req-1".to_string())
+    }
+
+    fn open_ledger() -> Option<OpenLedger> {
+        let mut ledger = None;
+        let reply = ledger_open(
+            &mut ledger,
+            &id(),
+            &obj(json!({ "network_passphrase": "Test SDF Network ; September 2015" })),
+        );
+        assert_eq!(reply["type"], "result");
+        ledger
+    }
+
+    #[test]
+    fn ledger_apply_validates_live_until_ledger() {
+        let mut ledger = open_ledger();
+        let reply_str = ledger_apply(
+            &mut ledger,
+            &id(),
+            &obj(json!({
+                "entries": [
+                    { "key_xdr": key_b64(1), "entry_xdr": entry_b64(1, 10), "live_until_ledger": "500" },
+                ],
+            })),
+        );
+        assert_eq!(reply_str["type"], "error");
+        assert_eq!(reply_str["detail"]["kind"], "invalid_field");
+        assert_eq!(reply_str["detail"]["path"], "entries[0].live_until_ledger");
+
+        let reply_neg = ledger_apply(
+            &mut ledger,
+            &id(),
+            &obj(json!({
+                "entries": [
+                    { "key_xdr": key_b64(1), "entry_xdr": entry_b64(1, 10), "live_until_ledger": -1 },
+                ],
+            })),
+        );
+        assert_eq!(reply_neg["type"], "error");
+        assert_eq!(reply_neg["detail"]["kind"], "invalid_field");
+        assert_eq!(reply_neg["detail"]["path"], "entries[0].live_until_ledger");
+
+        let reply_null = ledger_apply(
+            &mut ledger,
+            &id(),
+            &obj(json!({
+                "entries": [
+                    { "key_xdr": key_b64(1), "entry_xdr": entry_b64(1, 10), "live_until_ledger": null },
+                ],
+            })),
+        );
+        assert_eq!(reply_null["type"], "result");
+
+        let reply_absent = ledger_apply(
+            &mut ledger,
+            &id(),
+            &obj(json!({
+                "entries": [
+                    { "key_xdr": key_b64(1), "entry_xdr": entry_b64(1, 10) },
+                ],
+            })),
+        );
+        assert_eq!(reply_absent["type"], "result");
+    }
+
+    #[test]
+    fn ledger_import_validates_live_until_ledger() {
+        let mut ledger = open_ledger();
+        let reply_str = ledger_import(
+            &mut ledger,
+            &id(),
+            &obj(json!({
+                "ledger_sequence": 100,
+                "entries": [
+                    { "key_xdr": key_b64(1), "entry_xdr": entry_b64(1, 10), "live_until_ledger": "500" },
+                ],
+            })),
+        );
+        assert_eq!(reply_str["type"], "error");
+        assert_eq!(reply_str["detail"]["kind"], "invalid_field");
+        assert_eq!(reply_str["detail"]["path"], "entries[0].live_until_ledger");
+
+        let reply_neg = ledger_import(
+            &mut ledger,
+            &id(),
+            &obj(json!({
+                "ledger_sequence": 100,
+                "entries": [
+                    { "key_xdr": key_b64(1), "entry_xdr": entry_b64(1, 10), "live_until_ledger": -1 },
+                ],
+            })),
+        );
+        assert_eq!(reply_neg["type"], "error");
+        assert_eq!(reply_neg["detail"]["kind"], "invalid_field");
+        assert_eq!(reply_neg["detail"]["path"], "entries[0].live_until_ledger");
+
+        let reply_null = ledger_import(
+            &mut ledger,
+            &id(),
+            &obj(json!({
+                "ledger_sequence": 100,
+                "entries": [
+                    { "key_xdr": key_b64(1), "entry_xdr": entry_b64(1, 10), "live_until_ledger": null },
+                ],
+            })),
+        );
+        assert_eq!(reply_null["type"], "result");
+
+        let reply_absent = ledger_import(
+            &mut ledger,
+            &id(),
+            &obj(json!({
+                "ledger_sequence": 100,
+                "entries": [
+                    { "key_xdr": key_b64(1), "entry_xdr": entry_b64(1, 10) },
+                ],
+            })),
+        );
+        assert_eq!(reply_absent["type"], "result");
+    }
 }

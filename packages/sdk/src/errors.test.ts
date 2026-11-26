@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import {
   SignetError,
   NotFoundError,
+  UnauthorizedError,
   ValidationError,
   RateLimitedError,
   UnavailableError,
@@ -12,6 +13,7 @@ import {
 
 const all = () => [
   new NotFoundError(),
+  new UnauthorizedError(),
   new ValidationError(),
   new RateLimitedError(),
   new UnavailableError(),
@@ -31,6 +33,7 @@ test('each error reports its own class name', () => {
     all().map((e) => e.name),
     [
       'NotFoundError',
+      'UnauthorizedError',
       'ValidationError',
       'RateLimitedError',
       'UnavailableError',
@@ -42,6 +45,7 @@ test('each error reports its own class name', () => {
 
 test('each server error has its status', () => {
   assert.equal(new NotFoundError().status, 404);
+  assert.equal(new UnauthorizedError().status, 401);
   assert.equal(new ValidationError().status, 400);
   assert.equal(new RateLimitedError().status, 429);
   assert.equal(new UnavailableError().status, 503);
@@ -50,6 +54,7 @@ test('each server error has its status', () => {
 
 test('server errors carry the envelope code; ValidationError the parameter', () => {
   assert.equal(new NotFoundError('x', { code: 'not_found' }).code, 'not_found');
+  assert.equal(new UnauthorizedError('x', { code: 'unauthorized' }).code, 'unauthorized');
   assert.equal(new ApiError('x', 500, { code: 'internal' }).code, 'internal');
   assert.equal(new ApiError('x', 500).code, undefined);
   const invalid = new ValidationError('x', { code: 'bad_request', parameter: 'cursor' });
@@ -67,6 +72,7 @@ test('callers can discriminate between error kinds', () => {
   assert.ok(err instanceof ApiError);
   for (const other of [
     NotFoundError,
+    UnauthorizedError,
     ValidationError,
     RateLimitedError,
     UnavailableError,

@@ -15,19 +15,25 @@
  *    list, never a Horizon fallback.
  * 2. **Horizon, only when there is no database** (`DATABASE_URL` unset or the
  *    DB unreachable). The bound wallet's operations are walked for
- *    `invoke_host_function` records whose `function` is
- *    `HostFunctionTypeCreateContract` — the same filter the indexer's
+ *    `invoke_host_function` records whose `function` is recognized by
+ *    `isCreateContractFunction` — the same filter the indexer's
  *    deployment worker uses — and each created address is derived from the
  *    record's `address`/`salt` or decoded from result meta, the #444 walk.
  *    The walk stops at `HORIZON_MAX_RECORDS`, with `truncated` carried
  *    through so the section can say partial like the operations list does.
  */
-import { isValidHandle, networkPassphrase, normalizeNetwork, type Network } from '@signet/types';
+import {
+  isCreateContractFunction,
+  isValidHandle,
+  networkPassphrase,
+  normalizeNetwork,
+  type Network,
+} from '@signet/types';
 import { STELLAR_NETWORK } from './chain.ts';
 import { getConfiguredNetwork } from './cli-link.ts';
 import { deriveContractId } from './contract-address.ts';
 import { decodeContractAddressFromMeta } from './contract-attribution.ts';
-import { getProfile } from './profiles.ts';
+import { getProfile, liveProfileWhere } from './profiles.ts';
 import { HORIZON_MAX_RECORDS } from './server/horizon.ts';
 
 /** A deployed contract row, ready for the profile section to render. */
@@ -78,7 +84,9 @@ export interface ProfileContractsDbRow {
  * count (needed for the multi-wallet display rule even when there are no
  * contracts), or `undefined` when there is no database at all
  * (`DATABASE_URL` unset or unreachable) — and when the handle resolves to no
- * profile row, so the Horizon fallback still gets its chance.
+ * live profile row, so the Horizon fallback still gets its chance. A profile
+ * whose on-chain primary wallet is gone (released or revoked, #895) counts as
+ * no profile: its leftover CLI wallets and their contracts are not served.
  */
 export interface ProfileContractsDb {
   listContracts: (args: {
@@ -130,15 +138,13 @@ export interface ProfileContractsDeps {
   horizon?: ProfileContractsHorizon;
 }
 
-const CREATE_CONTRACT_FUNCTION = 'HostFunctionTypeCreateContract';
-
 const defaultDb: ProfileContractsDb = {
   listContracts: async ({ handle }) => {
     if (!process.env.DATABASE_URL) return undefined;
     try {
       const { prisma } = await import('@signet/db');
-      const profile = await prisma.profile.findUnique({
-        where: { handle: handle.toLowerCase() },
+      const profile = await prisma.profile.findFirst({
+        where: liveProfileWhere(handle),
         include: {
           wallets: {
             include: { contracts: { orderBy: { deployedAt: 'desc' } } },
@@ -175,7 +181,7 @@ const defaultDb: ProfileContractsDb = {
   },
 };
 
-const defaultHorizon: ProfileContractsHorizon = {
+export const defaultHorizon: ProfileContractsHorizon = {
   boundWallet: async (handle: string) => {
     const profile = await getProfile(handle);
     return profile?.wallet ? profile.wallet : null;
@@ -270,7 +276,7 @@ async function listFromHorizon(
       break;
     }
     scanned += 1;
-    if (op.type !== 'invoke_host_function' || op.function !== CREATE_CONTRACT_FUNCTION) {
+    if (op.type !== 'invoke_host_function' || !isCreateContractFunction(op.function)) {
       continue;
     }
     const address = await deriveCreatedAddress(op, wallet, passphrase, horizon);

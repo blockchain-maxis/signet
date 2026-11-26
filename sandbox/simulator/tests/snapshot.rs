@@ -4,7 +4,6 @@
 //! 4887004, written from the recorded `getLedgerEntries` answers
 //! (`cli/internal/rpc/testdata/registry/`): reading it must give back exactly
 //! the entries RPC gave.
-#![cfg(feature = "lane-p28")]
 
 use std::io::Write;
 use std::process::{Command, Stdio};
