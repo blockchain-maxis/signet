@@ -1,7 +1,9 @@
 import { createHmac, randomUUID, timingSafeEqual } from 'node:crypto';
-import { Keypair, WebAuth } from '@stellar/stellar-sdk';
+import { Keypair, TransactionBuilder, WebAuth } from '@stellar/stellar-sdk';
 import { normalizeNetwork, networkPassphrase } from '@signet/types';
-import { getAuthSecret } from './auth.ts';
+import { getAuthSecret, issueSession, SESSION_COOKIE } from './auth.ts';
+import { spendChallenge } from './server/challenge-spend.ts';
+import { logger } from './logger.ts';
 
 const CHALLENGE_TIMEOUT_SECONDS = 5 * 60;
 const JWT_TTL_SECONDS = 5 * 60;
@@ -110,10 +112,92 @@ export function verifyChallenge(transactionXdr: string): string {
   return clientAccountID;
 }
 
+/**
+ * Compute the transaction hash from a SEP-10 challenge XDR.
+ * Used as the dedup key for replay protection so that re-encoding
+ * the same signed transaction cannot produce a new key.
+ */
+export function challengeHash(transactionXdr: string): string {
+  const tx = TransactionBuilder.fromXDR(transactionXdr, getNetworkPassphrase());
+  return tx.hash().toString('hex');
+}
+
+/**
+ * Verify a signed SEP-10 challenge, spend it (single-use), and mint
+ * the JWT + session cookie. This is the single entry point for the
+ * sign-in flow so the verify → spend → mint ordering is enforced.
+ *
+ * Returns the client account ID on success, or throws:
+ * - Sep10ConfigError (503): server misconfiguration
+ * - Sep10Error (401): invalid challenge (bad signature, wrong domain, expired, replayed)
+ * - Error (503): nonce store unavailable (fails closed)
+ */
+export async function authenticateWithSep10(transactionXdr: string): Promise<string> {
+  let clientAccountId: string;
+  try {
+    clientAccountId = verifyChallenge(transactionXdr);
+  } catch (err) {
+    if (err instanceof Sep10ConfigError) {
+      logger.error({ err: err.message }, 'sep10.misconfigured');
+      throw err;
+    }
+    const message =
+      err instanceof Sep10Error || err instanceof WebAuth.InvalidChallengeError
+        ? err.message
+        : 'Invalid challenge transaction';
+    logger.warn({ error: message }, 'sep10.verifyRejected');
+    throw new Sep10Error(message);
+  }
+
+  // Spend the challenge *after* verification but *before* minting.
+  // A bad signature never burns a valid challenge; a replay is rejected
+  // before any JWT or cookie is issued.
+  const spent = await spendChallenge(transactionXdr);
+  if (!spent) {
+    logger.warn({ hash: challengeHash(transactionXdr) }, 'sep10.replayed');
+    throw new Sep10Error('Challenge has already been used');
+  }
+
+  return clientAccountId;
+}
+
+/**
+ * Mint the JWT and session cookie for a verified client account.
+ * Separated so callers that only need the token (e.g. CLI pairing)
+ * can skip the cookie.
+ */
+export function mintSep10Session(clientAccountId: string): {
+  token: string;
+  cookie: {
+    name: string;
+    value: string;
+    options: { httpOnly: boolean; secure: boolean; sameSite: 'lax'; path: string; maxAge: number };
+  };
+} {
+  const token = issueJwt(clientAccountId);
+  const cookieValue = issueSession(clientAccountId);
+  return {
+    token,
+    cookie: {
+      name: SESSION_COOKIE,
+      value: cookieValue,
+      options: {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === 'production',
+        sameSite: 'lax' as const,
+        path: '/',
+        maxAge: 7 * 24 * 60 * 60,
+      },
+    },
+  };
+}
+
 // ── JWT (the spec's response token) ─────────────────────────────────────────
 
 const b64url = (input: Buffer | string): string =>
-  Buffer.from(input as string).toString('base64url').replace(/=+$/, '');
+  Buffer.from(input as string)
+    .toString('base64url')
+    .replace(/=+$/, '');
 
 function sign(data: string): string {
   return createHmac('sha256', getAuthSecret()).update(data).digest('base64url');
