@@ -85,3 +85,36 @@ func TestSignetDevTomlAloneReplaysWithoutARebuild(t *testing.T) {
 		t.Fatalf("trigger = %+v, %v", tr, ok)
 	}
 }
+
+func TestExtraRootProducesTriggerAndIgnoresTarget(t *testing.T) {
+	root := t.TempDir()
+	crate := filepath.Join(root, "crate")
+	_ = os.MkdirAll(filepath.Join(crate, "src"), 0o755)
+	extra := filepath.Join(root, "common")
+	_ = os.MkdirAll(filepath.Join(extra, "src"), 0o755)
+	_ = os.MkdirAll(filepath.Join(extra, "target", "debug"), 0o755)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+	triggers, err := Watch(ctx, WatchOptions{
+		CrateDir:  crate,
+		ExtraDirs: []string{extra},
+		Debounce:  150 * time.Millisecond,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	// A write under extra/target/ does not trigger
+	_ = os.WriteFile(filepath.Join(extra, "target", "debug", "libcommon.rlib"), []byte("bin"), 0o644)
+	if tr, ok := next(t, triggers, 500*time.Millisecond); ok {
+		t.Fatalf("triggered by extra root's target directory: %+v", tr)
+	}
+
+	// A write under extra/src/ produces a Trigger with Rebuild: true
+	_ = os.WriteFile(filepath.Join(extra, "src", "lib.rs"), []byte("pub fn helper() {}"), 0o644)
+	tr, ok := next(t, triggers, 3*time.Second)
+	if !ok || !tr.Rebuild || len(tr.Paths) != 1 || filepath.Base(tr.Paths[0]) != "lib.rs" {
+		t.Fatalf("expected trigger with Rebuild: true for extra root, got: %+v, ok=%v", tr, ok)
+	}
+}

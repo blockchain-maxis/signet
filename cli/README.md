@@ -6,11 +6,10 @@ this is a standalone Go module, not a pnpm package — mirroring the split
 between orchestration/UX (Go, here) and anything that must execute Soroban
 semantics (Rust, `packages/contracts`).
 
-This module is currently a scaffold: the command tree, configuration, and
-identity resolution exist, and `link` validates its inputs and reports a
-structured result, but it doesn't yet perform a real on-chain claim or call a
-deployment's HTTP API — that (along with local key management) lands in
-follow-up issues once `internal/keys`/`internal/spec` are implemented.
+The CLI provides full linking of deployment wallets to on-chain Signet handles via
+browser-based approval and cryptographic challenges, key management and signing via the
+`stellar` CLI, status and unlink operations, contract visualization via `signet visualise`,
+and a local contract sandbox environment (`signet sandbox`, `signet dev`) backed by `signet-simulator`.
 
 The contract sandbox (`signet sandbox`, `signet dev`) has its own user guide:
 [`docs/SANDBOX.md`](../docs/SANDBOX.md).
@@ -30,22 +29,16 @@ an unrecognized-flag message pointing at the wrong tool.
 
 ## Opening a browser
 
-`internal/browser.OpenOrPrint(out, url, noBrowser)` is what a future
-interactive approval flow (`signet link` opening a page for a human to
-confirm) uses to show that page: it attempts the platform opener (`open` on
-macOS, `xdg-open` on Linux, `rundll32 url.dll,FileProtocolHandler` on
-Windows — Go has no stdlib opener, so this is an explicit per-OS call rather
-than a dependency), and falls back to printing the URL to `out` instead —
-never treating the opener's failure as fatal — when `noBrowser` is set, when
-no display is detected (`DISPLAY`/`WAYLAND_DISPLAY` on Linux; macOS/Windows
-are assumed to always have one), or when the platform opener itself fails to
-launch (e.g. it isn't installed). Both paths reach the developer at exactly
-the same URL.
-
-Not yet wired into any command: `link` doesn't perform a real approval flow
-yet (see "Commands" below), so there's nothing to open a browser to. The
-package is built and tested ahead of that landing, same as `internal/keys`
-and `internal/spec`.
+`internal/browser.OpenOrPrint(out, url, noBrowser)` is used by the interactive
+approval flow (`signet link`) to open an authorization URL in the developer's
+browser: it attempts the platform opener (`open` on macOS, `xdg-open` on Linux,
+`rundll32 url.dll,FileProtocolHandler` on Windows — Go has no stdlib opener, so
+this is an explicit per-OS call rather than a dependency), and falls back to
+printing the URL to `out` instead — never treating the opener's failure as fatal —
+when `--no-browser` is set, when no display is detected (`DISPLAY`/`WAYLAND_DISPLAY`
+on Linux; macOS/Windows are assumed to always have one), or when the platform
+opener itself fails to launch (e.g. it isn't installed). Both paths reach the
+developer at exactly the same URL.
 
 ## Commands
 
@@ -330,7 +323,7 @@ has open shows as `in use` and is not removed.
 ### `signet visualise`
 
 ```sh
-signet visualise <address> [--wasm file.wasm] [--network testnet|mainnet] [--out file.svg] [--theme dark|light|auto] [--open]
+signet visualise <address> [--wasm file.wasm] [--network <name>] [--rpc-url <url>] [--out file.svg] [--theme dark|light|auto] [--open]
 ```
 
 Draws a contract's diagram as an SVG file (#578), with the visualiser the web
@@ -479,36 +472,31 @@ classes could apply. An error that matches neither mechanism maps to `1`.
 
 ## Configuration
 
-Every command reads two settings — which Signet deployment to talk to, and
-which local identity to sign as — resolved in this order, highest priority
-first:
+Every command resolves runtime settings (Signet deployment URL, Stellar network,
+signing identity, and sandbox RPC URL) per field across four layers, highest
+priority first:
 
-1. A command-line flag: `--url` / `--source` / `--sign-with-key`
-   (`--sign-with-key` outranks `--source`: it is the more specific statement
-   of intent)
-2. An environment variable: `SIGNET_URL` for the deployment URL,
-   `STELLAR_SIGN_WITH_KEY` for the identity
-3. The config file: `$XDG_CONFIG_HOME/signet/config.json` on Linux,
-   `~/Library/Application Support/signet/config.json` on macOS,
-   `%AppData%\signet\config.json` on Windows (`os.UserConfigDir()`)
-4. The built-in default deployment — no config file is required to use it
+1. Command-line flags: `--url` / `--network` / `--source` / `--sign-with-key` / `--rpc-url`
+2. Environment variables: `SIGNET_URL` / `SIGNET_NETWORK` / `STELLAR_SIGN_WITH_KEY`
+3. The active deployment context in `config.json` (or selected via `--context` / `SIGNET_CONTEXT`)
+4. Built-in defaults (`https://signet-web-pearl.vercel.app` on `testnet`)
 
-```json
-{
-  "baseUrl": "https://my-self-hosted-signet.example",
-  "source": "alice"
-}
-```
+Named deployment contexts bundle an endpoint `url`, a `network`, a default signing
+identity `source`, and an optional `rpcUrl`. Manage them with `signet context`
+(`add`, `list`, `show`, `use`, `remove`), inspect and update individual keys with
+`signet config` (`get`, `set`, `unset`, `path`), or override the active context for
+a single run using `--context <name>` or `SIGNET_CONTEXT`.
 
-Passing `--source` explicitly updates the config file's `source` so the next
-invocation doesn't have to repeat it. `--sign-with-key` and
-`STELLAR_SIGN_WITH_KEY` deliberately do not — `stellar tx sign` accepts key
-material for that setting, and persisting a secret to disk on your behalf is
-not signet's call — that's what makes repeat runs not
-re-ask which identity to use. `--url` is read from the config file but never
-written back by a flag; edit the file (or keep using `--url`/`SIGNET_URL`) to
-change the configured deployment. See `internal/config` for the resolution
-logic and its tests.
+Passing `--source` explicitly updates the active context's `source` in `config.json`
+so repeat runs do not re-ask which identity to use. `--sign-with-key` and
+`STELLAR_SIGN_WITH_KEY` deliberately do not — `stellar tx sign` accepts secret key
+material for that setting, and persisting a secret to disk is not signet's call.
+Flags like `--url` and `--network` do not rewrite config; use `signet context add`
+or `signet config set` to configure deployments.
+
+For full documentation on deployment contexts, schema v2, precedence rules, and
+transparent v1 migration, see [Deployment contexts](../docs/CLI.md#deployment-contexts)
+in the CLI guide. See `internal/config` for the resolution logic and its tests.
 
 ### Sandbox network and RPC
 
@@ -616,17 +604,32 @@ GOOS=linux  GOARCH=amd64 go build -o bin/signet-linux-amd64  ./cmd/signet
 
 ## Layout
 
-| Path                 | Purpose                                                                                                                                                                                                                                                                                                                                                     |
-| -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `cmd/signet`         | `main.go` — the binary's entrypoint                                                                                                                                                                                                                                                                                                                         |
-| `internal/cmd`       | Cobra command tree                                                                                                                                                                                                                                                                                                                                          |
-| `internal/config`    | Resolves `--url`/`--source`/`SIGNET_URL`/the config file into the settings a run uses                                                                                                                                                                                                                                                                       |
-| `internal/link`      | `signet link` — validates a handle/public key and reports a structured result; the actual on-chain claim / API call is not yet implemented                                                                                                                                                                                                                  |
-| `internal/keys`      | Resolves a named local identity to its public key, and checks the local `stellar` CLI is present and new enough, by shelling out to it; signing itself is not yet implemented                                                                                                                                                                               |
-| `internal/spec`      | Typed request/response models for a Signet deployment's HTTP API (scaffolded, not yet implemented)                                                                                                                                                                                                                                                          |
-| `internal/output`    | The shared output layer: `Printer{JSON, Out, Err}` with `Result` (one JSON object or the human rendering), `Progress` and `Interactive` (stdout for a person, stderr under `--json`)                                                                                                                                                                        |
-| `internal/exitcode`  | The exit-code taxonomy (see "Exit codes" above) — its own leaf package so both `internal/cmd` and packages like `internal/keys` can depend on it without a cycle                                                                                                                                                                                            |
-| `internal/browser`   | Opens a URL in the default browser for an approval flow, falling back to printing it — not yet wired into any command                                                                                                                                                                                                                                       |
-| `internal/simulator` | The one client for `signet-simulator`: finds it (`SIGNET_SIMULATOR_PATH`, beside `signet`, then `PATH`), spawns it, checks the handshake, serialises calls, answers its `ledger_fetch`, enforces the per-request timeout (SIGTERM, 2s, SIGKILL), stops it when idle, and respawns it transparently with the session replayed (docs/CLI_RUST_BRIDGE.md §4–5) |
-| `internal/rpc`       | A thin Stellar RPC JSON-RPC client (`getNetwork`, `getLatestLedger`, `getVersionInfo`, `getHealth`, `getLedgerEntries` paged at 200 keys, `getTransaction(s)`, `getEvents`, `simulateTransaction`) with retries, and the sandbox network selection; payloads stay base64                                                                                    |
-| `internal/fork`      | The on-disk fork cache: one bbolt database per network and `<contract>@<forkLedger>` under `os.UserCacheDir()/signet/forks/`, with a `manifest.json`, a single-process lock that names the owning PID, and corruption detection                                                                                                                             |
+| Path                    | Purpose                                                                                                                                                       |
+| ----------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `cmd/signet`            | `main.go` — the binary's entrypoint                                                                                                                           |
+| `internal/api`          | Shared HTTP client and transport layer for communicating with a Signet deployment's API                                                                       |
+| `internal/browser`      | Cross-platform browser opener for interactive linking and authorization approval flows                                                                        |
+| `internal/bundle`       | Session log recorder and standalone reproduction bundle exporter for `signet dev`                                                                             |
+| `internal/cmd`          | Cobra command definitions, subcommands, and CLI flag bindings                                                                                                 |
+| `internal/config`       | Resolves `--url`, `--source`, `--context`, configuration files, and environment variables                                                                     |
+| `internal/dev`          | Development server orchestrator and live-reloading run loop for `signet dev`                                                                                  |
+| `internal/devconfig`    | Strict configuration parser for `signet.dev.toml` test suites and sandbox settings                                                                            |
+| `internal/devui`        | Local web server behind `signet dev --ui`: embedded UI assets, a locked-down JSON API and an NDJSON event stream                                              |
+| `internal/exitcode`     | Standardized exit-code taxonomy shared across commands and packages without cycles                                                                            |
+| `internal/fork`         | On-disk bbolt fork cache and storage management under `os.UserCacheDir()/signet/forks/`                                                                       |
+| `internal/jsonschema`   | Validates JSON against the sandbox protocol schemas (`sandbox/protocol/schema/v1`); used mainly by tests                                                      |
+| `internal/keys`         | Resolves identities, validates `stellar` CLI version requirements, and delegates transaction signing                                                          |
+| `internal/link`         | `signet link` orchestrator managing browser pairing, challenges, and deployment registration                                                                  |
+| `internal/localnet`     | Local Stellar Quickstart network runner for deploying and testing against a local container RPC                                                               |
+| `internal/loopback`     | Ephemeral single-request 127.0.0.1 callback listener for browser authorization handoffs                                                                       |
+| `internal/networkcheck` | Validates target Stellar network compatibility between requested commands and deployment stellar.toml                                                         |
+| `internal/output`       | Standardized output layer with JSON support, diagnostics formatting, and progress reporting                                                                   |
+| `internal/pair`         | Pairing protocol client for challenge negotiation, polling, and TTL-bounded wait cycles                                                                       |
+| `internal/realtx`       | Discovers recent real contract transactions via RPC events, ledger scanning, and deployment indexers                                                          |
+| `internal/redact`       | Redacts secret keys, StrKey seeds, and API tokens from logs and output streams                                                                                |
+| `internal/render`       | Terminal formatting, colorization, and diff rendering for simulation results                                                                                  |
+| `internal/rpc`          | Thin Stellar RPC client supporting pagination, retries, batching, and network discovery                                                                       |
+| `internal/simulator`    | Process lifecycle manager and IPC client for `signet-simulator`                                                                                               |
+| `internal/spec`         | Typed request/response models and failure codes for a deployment's CLI HTTP routes (generated from `packages/types`), and the failure-code-to-exit-code table |
+| `internal/update`       | Release check behind `signet version --check` and the once-a-day upgrade notice                                                                               |
+| `internal/visualise`    | Runs the visualiser bundle in an embedded JavaScript engine to render contract SVG diagrams                                                                   |

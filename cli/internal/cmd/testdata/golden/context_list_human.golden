@@ -1,0 +1,8 @@
+$ signet context list
+-- stdout --
+CURRENT  NAME     NETWORK  URL                         SOURCE
+*        default  testnet  https://signet.example.com  alice
+         prod     mainnet  https://prod.example.com    bob
+-- stderr --
+(empty)
+-- exit 0 --

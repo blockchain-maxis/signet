@@ -54,6 +54,16 @@ test('the handle directory says so, and lists nothing, when no registry is confi
   await expect(page.getByText(/handles? currently bound on the Identity Registry/i)).toHaveCount(0);
 });
 
+test('/handles?q=zz renders search form and empty caption when no registry configured', async ({
+  page,
+}) => {
+  await page.goto('/handles?q=zz');
+  await expect(page.getByRole('heading', { name: 'Handles' })).toBeVisible();
+  await expect(page.getByRole('searchbox', { name: /search handles/i })).toBeVisible();
+  await expect(page.getByText(/No Identity Registry is configured/i)).toBeVisible();
+  await expect(page.locator('a[href^="/p/"]')).toHaveCount(0);
+});
+
 test('closing CTA is a real connect-wallet button, not a dead link', async ({ page }) => {
   await page.goto('/');
   // The closing section, anchored by its headline.
@@ -113,7 +123,10 @@ test('/how-it-works states the limits of contract attribution', async ({ page })
   await expect(body).toContainText("Nothing executes on Signet's servers");
 });
 
-test('profile page canonical link, social metadata and case redirect', async ({ page, request }) => {
+test('profile page canonical link, social metadata and case redirect', async ({
+  page,
+  request,
+}) => {
   const redirectRes = await request.get('/p/Alice', { maxRedirects: 0 });
   expect(redirectRes.status()).toBe(308);
   expect(redirectRes.headers()['location']).toBe('/p/alice');
@@ -125,4 +138,23 @@ test('profile page canonical link, social metadata and case redirect', async ({ 
   await page.goto('/handles');
   const handlesOgTitle = await page.locator('meta[property="og:title"]').getAttribute('content');
   expect(handlesOgTitle).toBe('Handles · Signet');
+});
+
+test('default OpenGraph image serves a PNG and the landing page og:image resolves to one', async ({
+  page,
+  request,
+}) => {
+  const directRes = await request.get('/opengraph-image');
+  expect(directRes.status()).toBe(200);
+  expect(directRes.headers()['content-type']).toContain('image/png');
+
+  await page.goto('/');
+  const ogImage = page.locator('meta[property="og:image"]');
+  await expect(ogImage).toHaveCount(1);
+  const content = await ogImage.getAttribute('content');
+  expect(content).toBeTruthy();
+
+  const ogRes = await request.get(content!);
+  expect(ogRes.status()).toBe(200);
+  expect(ogRes.headers()['content-type']).toContain('image/png');
 });

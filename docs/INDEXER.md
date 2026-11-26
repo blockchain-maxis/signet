@@ -473,6 +473,19 @@ No restart is needed, because wallets are read fresh on every tick. The walk the
 10 pages per wallet per tick until it has finished again. Reading an operation twice is
 harmless: every write is an upsert on the Horizon operation id.
 
+**Backfill deployments** — make the deployment worker walk a wallet's history again,
+for example after fixing contract discovery function matching (#959) or when older
+deployments need to be re-discovered:
+
+```sql
+-- Reset deployment cursors and watermarks so existing wallets re-walk once
+UPDATE "Wallet" SET "deploymentCursor" = NULL, "deploymentBackfilledAt" = NULL, "deploymentWatermark" = NULL;
+```
+
+Like operations backfills, no restart is needed as wallets are scanned fresh each tick.
+Discovered contracts are written as idempotent upserts on `deployTxHash`, so re-scanning
+is safe.
+
 **Full rebuild** (local only):
 
 ```bash

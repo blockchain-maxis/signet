@@ -77,3 +77,18 @@ test('logout ends the session', async ({ page }) => {
   await page.goto('/app');
   await expect(page.getByRole('button', { name: /sign in with wallet/i })).toBeVisible();
 });
+
+test('retired legacy auth endpoints return 404', async ({ request }) => {
+  const kp = Keypair.random();
+  const address = kp.publicKey();
+
+  const cases = [
+    { endpoint: 'challenge', data: { address } },
+    { endpoint: 'verify', data: { address, message: 'Signet sign-in', signature: 'invalid' } },
+  ] as const;
+
+  for (const { endpoint, data } of cases) {
+    const res = await request.post(`/api/auth/${endpoint}`, { data });
+    expect(res.status()).toBe(404);
+  }
+});

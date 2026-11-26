@@ -115,7 +115,10 @@ export function enhanceFilter(options: EnhanceFilterOptions): FilterController {
     for (const node of nodeElements) {
       const id = node.getAttribute('data-node-id') || '';
       const isFunction = id.startsWith('fn:');
+      const membersAttr = node.getAttribute('data-members');
+      const members = membersAttr ? membersAttr.split(',').filter(Boolean) : null;
       if (isFunction) totalFunctions++;
+      else if (members) totalFunctions += members.length;
 
       const writes = node.getAttribute('data-mark') === 'write';
       if (writesOnly && !writes) {
@@ -129,18 +132,26 @@ export function enhanceFilter(options: EnhanceFilterOptions): FilterController {
         node.classList.remove(FILTER_CLASSES.match);
         matchingNodes++;
         if (isFunction) matchingFunctions++;
+        else if (members) matchingFunctions += members.length;
         continue;
       }
 
       const textEl = node.querySelector('text');
       const label = textEl?.textContent || node.textContent || '';
-      const isMatch = id.toLowerCase().includes(cleanQuery) || label.toLowerCase().includes(cleanQuery);
+      const matchedMembers = members
+        ? members.filter((m) => m.toLowerCase().includes(cleanQuery))
+        : [];
+      const isMatch =
+        id.toLowerCase().includes(cleanQuery) ||
+        label.toLowerCase().includes(cleanQuery) ||
+        matchedMembers.length > 0;
 
       if (isMatch) {
         node.classList.remove(FILTER_CLASSES.dimmed);
         node.classList.add(FILTER_CLASSES.match);
         matchingNodes++;
         if (isFunction) matchingFunctions++;
+        else if (members) matchingFunctions += matchedMembers.length;
       } else {
         node.classList.add(FILTER_CLASSES.dimmed);
         node.classList.remove(FILTER_CLASSES.match);

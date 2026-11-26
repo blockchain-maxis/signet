@@ -34,6 +34,7 @@ test('exports the deliberate public surface: the client, its errors, and nothing
     'RateLimitedError',
     'SignetClient',
     'SignetError',
+    'UnauthorizedError',
     'UnavailableError',
     'ValidationError',
   ]);

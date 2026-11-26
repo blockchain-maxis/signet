@@ -4,18 +4,19 @@ import { SectionLabel } from './_components/section-label';
 import { SiteFooter } from './_components/site-footer';
 import { SiteNav } from './_components/site-nav';
 import {
-  getProfile,
-  getOperationsResult,
-  getProfileStats,
   formatCount,
   formatStatsWindow,
+  getProfile,
   isValidHandle,
 } from '@/lib/profiles';
-import { getProfileContracts } from '@/lib/profile-contracts';
+import { loadProfilePageData } from '@/lib/profile-page';
+import { getProfileState } from '@/lib/profile-state';
 import { STELLAR_EXPLORER, STELLAR_NETWORK_NAME } from '@/lib/network';
 import { formatDate } from '@/lib/format-date';
 import OperationsList from './operations-list';
 import { CopyAddress } from './copy-address';
+import { RestoreBinding } from '@/components/restore-binding';
+import { REGISTRY_CONTRACT_ID } from '@/lib/chain';
 
 // Rendered per request. The root layout reads request headers for the CSP
 // nonce, so no route can be statically pre-rendered anyway, and handles are
@@ -89,23 +90,24 @@ export default async function ProfilePage({ params }: { params: Promise<{ handle
     permanentRedirect(`/p/${handle.toLowerCase()}`);
   }
 
-  const profile = await getProfile(handle);
-  if (!profile) notFound();
+  const data = await loadProfilePageData(handle);
+  if (!data) notFound();
 
-  // `truncated` says the record stops at a cap rather than at the end of this
-  // developer's history. Every claim below that would otherwise read as a total
-  // is qualified by it — a partial record shown as complete is the one thing a
-  // career record must never do.
-  const { operations, truncated, cap, source } = await getOperationsResult(handle);
-  const stats = await getProfileStats(handle, operations);
-  // Contracts the handle's wallets deployed, newest first — a summary list
-  // linking to each contract page, with no interface detail (#455).
   const {
+    profile,
+    operations,
+    truncated,
+    cap,
+    source,
+    stats,
     contracts,
-    truncated: contractsTruncated,
-    cap: contractsCap,
+    contractsTruncated,
+    contractsCap,
     multiWallet,
-  } = await getProfileContracts(handle);
+  } = data;
+  // Live, archived or no wallet: shared with the social card (#896).
+  const state = getProfileState(profile);
+
   // The stats can outrun the capped operation list: database aggregates are
   // exact for their represented scope even when the list below stops at a cap.
   // When that scope is retention-bounded, the UI labels the window explicitly.
@@ -162,6 +164,17 @@ export default async function ProfilePage({ params }: { params: Promise<{ handle
           )}
 
           <div className="mt-7 flex items-center gap-3">
+            {state === 'archived' ? (
+              <span className="inline-flex items-center gap-2 border border-amber-900/60 bg-amber-950/20 px-3 py-1.5">
+                <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
+                <span
+                  className="text-[10px] uppercase tracking-[0.22em] text-amber-300"
+                  style={{ fontFamily: 'var(--font-mono)' }}
+                >
+                  Archived on-chain · Identity Registry
+                </span>
+              </span>
+            ) : (
             <span className="inline-flex items-center gap-2 border border-emerald-800 bg-emerald-950/30 px-3 py-1.5">
               <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
               <span
@@ -171,12 +184,17 @@ export default async function ProfilePage({ params }: { params: Promise<{ handle
                 Bound on-chain · Identity Registry
               </span>
             </span>
+            )}
           </div>
         </div>
       </header>
 
       <div className="relative z-10 mx-auto max-w-5xl px-8 py-16 md:px-14">
 
+        {/* An archived binding has no wallet to show, so its wallet, contracts
+            and activity are hidden rather than rendered empty (#896). */}
+        {state !== 'archived' && (
+        <>
         {/* Wallet */}
         <section className="mb-16">
           <SectionLabel>Linked wallet</SectionLabel>
@@ -398,11 +416,24 @@ export default async function ProfilePage({ params }: { params: Promise<{ handle
             cap={cap}
           />
         </section>
+        </>
+        )}
 
         {/* Verification footer */}
         <section className="pb-10">
           <SectionLabel>Verification</SectionLabel>
           <div className="mt-6 border border-[#1f1d19] px-6 py-6">
+            {state === 'archived' ? (
+              <p
+                className="max-w-[680px] text-[13px] leading-[1.7] text-[var(--text-muted)]"
+                style={{ fontFamily: 'var(--font-mono)' }}
+              >
+                This handle&apos;s binding is{' '}
+                <strong className="text-amber-300">archived on-chain</strong>. The binding still
+                exists in the Identity Registry on Stellar {STELLAR_NETWORK_NAME}, but its ledger
+                entry has expired, so it no longer resolves to a wallet until it is restored.
+              </p>
+            ) : (
             <p
               className="max-w-[680px] text-[13px] leading-[1.7] text-[var(--text-muted)]"
               style={{ fontFamily: 'var(--font-mono)' }}
@@ -426,6 +457,12 @@ export default async function ProfilePage({ params }: { params: Promise<{ handle
                 </>
               ) : null}
             </p>
+            )}
+            {state === 'archived' && (
+              <div className="mt-6">
+                <RestoreBinding handle={handle} registryContract={REGISTRY_CONTRACT_ID} />
+              </div>
+            )}
             <a
               href="/how-it-works"
               className="mt-4 inline-block text-[10px] uppercase tracking-[0.22em] text-[var(--text-accent)] transition-colors hover:text-[var(--text-accent)]"
