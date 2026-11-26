@@ -185,6 +185,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/profiles/{handle}/contracts/{address}/invocations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Invocations of a contract attributed to a handle
+         * @description Cursor-paginated calls to a contract deployed by the handle's wallets, newest first, with capture-window metadata.
+         */
+        get: operations["getContractInvocations"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/profiles/{handle}/contracts/{address}/versions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * WASM upgrade history of a contract attributed to a handle
+         * @description WASM hashes observed for a contract deployed by the handle's wallets, newest first, with detection window metadata.
+         */
+        get: operations["getContractVersions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/profiles/{handle}/operations": {
         parameters: {
             query?: never;
@@ -315,6 +355,34 @@ export interface components {
             network: "testnet" | "mainnet";
             /** @description Hex-encoded SHA-256 hash of the contract bytecode. */
             wasmHash?: string | null;
+        };
+        ContractInvocation: {
+            /**
+             * Format: date-time
+             * @description ISO-8601 UTC timestamp of the invocation.
+             */
+            createdAt: string;
+            /** @description Contract function invoked, or null if invoked as a sub-call. */
+            function: string | null;
+            /** @description Ledger sequence number. */
+            ledger: number;
+            /** @description Stellar address that invoked the contract. */
+            sourceAccount: string;
+            /** @description Whether the invocation succeeded. */
+            successful: boolean;
+            /** @description Hex-encoded transaction hash. */
+            txHash: string;
+        };
+        ContractWasmVersion: {
+            /**
+             * Format: date-time
+             * @description ISO-8601 UTC timestamp when the indexer observed this WASM hash.
+             */
+            observedAt: string;
+            /** @description Ledger sequence number when the indexer observed this WASM hash. */
+            observedLedger: number;
+            /** @description Hex-encoded SHA-256 hash of the contract WASM bytecode. */
+            wasmHash: string;
         };
         Error: {
             /**
@@ -1167,6 +1235,174 @@ export interface operations {
                 content: {
                     "application/json": {
                         data: components["schemas"]["Contract"] & Record<string, never>;
+                    };
+                };
+            };
+            /** @description Invalid handle or contract ID. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description No contract with this address is attributed to this handle. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Rate limit exceeded. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Internal server error. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Attribution is unavailable (neither the database nor Horizon answered). */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    getContractInvocations: {
+        parameters: {
+            query?: {
+                /** @description Opaque pagination cursor from meta.nextCursor. */
+                cursor?: string;
+                /** @description Number of invocations to return (default 25, max 100). */
+                limit?: number;
+                /** @description Restrict results to invocations called from the handle's own wallets. */
+                mine?: boolean;
+            };
+            header?: never;
+            path: {
+                /** @description Handle to look up (case-insensitive). */
+                handle: string;
+                /** @description Soroban contract ID (C...). */
+                address: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Paginated list of contract invocations. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        data: components["schemas"]["ContractInvocation"][];
+                        meta: {
+                            /** Format: date-time */
+                            countedSince: string | null;
+                            nextCursor?: string | null;
+                            /** @enum {string} */
+                            source: "database" | "none";
+                            total?: number | null;
+                            totalIsFloor: boolean;
+                        };
+                    };
+                };
+            };
+            /** @description Invalid handle, contract ID, or pagination parameters. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description No contract with this address is attributed to this handle. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Rate limit exceeded. */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Internal server error. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+            /** @description Attribution is unavailable (neither the database nor Horizon answered). */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ErrorEnvelope"];
+                };
+            };
+        };
+    };
+    getContractVersions: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Handle to look up (case-insensitive). */
+                handle: string;
+                /** @description Soroban contract ID (C...). */
+                address: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description WASM version history of the contract. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        data: components["schemas"]["ContractWasmVersion"][];
+                        meta: {
+                            /** Format: date-time */
+                            detectionStartsAt?: string | null;
+                            headerNote?: string | null;
+                            /** @enum {string} */
+                            source: "database" | "none";
+                            windowSentence?: string | null;
+                        };
                     };
                 };
             };
