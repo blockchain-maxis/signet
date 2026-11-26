@@ -2,7 +2,7 @@
 
 Soroban contract that binds a Stellar wallet to a Signet handle on-chain.
 
-> **Status:** implemented. 47 tests (40 unit tests in `src/test.rs`, 6
+> **Status:** implemented. 49 tests (42 unit tests in `src/test.rs`, 6
 > property tests in `src/property_test.rs`, 1 cost test in `src/cost_test.rs`).
 > CI's `Wasm size budget` step logs the release wasm's current size against its
 > 20 KB budget (see [`../README.md`](../README.md#size-budget)).
