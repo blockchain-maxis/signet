@@ -1,0 +1,6 @@
+$ signet config get url
+-- stdout --
+https://signet.example.com
+-- stderr --
+(empty)
+-- exit 0 --

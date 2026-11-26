@@ -25,6 +25,23 @@ const ROOT_DOMAIN = process.env.NEXT_PUBLIC_ROOT_DOMAIN ?? 'signet.dev';
 // subdomains).
 const RESERVED = new Set<string>(RESERVED_HANDLES);
 
+/**
+ * Next.js root metadata file routes that are served without a file extension
+ * (so the middleware matcher does not skip them) and match `HANDLE_PATTERN`.
+ *
+ * They cannot be added to `RESERVED_HANDLES` because that list mirrors the
+ * immutable on-chain Identity Registry contract (enforced by
+ * `packages/types/src/handle.test.ts`). Only the bare path belongs to the
+ * metadata route — `/@opengraph-image` and `opengraph-image.signet.dev` still
+ * route to the profile.
+ */
+const NEXT_METADATA_ROUTES = new Set<string>([
+  'opengraph-image',
+  'twitter-image',
+  'icon',
+  'apple-icon',
+]);
+
 /** The contract page's child segments (#445) — the only tabs that route. */
 const CONTRACT_TAB_SEGMENTS = new Set(
   CONTRACT_TABS.map((t) => t.segment).filter((s): s is string => s !== null),
@@ -149,7 +166,8 @@ export function resolveRewriteTarget(host: string, pathname: string): string | n
     first === 'how-it-works' || // static informational page
     first === 'handles' || // public handle directory
     first === 'api' ||
-    first === '_next'
+    first === '_next' ||
+    (first !== undefined && NEXT_METADATA_ROUTES.has(first))
   ) {
     return null;
   }

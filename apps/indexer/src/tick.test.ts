@@ -61,7 +61,7 @@ function fakeWorkers(): { workers: TickWorkers; ran: string[]; cursorSaves: numb
     operations: ok('operations', { opsUpserted: 7 }),
     invocations: ok('invocations', { invocationsUpserted: 6 }),
     executableRefresh: ok('executable-refresh', { wasmChanged: 5 }),
-    prune: ok('prune', { opsPruned: 9, snapshotsPruned: 8, invocationsPruned: 10 }),
+    prune: ok('prune', { opsPruned: 9, snapshotsPruned: 8, invocationsPruned: 10, pairingsPruned: 11 }),
     saveCursor: async (highestLedger) => {
       ran.push('cursor');
       cursorSaves.push(highestLedger);
@@ -82,6 +82,7 @@ const CLEAN_TOTALS = {
   opsPruned: 9,
   snapshotsPruned: 8,
   invocationsPruned: 10,
+  pairingsPruned: 11,
 };
 
 /** The totals a worker contributes, which fall back to zero when it fails. */
@@ -92,7 +93,7 @@ const TOTALS_OF: Record<WorkerName, (keyof typeof CLEAN_TOTALS)[]> = {
   operations: ['opsUpserted'],
   invocations: ['invocationsUpserted'],
   'executable-refresh': ['wasmChanged'],
-  prune: ['opsPruned', 'snapshotsPruned', 'invocationsPruned'],
+  prune: ['opsPruned', 'snapshotsPruned', 'invocationsPruned', 'pairingsPruned'],
 };
 
 const throwing = (message: string) => async (): Promise<never> => {
@@ -269,6 +270,7 @@ test('runTick leaves out the invocations and prune workers when they are not pas
     opsPruned: 0,
     snapshotsPruned: 0,
     invocationsPruned: 0,
+    pairingsPruned: 0,
   });
   assert.deepEqual(summary.failedWorkers, []);
 });
