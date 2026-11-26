@@ -89,9 +89,9 @@ function tabNodeNames(view: DiagramView, where: string): string[] {
     .sort();
 }
 
-/** The node titles of a standalone SVG, sorted. The root's own title carries an id and is not one. */
+/** The node titles of a standalone SVG, sorted: each node is a `<g data-node-kind>` titled with its name (the root and the legend have titles of their own). */
 function standaloneNodeNames(svg: string): string[] {
-  return [...svg.matchAll(/<title>([^<]*)<\/title>/g)]
+  return [...svg.matchAll(/<g data-node-kind="[^"]*"><title>([^<]*)<\/title>/g)]
     .map(([, title]) => unescapeXml(title!))
     .sort();
 }

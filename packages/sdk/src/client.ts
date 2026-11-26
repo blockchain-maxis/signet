@@ -84,7 +84,7 @@ interface V1ErrorBody {
 
 export interface RequestOptions {
   /** Query parameters; undefined and null values are left out. */
-  query?: Record<string, string | number | undefined | null>;
+  query?: Record<string, string | number | boolean | undefined | null>;
   /** Optional caller `AbortSignal` to cancel the request. */
   signal?: AbortSignal;
 }
@@ -495,6 +495,72 @@ export class SignetClient {
     );
   }
 
+  /**
+   * One page of invocations of a contract deployed by a handle
+   * (`GET /api/v1/profiles/{handle}/contracts/{address}/invocations`).
+   * Pass `meta.nextCursor` back as `cursor` for the next page.
+   */
+  async listContractInvocations(
+    handle: Handle,
+    address: string,
+    options: PageOptions & { mine?: boolean } = {},
+  ): Promise<Page<V1Schemas['ContractInvocation'], V1Meta<'getContractInvocations'>>> {
+    const res = await this.request<
+      V1Schemas['ContractInvocation'][],
+      V1Meta<'getContractInvocations'>
+    >(
+      `/profiles/${encodeURIComponent(handle)}/contracts/${encodeURIComponent(address)}/invocations`,
+      {
+        query: {
+          limit: options.limit,
+          cursor: options.cursor,
+          mine: options.mine ? true : undefined,
+        },
+      },
+    );
+    return { data: res.data, meta: res.meta as V1Meta<'getContractInvocations'> };
+  }
+
+  /**
+   * Every invocation of a contract deployed by a handle, following `nextCursor` page by page.
+   */
+  iterateContractInvocations(
+    handle: Handle,
+    address: string,
+    options: { pageSize?: number; mine?: boolean } = {},
+  ): PageIterator<V1Schemas['ContractInvocation']> {
+    return new PageIterator((cursor) =>
+      this.listContractInvocations(handle, address, {
+        cursor,
+        limit: options.pageSize,
+        mine: options.mine,
+      }),
+    );
+  }
+
+  /**
+   * WASM version history of a contract deployed by a handle
+   * (`GET /api/v1/profiles/{handle}/contracts/{address}/versions`).
+   * Null when the contract is not attributed to the handle.
+   */
+  async getContractVersions(
+    handle: Handle,
+    address: string,
+  ): Promise<{ data: V1Schemas['ContractWasmVersion'][]; meta: V1Meta<'getContractVersions'> } | null> {
+    try {
+      const res = await this.request<
+        V1Schemas['ContractWasmVersion'][],
+        V1Meta<'getContractVersions'>
+      >(
+        `/profiles/${encodeURIComponent(handle)}/contracts/${encodeURIComponent(address)}/versions`,
+      );
+      return { data: res.data, meta: res.meta as V1Meta<'getContractVersions'> };
+    } catch (err) {
+      if (err instanceof NotFoundError) return null;
+      throw err;
+    }
+  }
+
   private async page<T, M>(path: string, options: PageOptions): Promise<Page<T, M>> {
     const res = await this.request<T[], M>(path, {
       query: { limit: options.limit, cursor: options.cursor },
@@ -526,8 +592,8 @@ export interface IterationEnd {
 }
 
 interface PageMetaLike {
-  nextCursor: string | null;
-  truncated: boolean;
+  nextCursor?: string | null;
+  truncated?: boolean;
 }
 
 /**
@@ -552,8 +618,8 @@ export class PageIterator<T> implements AsyncIterableIterator<T> {
     do {
       const page = await fetchPage(cursor);
       yield* page.data;
-      truncated = truncated || page.meta.truncated;
-      cursor = page.meta.nextCursor;
+      truncated = truncated || Boolean(page.meta.truncated);
+      cursor = page.meta.nextCursor ?? null;
     } while (cursor);
     this.truncated = truncated;
     return { truncated };

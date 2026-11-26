@@ -2,6 +2,8 @@ import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+export { replayHorizon, type HorizonReplay, type ReplayedResponse } from './replay.ts';
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 const DATA_DIR = join(__dirname, '..', 'data');
@@ -104,6 +106,45 @@ export interface HorizonTransactionResult {
 }
 
 /**
+ * One operation as Horizon returns it. The fields after `transaction_hash`
+ * are those of an `invoke_host_function` record; other types carry their own
+ * (a `create_account` has `funder`, `account` and `starting_balance`).
+ */
+export interface HorizonOperationRecord {
+  id: string;
+  paging_token: string;
+  transaction_successful: boolean;
+  source_account: string;
+  type: string;
+  type_i: number;
+  created_at: string;
+  transaction_hash: string;
+  /**
+   * The host function's type, as Horizon prints the Go XDR enum name: the type
+   * name twice, e.g. `HostFunctionTypeHostFunctionTypeInvokeContract`.
+   */
+  function?: string;
+  /** Base64 `ScVal`s. For an invocation: the contract, the function name, then the arguments. */
+  parameters?: Array<{ value: string; type: string }> | null;
+  /** For a create-contract from an address: the deployer. Empty otherwise. */
+  address?: string;
+  /** For a create-contract from an address: the 32-byte salt, as a decimal integer. Empty otherwise. */
+  salt?: string;
+  asset_balance_changes?: unknown[] | null;
+  [field: string]: unknown;
+}
+
+/** A page of operations as Horizon returns it, before the SDK turns its links into functions. */
+export interface HorizonOperationsPage {
+  _links: {
+    self: { href: string };
+    next: { href: string };
+    prev: { href: string };
+  };
+  _embedded: { records: HorizonOperationRecord[] };
+}
+
+/**
  * Every recorded fixture, one per `data/<name>.json`. A runtime list rather
  * than a bare union so index.test.ts can check it against the files on disk.
  */
@@ -117,6 +158,11 @@ export const FIXTURE_NAMES = [
   'footprint-only-call-get-transaction',
   'horizon-contract-deploy-tx',
   'registry-claim-release-get-events',
+  'horizon-account-operations-page',
+  'horizon-account-operations-first-page',
+  'horizon-account-operations-end',
+  'horizon-create-contract-v2-tx',
+  'horizon-create-contract-operation',
 ] as const;
 
 export type FixtureName = (typeof FIXTURE_NAMES)[number];
@@ -137,7 +183,16 @@ export function loadFixture(
     | 'sac-transfer-call-get-transaction'
     | 'footprint-only-call-get-transaction',
 ): GetTransactionResult;
-export function loadFixture(name: 'horizon-contract-deploy-tx'): HorizonTransactionResult;
+export function loadFixture(
+  name: 'horizon-contract-deploy-tx' | 'horizon-create-contract-v2-tx',
+): HorizonTransactionResult;
+export function loadFixture(
+  name:
+    | 'horizon-account-operations-page'
+    | 'horizon-account-operations-first-page'
+    | 'horizon-account-operations-end',
+): HorizonOperationsPage;
+export function loadFixture(name: 'horizon-create-contract-operation'): HorizonOperationRecord;
 export function loadFixture(name: 'registry-claim-release-get-events'): GetEventsResult;
 export function loadFixture<T = unknown>(name: FixtureName): T {
   const envelope = loadFixtureEnvelope<T>(name);

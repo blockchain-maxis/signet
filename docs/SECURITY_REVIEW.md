@@ -344,11 +344,13 @@ wasm; which methods are live is in
       `claimed` / `released` / `revoked` carry `address(wallet)`, and
       `transferred` carries `(from, to)`. `admin_changed` has the one-element
       topic `(Symbol("admin_changed"),)` with `(old_admin, new_admin)`, and
-      `initialize` publishes nothing. Each write emits exactly one event, and
+      `initialized` has the one-element topic `(Symbol("initialized"),)` with
+      `address(admin)`. Each event is declared with `#[contractevent]`, so the
+      wasm's spec lists all six. Each write emits exactly one event, and
       the tests pin its exact topics and data (#980): `claim_emits_event`,
       `release_emits_event`, `admin_revoke_emits_event`,
       `transfer_handle_emits_event`, `set_admin_emits_event`,
-      `initialize_publishes_no_events`. Changing a topic, the order of a tuple
+      `initialize_emits_event`. Changing a topic, the order of a tuple
       or a data shape breaks every consumer of the deployed registry. Add a
       new kind rather than reshaping an old one.
 

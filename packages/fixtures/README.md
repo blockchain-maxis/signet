@@ -35,6 +35,32 @@ pnpm --filter @signet/fixtures capture
 - `sac-transfer-call-get-transaction`: Soroban `getTransaction` response for a lending contract's `repay_obligation_liquidity` whose auth tree names a sub-call to a Stellar Asset Contract `transfer` (an `auth-tree` call edge, #516).
 - `footprint-only-call-get-transaction`: Soroban `getTransaction` response for the same contract's `borrow_obligation_liquidity`, whose footprint holds a foreign contract instance that neither the auth tree nor any contract event names (a `footprint` call edge, #516).
 
+The Horizon operation records (#974) all come from one account, the one that sent the `deploy-get-transaction` deployment. Its history is 313 operations, all on 2026-09-26.
+
+- `horizon-account-operations-page`: Horizon `/accounts/{G}/operations?order=desc&limit=50`, the account's newest 50 operations and the page both indexer workers ask for first. 49 invocations and one create-contract (V2), each with the `function` value and the `parameters` Horizon sends. Horizon prints the host function's type name twice, as in `HostFunctionTypeHostFunctionTypeInvokeContract`.
+- `horizon-account-operations-first-page`: the account's first four operations, by a pinned `cursor`: its funding (a `create_account` another account sent), a create-contract (V2), and two calls to the contract that created.
+- `horizon-account-operations-end`: the empty page Horizon answers with after that one. An empty page is how a backward walk learns it has reached the start of a history.
+- `horizon-create-contract-v2-tx`: Horizon `/transactions/{hash}` for that create-contract (V2) operation. It has no `result_meta_xdr` either.
+- `horizon-create-contract-operation`: Horizon `/operations/{id}` for the operation of the `horizon-contract-deploy-tx` deployment. That one deployment is so recorded three ways: its operation, its Horizon transaction and its RPC transaction.
+
+## Replaying Horizon
+
+`replayHorizon(responses)` replaces the global `fetch` with one that answers Horizon requests from recordings, so a test can hand a worker the SDK's own `Horizon.Server`:
+
+```ts
+const replay = replayHorizon([
+  loadFixtureEnvelope('horizon-account-operations-first-page'),
+  loadFixtureEnvelope('horizon-account-operations-end'),
+]);
+try {
+  await runDeploymentWorker(new Horizon.Server(replay.url), config, store);
+} finally {
+  replay.restore();
+}
+```
+
+The request building, the record parsing and the page links are then the SDK's own, and only the network is replaced. `replay.requests` lists what was asked, in order, with each query in name order. A request with no recording is answered 404 and listed in `replay.unanswered`, so a test can tell "Horizon said there is none" from "this test has no recording of that". A response that was not recorded as such, for instance a page that holds one recorded operation, is passed as `{ path, body }`, which keeps what a test put together in view.
+
 ## Registry claim/release capture (submits real transactions)
 
 `registry-claim-release-get-events` and `claim-get-transaction` are recorded together from a claim made at capture time, not from a pinned hash. The capture step:
@@ -56,6 +82,8 @@ Capturing any other fixture by name submits nothing. A bare `capture` with no na
 
 Soroban RPC only serves `getTransaction` and `getEvents` for a retention window (about 7 days). The registry pair above is re-made on every capture, so it never ages out. `deploy-get-transaction` and the two `*-call-get-transaction` fixtures are pinned to transaction hashes in `scripts/capture.ts`. When a hash has aged out, RPC answers with a `NOT_FOUND` status: the capture script treats any `getTransaction` status other than `SUCCESS` as an error that names the fixture and the hash, exits non-zero, and writes no file at all, so the existing recordings stay as they are. Pick a newer transaction of the same kind, update the constant in `scripts/capture.ts`, and re-run `capture`. To record only some fixtures, name them: `pnpm --filter @signet/fixtures capture sac-transfer-call-get-transaction`.
 
+Horizon keeps an account's whole history, so the `horizon-*` recordings do not age out of a window. A testnet reset removes them. `capture` then fails on its own checks of what it fetched, and the account, the cursor and the ids pinned in `scripts/capture.ts` need replacing.
+
 ## Import guard
 
-`pnpm check:fixtures` (run in CI) fails if production code imports this package.
+`pnpm check:fixtures` (run in CI) fails if production code imports this package, or a recording by its path. It reads the directories listed in `scripts/check-fixtures-import.mjs`, says how many files it checked, and fails if one of those directories is gone.

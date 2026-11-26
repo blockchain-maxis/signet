@@ -1,0 +1,26 @@
+{
+  "network": "testnet",
+  "rpcUrl": "https://horizon-testnet.stellar.org",
+  "capturedAt": "2026-11-23T05:51:44.380Z",
+  "latestLedger": 5877892,
+  "request": {
+    "endpoint": "horizon",
+    "methodOrPath": "/accounts/GC6IQQHUT4BXZYCJEM4AOKFD6ASWSXCEDXYPVA5NFKXSGOSRJX72KJMC/operations?cursor=20988379894132737&limit=50&order=desc"
+  },
+  "payload": {
+    "_links": {
+      "self": {
+        "href": "https://horizon-testnet.stellar.org/accounts/GC6IQQHUT4BXZYCJEM4AOKFD6ASWSXCEDXYPVA5NFKXSGOSRJX72KJMC/operations?cursor=20988379894132737&limit=50&order=desc"
+      },
+      "next": {
+        "href": "https://horizon-testnet.stellar.org/accounts/GC6IQQHUT4BXZYCJEM4AOKFD6ASWSXCEDXYPVA5NFKXSGOSRJX72KJMC/operations?cursor=20988379894132737&limit=50&order=desc"
+      },
+      "prev": {
+        "href": "https://horizon-testnet.stellar.org/accounts/GC6IQQHUT4BXZYCJEM4AOKFD6ASWSXCEDXYPVA5NFKXSGOSRJX72KJMC/operations?cursor=20988379894132737&limit=50&order=asc"
+      }
+    },
+    "_embedded": {
+      "records": []
+    }
+  }
+}
