@@ -12,6 +12,7 @@ import {
   NetworkError,
   NotFoundError,
   RateLimitedError,
+  UnauthorizedError,
   UnavailableError,
   ValidationError,
 } from './errors.ts';
@@ -84,9 +85,26 @@ interface V1ErrorBody {
 export interface RequestOptions {
   /** Query parameters; undefined and null values are left out. */
   query?: Record<string, string | number | undefined | null>;
+  /** Optional caller `AbortSignal` to cancel the request. */
+  signal?: AbortSignal;
 }
 
-const sleep = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
+const sleep = (ms: number, signal?: AbortSignal) =>
+  new Promise<void>((resolve, reject) => {
+    if (signal?.aborted) {
+      reject(signal.reason);
+      return;
+    }
+    const timer = setTimeout(resolve, ms);
+    signal?.addEventListener(
+      'abort',
+      () => {
+        clearTimeout(timer);
+        reject(signal.reason);
+      },
+      { once: true },
+    );
+  });
 
 /**
  * Public SDK client for the Signet API.
@@ -119,8 +137,8 @@ export class SignetClient {
   }
 
   /** Exponential backoff between attempts: 200ms, 400ms, 800ms …, capped. */
-  private backoff(attempt: number): Promise<void> {
-    return sleep(Math.min(200 * 2 ** attempt, MAX_BACKOFF_MS));
+  private backoff(attempt: number, signal?: AbortSignal): Promise<void> {
+    return sleep(Math.min(200 * 2 ** attempt, MAX_BACKOFF_MS), signal);
   }
 
   /**
@@ -129,14 +147,29 @@ export class SignetClient {
    * `NetworkError` when the request never reached the server (including a
    * timeout); otherwise the typed error for the status (see `toError`).
    */
-  private async send<T>(path: string, label: string): Promise<T> {
+  private async send<T>(path: string, label: string, options?: RequestOptions): Promise<T> {
+    const callerSignal = options?.signal;
+    if (callerSignal?.aborted) {
+      throw callerSignal.reason;
+    }
+
     const url = `${this.baseUrl}${path}`;
     const headers: Record<string, string> = { accept: 'application/json' };
     if (this.apiKey) headers.authorization = `Bearer ${this.apiKey}`;
 
     for (let attempt = 0; ; attempt++) {
+      if (callerSignal?.aborted) {
+        throw callerSignal.reason;
+      }
       const retriesLeft = attempt < this.maxRetries;
       const controller = new AbortController();
+      const onCallerAbort = () => {
+        controller.abort(callerSignal!.reason);
+      };
+      if (callerSignal) {
+        callerSignal.addEventListener('abort', onCallerAbort, { once: true });
+      }
+
       // The timer covers reading the body too, not just the response headers —
       // a server that streams one byte an hour is as stalled as a dead socket.
       const timer = setTimeout(() => controller.abort(), this.timeoutMs);
@@ -145,8 +178,11 @@ export class SignetClient {
         try {
           res = await this.fetchImpl(url, { headers, signal: controller.signal });
         } catch (cause) {
+          if (callerSignal?.aborted) {
+            throw callerSignal.reason;
+          }
           if (retriesLeft) {
-            await this.backoff(attempt);
+            await this.backoff(attempt, callerSignal);
             continue;
           }
           throw new NetworkError(
@@ -159,22 +195,44 @@ export class SignetClient {
 
         if (!res.ok) {
           const err = await this.toError(res, label);
+          if (callerSignal?.aborted) {
+            throw callerSignal.reason;
+          }
           if (err instanceof RateLimitedError) {
             const wait = err.retryAfterSeconds;
             if (retriesLeft && wait !== null && wait <= MAX_AUTO_RETRY_AFTER_S) {
               clearTimeout(timer);
-              await sleep(wait * 1000);
+              await sleep(wait * 1000, callerSignal);
               continue;
             }
           } else if (res.status >= 500 && retriesLeft) {
-            await this.backoff(attempt);
+            await this.backoff(attempt, callerSignal);
             continue;
           }
           throw err;
         }
-        return (await res.json()) as T;
+        try {
+          return (await res.json()) as T;
+        } catch (cause) {
+          if (callerSignal?.aborted) {
+            throw callerSignal.reason;
+          }
+          if (retriesLeft) {
+            await this.backoff(attempt, callerSignal);
+            continue;
+          }
+          throw new NetworkError(
+            isAbortError(cause)
+              ? `request to ${label} timed out after ${this.timeoutMs}ms`
+              : `request to ${label} failed`,
+            { cause },
+          );
+        }
       } finally {
         clearTimeout(timer);
+        if (callerSignal) {
+          callerSignal.removeEventListener('abort', onCallerAbort);
+        }
       }
     }
   }
@@ -192,6 +250,8 @@ export class SignetClient {
     switch (res.status) {
       case 400:
         return new ValidationError(message, { code, parameter: body.error?.details?.parameter });
+      case 401:
+        return new UnauthorizedError(message, { code });
       case 404:
         return new NotFoundError(message, { code });
       case 429:
@@ -219,13 +279,13 @@ export class SignetClient {
       if (value !== undefined && value !== null) params.set(key, String(value));
     }
     const qs = params.toString() ? `?${params}` : '';
-    return this.send<V1Envelope<T, M>>(`/api/v1${path}${qs}`, path);
+    return this.send<V1Envelope<T, M>>(`/api/v1${path}${qs}`, path, options);
   }
 
   /** As `request`, but a 404 is the answer `null`; every other error still throws. */
-  private async dataOrNull<T>(path: string): Promise<T | null> {
+  private async dataOrNull<T>(path: string, options?: RequestOptions): Promise<T | null> {
     try {
-      return (await this.request<T>(path)).data;
+      return (await this.request<T>(path, options)).data;
     } catch (err) {
       if (err instanceof NotFoundError) return null;
       throw err;
@@ -237,8 +297,8 @@ export class SignetClient {
    * there is no such handle. Other failures (network down, server error)
    * throw the corresponding typed error.
    */
-  async getProfile(handle: Handle): Promise<ProfileResponse | null> {
-    return this.dataOrNull<ProfileResponse>(`/profiles/${encodeURIComponent(handle)}`);
+  async getProfile(handle: Handle, options?: RequestOptions): Promise<ProfileResponse | null> {
+    return this.dataOrNull<ProfileResponse>(`/profiles/${encodeURIComponent(handle)}`, options);
   }
 
   /**
@@ -258,8 +318,12 @@ export class SignetClient {
    * `nextCursor` page by page. As with `iterateContracts`, `truncated` is true
    * once the iteration is done when the deployment's list was partial.
    */
-  iterateProfiles(options: { pageSize?: number } = {}): PageIterator<V1Schemas['ProfileListItem']> {
-    return new PageIterator((cursor) => this.listProfiles({ cursor, limit: options.pageSize }));
+  iterateProfiles(
+    options: { pageSize?: number; signal?: AbortSignal } = {},
+  ): PageIterator<V1Schemas['ProfileListItem']> {
+    return new PageIterator((cursor) =>
+      this.listProfiles({ cursor, limit: options.pageSize, signal: options.signal }),
+    );
   }
 
   /**
@@ -270,9 +334,9 @@ export class SignetClient {
    * list was partial. It reads `GET /api/v1/profiles` and no longer the
    * internal tRPC route. It will be removed in 1.0.
    */
-  async listHandles(): Promise<Handle[]> {
+  async listHandles(options?: RequestOptions): Promise<Handle[]> {
     const handles: Handle[] = [];
-    for await (const profile of this.iterateProfiles({ pageSize: 100 })) {
+    for await (const profile of this.iterateProfiles({ pageSize: 100, signal: options?.signal })) {
       handles.push(profile.handle);
     }
     return handles;
@@ -282,9 +346,10 @@ export class SignetClient {
    * Resolve a handle to its on-chain bound wallet (`GET /api/v1/resolve/{handle}`),
    * or null if the handle is not bound.
    */
-  async resolveHandle(handle: Handle): Promise<RegistryEntry | null> {
+  async resolveHandle(handle: Handle, options?: RequestOptions): Promise<RegistryEntry | null> {
     const data = await this.dataOrNull<V1Data<'resolveHandle'>>(
       `/resolve/${encodeURIComponent(handle)}`,
+      options,
     );
     return data ? { handle: data.handle, wallet: data.wallet } : null;
   }
@@ -294,9 +359,10 @@ export class SignetClient {
    * attributed to, whether bound on chain or linked from the CLI, or null when
    * it is not linked.
    */
-  async lookupWallet(wallet: string): Promise<RegistryEntry | null> {
+  async lookupWallet(wallet: string, options?: RequestOptions): Promise<RegistryEntry | null> {
     const { data } = await this.request<V1Data<'lookupWallet'>>(
       `/lookup/${encodeURIComponent(wallet)}`,
+      options,
     );
     return data.handle ? { handle: data.handle, wallet: data.address } : null;
   }
@@ -308,14 +374,14 @@ export class SignetClient {
    * specific handle to prove a binding is live. When the registry could not be
    * read the count is 0.
    */
-  async countRegistryEntries(): Promise<RegistryCount> {
-    const { data } = await this.request<V1Data<'getRegistryStats'>>('/registry/stats');
+  async countRegistryEntries(options?: RequestOptions): Promise<RegistryCount> {
+    const { data } = await this.request<V1Data<'getRegistryStats'>>('/registry/stats', options);
     return { count: data.boundHandles ?? 0 };
   }
 
   /** Every wallet linked to a handle, primary first (`GET /api/v1/profiles/{handle}/wallets`); null for an unknown handle. */
-  async getWallets(handle: Handle): Promise<V1Data<'getHandleWallets'> | null> {
-    return this.dataOrNull(`/profiles/${encodeURIComponent(handle)}/wallets`);
+  async getWallets(handle: Handle, options?: RequestOptions): Promise<V1Data<'getHandleWallets'> | null> {
+    return this.dataOrNull(`/profiles/${encodeURIComponent(handle)}/wallets`, options);
   }
 
   /**
@@ -336,9 +402,14 @@ export class SignetClient {
    * rule as the contract page. A contract another handle deployed and one that
    * does not exist are both null.
    */
-  async getContract(handle: Handle, address: string): Promise<V1Data<'getProfileContract'> | null> {
+  async getContract(
+    handle: Handle,
+    address: string,
+    options?: RequestOptions,
+  ): Promise<V1Data<'getProfileContract'> | null> {
     return this.dataOrNull(
       `/profiles/${encodeURIComponent(handle)}/contracts/${encodeURIComponent(address)}`,
+      options,
     );
   }
 
@@ -352,19 +423,20 @@ export class SignetClient {
   async verifyDeployment(
     handle: Handle,
     address: string,
+    options?: RequestOptions,
   ): Promise<{ verified: boolean; attribution?: V1Data<'getProfileContract'>['attribution'] }> {
-    const contract = await this.getContract(handle, address);
+    const contract = await this.getContract(handle, address, options);
     return contract ? { verified: true, attribution: contract.attribution } : { verified: false };
   }
 
   /** A deployed contract's embedded interface (`GET /api/v1/contracts/{address}/spec`); null when there is none. */
-  async getContractSpec(address: string): Promise<V1Data<'getContractSpec'> | null> {
-    return this.dataOrNull(`/contracts/${encodeURIComponent(address)}/spec`);
+  async getContractSpec(address: string, options?: RequestOptions): Promise<V1Data<'getContractSpec'> | null> {
+    return this.dataOrNull(`/contracts/${encodeURIComponent(address)}/spec`, options);
   }
 
   /** The interface of a WASM by its SHA-256 (`GET /api/v1/specs/{wasmHash}`); null when unknown. */
-  async getSpecByHash(wasmHash: string): Promise<V1Data<'getSpecByHash'> | null> {
-    return this.dataOrNull(`/specs/${encodeURIComponent(wasmHash)}`);
+  async getSpecByHash(wasmHash: string, options?: RequestOptions): Promise<V1Data<'getSpecByHash'> | null> {
+    return this.dataOrNull(`/specs/${encodeURIComponent(wasmHash)}`, options);
   }
 
   /**
@@ -383,19 +455,19 @@ export class SignetClient {
    * how the wallet was linked (`source`) and whether it is primary. `handle`
    * is null for a wallet linked to nothing.
    */
-  async lookupAddress(address: string): Promise<V1Data<'lookupWallet'>> {
-    return (await this.request<V1Data<'lookupWallet'>>(`/lookup/${encodeURIComponent(address)}`))
+  async lookupAddress(address: string, options?: RequestOptions): Promise<V1Data<'lookupWallet'>> {
+    return (await this.request<V1Data<'lookupWallet'>>(`/lookup/${encodeURIComponent(address)}`, options))
       .data;
   }
 
   /** The registry and index counts (`GET /api/v1/registry/stats`); a count is null when its layer was unreadable. */
-  async getRegistryStats(): Promise<V1Data<'getRegistryStats'>> {
-    return (await this.request<V1Data<'getRegistryStats'>>('/registry/stats')).data;
+  async getRegistryStats(options?: RequestOptions): Promise<V1Data<'getRegistryStats'>> {
+    return (await this.request<V1Data<'getRegistryStats'>>('/registry/stats', options)).data;
   }
 
   /** The deployment's health (`GET /api/v1/health`). */
-  async getHealth(): Promise<V1Data<'getHealth'>> {
-    return (await this.request<V1Data<'getHealth'>>('/health')).data;
+  async getHealth(options?: RequestOptions): Promise<V1Data<'getHealth'>> {
+    return (await this.request<V1Data<'getHealth'>>('/health', options)).data;
   }
 
   /**
@@ -406,26 +478,27 @@ export class SignetClient {
    */
   iterateContracts(
     handle: Handle,
-    options: { pageSize?: number } = {},
+    options: { pageSize?: number; signal?: AbortSignal } = {},
   ): PageIterator<V1Schemas['ProfileContract']> {
     return new PageIterator((cursor) =>
-      this.listContracts(handle, { cursor, limit: options.pageSize }),
+      this.listContracts(handle, { cursor, limit: options.pageSize, signal: options.signal }),
     );
   }
 
   /** Every operation of a handle, as `iterateContracts` does for contracts. */
   iterateOperations(
     handle: Handle,
-    options: { pageSize?: number } = {},
+    options: { pageSize?: number; signal?: AbortSignal } = {},
   ): PageIterator<V1Schemas['Operation']> {
     return new PageIterator((cursor) =>
-      this.listOperations(handle, { cursor, limit: options.pageSize }),
+      this.listOperations(handle, { cursor, limit: options.pageSize, signal: options.signal }),
     );
   }
 
   private async page<T, M>(path: string, options: PageOptions): Promise<Page<T, M>> {
     const res = await this.request<T[], M>(path, {
       query: { limit: options.limit, cursor: options.cursor },
+      signal: options.signal,
     });
     return { data: res.data, meta: res.meta as M };
   }
@@ -436,6 +509,8 @@ export interface PageOptions {
   limit?: number;
   /** `meta.nextCursor` from the previous page. */
   cursor?: string | null;
+  /** Optional caller `AbortSignal` to cancel the request. */
+  signal?: AbortSignal;
 }
 
 /** One page of a list endpoint. */

@@ -143,25 +143,31 @@ test('the open claim form has no serious accessibility violations', async ({ pag
     }),
   );
   await openClaimForm(page);
-  // The hero fades out while scrolled away, and its subtitle and claim row fade in after the
-  // heading. Return to the top and wait until every one of them rests at full opacity, so axe
-  // measures the real colours rather than a frame of the entrance animation.
+  // The hero fades out while scrolled away, and its subtitle, claim row and footnote fade in one
+  // after another. Return to the top and wait until every piece of visible hero text rests at full
+  // opacity, so axe measures the real colours rather than a frame of an entrance animation.
   await page.evaluate(() => window.scrollTo(0, 0));
-  for (const target of [
-    page.getByRole('heading', { level: 1 }),
-    page.getByText(/Signet aggregates every Soroban contract/),
-    page.getByPlaceholder('your-handle'),
-  ]) {
-    await expect
-      .poll(() =>
-        target.first().evaluate((el) => {
+  await expect
+    .poll(() =>
+      page.getByRole('heading', { level: 1 }).evaluate((h1) => {
+        const hero = h1.closest('section') ?? document.body;
+        const effectiveOpacity = (el: Element): number => {
+          let opacity = 1;
           for (let node: Element | null = el; node; node = node.parentElement) {
-            if (Number(getComputedStyle(node).opacity) < 0.99) return false;
+            opacity *= Number(getComputedStyle(node).opacity);
           }
-          return true;
-        }),
-      )
-      .toBe(true);
-  }
+          return opacity;
+        };
+        return [hero, ...hero.querySelectorAll('*')].every((el) => {
+          const hasText = [...el.childNodes].some(
+            (n) => n.nodeType === Node.TEXT_NODE && n.textContent?.trim(),
+          );
+          // Disabled controls and decoration are exempt from contrast, and may be dimmed on purpose.
+          if (!hasText || el.closest('[aria-hidden="true"], :disabled')) return true;
+          return effectiveOpacity(el) >= 0.99;
+        });
+      }),
+    )
+    .toBe(true);
   await expectNoSeriousA11yViolations(page, 'claim form open');
 });

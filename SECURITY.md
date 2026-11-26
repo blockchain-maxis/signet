@@ -12,7 +12,10 @@ mitigation for confirmed high-severity issues within 30 days.
 
 ## Scope
 
-- The `identity-registry` Soroban contract (`packages/contracts/`)
+- The `identity-registry` Soroban contract (`packages/contracts/`). The
+  properties it must keep (who signs what, what the admin can and cannot do,
+  handle rules, storage/TTL, event layout, error codes) are listed in
+  [`docs/SECURITY_REVIEW.md` §7](docs/SECURITY_REVIEW.md#7-identity-registry-contract).
 - The web application and its API (`apps/web/`)
 - The indexer (`apps/indexer/`)
 

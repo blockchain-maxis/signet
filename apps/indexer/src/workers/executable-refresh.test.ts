@@ -33,6 +33,15 @@ interface VersionRecord {
   observedLedger: number;
 }
 
+interface UpdateRecord {
+  where: { id: string };
+  data: {
+    wasmHash?: string | null;
+    wasmHashCheckedAt: Date;
+    executableType?: string | null;
+  };
+}
+
 function createMemoryStore(initialContracts: ExecutableRefreshContract[]) {
   const contracts = new Map<string, ExecutableRefreshContract>();
   for (const c of initialContracts) {
@@ -40,6 +49,7 @@ function createMemoryStore(initialContracts: ExecutableRefreshContract[]) {
   }
 
   const versions: VersionRecord[] = [];
+  const updates: UpdateRecord[] = [];
 
   const store: ExecutableRefreshStore = {
     contract: {
@@ -58,6 +68,7 @@ function createMemoryStore(initialContracts: ExecutableRefreshContract[]) {
         return results;
       },
       update: async ({ where, data }) => {
+        updates.push({ where, data: { ...data } });
         const c = contracts.get(where.id);
         if (!c) throw new Error(`Contract not found: ${where.id}`);
         if (data.wasmHash !== undefined) {
@@ -65,6 +76,9 @@ function createMemoryStore(initialContracts: ExecutableRefreshContract[]) {
         }
         if (data.wasmHashCheckedAt !== undefined) {
           c.wasmHashCheckedAt = data.wasmHashCheckedAt;
+        }
+        if (data.executableType !== undefined) {
+          c.executableType = data.executableType;
         }
       },
     },
@@ -87,7 +101,24 @@ function createMemoryStore(initialContracts: ExecutableRefreshContract[]) {
     },
   };
 
-  return { store, contracts, versions };
+  return { store, contracts, versions, updates };
+}
+
+function makeSacEntry(addressStr: string): { key: xdr.LedgerKey; val: xdr.LedgerEntryData } {
+  const exec = xdr.ContractExecutable.contractExecutableStellarAsset();
+  const instance = new xdr.ScContractInstance({ executable: exec, storage: null });
+  const scVal = xdr.ScVal.scvContractInstance(instance);
+  const addr = Address.fromString(addressStr);
+  const data = new xdr.ContractDataEntry({
+    contract: addr.toScAddress(),
+    key: xdr.ScVal.scvLedgerKeyContractInstance(),
+    durability: xdr.ContractDataDurability.persistent(),
+    val: scVal,
+    ext: new xdr.ExtensionPoint(0),
+  });
+  const entryData = xdr.LedgerEntryData.contractData(data);
+  const key = new Contract(addressStr).getFootprint();
+  return { key, val: entryData };
 }
 
 function makeWasmEntry(
@@ -116,6 +147,111 @@ const CONTRACT_B = 'CCZ54NTEOVL2DKWCGJA5XHTHOGRDS7JHFKYWEC6QH2IMZLYNM3FBFKDG';
 const HASH_1 = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
 const HASH_2 = 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb';
 const HASH_3 = 'cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc';
+
+test('a row with executableType: null and a WASM instance ends up with "wasm" and the hash', async () => {
+  const { store, contracts, versions } = createMemoryStore([
+    {
+      id: 'c1',
+      address: CONTRACT_A,
+      wasmHash: null,
+      wasmHashCheckedAt: null,
+      executableType: null,
+    },
+  ]);
+
+  const mockRpc: SorobanRpcLike = {
+    getLedgerEntries: async () => ({
+      latestLedger: 1000,
+      entries: [makeWasmEntry(CONTRACT_A, HASH_1)],
+    }),
+  };
+
+  const now = new Date('2026-09-26T12:00:00Z');
+  const result = await runExecutableRefreshWorker(mockRpc, CONFIG, store, now);
+
+  assert.equal(result.contractsChecked, 1);
+  assert.equal(result.wasmChanged, 1);
+  assert.equal(result.missingEntries, 0);
+
+  const updated = contracts.get('c1')!;
+  assert.equal(updated.wasmHash, HASH_1);
+  assert.equal(updated.executableType, 'wasm');
+  assert.equal(updated.wasmHashCheckedAt?.toISOString(), now.toISOString());
+
+  assert.equal(versions.length, 1);
+  assert.equal(versions[0]!.contractId, 'c1');
+  assert.equal(versions[0]!.wasmHash, HASH_1);
+  assert.equal(versions[0]!.observedLedger, 1000);
+});
+
+test('a row with null and a SAC instance ends up with "stellar_asset", wasmHash still null, and no version row', async () => {
+  const { store, contracts, versions } = createMemoryStore([
+    {
+      id: 'c1',
+      address: CONTRACT_A,
+      wasmHash: null,
+      wasmHashCheckedAt: null,
+      executableType: null,
+    },
+  ]);
+
+  const mockRpc: SorobanRpcLike = {
+    getLedgerEntries: async () => ({
+      latestLedger: 1000,
+      entries: [makeSacEntry(CONTRACT_A)],
+    }),
+  };
+
+  const now = new Date('2026-09-26T12:00:00Z');
+  const result = await runExecutableRefreshWorker(mockRpc, CONFIG, store, now);
+
+  assert.equal(result.contractsChecked, 1);
+  assert.equal(result.wasmChanged, 0);
+  assert.equal(result.missingEntries, 0);
+
+  const updated = contracts.get('c1')!;
+  assert.equal(updated.wasmHash, null);
+  assert.equal(updated.executableType, 'stellar_asset');
+  assert.equal(updated.wasmHashCheckedAt?.toISOString(), now.toISOString());
+
+  assert.equal(versions.length, 0);
+});
+
+test('an already-typed row is not rewritten with executableType', async () => {
+  const prevCheckedAt = new Date('2026-09-26T00:00:00Z');
+  const { store, contracts, versions, updates } = createMemoryStore([
+    {
+      id: 'c1',
+      address: CONTRACT_A,
+      wasmHash: HASH_1,
+      wasmHashCheckedAt: prevCheckedAt,
+      executableType: 'wasm',
+    },
+  ]);
+
+  const mockRpc: SorobanRpcLike = {
+    getLedgerEntries: async () => ({
+      latestLedger: 1050,
+      entries: [makeWasmEntry(CONTRACT_A, HASH_1)],
+    }),
+  };
+
+  const now = new Date('2026-09-26T12:00:00Z');
+  const result = await runExecutableRefreshWorker(mockRpc, CONFIG, store, now);
+
+  assert.equal(result.contractsChecked, 1);
+  assert.equal(result.wasmChanged, 0);
+  assert.equal(result.missingEntries, 0);
+
+  const updated = contracts.get('c1')!;
+  assert.equal(updated.executableType, 'wasm');
+  assert.equal(updated.wasmHash, HASH_1);
+  assert.equal(updated.wasmHashCheckedAt?.toISOString(), now.toISOString());
+  assert.equal(versions.length, 0);
+
+  assert.equal(updates.length, 1);
+  assert.equal(updates[0]!.data.executableType, undefined);
+});
 
 test('a null hash gets backfilled', async () => {
   const { store, contracts, versions } = createMemoryStore([

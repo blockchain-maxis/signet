@@ -34,9 +34,9 @@ model see the contract doc-comment in
                        │               │          │   mainnet)            │
                        └───────▲───────┘          └──────────┬───────────┘
                                │ upserts                     │ emits
-                               │ Profile/Wallet/             │ claimed / released
-                               │ Contract/Operation/         │ events
-                               │ Snapshot/WasmVersion        │
+                               │ Profile/Wallet/             │ claimed / released /
+                               │ Contract/Operation/         │ revoked / transferred
+                               │ Snapshot/WasmVersion        │ (+ admin_changed) events
                        ┌───────┴─────────────────────────────▼──────────┐
                        │                apps/indexer (worker)            │
                        │  attestation ← Soroban RPC getEvents            │
@@ -81,8 +81,11 @@ How a wallet becomes bound to a handle, self-sovereignly, with no trusted oracle
    topics = [ symbol("claimed"), string(handle) ],  data = address(wallet)
    ```
 
-   `release` (owner) and `admin_revoke` (moderation) emit `released` the same
-   way. Handle enumeration is intentionally off-chain — the event stream is the
+   `release` (owner) emits `released` and `admin_revoke` (moderation) emits
+   `revoked`, with the same topic and data shape. `transfer_handle` emits
+   `transferred` with `[from, to]` as data, and `set_admin` emits
+   `admin_changed` with a one-element topic and no handle (full table in
+   [`docs/REGISTRY_INTEGRATION.md`](docs/REGISTRY_INTEGRATION.md) §4). Handle enumeration is intentionally off-chain — the event stream is the
    source of truth, keeping per-call storage/cost constant.
 
 3. **Attestation ingest (indexer).** The attestation worker
@@ -165,10 +168,10 @@ and skipped without advancing the relevant cursor, so the next tick retries.
 - The same data is exposed over a **tRPC API**
   ([`apps/web/lib/server/trpc.ts`](apps/web/lib/server/trpc.ts)):
   `profile.list`, `profile.byHandle`, and `health` are public (per-IP rate
-  limited); `account.me` / `account.update` are `protectedProcedure`. The
-  external [`@signet/sdk`](packages/sdk) consumes these. tRPC is the web app's
-  own data layer, not a public contract — integrators read `/api/v1`
-  (see [`docs/API_V1.md`](docs/API_V1.md)).
+  limited); `account.me` / `account.update` are `protectedProcedure`. tRPC is
+  the web app's own data layer, not a public contract. Integrators, including
+  the external [`@signet/sdk`](packages/sdk), read `/api/v1` (see
+  [`docs/API_V1.md`](docs/API_V1.md) and [Public API v1](#public-api-v1)).
 ### Sign-in
 
 Sign-in uses **SEP-10** ([`apps/web/lib/wallet.ts`](apps/web/lib/wallet.ts),
@@ -358,7 +361,7 @@ lookup, specs, registry stats, health and the badge.
 | --- | --- | --- |
 | `apps/web` | Next.js App Router — marketing, profiles, contract pages, docs, dashboard, tRPC, `/api/v1`, SIWS auth | Vercel |
 | `apps/indexer` | Long-running worker: attestation, deployment, operations, activity, executable refresh, invocations | Container (GHCR image) |
-| `packages/contracts/identity-registry` | Soroban `claim`/`release`/`admin_revoke` registry; emits the event stream. Immutable — a defect is recovered by migrating to a new contract, per [`docs/CONTRACT_MIGRATION.md`](docs/CONTRACT_MIGRATION.md) | Stellar network |
+| `packages/contracts/identity-registry` | Soroban handle registry: `claim`/`release`/`transfer_handle`, admin `admin_revoke`/`set_admin`, reads `resolve`/`lookup`/`is_bound`/`count`/`resolve_batch`; emits the event stream. Immutable — a defect is recovered by migrating to a new contract, per [`docs/CONTRACT_MIGRATION.md`](docs/CONTRACT_MIGRATION.md) | Stellar network |
 | `packages/db` | Prisma schema + client (`Profile`, `Wallet`, `Contract`, `ContractSpec`, `ContractWasmVersion`, `ContractInvocation`, `Operation`, `ContractSnapshot`, `ApiKey`, …) | PostgreSQL |
 | `packages/spec` | The shared spec reader: WASM → `SpecJson` v1 | web, visualiser |
 | `packages/visualiser` | The contract diagram, from a spec | web, CLI (embedded bundle) |
