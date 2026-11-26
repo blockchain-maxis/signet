@@ -12,9 +12,11 @@ import { routeDiagram } from './route.ts';
 
 const FIXTURES = join(dirname(fileURLToPath(import.meta.url)), '..', '..', 'spec', 'fixtures');
 
+import { type TypeGraphOptions } from './type-graph.ts';
+
 /** A fixture WASM from `@signet/spec`, decoded by the real reader. */
-function fixtureGraph(name: string): ContractGraph {
-  return buildContractGraph(parseContractSpec(readFileSync(join(FIXTURES, `${name}.wasm`))));
+function fixtureGraph(name: string, options?: TypeGraphOptions): ContractGraph {
+  return buildContractGraph(parseContractSpec(readFileSync(join(FIXTURES, `${name}.wasm`))), options);
 }
 
 /** A graph from names alone: functions first, then types, edges in the order given. */
@@ -92,7 +94,7 @@ test('types_zoo: more than one column, and every edge runs left to right except 
 });
 
 test('types_zoo: a three-deep struct nest takes one column per level', () => {
-  const model = layoutContractGraph(fixtureGraph('types_zoo'));
+  const model = layoutContractGraph(fixtureGraph('types_zoo', { typeDepth: 3 }));
   const level = (name: string) => byId(model, `type:${name}`).column;
 
   assert.ok(level('Level1') < level('Level2'));

@@ -3,7 +3,12 @@ import assert from 'node:assert/strict';
 import { toSpecJson, type SpecJson } from '@signet/spec';
 import { loadFixture } from '../../../../packages/visualiser/src/load-fixture.ts';
 import { aggregateActivity } from '@signet/visualiser';
-import { drawContractDiagram, __resetDiagramViewCache, type DiagramViewInput } from './diagram-view.ts';
+import {
+  diagramStateHref,
+  drawContractDiagram,
+  __resetDiagramViewCache,
+  type DiagramViewInput,
+} from './diagram-view.ts';
 import { exportDiagramFragment, type DiagramFragmentDeps } from './diagram-fragment.ts';
 import type { Attribution } from '../contract-attribution.ts';
 
@@ -77,6 +82,23 @@ test('permuted expand lists draw the same state; unknown names are never echoed'
   const hostile = drawContractDiagram(input({ expand: '<script>alert(1)</script>' }));
   assert.equal(hostile.regionHtml, drawContractDiagram(input()).regionHtml);
   assert.doesNotMatch(hostile.regionHtml, /<script/);
+});
+
+test('?types=<unknown> is dropped and never echoed', () => {
+  const hostile = drawContractDiagram(input({ types: '<script>alert(1)</script>,UnknownType' }));
+  assert.equal(hostile.regionHtml, drawContractDiagram(input()).regionHtml);
+  assert.doesNotMatch(hostile.regionHtml, /<script/);
+  assert.doesNotMatch(hostile.regionHtml, /UnknownType/);
+  assert.deepEqual(hostile.expandedTypes, []);
+});
+
+test('state links keep the expanded types, as the activity range and order links pass them', () => {
+  const state = { handle: 'alice', address, range: '30d' as const, rankByFrequency: true };
+  const href = new URL(diagramStateHref(state, ['pool'], ['Pool', 'Config']), 'https://x.test');
+  assert.equal(href.searchParams.get('types'), 'Config,Pool');
+  assert.equal(href.searchParams.get('expand'), 'pool');
+  assert.equal(href.searchParams.get('range'), '30d');
+  assert.equal(href.searchParams.get('order'), 'use');
 });
 
 test('on axelar-its, query deploy reports matching functions and totalFunctions === 49', () => {

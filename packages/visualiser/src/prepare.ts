@@ -24,6 +24,8 @@ import {
 export interface PrepareDiagramOptions {
   /** Groups to draw expanded (#502, #946). Checked through {@link canonicalExpand}. */
   readonly expand?: string | readonly string[] | null;
+  /** Types drawn past the type-depth cutoff (#950), as `?types=` names them. */
+  readonly expandTypes?: readonly string[];
   /** Layout options (direction, type depth, etc.). */
   readonly layoutOptions?: LayoutGeometryOptions;
   /** Layout overlays (call graph, activity counts). */
@@ -49,7 +51,10 @@ export function prepareDiagram(
   spec: ContractSpec,
   options: PrepareDiagramOptions = {},
 ): PreparedDiagram {
-  const full = buildContractGraph(spec);
+  const full = buildContractGraph(
+    spec,
+    options.expandTypes ? { expandTypes: options.expandTypes } : {},
+  );
   const expanded = canonicalExpand(options.expand ?? null, full);
   const graph = collapseGroups(full, { expand: expanded });
   const collapsible =

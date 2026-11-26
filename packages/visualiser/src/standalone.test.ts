@@ -98,9 +98,12 @@ const legendHeightOf = (svg: string) => Number(/data-legend-height="(\d+)"/.exec
 const edgesOf = (svg: string, kind: string) =>
   svg.match(new RegExp(`<polyline class="edge" data-edge-kind="${kind}" [^>]*/>`, 'g')) ?? [];
 
-/** blend-pool-v1: 18 functions, 16 structs and 2 unions, drawn without collapsing. */
-function blendPool() {
-  const drawn = layoutContractGraph(buildContractGraph(loadFixture('blend-pool-v1')));
+/**
+ * testnet-lending-market: 42 functions, the 6 structs and 2 unions its
+ * signatures name, and 5 stubs past them (issue 950), drawn without collapsing.
+ */
+function lendingMarket() {
+  const drawn = layoutContractGraph(buildContractGraph(loadFixture('testnet-lending-market')));
   return { drawn, svg: renderStandaloneSvg(drawn, { theme: 'light', provenance }) };
 }
 
@@ -125,7 +128,7 @@ function lendingCalls(): PositionedDiagramModel {
 }
 
 test('the legend lists the kinds drawn, in literal colours, and a list with no edges has none', () => {
-  const { drawn, svg } = blendPool();
+  const { drawn, svg } = lendingMarket();
   assert.equal(svg.match(/data-viz-legend=""/g)?.length, 1, 'one legend');
   const legend = svg.slice(svg.indexOf('<g class="export-legend"'));
   const kinds = (source: string, pattern: RegExp) =>
@@ -149,11 +152,11 @@ test('the legend lists the kinds drawn, in literal colours, and a list with no e
 });
 
 test('a function, a struct and a union are drawn in three different shapes', () => {
-  const { drawn } = blendPool();
-  const svg = drawingOf(blendPool().svg);
-  const fn = outlineOf(svg, 'initialize');
+  const { drawn } = lendingMarket();
+  const svg = drawingOf(lendingMarket().svg);
+  const fn = outlineOf(svg, 'market');
   const struct = outlineOf(svg, 'Reserve');
-  const union = outlineOf(svg, 'PoolDataKey');
+  const union = outlineOf(svg, 'MarketUpdate');
   assert.match(fn, /^<rect .*data-node-shape="rounded-rect".* rx="6"/);
   assert.match(struct, /^<rect .*data-node-shape="rect".* rx="0"/);
   assert.match(union, /^<path .*data-node-shape="notched-rect".* d="M /);
@@ -176,7 +179,7 @@ test('a function, a struct and a union are drawn in three different shapes', () 
 });
 
 test('argument and return edges differ by arrowhead, and a field edge is thin with none', () => {
-  const { svg } = blendPool();
+  const { svg } = lendingMarket();
   const args = edgesOf(svg, 'arg');
   const returns = edgesOf(svg, 'return');
   const fields = edgesOf(svg, 'field');
@@ -342,12 +345,12 @@ test('a model that keeps a call summary but draws no call says nothing about cal
   assert.equal(svg.match(/<text class="footer"/g)?.length, 4);
 });
 
-/** The richest exports: every node kind but a stub, every spec edge and three kinds of call. */
+/** The richest exports: every node kind, every spec edge and three kinds of call. */
 function richExports(theme: 'dark' | 'light' | 'auto'): string[] {
   const collapsed = layoutContractGraph(
     collapseGroups(buildContractGraph(loadFixture('axelar-its'))),
   );
-  return [blendPool().drawn, collapsed, lendingCalls()].map((drawn) =>
+  return [lendingMarket().drawn, collapsed, lendingCalls()].map((drawn) =>
     renderStandaloneSvg(drawn, { theme, provenance }),
   );
 }

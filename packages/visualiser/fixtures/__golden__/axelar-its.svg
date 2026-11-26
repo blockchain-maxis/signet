@@ -3,13 +3,125 @@
   role="figure"
   aria-labelledby="axelar-its-title axelar-its-desc"
   class="contract-diagram"
-  width="284" height="2332" viewBox="0 0 284 2332"
+  width="619" height="2500" viewBox="0 0 619 2500"
   font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="14"
 >
   <title id="axelar-its-title">axelar-its (mainnet CBDBMIOFHGWUFRYH3D3STI2DHBOWGDDBCRKQEUB4RGQEBVG74SEED6C6)</title>
-  <desc id="axelar-its-desc">49 functions in 8 groups, 0 types, 0 references</desc>
+  <desc id="axelar-its-desc">49 functions in 8 groups, 5 types, 11 references</desc>
   <defs>
+    <marker id="axelar-its-filled-arrow" markerWidth="8" markerHeight="8" refX="7.5" refY="3" orient="auto" markerUnits="userSpaceOnUse"><path class="viz-arrow viz-arrow--filled" d="M0,0 L8,3 L0,6 Z" fill="var(--viz-edge)"/></marker>
+    <marker id="axelar-its-open-arrow" markerWidth="8" markerHeight="8" refX="7.5" refY="3" orient="auto" markerUnits="userSpaceOnUse"><path class="viz-arrow viz-arrow--open" d="M0,0 L8,3 L0,6" fill="none" stroke="var(--viz-edge)" stroke-width="1.25"/></marker>
   </defs>
+  <polyline
+    id="axelar-its-edge-fn:token_manager_type-type:TokenManagerType"
+    class="diagram-edge"
+    data-edge-from="fn:token_manager_type"
+    data-edge-to="type:TokenManagerType"
+    data-edge-kind="return"
+    points="218,2294 308,2294 308,1257 356,1257"
+    fill="none" stroke="var(--viz-edge)" stroke-width="1.5"
+    marker-end="url(#axelar-its-open-arrow)"
+  />
+  <polyline
+    id="axelar-its-edge-fn:deploy_interchain_token-type:TokenMetadata"
+    class="diagram-edge"
+    data-edge-from="fn:deploy_interchain_token"
+    data-edge-to="type:TokenMetadata"
+    data-edge-kind="arg"
+    points="260,1558 308,1558 308,1210 356,1210"
+    fill="none" stroke="var(--viz-edge)" stroke-width="1.5"
+    marker-end="url(#axelar-its-filled-arrow)"
+  />
+  <polyline
+    id="axelar-its-edge-fn:deploy_remote_interchain_token-type:Token"
+    class="diagram-edge"
+    data-edge-from="fn:deploy_remote_interchain_token"
+    data-edge-to="type:Token"
+    data-edge-kind="arg"
+    points="260,1598 308,1598 308,1170 356,1170"
+    fill="none" stroke="var(--viz-edge)" stroke-width="1.5"
+    marker-end="url(#axelar-its-filled-arrow)"
+  />
+  <polyline
+    id="axelar-its-edge-fn:deploy_remote_canonical_token-type:Token"
+    class="diagram-edge"
+    data-edge-from="fn:deploy_remote_canonical_token"
+    data-edge-to="type:Token"
+    data-edge-kind="arg"
+    points="260,1638 308,1638 308,1174.6666666666667 356,1174.6666666666667"
+    fill="none" stroke="var(--viz-edge)" stroke-width="1.5"
+    marker-end="url(#axelar-its-filled-arrow)"
+  />
+  <polyline
+    id="axelar-its-edge-fn:register_token_metadata-type:Token"
+    class="diagram-edge"
+    data-edge-from="fn:register_token_metadata"
+    data-edge-to="type:Token"
+    data-edge-kind="arg"
+    points="260,2090 308,2090 308,1179.3333333333333 356,1179.3333333333333"
+    fill="none" stroke="var(--viz-edge)" stroke-width="1.5"
+    marker-end="url(#axelar-its-filled-arrow)"
+  />
+  <polyline
+    id="axelar-its-edge-fn:register_custom_token-type:TokenManagerType"
+    class="diagram-edge"
+    data-edge-from="fn:register_custom_token"
+    data-edge-to="type:TokenManagerType"
+    data-edge-kind="arg"
+    points="243,2130 308,2130 308,1250 356,1250"
+    fill="none" stroke="var(--viz-edge)" stroke-width="1.5"
+    marker-end="url(#axelar-its-filled-arrow)"
+  />
+  <polyline
+    id="axelar-its-edge-fn:link_token-type:TokenManagerType"
+    class="diagram-edge"
+    data-edge-from="fn:link_token"
+    data-edge-to="type:TokenManagerType"
+    data-edge-kind="arg"
+    points="150,710.6666666666666 308,710.6666666666666 308,1243 356,1243"
+    fill="none" stroke="var(--viz-edge)" stroke-width="1.5"
+    marker-end="url(#axelar-its-filled-arrow)"
+  />
+  <polyline
+    id="axelar-its-edge-fn:link_token-type:Token"
+    class="diagram-edge"
+    data-edge-from="fn:link_token"
+    data-edge-to="type:Token"
+    data-edge-kind="arg"
+    points="150,701.3333333333334 308,701.3333333333334 308,1160.6666666666667 356,1160.6666666666667"
+    fill="none" stroke="var(--viz-edge)" stroke-width="1.5"
+    marker-end="url(#axelar-its-filled-arrow)"
+  />
+  <polyline
+    id="axelar-its-edge-fn:interchain_transfer-type:Token"
+    class="diagram-edge"
+    data-edge-from="fn:interchain_transfer"
+    data-edge-to="type:Token"
+    data-edge-kind="arg"
+    points="226,1270 308,1270 308,1165.3333333333333 356,1165.3333333333333"
+    fill="none" stroke="var(--viz-edge)" stroke-width="1.5"
+    marker-end="url(#axelar-its-filled-arrow)"
+  />
+  <polyline
+    id="axelar-its-edge-fn:migrate-type:__InterchainTokenServiceMigrationData"
+    class="diagram-edge"
+    data-edge-from="fn:migrate"
+    data-edge-to="type:__InterchainTokenServiceMigrationData"
+    data-edge-kind="arg"
+    points="125,986 308,986 308,1090 356,1090"
+    fill="none" stroke="var(--viz-edge)" stroke-width="1.5"
+    marker-end="url(#axelar-its-filled-arrow)"
+  />
+  <polyline
+    id="axelar-its-edge-fn:execute-type:__InterchainTokenServiceAxelarExecutableInterfaceError"
+    class="diagram-edge"
+    data-edge-from="fn:execute"
+    data-edge-to="type:__InterchainTokenServiceAxelarExecutableInterfaceError"
+    data-edge-kind="return"
+    points="125,1066 308,1066 308,1130 356,1130"
+    fill="none" stroke="var(--viz-edge)" stroke-width="1.5"
+    marker-end="url(#axelar-its-open-arrow)"
+  />
   <a id="diagram-fn-gas_service" href="#fn-gas_service" data-node-id="fn:gas_service">
     <rect id="axelar-its-node-fn:gas_service" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="52" width="135" height="28" rx="6" ry="6"/>
     <title>gas_service</title>
@@ -75,6 +187,32 @@
       native_token_address
     </text>
   </a>
+  <a id="diagram-fn-interchain_token_wasm_hash" href="#fn-interchain_token_wasm_hash" data-node-id="fn:interchain_token_wasm_hash">
+    <rect id="axelar-its-node-fn:interchain_token_wasm_hash" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="1136" width="236" height="28" rx="6" ry="6"/>
+    <title>interchain_token_wasm_hash</title>
+    <text
+      class="diagram-node-label"
+      x="34"
+      y="1150"
+      dominant-baseline="central"
+      fill="var(--viz-node-text)"
+    >
+      interchain_token_wasm_…
+    </text>
+  </a>
+  <a id="diagram-fn-token_manager_wasm_hash" href="#fn-token_manager_wasm_hash" data-node-id="fn:token_manager_wasm_hash">
+    <rect id="axelar-its-node-fn:token_manager_wasm_hash" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="2200" width="236" height="28" rx="6" ry="6"/>
+    <title>token_manager_wasm_hash</title>
+    <text
+      class="diagram-node-label"
+      x="34"
+      y="2214"
+      dominant-baseline="central"
+      fill="var(--viz-node-text)"
+    >
+      token_manager_wasm_hash
+    </text>
+  </a>
   <a id="diagram-fn-is_trusted_chain" href="#fn-is_trusted_chain" data-node-id="fn:is_trusted_chain">
     <rect id="axelar-its-node-fn:is_trusted_chain" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="252" width="177" height="28" rx="6" ry="6"/>
     <title>is_trusted_chain</title>
@@ -114,6 +252,19 @@
       remove_trusted_chain
     </text>
   </a>
+  <a id="diagram-fn-interchain_token_id" href="#fn-interchain_token_id" data-node-id="fn:interchain_token_id">
+    <rect id="axelar-its-node-fn:interchain_token_id" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="1176" width="202" height="28" rx="6" ry="6"/>
+    <title>interchain_token_id</title>
+    <text
+      class="diagram-node-label"
+      x="34"
+      y="1190"
+      dominant-baseline="central"
+      fill="var(--viz-node-text)"
+    >
+      interchain_token_id
+    </text>
+  </a>
   <a id="diagram-fn-canonical_interchain_token_id" href="#fn-canonical_interchain_token_id" data-node-id="fn:canonical_interchain_token_id">
     <rect id="axelar-its-node-fn:canonical_interchain_token_id" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="372" width="236" height="28" rx="6" ry="6"/>
     <title>canonical_interchain_token_id</title>
@@ -140,6 +291,32 @@
       linked_token_id
     </text>
   </a>
+  <a id="diagram-fn-interchain_token_address" href="#fn-interchain_token_address" data-node-id="fn:interchain_token_address">
+    <rect id="axelar-its-node-fn:interchain_token_address" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="1216" width="236" height="28" rx="6" ry="6"/>
+    <title>interchain_token_address</title>
+    <text
+      class="diagram-node-label"
+      x="34"
+      y="1230"
+      dominant-baseline="central"
+      fill="var(--viz-node-text)"
+    >
+      interchain_token_addre…
+    </text>
+  </a>
+  <a id="diagram-fn-token_manager_address" href="#fn-token_manager_address" data-node-id="fn:token_manager_address">
+    <rect id="axelar-its-node-fn:token_manager_address" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="2240" width="219" height="28" rx="6" ry="6"/>
+    <title>token_manager_address</title>
+    <text
+      class="diagram-node-label"
+      x="34"
+      y="2254"
+      dominant-baseline="central"
+      fill="var(--viz-node-text)"
+    >
+      token_manager_address
+    </text>
+  </a>
   <a id="diagram-fn-registered_token_address" href="#fn-registered_token_address" data-node-id="fn:registered_token_address">
     <rect id="axelar-its-node-fn:registered_token_address" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="452" width="236" height="28" rx="6" ry="6"/>
     <title>registered_token_address</title>
@@ -164,6 +341,58 @@
       fill="var(--viz-node-text)"
     >
       deployed_token_manager
+    </text>
+  </a>
+  <a id="diagram-fn-token_manager_type" href="#fn-token_manager_type" data-node-id="fn:token_manager_type">
+    <rect id="axelar-its-node-fn:token_manager_type" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="2280" width="194" height="28" rx="6" ry="6"/>
+    <title>token_manager_type</title>
+    <text
+      class="diagram-node-label"
+      x="34"
+      y="2294"
+      dominant-baseline="central"
+      fill="var(--viz-node-text)"
+    >
+      token_manager_type
+    </text>
+  </a>
+  <a id="diagram-fn-flow_limit" href="#fn-flow_limit" data-node-id="fn:flow_limit">
+    <rect id="axelar-its-node-fn:flow_limit" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="1708" width="126" height="28" rx="6" ry="6"/>
+    <title>flow_limit</title>
+    <text
+      class="diagram-node-label"
+      x="34"
+      y="1722"
+      dominant-baseline="central"
+      fill="var(--viz-node-text)"
+    >
+      flow_limit
+    </text>
+  </a>
+  <a id="diagram-fn-flow_out_amount" href="#fn-flow_out_amount" data-node-id="fn:flow_out_amount">
+    <rect id="axelar-its-node-fn:flow_out_amount" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="1748" width="168" height="28" rx="6" ry="6"/>
+    <title>flow_out_amount</title>
+    <text
+      class="diagram-node-label"
+      x="34"
+      y="1762"
+      dominant-baseline="central"
+      fill="var(--viz-node-text)"
+    >
+      flow_out_amount
+    </text>
+  </a>
+  <a id="diagram-fn-flow_in_amount" href="#fn-flow_in_amount" data-node-id="fn:flow_in_amount">
+    <rect id="axelar-its-node-fn:flow_in_amount" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="1788" width="160" height="28" rx="6" ry="6"/>
+    <title>flow_in_amount</title>
+    <text
+      class="diagram-node-label"
+      x="34"
+      y="1802"
+      dominant-baseline="central"
+      fill="var(--viz-node-text)"
+    >
+      flow_in_amount
     </text>
   </a>
   <a id="diagram-fn-is_flow_limiter" href="#fn-is_flow_limiter" data-node-id="fn:is_flow_limiter">
@@ -218,6 +447,97 @@
       remove_flow_limiter
     </text>
   </a>
+  <a id="diagram-fn-transfer_flow_limiter" href="#fn-transfer_flow_limiter" data-node-id="fn:transfer_flow_limiter">
+    <rect id="axelar-its-node-fn:transfer_flow_limiter" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="1340" width="219" height="28" rx="6" ry="6"/>
+    <title>transfer_flow_limiter</title>
+    <text
+      class="diagram-node-label"
+      x="34"
+      y="1354"
+      dominant-baseline="central"
+      fill="var(--viz-node-text)"
+    >
+      transfer_flow_limiter
+    </text>
+  </a>
+  <a id="diagram-fn-deploy_interchain_token" href="#fn-deploy_interchain_token" data-node-id="fn:deploy_interchain_token">
+    <rect id="axelar-its-node-fn:deploy_interchain_token" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="1544" width="236" height="28" rx="6" ry="6"/>
+    <title>deploy_interchain_token</title>
+    <text
+      class="diagram-node-label"
+      x="34"
+      y="1558"
+      dominant-baseline="central"
+      fill="var(--viz-node-text)"
+    >
+      deploy_interchain_token
+    </text>
+  </a>
+  <a id="diagram-fn-deploy_remote_interchain_token" href="#fn-deploy_remote_interchain_token" data-node-id="fn:deploy_remote_interchain_token">
+    <rect id="axelar-its-node-fn:deploy_remote_interchain_token" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="1584" width="236" height="28" rx="6" ry="6"/>
+    <title>deploy_remote_interchain_token</title>
+    <text
+      class="diagram-node-label"
+      x="34"
+      y="1598"
+      dominant-baseline="central"
+      fill="var(--viz-node-text)"
+    >
+      deploy_remote_intercha…
+    </text>
+  </a>
+  <a id="diagram-fn-register_canonical_token" href="#fn-register_canonical_token" data-node-id="fn:register_canonical_token">
+    <rect id="axelar-its-node-fn:register_canonical_token" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="2036" width="236" height="28" rx="6" ry="6"/>
+    <title>register_canonical_token</title>
+    <text
+      class="diagram-node-label"
+      x="34"
+      y="2050"
+      dominant-baseline="central"
+      fill="var(--viz-node-text)"
+    >
+      register_canonical_tok…
+    </text>
+  </a>
+  <a id="diagram-fn-deploy_remote_canonical_token" href="#fn-deploy_remote_canonical_token" data-node-id="fn:deploy_remote_canonical_token">
+    <rect id="axelar-its-node-fn:deploy_remote_canonical_token" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="1624" width="236" height="28" rx="6" ry="6"/>
+    <title>deploy_remote_canonical_token</title>
+    <text
+      class="diagram-node-label"
+      x="34"
+      y="1638"
+      dominant-baseline="central"
+      fill="var(--viz-node-text)"
+    >
+      deploy_remote_canonica…
+    </text>
+  </a>
+  <a id="diagram-fn-register_token_metadata" href="#fn-register_token_metadata" data-node-id="fn:register_token_metadata">
+    <rect id="axelar-its-node-fn:register_token_metadata" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="2076" width="236" height="28" rx="6" ry="6"/>
+    <title>register_token_metadata</title>
+    <text
+      class="diagram-node-label"
+      x="34"
+      y="2090"
+      dominant-baseline="central"
+      fill="var(--viz-node-text)"
+    >
+      register_token_metadata
+    </text>
+  </a>
+  <a id="diagram-fn-register_custom_token" href="#fn-register_custom_token" data-node-id="fn:register_custom_token">
+    <rect id="axelar-its-node-fn:register_custom_token" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="2116" width="219" height="28" rx="6" ry="6"/>
+    <title>register_custom_token</title>
+    <text
+      class="diagram-node-label"
+      x="34"
+      y="2130"
+      dominant-baseline="central"
+      fill="var(--viz-node-text)"
+    >
+      register_custom_token
+    </text>
+  </a>
   <a id="diagram-fn-link_token" href="#fn-link_token" data-node-id="fn:link_token">
     <rect id="axelar-its-node-fn:link_token" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="692" width="126" height="28" rx="6" ry="6"/>
     <title>link_token</title>
@@ -229,6 +549,45 @@
       fill="var(--viz-node-text)"
     >
       link_token
+    </text>
+  </a>
+  <a id="diagram-fn-interchain_transfer" href="#fn-interchain_transfer" data-node-id="fn:interchain_transfer">
+    <rect id="axelar-its-node-fn:interchain_transfer" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="1256" width="202" height="28" rx="6" ry="6"/>
+    <title>interchain_transfer</title>
+    <text
+      class="diagram-node-label"
+      x="34"
+      y="1270"
+      dominant-baseline="central"
+      fill="var(--viz-node-text)"
+    >
+      interchain_transfer
+    </text>
+  </a>
+  <a id="diagram-fn-transfer_token_admin" href="#fn-transfer_token_admin" data-node-id="fn:transfer_token_admin">
+    <rect id="axelar-its-node-fn:transfer_token_admin" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="1380" width="210" height="28" rx="6" ry="6"/>
+    <title>transfer_token_admin</title>
+    <text
+      class="diagram-node-label"
+      x="34"
+      y="1394"
+      dominant-baseline="central"
+      fill="var(--viz-node-text)"
+    >
+      transfer_token_admin
+    </text>
+  </a>
+  <a id="diagram-fn-__constructor" href="#fn-__constructor" data-node-id="fn:__constructor">
+    <rect id="axelar-its-node-fn:__constructor" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="1872" width="152" height="28" rx="6" ry="6"/>
+    <title>__constructor</title>
+    <text
+      class="diagram-node-label"
+      x="34"
+      y="1886"
+      dominant-baseline="central"
+      fill="var(--viz-node-text)"
+    >
+      __constructor
     </text>
   </a>
   <a id="diagram-fn-operator" href="#fn-operator" data-node-id="fn:operator">
@@ -244,6 +603,19 @@
       operator
     </text>
   </a>
+  <a id="diagram-fn-transfer_operatorship" href="#fn-transfer_operatorship" data-node-id="fn:transfer_operatorship">
+    <rect id="axelar-its-node-fn:transfer_operatorship" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="1420" width="219" height="28" rx="6" ry="6"/>
+    <title>transfer_operatorship</title>
+    <text
+      class="diagram-node-label"
+      x="34"
+      y="1434"
+      dominant-baseline="central"
+      fill="var(--viz-node-text)"
+    >
+      transfer_operatorship
+    </text>
+  </a>
   <a id="diagram-fn-owner" href="#fn-owner" data-node-id="fn:owner">
     <rect id="axelar-its-node-fn:owner" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="772" width="84" height="28" rx="6" ry="6"/>
     <title>owner</title>
@@ -255,6 +627,19 @@
       fill="var(--viz-node-text)"
     >
       owner
+    </text>
+  </a>
+  <a id="diagram-fn-transfer_ownership" href="#fn-transfer_ownership" data-node-id="fn:transfer_ownership">
+    <rect id="axelar-its-node-fn:transfer_ownership" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="1460" width="194" height="28" rx="6" ry="6"/>
+    <title>transfer_ownership</title>
+    <text
+      class="diagram-node-label"
+      x="34"
+      y="1474"
+      dominant-baseline="central"
+      fill="var(--viz-node-text)"
+    >
+      transfer_ownership
     </text>
   </a>
   <a id="diagram-fn-paused" href="#fn-paused" data-node-id="fn:paused">
@@ -296,6 +681,19 @@
       unpause
     </text>
   </a>
+  <a id="diagram-fn-version" href="#fn-version" data-node-id="fn:version">
+    <rect id="axelar-its-node-fn:version" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="1912" width="101" height="28" rx="6" ry="6"/>
+    <title>version</title>
+    <text
+      class="diagram-node-label"
+      x="34"
+      y="1926"
+      dominant-baseline="central"
+      fill="var(--viz-node-text)"
+    >
+      version
+    </text>
+  </a>
   <a id="diagram-fn-required_auths" href="#fn-required_auths" data-node-id="fn:required_auths">
     <rect id="axelar-its-node-fn:required_auths" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="932" width="160" height="28" rx="6" ry="6"/>
     <title>required_auths</title>
@@ -307,6 +705,19 @@
       fill="var(--viz-node-text)"
     >
       required_auths
+    </text>
+  </a>
+  <a id="diagram-fn-upgrade" href="#fn-upgrade" data-node-id="fn:upgrade">
+    <rect id="axelar-its-node-fn:upgrade" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="1952" width="101" height="28" rx="6" ry="6"/>
+    <title>upgrade</title>
+    <text
+      class="diagram-node-label"
+      x="34"
+      y="1966"
+      dominant-baseline="central"
+      fill="var(--viz-node-text)"
+    >
+      upgrade
     </text>
   </a>
   <a id="diagram-fn-migrate" href="#fn-migrate" data-node-id="fn:migrate">
@@ -348,303 +759,72 @@
       execute
     </text>
   </a>
-  <a id="diagram-fn-interchain_token_wasm_hash" href="#fn-interchain_token_wasm_hash" data-node-id="fn:interchain_token_wasm_hash">
-    <rect id="axelar-its-node-fn:interchain_token_wasm_hash" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="1136" width="236" height="28" rx="6" ry="6"/>
-    <title>interchain_token_wasm_hash</title>
+  <a id="diagram-type-TokenManagerType" href="#type-TokenManagerType" data-node-id="type:TokenManagerType">
+    <rect id="axelar-its-node-type:TokenManagerType" class="viz-shape viz-shape--rect diagram-node diagram-node--type" data-node-shape="rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="356" y="1236" width="155" height="28" rx="0" ry="0"/>
+    <title>TokenManagerType</title>
     <text
       class="diagram-node-label"
-      x="34"
-      y="1150"
+      x="366"
+      y="1250"
       dominant-baseline="central"
       fill="var(--viz-node-text)"
     >
-      interchain_token_wasm_…
+      TokenManagerType
     </text>
   </a>
-  <a id="diagram-fn-interchain_token_id" href="#fn-interchain_token_id" data-node-id="fn:interchain_token_id">
-    <rect id="axelar-its-node-fn:interchain_token_id" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="1176" width="202" height="28" rx="6" ry="6"/>
-    <title>interchain_token_id</title>
+  <a id="diagram-type-TokenMetadata" href="#type-TokenMetadata" data-node-id="type:TokenMetadata">
+    <rect id="axelar-its-node-type:TokenMetadata" class="viz-shape viz-shape--rect diagram-node diagram-node--type" data-node-shape="rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="356" y="1196" width="130" height="28" rx="0" ry="0"/>
+    <title>TokenMetadata</title>
     <text
       class="diagram-node-label"
-      x="34"
-      y="1190"
+      x="366"
+      y="1210"
       dominant-baseline="central"
       fill="var(--viz-node-text)"
     >
-      interchain_token_id
+      TokenMetadata
     </text>
   </a>
-  <a id="diagram-fn-interchain_token_address" href="#fn-interchain_token_address" data-node-id="fn:interchain_token_address">
-    <rect id="axelar-its-node-fn:interchain_token_address" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="1216" width="236" height="28" rx="6" ry="6"/>
-    <title>interchain_token_address</title>
+  <a id="diagram-type-Token" href="#type-Token" data-node-id="type:Token">
+    <rect id="axelar-its-node-type:Token" class="viz-shape viz-shape--rect diagram-node diagram-node--type" data-node-shape="rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="356" y="1156" width="62" height="28" rx="0" ry="0"/>
+    <title>Token</title>
     <text
       class="diagram-node-label"
-      x="34"
-      y="1230"
+      x="366"
+      y="1170"
       dominant-baseline="central"
       fill="var(--viz-node-text)"
     >
-      interchain_token_addre…
+      Token
     </text>
   </a>
-  <a id="diagram-fn-interchain_transfer" href="#fn-interchain_transfer" data-node-id="fn:interchain_transfer">
-    <rect id="axelar-its-node-fn:interchain_transfer" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="1256" width="202" height="28" rx="6" ry="6"/>
-    <title>interchain_transfer</title>
+  <g id="diagram-type-__InterchainTokenServiceMigrationData" data-node-id="type:__InterchainTokenServiceMigrationData">
+    <rect id="axelar-its-node-type:__InterchainTokenServiceMigrationData" class="viz-shape viz-shape--dashed-outline-rect diagram-node diagram-node--stub" data-node-shape="dashed-outline-rect" fill="none" stroke="var(--viz-edge)" x="356" y="1076" width="239" height="28" rx="0" ry="0" stroke-dasharray="5 3"/>
+    <title>__InterchainTokenServiceMigrationData</title>
     <text
       class="diagram-node-label"
-      x="34"
-      y="1270"
+      x="366"
+      y="1090"
       dominant-baseline="central"
-      fill="var(--viz-node-text)"
+      fill="var(--viz-muted)"
     >
-      interchain_transfer
+      __InterchainTokenServiceM…
     </text>
-  </a>
-  <a id="diagram-fn-transfer_flow_limiter" href="#fn-transfer_flow_limiter" data-node-id="fn:transfer_flow_limiter">
-    <rect id="axelar-its-node-fn:transfer_flow_limiter" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="1340" width="219" height="28" rx="6" ry="6"/>
-    <title>transfer_flow_limiter</title>
+  </g>
+  <g id="diagram-type-__InterchainTokenServiceAxelarExecutableInterfaceError" data-node-id="type:__InterchainTokenServiceAxelarExecutableInterfaceError">
+    <rect id="axelar-its-node-type:__InterchainTokenServiceAxelarExecutableInterfaceError" class="viz-shape viz-shape--dashed-outline-rect diagram-node diagram-node--stub" data-node-shape="dashed-outline-rect" fill="none" stroke="var(--viz-edge)" x="356" y="1116" width="239" height="28" rx="0" ry="0" stroke-dasharray="5 3"/>
+    <title>__InterchainTokenServiceAxelarExecutableInterfaceError</title>
     <text
       class="diagram-node-label"
-      x="34"
-      y="1354"
+      x="366"
+      y="1130"
       dominant-baseline="central"
-      fill="var(--viz-node-text)"
+      fill="var(--viz-muted)"
     >
-      transfer_flow_limiter
+      __InterchainTokenServiceA…
     </text>
-  </a>
-  <a id="diagram-fn-transfer_token_admin" href="#fn-transfer_token_admin" data-node-id="fn:transfer_token_admin">
-    <rect id="axelar-its-node-fn:transfer_token_admin" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="1380" width="210" height="28" rx="6" ry="6"/>
-    <title>transfer_token_admin</title>
-    <text
-      class="diagram-node-label"
-      x="34"
-      y="1394"
-      dominant-baseline="central"
-      fill="var(--viz-node-text)"
-    >
-      transfer_token_admin
-    </text>
-  </a>
-  <a id="diagram-fn-transfer_operatorship" href="#fn-transfer_operatorship" data-node-id="fn:transfer_operatorship">
-    <rect id="axelar-its-node-fn:transfer_operatorship" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="1420" width="219" height="28" rx="6" ry="6"/>
-    <title>transfer_operatorship</title>
-    <text
-      class="diagram-node-label"
-      x="34"
-      y="1434"
-      dominant-baseline="central"
-      fill="var(--viz-node-text)"
-    >
-      transfer_operatorship
-    </text>
-  </a>
-  <a id="diagram-fn-transfer_ownership" href="#fn-transfer_ownership" data-node-id="fn:transfer_ownership">
-    <rect id="axelar-its-node-fn:transfer_ownership" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="1460" width="194" height="28" rx="6" ry="6"/>
-    <title>transfer_ownership</title>
-    <text
-      class="diagram-node-label"
-      x="34"
-      y="1474"
-      dominant-baseline="central"
-      fill="var(--viz-node-text)"
-    >
-      transfer_ownership
-    </text>
-  </a>
-  <a id="diagram-fn-deploy_interchain_token" href="#fn-deploy_interchain_token" data-node-id="fn:deploy_interchain_token">
-    <rect id="axelar-its-node-fn:deploy_interchain_token" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="1544" width="236" height="28" rx="6" ry="6"/>
-    <title>deploy_interchain_token</title>
-    <text
-      class="diagram-node-label"
-      x="34"
-      y="1558"
-      dominant-baseline="central"
-      fill="var(--viz-node-text)"
-    >
-      deploy_interchain_token
-    </text>
-  </a>
-  <a id="diagram-fn-deploy_remote_interchain_token" href="#fn-deploy_remote_interchain_token" data-node-id="fn:deploy_remote_interchain_token">
-    <rect id="axelar-its-node-fn:deploy_remote_interchain_token" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="1584" width="236" height="28" rx="6" ry="6"/>
-    <title>deploy_remote_interchain_token</title>
-    <text
-      class="diagram-node-label"
-      x="34"
-      y="1598"
-      dominant-baseline="central"
-      fill="var(--viz-node-text)"
-    >
-      deploy_remote_intercha…
-    </text>
-  </a>
-  <a id="diagram-fn-deploy_remote_canonical_token" href="#fn-deploy_remote_canonical_token" data-node-id="fn:deploy_remote_canonical_token">
-    <rect id="axelar-its-node-fn:deploy_remote_canonical_token" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="1624" width="236" height="28" rx="6" ry="6"/>
-    <title>deploy_remote_canonical_token</title>
-    <text
-      class="diagram-node-label"
-      x="34"
-      y="1638"
-      dominant-baseline="central"
-      fill="var(--viz-node-text)"
-    >
-      deploy_remote_canonica…
-    </text>
-  </a>
-  <a id="diagram-fn-flow_limit" href="#fn-flow_limit" data-node-id="fn:flow_limit">
-    <rect id="axelar-its-node-fn:flow_limit" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="1708" width="126" height="28" rx="6" ry="6"/>
-    <title>flow_limit</title>
-    <text
-      class="diagram-node-label"
-      x="34"
-      y="1722"
-      dominant-baseline="central"
-      fill="var(--viz-node-text)"
-    >
-      flow_limit
-    </text>
-  </a>
-  <a id="diagram-fn-flow_out_amount" href="#fn-flow_out_amount" data-node-id="fn:flow_out_amount">
-    <rect id="axelar-its-node-fn:flow_out_amount" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="1748" width="168" height="28" rx="6" ry="6"/>
-    <title>flow_out_amount</title>
-    <text
-      class="diagram-node-label"
-      x="34"
-      y="1762"
-      dominant-baseline="central"
-      fill="var(--viz-node-text)"
-    >
-      flow_out_amount
-    </text>
-  </a>
-  <a id="diagram-fn-flow_in_amount" href="#fn-flow_in_amount" data-node-id="fn:flow_in_amount">
-    <rect id="axelar-its-node-fn:flow_in_amount" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="1788" width="160" height="28" rx="6" ry="6"/>
-    <title>flow_in_amount</title>
-    <text
-      class="diagram-node-label"
-      x="34"
-      y="1802"
-      dominant-baseline="central"
-      fill="var(--viz-node-text)"
-    >
-      flow_in_amount
-    </text>
-  </a>
-  <a id="diagram-fn-__constructor" href="#fn-__constructor" data-node-id="fn:__constructor">
-    <rect id="axelar-its-node-fn:__constructor" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="1872" width="152" height="28" rx="6" ry="6"/>
-    <title>__constructor</title>
-    <text
-      class="diagram-node-label"
-      x="34"
-      y="1886"
-      dominant-baseline="central"
-      fill="var(--viz-node-text)"
-    >
-      __constructor
-    </text>
-  </a>
-  <a id="diagram-fn-version" href="#fn-version" data-node-id="fn:version">
-    <rect id="axelar-its-node-fn:version" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="1912" width="101" height="28" rx="6" ry="6"/>
-    <title>version</title>
-    <text
-      class="diagram-node-label"
-      x="34"
-      y="1926"
-      dominant-baseline="central"
-      fill="var(--viz-node-text)"
-    >
-      version
-    </text>
-  </a>
-  <a id="diagram-fn-upgrade" href="#fn-upgrade" data-node-id="fn:upgrade">
-    <rect id="axelar-its-node-fn:upgrade" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="1952" width="101" height="28" rx="6" ry="6"/>
-    <title>upgrade</title>
-    <text
-      class="diagram-node-label"
-      x="34"
-      y="1966"
-      dominant-baseline="central"
-      fill="var(--viz-node-text)"
-    >
-      upgrade
-    </text>
-  </a>
-  <a id="diagram-fn-register_canonical_token" href="#fn-register_canonical_token" data-node-id="fn:register_canonical_token">
-    <rect id="axelar-its-node-fn:register_canonical_token" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="2036" width="236" height="28" rx="6" ry="6"/>
-    <title>register_canonical_token</title>
-    <text
-      class="diagram-node-label"
-      x="34"
-      y="2050"
-      dominant-baseline="central"
-      fill="var(--viz-node-text)"
-    >
-      register_canonical_tok…
-    </text>
-  </a>
-  <a id="diagram-fn-register_token_metadata" href="#fn-register_token_metadata" data-node-id="fn:register_token_metadata">
-    <rect id="axelar-its-node-fn:register_token_metadata" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="2076" width="236" height="28" rx="6" ry="6"/>
-    <title>register_token_metadata</title>
-    <text
-      class="diagram-node-label"
-      x="34"
-      y="2090"
-      dominant-baseline="central"
-      fill="var(--viz-node-text)"
-    >
-      register_token_metadata
-    </text>
-  </a>
-  <a id="diagram-fn-register_custom_token" href="#fn-register_custom_token" data-node-id="fn:register_custom_token">
-    <rect id="axelar-its-node-fn:register_custom_token" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="2116" width="219" height="28" rx="6" ry="6"/>
-    <title>register_custom_token</title>
-    <text
-      class="diagram-node-label"
-      x="34"
-      y="2130"
-      dominant-baseline="central"
-      fill="var(--viz-node-text)"
-    >
-      register_custom_token
-    </text>
-  </a>
-  <a id="diagram-fn-token_manager_wasm_hash" href="#fn-token_manager_wasm_hash" data-node-id="fn:token_manager_wasm_hash">
-    <rect id="axelar-its-node-fn:token_manager_wasm_hash" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="2200" width="236" height="28" rx="6" ry="6"/>
-    <title>token_manager_wasm_hash</title>
-    <text
-      class="diagram-node-label"
-      x="34"
-      y="2214"
-      dominant-baseline="central"
-      fill="var(--viz-node-text)"
-    >
-      token_manager_wasm_hash
-    </text>
-  </a>
-  <a id="diagram-fn-token_manager_address" href="#fn-token_manager_address" data-node-id="fn:token_manager_address">
-    <rect id="axelar-its-node-fn:token_manager_address" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="2240" width="219" height="28" rx="6" ry="6"/>
-    <title>token_manager_address</title>
-    <text
-      class="diagram-node-label"
-      x="34"
-      y="2254"
-      dominant-baseline="central"
-      fill="var(--viz-node-text)"
-    >
-      token_manager_address
-    </text>
-  </a>
-  <a id="diagram-fn-token_manager_type" href="#fn-token_manager_type" data-node-id="fn:token_manager_type">
-    <rect id="axelar-its-node-fn:token_manager_type" class="viz-shape viz-shape--rounded-rect diagram-node diagram-node--function" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="24" y="2280" width="194" height="28" rx="6" ry="6"/>
-    <title>token_manager_type</title>
-    <text
-      class="diagram-node-label"
-      x="34"
-      y="2294"
-      dominant-baseline="central"
-      fill="var(--viz-node-text)"
-    >
-      token_manager_type
-    </text>
-  </a>
+  </g>
+  <g class="diagram-legend-footer" transform="translate(16 2340)">
+    <g class="viz-legend" role="group" aria-label="Diagram legend" data-viz-legend="" data-legend-width="571" data-legend-height="160"><title>Diagram legend</title><defs><marker id="axelar-its-legend-open-arrow" markerWidth="8" markerHeight="8" refX="7.5" refY="3" orient="auto" markerUnits="strokeWidth"><path class="viz-arrow viz-arrow--open" d="M0,0 L8,3 L0,6" fill="none" stroke="var(--viz-edge)" stroke-width="1.25"/></marker><marker id="axelar-its-legend-filled-arrow" markerWidth="8" markerHeight="8" refX="7.5" refY="3" orient="auto" markerUnits="strokeWidth"><path class="viz-arrow viz-arrow--filled" d="M0,0 L8,3 L0,6 Z" fill="var(--viz-edge)"/></marker></defs><rect class="viz-shape viz-shape--rounded-rect" data-node-shape="rounded-rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="8" y="13" width="22" height="14" rx="6" ry="6"/><text class="viz-legend-label" fill="var(--viz-muted)" data-node-kind="function" data-node-prefix="fn" x="40" y="20" dominant-baseline="middle">fn — function</text><rect class="viz-shape viz-shape--rect" data-node-shape="rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="8" y="37" width="22" height="14" rx="0" ry="0"/><text class="viz-legend-label" fill="var(--viz-muted)" data-node-kind="struct" data-node-prefix="struct" x="40" y="44" dominant-baseline="middle">struct — struct</text><rect class="viz-shape viz-shape--rect" data-node-shape="rect" fill="var(--viz-node)" stroke="var(--viz-edge)" x="8" y="61" width="22" height="14" rx="0" ry="0"/><text class="viz-legend-label" fill="var(--viz-muted)" data-node-kind="enum" data-node-prefix="enum" x="40" y="68" dominant-baseline="middle">enum — enum</text><rect class="viz-shape viz-shape--dashed-outline-rect" data-node-shape="dashed-outline-rect" fill="none" stroke="var(--viz-edge)" x="8" y="85" width="22" height="14" rx="0" ry="0" stroke-dasharray="5 3"/><text class="viz-legend-label" fill="var(--viz-muted)" data-node-kind="stub" data-node-prefix="stub" x="40" y="92" dominant-baseline="middle">stub — stub (links to docs)</text><line class="viz-edge-swatch" data-edge-kind="arg" data-edge-dash="solid" data-edge-marker="filled-arrow" x1="8" y1="116" x2="30" y2="116" stroke="var(--viz-edge)" stroke-width="1.75" marker-end="url(#axelar-its-legend-filled-arrow)"/><text class="viz-legend-label" fill="var(--viz-muted)" data-edge-label="arg" x="40" y="116" dominant-baseline="middle">argument (solid, filled arrow)</text><line class="viz-edge-swatch" data-edge-kind="return" data-edge-dash="solid" data-edge-marker="open-arrow" x1="8" y1="140" x2="30" y2="140" stroke="var(--viz-edge)" stroke-width="1.75" marker-end="url(#axelar-its-legend-open-arrow)"/><text class="viz-legend-label" fill="var(--viz-muted)" data-edge-label="return" x="40" y="140" dominant-baseline="middle">return (solid, open arrow)</text></g>
+  </g>
 </svg>
