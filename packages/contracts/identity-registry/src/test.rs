@@ -433,10 +433,12 @@ fn transfer_handle_happy_path() {
     client.transfer_handle(&handle, &new_wallet);
 
     // `env.auths()` and `env.events()` only reflect the most recent invocation, so both
-    // must be read before any further client calls.
+    // must be read before any further client calls. A transfer moves the binding on
+    // behalf of both wallets, so both must have authorized it.
     let auths = env.auths();
-    assert_eq!(auths.len(), 1);
+    assert_eq!(auths.len(), 2);
     assert_eq!(auths[0].0, old_wallet);
+    assert_eq!(auths[1].0, new_wallet);
 
     // Verify event was emitted
     assert_single_event(
@@ -493,6 +495,44 @@ fn transfer_handle_requires_current_owner_auth() {
     env.set_auths(&[]);
     let res = client.try_transfer_handle(&handle, &new_wallet);
     assert!(res.is_err());
+
+    // The binding is untouched.
+    env.mock_all_auths();
+    assert_eq!(client.resolve(&handle), Some(old_wallet.clone()));
+    assert_eq!(client.lookup(&old_wallet), Some(handle.clone()));
+    assert_eq!(client.lookup(&new_wallet), None);
+    assert_eq!(client.count(), 1);
+}
+
+#[test]
+fn transfer_handle_requires_new_wallet_auth() {
+    let env = Env::default();
+    env.mock_all_auths();
+    let contract_id = env.register(IdentityRegistry, ());
+    let client = IdentityRegistryClient::new(&env, &contract_id);
+    client.initialize(&Address::generate(&env));
+
+    let old_wallet = Address::generate(&env);
+    let new_wallet = Address::generate(&env);
+    let handle = String::from_str(&env, "aquawolf");
+    client.claim(&handle, &old_wallet);
+
+    // Only the current owner signs: the new wallet has not agreed to the
+    // binding, and a handle must not be pushed onto it.
+    env.mock_auths(&[MockAuth {
+        address: &old_wallet,
+        invoke: &MockAuthInvoke {
+            contract: &contract_id,
+            fn_name: "transfer_handle",
+            args: (handle.clone(), new_wallet.clone()).into_val(&env),
+            sub_invokes: &[],
+        },
+    }]);
+    let res = client.try_transfer_handle(&handle, &new_wallet);
+    assert!(
+        res.is_err(),
+        "a transfer without the new wallet's auth must fail"
+    );
 
     // The binding is untouched.
     env.mock_all_auths();
