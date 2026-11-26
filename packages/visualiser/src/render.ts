@@ -166,7 +166,6 @@ interface DrawnNode extends DiagramNode {
   name?: string;
   collapsed?: PositionedNode['collapsed'];
   uses?: number;
-  hidden?: number;
 }
 
 const isPositioned = (n: DiagramNode): n is DrawnNode => {
@@ -208,7 +207,6 @@ export function nodeKindOf(node: DrawnNode | PositionedNode | DiagramNode): Node
     case 'function':
       return n.collapsed ? 'collapsed-group' : 'function';
     case 'missing':
-    case 'stub':
       return 'stub';
     case 'callee':
     case 'callees-more':
@@ -276,7 +274,7 @@ export function renderDiagramSvg(model: DiagramModel, opts: RenderOptions): stri
   const typeNodes = model.nodes.filter((n) => n.id.startsWith('type:'));
   const collapsedGroups = nodes.flatMap((n) => (n.collapsed ? [n.collapsed] : []));
   const functionNames = [
-    ...functionNodes.map((n) => n.name ?? n.id.replace(/^fn:/, '')),
+    ...functionNodes.map((n) => n.id.slice('fn:'.length)),
     ...collapsedGroups.flatMap((g) => g.members),
   ];
   const allGroups = groupFunctions(functionNames);
@@ -539,9 +537,6 @@ export function renderDiagramSvg(model: DiagramModel, opts: RenderOptions): stri
     // A collapsed group (issue 502) says which group its link expands.
     if (node.collapsed) {
       markAttrs += ` data-group-toggle="${escapeXml(node.collapsed.group)}" data-members="${escapeXml(node.collapsed.members.join(','))}"`;
-    }
-    if (node.kind === 'stub' && (node.hidden ?? 0) > 0) {
-      markAttrs += ` data-type-toggle="${escapeXml(node.name ?? node.label)}"`;
     }
     const diffKind = opts.diff?.[node.id];
     if (diffKind) markAttrs += ` data-diff="${diffKind}"`;

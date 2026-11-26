@@ -66,12 +66,22 @@ test('writes-only leaves collapsed group undimmed if any member writes', () => {
     overlays: {
       mutability: {
         marks: {
-          deploy_remote_interchain_token: { kind: 'writes' },
+          deploy_remote_interchain_token: {
+            kind: 'writes',
+            evidence: 'changed',
+            example: { source: 'transaction', ledger: 2, txHash: 'a'.repeat(64) },
+            writingObservations: 1,
+            observations: 1,
+            seededOnly: false,
+            staleObservations: 0,
+            unversionedObservations: 0,
+            seededObservations: 0,
+          },
         },
         transactions: 1,
         firstLedger: 1,
         lastLedger: 2,
-        staleObservations: false,
+        staleObservations: 0,
       },
     },
   });
