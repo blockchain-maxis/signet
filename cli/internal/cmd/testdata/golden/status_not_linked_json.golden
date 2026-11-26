@@ -1,0 +1,6 @@
+$ signet status --url http://127.0.0.1:<port> --source alice --json
+-- stdout --
+{"context":"default","deployment":"http://127.0.0.1:<port>","network":"testnet","health":{"status":"ok","db":"up","registry":"up","pairing":"up"},"identity":"alice","publicKey":"GASAAEJC6P5UZGRLYJ2I2KYLR7RXGF44JZXDYGCFBN7T5VIHECUUEMCD","handle":"","linked":false,"wallets":null,"contracts":null}
+-- stderr --
+(empty)
+-- exit 0 --

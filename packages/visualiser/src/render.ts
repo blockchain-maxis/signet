@@ -200,25 +200,26 @@ function placeUnpositioned(model: DiagramModel): DrawnNode[] {
 }
 
 /** The vocabulary kind a drawn node is. */
-function nodeKindOf(node: DrawnNode): NodeKind {
-  switch (node.kind) {
+export function nodeKindOf(node: DrawnNode | PositionedNode | DiagramNode): NodeKind {
+  const n = node as Partial<DrawnNode>;
+  switch (n.kind) {
     case 'function':
-      return node.collapsed ? 'collapsed-group' : 'function';
+      return n.collapsed ? 'collapsed-group' : 'function';
     case 'missing':
       return 'stub';
     case 'callee':
     case 'callees-more':
     case 'call-anchor':
-      return node.kind;
+      return n.kind;
     case 'type':
-      return node.typeKind === 'union' ? 'union' : node.typeKind === 'enum' ? 'enum' : 'struct';
+      return n.typeKind === 'union' ? 'union' : n.typeKind === 'enum' ? 'enum' : 'struct';
     default:
       return node.id.startsWith('fn:') ? 'function' : 'struct';
   }
 }
 
 /** The vocabulary kind a drawn edge is: a call by its evidence, else its first spec kind. */
-function edgeKindOf(edge: DiagramEdge): EdgeKind {
+export function edgeKindOf(edge: DiagramEdge | PositionedEdge): EdgeKind {
   const positioned = edge as Partial<PositionedEdge>;
   if (positioned.call) {
     const evidence = positioned.call.evidence;
@@ -296,8 +297,18 @@ export function renderDiagramSvg(model: DiagramModel, opts: RenderOptions): stri
   const positioned = model as Partial<PositionedDiagramModel>;
   const bodyHeight = Math.ceil(Math.max(positioned.height ?? 0, extentY));
 
-  // The legend and provenance line sit under a call graph.
+  // The legend and provenance line sit under a call graph or whenever edges are drawn.
   const legendKinds = new Set<EdgeKind | NodeKind>();
+  if (edges.length > 0) {
+    for (const n of nodes) {
+      legendKinds.add(nodeKindOf(n));
+    }
+    for (const e of edges) {
+      if (!(e as Partial<PositionedEdge>).call) {
+        legendKinds.add(edgeKindOf(e));
+      }
+    }
+  }
   if (calls) legendKinds.add('callee');
   for (const e of callEdges) {
     legendKinds.add(edgeKindOf(e));
@@ -308,6 +319,8 @@ export function renderDiagramSvg(model: DiagramModel, opts: RenderOptions): stri
   if (nodes.some((n) => n.kind === 'call-anchor')) legendKinds.add('call-anchor');
   const provenance = calls ? describeCallWindow(calls) : '';
 
+  const hasLegend = edges.length > 0 || Boolean(calls);
+
   // Wide enough for the diagram, and for every footer line to be read whole.
   const legendTextWidth = [...legendKinds].map((kind) =>
     kind in NODE_VOCABULARY
@@ -317,10 +330,13 @@ export function renderDiagramSvg(model: DiagramModel, opts: RenderOptions): stri
         ) + 40
       : textWidth(EDGE_VOCABULARY[kind as EdgeKind].label, FONT_PX) + 40,
   );
+  const maxLegendWidth = legendTextWidth.length > 0 ? Math.max(...legendTextWidth) : 0;
   const footerTextWidth = calls
-    ? Math.max(textWidth(WEIGHT_NOTE, 12), textWidth(provenance, 12), ...legendTextWidth) +
+    ? Math.max(textWidth(WEIGHT_NOTE, 12), textWidth(provenance, 12), maxLegendWidth) +
       2 * MARGIN
-    : 0;
+    : hasLegend
+      ? maxLegendWidth + 2 * MARGIN
+      : 0;
   // The read/write overlay's key and provenance lines (issue 512).
   const mutability = opts.overlays?.mutability;
   const markLines = mutability
@@ -339,14 +355,14 @@ export function renderDiagramSvg(model: DiagramModel, opts: RenderOptions): stri
     : 0;
   const width = Math.ceil(Math.max(positioned.width ?? 0, extentX, footerTextWidth, markWidth));
 
-  const legend = calls
+  const legend = hasLegend
     ? renderLegend(legendKinds, {
         idPrefix: `${idPrefix}legend`,
         width: width - 2 * MARGIN,
       })
     : '';
   const legendHeight = legend ? Number(/data-legend-height="(\d+)"/.exec(legend)![1]) : 0;
-  const callFooter = calls ? legendHeight + 3 * 20 + 8 : 0;
+  const callFooter = calls ? legendHeight + 3 * 20 + 8 : (hasLegend ? legendHeight : 0);
   const height = bodyHeight + callFooter + markFooter;
 
   const describedByAttr = opts.ariaDescribedBy
@@ -604,6 +620,12 @@ export function renderDiagramSvg(model: DiagramModel, opts: RenderOptions): stri
     svgParts.push(
       `    <text class="diagram-call-provenance" x="8" y="${legendHeight + 32}" font-size="12" fill="${cssVar('muted')}">${escapeXml(provenance)}</text>`,
     );
+    svgParts.push('  </g>');
+  } else if (hasLegend) {
+    svgParts.push(
+      `  <g class="diagram-legend-footer" transform="translate(${MARGIN - 8} ${bodyHeight})">`,
+    );
+    svgParts.push(`    ${legend}`);
     svgParts.push('  </g>');
   }
 

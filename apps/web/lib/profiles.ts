@@ -1,3 +1,4 @@
+import { cache } from 'react';
 import { isValidHandle } from '@signet/types';
 import {
   ALLOW_HTTP,
@@ -63,19 +64,33 @@ export type Operation = {
 // Re-exported here so existing callers keep importing it from this module.
 export { isValidHandle };
 
-export async function getProfile(handle: string): Promise<Profile | null> {
+/**
+ * Resolve a handle's profile with an optional injected database seam, so the
+ * released-handle rule is testable without Postgres.
+ */
+export async function getProfileWithDeps(
+  handle: string,
+  deps: ProfileDeps = {},
+): Promise<Profile | null> {
   if (!isValidHandle(handle)) return null;
   // Prefer the database (indexer-synced bindings, plus the off-chain display
   // fields the other layers can't supply) when one is configured.
-  // `safeDbProfile` returns null whenever there's no DB, so this is a no-op
-  // until provisioned.
-  const fromDb = await safeDbProfile(handle);
+  // `safeDbProfile` returns null whenever there's no DB or no live profile, so
+  // this falls through to the chain layer for a released handle.
+  const fromDb = await safeDbProfile(handle, deps.db);
   if (fromDb) return fromDb;
   // A handle can be bound on-chain long before the indexer syncs it into the
   // database — or with no database at all. Ask the registry directly so it
   // renders instead of 404ing.
   return safeChainProfile(handle);
 }
+
+/**
+ * Resolve a handle's profile, deduplicated across a single request. Cached on
+ * the handle alone: the deps seam lives on `getProfileWithDeps`, so a per-call
+ * deps object can never split the cache key.
+ */
+export const getProfile = cache((handle: string) => getProfileWithDeps(handle));
 
 /** Which layer answered an operations lookup; `none` when nothing did. */
 export type OperationsSource = 'database' | 'horizon' | 'none';
@@ -109,16 +124,90 @@ export function formatCount(value: number, truncated: boolean): string {
   return truncated ? `${value}+` : String(value);
 }
 
+export interface OperationsDeps {
+  profile?: Profile | null;
+  getProfile?: (handle: string) => Promise<Profile | null>;
+  fetchHorizonOperations?: (wallet: string) => Promise<{
+    operations: Operation[];
+    truncated: boolean;
+    cap: number;
+  } | null>;
+  safeDbOperationsResult?: (handle: string) => Promise<Omit<OperationsResult, 'source'> | null>;
+}
+
 /**
- * Resolve a handle's operations along with their completeness. Prefer this over
- * `getOperations` on any surface that shows the result to a person.
+ * A profile is live only while the chain still binds it. The attestation
+ * worker writes one `Wallet` row with `source: 'onchain'` and `isPrimary: true`
+ * on `claimed`/`transferred`, and deletes that row on `released`/`revoked` —
+ * but it never deletes the `Profile` row. Left behind are the handle, bio,
+ * display name and any CLI-linked deploy wallets, which would keep rendering
+ * (and keep attributing contracts) after a release or an impersonation
+ * revocation.
+ *
+ * Every database read of a profile is filtered on this fragment, so a handle
+ * with no on-chain primary falls through to the chain layer, which answers
+ * from `resolve` and 404s when the registry no longer binds it. Keeping it in
+ * one place is what stops the rule drifting between the profile, sitemap,
+ * operations, stats and attribution reads.
  */
-export async function getOperationsResult(handle: string): Promise<OperationsResult> {
+const LIVE_PROFILE_FILTER = { wallets: { some: { isPrimary: true, source: 'onchain' } } };
+
+/** The shared Prisma `where` fragment for a live profile at `handle`. */
+export function liveProfileWhere(handle: string) {
+  return { handle: handle.toLowerCase(), ...LIVE_PROFILE_FILTER };
+}
+
+/**
+ * The database seam behind the profile reads. Every method applies
+ * `liveProfileWhere`; the default implementation is Prisma, gated on
+ * `DATABASE_URL`, and each method degrades to null/[] rather than throwing.
+ * Tests inject a stub, so the released-handle rule is covered without
+ * Postgres.
+ */
+export interface ProfilesDb {
+  /** The live profile at `handle`, or null when the database has none. */
+  findProfile: (handle: string) => Promise<Profile | null>;
+  /** Every handle in the database whose profile is live. */
+  listHandles: () => Promise<string[]>;
+  /** The newest DB_OPERATIONS_PER_WALLET rows per wallet, with truncation. */
+  findOperations: (handle: string) => Promise<Omit<OperationsResult, 'source'> | null>;
+  /** A page of operations, with the real total backing the handle. */
+  findPagedOperations: (
+    handle: string,
+    pagination: PagedOperationsPagination,
+    limit?: number,
+  ) => Promise<(PagedOperations & { hasMore?: boolean }) | null>;
+  /** The retention-scoped aggregate, or null when the handle has no live profile. */
+  findStats: (handle: string) => Promise<ProfileStats | null>;
+}
+
+/** The Prisma-backed reads; the function declarations are hoisted below. */
+const defaultProfilesDb: ProfilesDb = {
+  findProfile: dbFindProfile,
+  listHandles: dbListHandles,
+  findOperations: dbFindOperations,
+  findPagedOperations: dbFindPagedOperations,
+  findStats: dbFindStats,
+};
+
+export interface ProfileDeps {
+  /** Database seam. Defaults to the Prisma-backed reads, gated on `DATABASE_URL`. */
+  db?: ProfilesDb;
+}
+
+/**
+ * Resolve a handle's operations along with their completeness, with optional injected seams.
+ */
+export async function getOperationsResultWithDeps(
+  handle: string,
+  deps: OperationsDeps = {},
+): Promise<OperationsResult> {
   const empty: OperationsResult = { operations: [], source: 'none', truncated: false, cap: null };
   if (!isValidHandle(handle)) return empty;
 
   // 1. Prefer indexer-populated DB rows (fastest, richest data including decoded_function).
-  const fromDb = await safeDbOperationsResult(handle);
+  const dbFn = deps.safeDbOperationsResult ?? safeDbOperationsResult;
+  const fromDb = await dbFn(handle);
   if (fromDb && fromDb.operations.length > 0) return { ...fromDb, source: 'database' };
 
   // 2. Horizon fallback: fetch invoke_host_function ops for the bound wallet directly
@@ -127,10 +216,17 @@ export async function getOperationsResult(handle: string): Promise<OperationsRes
   //    already return an empty array because the profile genuinely has no ops yet.
   if (fromDb === null) {
     // DB is unavailable (no DATABASE_URL or connection failed) — try Horizon.
-    const profile = await getProfile(handle);
+    const profile =
+      deps.profile !== undefined
+        ? deps.profile
+        : await (deps.getProfile ?? getProfile)(handle);
     if (profile?.wallet) {
-      const { fetchHorizonOperations } = await import('./server/horizon.ts');
-      const fromHorizon = await fetchHorizonOperations(profile.wallet);
+      let fetchHorizon = deps.fetchHorizonOperations;
+      if (!fetchHorizon) {
+        const { fetchHorizonOperations: imported } = await import('./server/horizon.ts');
+        fetchHorizon = imported;
+      }
+      const fromHorizon = await fetchHorizon(profile.wallet);
       if (fromHorizon && fromHorizon.operations.length > 0) {
         return {
           operations: fromHorizon.operations,
@@ -143,6 +239,14 @@ export async function getOperationsResult(handle: string): Promise<OperationsRes
   }
 
   return empty;
+}
+
+/**
+ * Resolve a handle's operations along with their completeness. Prefer this over
+ * `getOperations` on any surface that shows the result to a person.
+ */
+export async function getOperationsResult(handle: string): Promise<OperationsResult> {
+  return getOperationsResultWithDeps(handle);
 }
 
 /**
@@ -225,12 +329,9 @@ export function computeStats(operations: Operation[] | null | undefined): Profil
  * DB) so callers degrade to the chain layer alone. The DB client is imported
  * lazily, like `safeDbProfile`.
  */
-export async function safeDbHandles(): Promise<string[]> {
-  if (!process.env.DATABASE_URL) return [];
+export async function safeDbHandles(db: ProfilesDb = defaultProfilesDb): Promise<string[]> {
   try {
-    const { prisma } = await import('@signet/db');
-    const rows = await prisma.profile.findMany({ select: { handle: true } });
-    return rows.map((r) => r.handle);
+    return await db.listHandles();
   } catch {
     return [];
   }
@@ -262,14 +363,14 @@ export async function safeChainHandles(): Promise<string[]> {
  * `/p/{handle}` is also listed. Each source degrades to `[]` on its own, so
  * with nothing provisioned this is empty.
  */
-export async function listAllHandles(): Promise<string[]> {
-  const [fromDb, fromChain] = await Promise.all([safeDbHandles(), safeChainHandles()]);
+export async function listAllHandles(db: ProfilesDb = defaultProfilesDb): Promise<string[]> {
+  const [fromDb, fromChain] = await Promise.all([safeDbHandles(db), safeChainHandles()]);
   return [...new Set([...fromDb, ...fromChain])].sort((a, b) => a.localeCompare(b));
 }
 
 /** Alias of `listAllHandles`, kept for callers (tRPC `profile.list`) that use this name. */
-export async function listHandles(): Promise<string[]> {
-  return listAllHandles();
+export async function listHandles(db: ProfilesDb = defaultProfilesDb): Promise<string[]> {
+  return listAllHandles(db);
 }
 
 /**
@@ -279,13 +380,26 @@ export async function listHandles(): Promise<string[]> {
  * lazily so the web app
  * never hard-depends on Postgres being present.
  */
-export async function safeDbProfile(handle: string): Promise<Profile | null> {
-  if (!process.env.DATABASE_URL || !isValidHandle(handle)) return null;
+export async function safeDbProfile(
+  handle: string,
+  db: ProfilesDb = defaultProfilesDb,
+): Promise<Profile | null> {
+  if (!isValidHandle(handle)) return null;
+  try {
+    return await db.findProfile(handle.toLowerCase());
+  } catch {
+    return null;
+  }
+}
+
+/** Prisma implementation of `ProfilesDb.findProfile`; live profiles only. */
+async function dbFindProfile(handle: string): Promise<Profile | null> {
+  if (!process.env.DATABASE_URL) return null;
   try {
     const { prisma } = await import('@signet/db');
-    const row = await prisma.profile.findUnique({
-      where: { handle: handle.toLowerCase() },
-      include: { wallets: { where: { isPrimary: true }, take: 1 } },
+    const row = await prisma.profile.findFirst({
+      where: liveProfileWhere(handle),
+      include: { wallets: { where: { isPrimary: true, source: 'onchain' }, take: 1 } },
     });
     if (!row) return null;
     return {
@@ -297,6 +411,21 @@ export async function safeDbProfile(handle: string): Promise<Profile | null> {
     };
   } catch {
     return null;
+  }
+}
+
+/** Prisma implementation of `ProfilesDb.listHandles`; live profiles only. */
+async function dbListHandles(): Promise<string[]> {
+  if (!process.env.DATABASE_URL) return [];
+  try {
+    const { prisma } = await import('@signet/db');
+    const rows = await prisma.profile.findMany({
+      where: LIVE_PROFILE_FILTER,
+      select: { handle: true },
+    });
+    return rows.map((r) => r.handle);
+  } catch {
+    return [];
   }
 }
 
@@ -431,12 +560,23 @@ export const DB_OPERATIONS_PER_WALLET = 100;
  */
 export async function safeDbOperationsResult(
   handle: string,
+  db: ProfilesDb = defaultProfilesDb,
 ): Promise<Omit<OperationsResult, 'source'> | null> {
-  if (!process.env.DATABASE_URL || !isValidHandle(handle)) return null;
+  if (!isValidHandle(handle)) return null;
+  try {
+    return await db.findOperations(handle.toLowerCase());
+  } catch {
+    return null;
+  }
+}
+
+/** Prisma implementation of `ProfilesDb.findOperations`; live profiles only. */
+async function dbFindOperations(handle: string): Promise<Omit<OperationsResult, 'source'> | null> {
+  if (!process.env.DATABASE_URL) return null;
   try {
     const { prisma } = await import('@signet/db');
-    const profile = await prisma.profile.findUnique({
-      where: { handle: handle.toLowerCase() },
+    const profile = await prisma.profile.findFirst({
+      where: liveProfileWhere(handle),
       include: {
         wallets: {
           include: {
@@ -469,44 +609,96 @@ export interface PagedOperations {
 
 /**
  * Paginated, DB-backed lookup of every operation for a handle — unlike
- * `safeDbOperations`, this is not capped at 100 rows. `offset`/`limit` are
- * pushed into the query via `skip`/`take` and `total` comes from a real
- * `count`, so a caller paging past the first 100 rows still gets its data and
- * an honest total instead of an empty page with a stale count.
+ * `safeDbOperations`, this is not capped at 100 rows. Paging is a keyset
+ * cursor on `(createdAt, id)`, with `offset`/`limit` still accepted for
+ * callers that page by position, and `total` comes from a real `count`, so a
+ * caller paging past the first 100 rows still gets its data and an honest
+ * total instead of an empty page with a stale count.
  *
  * Returns null when there's no database, the handle doesn't resolve to a
  * profile in it, or the query fails — callers fall back to `getOperations`
  * (Horizon) in that case, same as `safeDbOperations`.
  */
+export interface PagedOperationsOptions {
+  cursor?: { createdAt: string; id: string } | null;
+  offset?: number;
+  limit?: number;
+}
+
+export type PagedOperationsPagination = number | PagedOperationsOptions;
+
 export async function getPagedOperations(
   handle: string,
-  offset: number,
-  limit: number,
-): Promise<PagedOperations | null> {
-  if (!process.env.DATABASE_URL || !isValidHandle(handle)) return null;
+  pagination: PagedOperationsPagination,
+  limit = 25,
+  db: ProfilesDb = defaultProfilesDb,
+): Promise<(PagedOperations & { hasMore?: boolean }) | null> {
+  if (!isValidHandle(handle)) return null;
+  try {
+    return await db.findPagedOperations(handle.toLowerCase(), pagination, limit);
+  } catch {
+    return null;
+  }
+}
+
+/** Prisma implementation of `ProfilesDb.findPagedOperations`; live profiles only. */
+async function dbFindPagedOperations(
+  handle: string,
+  pagination: PagedOperationsPagination,
+  limit = 25,
+): Promise<(PagedOperations & { hasMore?: boolean }) | null> {
+  if (!process.env.DATABASE_URL) return null;
   try {
     const { prisma } = await import('@signet/db');
-    const profile = await prisma.profile.findUnique({
-      where: { handle: handle.toLowerCase() },
+    const profile = await prisma.profile.findFirst({
+      where: liveProfileWhere(handle),
       include: { wallets: { select: { id: true } } },
     });
     if (!profile) return null;
 
     const walletIds = profile.wallets.map((w) => w.id);
-    if (walletIds.length === 0) return { data: [], total: 0 };
+    if (walletIds.length === 0) return { data: [], total: 0, hasMore: false };
 
-    const where = { walletId: { in: walletIds } };
+    let cursor: { createdAt: string; id: string } | null | undefined;
+    let offset: number | undefined;
+    let actualLimit = limit;
+
+    if (typeof pagination === 'number') {
+      offset = pagination;
+    } else if (typeof pagination === 'object' && pagination !== null) {
+      cursor = pagination.cursor;
+      offset = pagination.offset;
+      if (pagination.limit !== undefined) actualLimit = pagination.limit;
+    }
+
+    const walletWhere = { walletId: { in: walletIds } };
+    let whereClause: any = walletWhere;
+
+    if (cursor) {
+      const cursorDate = new Date(cursor.createdAt);
+      whereClause = {
+        ...walletWhere,
+        OR: [
+          { createdAt: { lt: cursorDate } },
+          { createdAt: cursorDate, id: { lt: cursor.id } },
+        ],
+      };
+    }
+
     const [rows, total] = await Promise.all([
       prisma.operation.findMany({
-        where,
-        orderBy: { createdAt: 'desc' },
-        skip: offset,
-        take: limit,
+        where: whereClause,
+        orderBy: [{ createdAt: 'desc' }, { id: 'desc' }],
+        ...(offset !== undefined && !cursor ? { skip: offset } : {}),
+        take: actualLimit + 1,
       }),
-      prisma.operation.count({ where }),
+      prisma.operation.count({ where: walletWhere }),
     ]);
 
-    return { data: rows.map(mapDbOperation), total };
+    const hasMore = rows.length > actualLimit;
+    const pageRows = hasMore ? rows.slice(0, actualLimit) : rows;
+
+    return { data: pageRows.map(mapDbOperation), total, hasMore };
   } catch {
     return null;
   }
@@ -535,12 +727,25 @@ export async function safeDbOperations(handle: string): Promise<Operation[] | nu
  * zeroed aggregate so the caller can label that zero with the retention scope
  * instead of mistaking it for a lifetime total.
  */
-export async function safeDbProfileStats(handle: string): Promise<ProfileStats | null> {
-  if (!process.env.DATABASE_URL || !isValidHandle(handle)) return null;
+export async function safeDbProfileStats(
+  handle: string,
+  db: ProfilesDb = defaultProfilesDb,
+): Promise<ProfileStats | null> {
+  if (!isValidHandle(handle)) return null;
+  try {
+    return await db.findStats(handle.toLowerCase());
+  } catch {
+    return null;
+  }
+}
+
+/** Prisma implementation of `ProfilesDb.findStats`; live profiles only. */
+async function dbFindStats(handle: string): Promise<ProfileStats | null> {
+  if (!process.env.DATABASE_URL) return null;
   try {
     const { prisma } = await import('@signet/db');
-    const profile = await prisma.profile.findUnique({
-      where: { handle: handle.toLowerCase() },
+    const profile = await prisma.profile.findFirst({
+      where: liveProfileWhere(handle),
       select: { id: true, wallets: { select: { id: true } } },
     });
     if (!profile || profile.wallets.length === 0) return null;

@@ -245,8 +245,8 @@ stellar keys add deploy --secret-key …   # import one
 signet link --source deploy              # use a specific one
 ```
 
-`--source` is remembered, so later runs do not ask again. It is stored with the
-deployment URL in a config file:
+`--source` is remembered on the active context, so later runs do not ask again.
+It is stored in the user config file (see [Deployment contexts](#deployment-contexts)):
 
 | Platform | Location |
 | --- | --- |
@@ -256,12 +256,17 @@ deployment URL in a config file:
 
 ```json
 {
-  "baseUrl": "https://signet.example",
-  "source": "deploy"
+  "version": 2,
+  "current": "default",
+  "contexts": {
+    "default": {
+      "source": "deploy"
+    }
+  }
 }
 ```
 
-Settings resolve highest-priority first: flag → environment → config file →
+Settings resolve highest-priority first: flag → environment → context →
 built-in default.
 
 ## Shell completion
@@ -317,17 +322,140 @@ would be too slow for interactive use). Install the CLI globally
 (`npm install -g @signet/cli`) or place the release binary on `PATH` before
 enabling shell completions.
 
+## Deployment contexts
+
+A deployment context is a named configuration profile that bundles everything
+`signet` needs to talk to a specific deployment and target network:
+
+| Property | Key (`config` / JSON) | Meaning |
+| --- | --- | --- |
+| URL | `url` | The Signet deployment HTTP endpoint URL (e.g. `https://signet-web-pearl.vercel.app` or a self-hosted instance) |
+| Network | `network` | The Stellar network the deployment targets (`testnet`, `mainnet`, `futurenet`, `local`, or a custom network) |
+| Source | `source` | The default signing identity name (from the local `stellar` keystore) for this context |
+| RPC URL | `rpc-url` / `rpcUrl` | The Stellar RPC endpoint sandbox commands (`signet sandbox`, `signet dev`) fork contract state from |
+
+### Managing contexts
+
+Use `signet context` to list, inspect, switch, register, and remove deployment contexts:
+
+```bash
+signet context list
+signet context show <name>
+signet context use <name>
+signet context add <name> --url <url> --network <network>
+signet context add <name> --url <url> --network <network> --source <source>
+signet context remove <name>
+```
+
+- **`signet context list`**: Lists all configured contexts in tabular format (or JSON with `--json`), marking the active context with `*`.
+- **`signet context show <name>`**: Shows details (URL, network, source) for a named context. With no argument, `signet context show` displays the context resolved for this invocation (honouring `--context` / `SIGNET_CONTEXT`).
+- **`signet context use <name>`**: Switches the default active context saved in `config.json`.
+- **`signet context add <name> --url <url> --network <network>`**: Adds a new deployment context or updates an existing one. `--url` and `--network` are required flags; `--source` is optional.
+- **`signet context remove <name>`**: Deletes a named context from the configuration file. Removing the currently active context is refused with exit code `2` (`Invalid input`); switch to another context first with `signet context use <name>` before removing it.
+
+### Reading and updating settings
+
+`signet config` inspects and updates individual keys in the resolved context (supported keys: `url`, `network`, `source`, `rpc-url`):
+
+```bash
+signet config get <key>
+signet config set <key> <value>
+signet config unset <key>
+signet config path
+```
+
+- **`signet config get <key>`**: Reads a configuration value from the active context.
+- **`signet config set <key> <value>`**: Sets a configuration value in the active context and saves it to disk.
+- **`signet config unset <key>`**: Clears a configuration value in the active context and saves it to disk.
+- **`signet config path`**: Prints the filesystem path to the user configuration file.
+
+### Precedence
+
+Every command resolves runtime settings per field across four layers, highest priority first:
+
+$$\text{flag} > \text{environment variable} > \text{deployment context} > \text{built-in default}$$
+
+| Setting | Flag | Environment Variable | Context Key | Built-in Default |
+| --- | --- | --- | --- | --- |
+| Context selection | `--context <name>` | `SIGNET_CONTEXT` | `current` in config file | `default` |
+| Deployment URL | `--url <url>` | `SIGNET_URL` | `url` | `https://signet-web-pearl.vercel.app` |
+| Stellar Network | `--network <network>` | `SIGNET_NETWORK` | `network` | `testnet` |
+| Signing Identity | `--sign-with-key <key>` or `--source <name>` | `STELLAR_SIGN_WITH_KEY` | `source` | none (interactive prompt) |
+| Sandbox RPC URL | `--rpc-url <url>` | — | `rpcUrl` / `rpc-url` | `https://soroban-testnet.stellar.org` (testnet only) |
+
+Identity resolution rules:
+- `--sign-with-key` outranks `--source` (it is the more specific statement of intent).
+- Passing `--source <name>` explicitly writes `<name>` back to the active context's `source` in `config.json`, so subsequent runs reuse it without prompting.
+- Neither `--sign-with-key` nor `STELLAR_SIGN_WITH_KEY` is written to `config.json`: `stellar tx sign` accepts secret key material for that setting, and persisting secrets to disk is not signet's call.
+
+### Explicit context selection and missing contexts
+
+Pass `--context <name>` on any command, or set `SIGNET_CONTEXT=<name>`, to target a specific deployment context for that invocation without altering `current` in `config.json`.
+
+If a context named by `--context` or `SIGNET_CONTEXT` does not exist in the configuration file, the CLI immediately exits with code `3` (`Configuration error`), naming the context and listing existing contexts:
+
+```text
+configuration error: context "staging" is not configured (existing contexts: default, prod)
+```
+
+The CLI never silently falls back to the hosted default when an explicitly named context is not found. (The implicit default is different: running on a clean machine with no configuration file at all is a normal first run and defaults to `default`.)
+
+### Configuration file (Schema v2)
+
+Configuration is persisted in `config.json` inside the platform user configuration directory (`os.UserConfigDir()`):
+- **Linux**: `$XDG_CONFIG_HOME/signet/config.json` (defaults to `~/.config/signet/config.json`)
+- **macOS**: `~/Library/Application Support/signet/config.json`
+- **Windows**: `%AppData%\signet\config.json`
+
+Example `config.json` (schema v2):
+
+```json
+{
+  "version": 2,
+  "current": "default",
+  "contexts": {
+    "default": {
+      "url": "https://signet-web-pearl.vercel.app",
+      "network": "testnet",
+      "source": "alice"
+    },
+    "staging": {
+      "url": "https://signet.staging.example",
+      "network": "testnet",
+      "source": "bob",
+      "rpcUrl": "https://soroban-testnet.stellar.org"
+    }
+  }
+}
+```
+
+### Schema v1 migration
+
+When `signet` detects an older schema v1 configuration file (which contained top-level `"baseUrl"` and `"source"` fields without `"version": 2`):
+
+1. It creates an exact backup of the original unmigrated file at `<path>.bak` (e.g. `config.json.bak`).
+2. It migrates the settings into schema v2 under the `default` context (`"current": "default"`).
+3. It saves the migrated v2 file to disk.
+
+Migration happens automatically on the first command run that reads configuration.
+
 ## Self-hosted deployments
 
-Point the CLI at your own instance:
+Point the CLI at your own instance by registering a deployment context:
+
+```bash
+signet context add internal --url https://signet.internal.example --network testnet
+signet context use internal
+```
+
+Or pass `--url` for a one-off run, or set `SIGNET_URL` for a shell session:
 
 ```bash
 signet link --url https://signet.internal.example      # once
 export SIGNET_URL=https://signet.internal.example      # for a shell
 ```
 
-`--url` is read from the config file but never written back by the flag — edit
-the file to change the default deployment.
+Deployment contexts replace manual file edits: use `signet context add` to define an endpoint and network, and `signet context use` to switch active deployments.
 
 The origin you point at is also the only origin allowed to reach the loopback
 callback while the command runs.

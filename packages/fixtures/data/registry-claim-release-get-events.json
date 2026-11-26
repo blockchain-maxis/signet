@@ -1,0 +1,63 @@
+{
+  "network": "testnet",
+  "rpcUrl": "https://soroban-testnet.stellar.org",
+  "capturedAt": "2026-11-25T14:58:14.095Z",
+  "latestLedger": 5919010,
+  "request": {
+    "endpoint": "rpc",
+    "methodOrPath": "getEvents",
+    "params": {
+      "startLedger": 5919009,
+      "filters": [
+        {
+          "type": "contract",
+          "contractIds": [
+            "CASFJHI5PQSRWS7JV25CF7FOMRKIVBP3RXRP3E2GH2CV4BCAG7FUJRCN"
+          ]
+        }
+      ],
+      "pagination": {
+        "limit": 100
+      }
+    }
+  },
+  "payload": {
+    "events": [
+      {
+        "type": "contract",
+        "ledger": 5919009,
+        "ledgerClosedAt": "2026-11-25T14:58:08Z",
+        "contractId": "CASFJHI5PQSRWS7JV25CF7FOMRKIVBP3RXRP3E2GH2CV4BCAG7FUJRCN",
+        "id": "0025421950079836160-0000000000",
+        "operationIndex": 0,
+        "transactionIndex": 26,
+        "txHash": "ca0ce3fd6d39985f0b421c369b26ff394657749fe0f5820cd97fe6fe22c1148e",
+        "topic": [
+          "AAAADwAAAAdjbGFpbWVkAA==",
+          "AAAADgAAAAtmeC02ZjRhNDVjNQA="
+        ],
+        "value": "AAAAEgAAAAAAAAAAjmxfEjFtuIkB/rZHOurNrGoyjbwHL+Hvdc0oXElf6FY="
+      },
+      {
+        "type": "contract",
+        "ledger": 5919010,
+        "ledgerClosedAt": "2026-11-25T14:58:13Z",
+        "contractId": "CASFJHI5PQSRWS7JV25CF7FOMRKIVBP3RXRP3E2GH2CV4BCAG7FUJRCN",
+        "id": "0025421954374733824-0000000000",
+        "operationIndex": 0,
+        "transactionIndex": 9,
+        "txHash": "6b6bb419d6a7ba72f68fc40e2b9fe8c762ff326f9bf1dfbd4e2b88aabac7518b",
+        "topic": [
+          "AAAADwAAAAhyZWxlYXNlZA==",
+          "AAAADgAAAAtmeC02ZjRhNDVjNQA="
+        ],
+        "value": "AAAAEgAAAAAAAAAAjmxfEjFtuIkB/rZHOurNrGoyjbwHL+Hvdc0oXElf6FY="
+      }
+    ],
+    "cursor": "0025421958669664255-4294967295",
+    "latestLedger": 5919010,
+    "oldestLedger": 5798051,
+    "latestLedgerCloseTime": "1795618693",
+    "oldestLedgerCloseTime": "1795013894"
+  }
+}
