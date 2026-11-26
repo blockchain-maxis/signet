@@ -9,6 +9,7 @@ import {
   type AttributionHorizon,
   type AttributionHorizonOp,
 } from './contract-attribution.ts';
+import { liveProfileWhere } from './profiles.ts';
 import { HORIZON_MAX_RECORDS } from './server/horizon.ts';
 
 // Chain-confirmed create-contract vector (see contract-address.test.ts): the
@@ -20,7 +21,7 @@ const SALT_HEX = '075afa7ea513abbddc97610bbef3276c89be0a040c3e914920dd7efb424a6a
 const CONTRACT = 'CAMYYJCHOQZSTF2KF6WY4UMFXS75VI46NEGKWE6XHWFULYD46BE5EUXZ';
 const NETWORK = 'testnet' as const;
 
-type FakeWallet = { id: string; pubkey: string; isPrimary: boolean };
+type FakeWallet = { id: string; pubkey: string; isPrimary: boolean; source: string };
 
 function makeDb(
   profiles: Record<string, FakeWallet[]>,
@@ -39,6 +40,14 @@ function makeDb(
     findContract: async ({ address, handle, network }): Promise<AttributionDbRow | null> => {
       calls.db += 1;
       const wallets = profiles[handle.toLowerCase()] ?? [];
+      // Apply the same live-profile rule the Prisma query does (#895): a
+      // profile with no on-chain primary wallet is not attributable.
+      const where = liveProfileWhere(handle);
+      const live = wallets.some(
+        (w) =>
+          w.isPrimary === where.wallets.some.isPrimary && w.source === where.wallets.some.source,
+      );
+      if (!live) return null;
       const ids = new Set(wallets.map((w) => w.id));
       const row = contracts.find(
         (c) => c.address === address && c.network === network && ids.has(c.walletId),
@@ -129,7 +138,7 @@ function buildV4Meta(contractAddress: string): string {
 function createOp(overrides: Partial<AttributionHorizonOp> = {}): AttributionHorizonOp {
   return {
     type: 'invoke_host_function',
-    function: 'HostFunctionTypeCreateContract',
+    function: 'HostFunctionTypeHostFunctionTypeCreateContract',
     createdAt: '2026-09-20T12:00:00.000Z',
     ...overrides,
   };
@@ -137,7 +146,7 @@ function createOp(overrides: Partial<AttributionHorizonOp> = {}): AttributionHor
 
 test('DB row owned by the primary wallet attributes with source database', async () => {
   const calls = freshCalls();
-  const wallet = { id: 'w1', pubkey: DEPLOYER, isPrimary: true };
+  const wallet = { id: 'w1', pubkey: DEPLOYER, isPrimary: true, source: 'onchain' };
   const db = makeDb(
     { alice: [wallet] },
     [
@@ -183,8 +192,8 @@ test('DB row owned by a non-primary wallet attributes too', async () => {
   const db = makeDb(
     {
       alice: [
-        { id: 'w1', pubkey: DEPLOYER, isPrimary: true },
-        { id: 'w2', pubkey: `G${'B'.repeat(55)}`, isPrimary: false },
+        { id: 'w1', pubkey: DEPLOYER, isPrimary: true, source: 'onchain' },
+        { id: 'w2', pubkey: `G${'B'.repeat(55)}`, isPrimary: false, source: 'cli' },
       ],
     },
     [
@@ -227,8 +236,8 @@ test("DB row owned by a different profile's wallet does not attribute", async ()
   const calls = freshCalls();
   const db = makeDb(
     {
-      alice: [{ id: 'w1', pubkey: DEPLOYER, isPrimary: true }],
-      bob: [{ id: 'w9', pubkey: `G${'C'.repeat(55)}`, isPrimary: true }],
+      alice: [{ id: 'w1', pubkey: DEPLOYER, isPrimary: true, source: 'onchain' }],
+      bob: [{ id: 'w9', pubkey: `G${'C'.repeat(55)}`, isPrimary: true, source: 'onchain' }],
     },
     [
       {
@@ -258,7 +267,7 @@ test("DB row owned by a different profile's wallet does not attribute", async ()
 test('DB row on another network does not attribute', async () => {
   const calls = freshCalls();
   const db = makeDb(
-    { alice: [{ id: 'w1', pubkey: DEPLOYER, isPrimary: true }] },
+    { alice: [{ id: 'w1', pubkey: DEPLOYER, isPrimary: true, source: 'onchain' }] },
     [
       {
         address: CONTRACT,
@@ -285,7 +294,11 @@ test('DB row on another network does not attribute', async () => {
 
 test('reachable DB with no row misses without touching Horizon', async () => {
   const calls = freshCalls();
-  const db = makeDb({ alice: [{ id: 'w1', pubkey: DEPLOYER, isPrimary: true }] }, [], calls);
+  const db = makeDb(
+    { alice: [{ id: 'w1', pubkey: DEPLOYER, isPrimary: true, source: 'onchain' }] },
+    [],
+    calls,
+  );
   const horizon = makeHorizon({ alice: [DEPLOYER] }, {}, calls);
 
   const res = await attributeContractWithDeps('alice', CONTRACT, {
@@ -336,6 +349,35 @@ test('no DB plus a Horizon create op deriving to the address attributes via hori
   assert.equal(calls.meta, 0);
 });
 
+test('without a DB, HostFunctionTypeHostFunctionTypeCreateContractV2 attributes via Horizon', async () => {
+  const calls = freshCalls();
+  const horizon = makeHorizon(
+    { alice: [DEPLOYER] },
+    {
+      [DEPLOYER]: [
+        createOp({
+          function: 'HostFunctionTypeHostFunctionTypeCreateContractV2',
+          address: DEPLOYER,
+          salt: SALT_HEX,
+          transactionHash: 'tx-v2',
+        }),
+      ],
+    },
+    calls,
+  );
+
+  const res = await attributeContractWithDeps('alice', CONTRACT, {
+    network: NETWORK,
+    db: noDb,
+    horizon,
+  });
+
+  assert.equal(res.status, 'attributed');
+  if (res.status === 'attributed') {
+    assert.equal(res.contract.deployTxHash, 'tx-v2');
+  }
+});
+
 test('no DB plus a capped Horizon walk with no match misses with capped true', async () => {
   const calls = freshCalls();
   const ops: AttributionHorizonOp[] = Array.from(
@@ -372,7 +414,11 @@ test('no DB plus a throwing Horizon fetcher is unavailable', async () => {
 
 test('malformed handle or address is invalid with no I/O at all', async () => {
   const calls = freshCalls();
-  const db = makeDb({ alice: [{ id: 'w1', pubkey: DEPLOYER, isPrimary: true }] }, [], calls);
+  const db = makeDb(
+    { alice: [{ id: 'w1', pubkey: DEPLOYER, isPrimary: true, source: 'onchain' }] },
+    [],
+    calls,
+  );
   const horizon = makeHorizon({ alice: [DEPLOYER] }, {}, calls);
 
   assert.deepEqual(
@@ -384,6 +430,37 @@ test('malformed handle or address is invalid with no I/O at all', async () => {
     { status: 'invalid' },
   );
   assert.deepEqual(calls, { db: 0, wallets: 0, operations: 0, meta: 0 });
+});
+
+test('a profile with only a CLI-linked wallet does not attribute its leftover contract', async () => {
+  const calls = freshCalls();
+  const db = makeDb(
+    { alice: [{ id: 'w1', pubkey: DEPLOYER, isPrimary: true, source: 'cli' }] },
+    [
+      {
+        address: CONTRACT,
+        walletId: 'w1',
+        network: NETWORK,
+        deployerPubkey: DEPLOYER,
+        deployTxHash: 'tx1',
+        deployedAt: new Date('2026-09-20T12:00:00.000Z'),
+        wasmHash: null,
+      },
+    ],
+    calls,
+  );
+
+  const res = await attributeContractWithDeps('alice', CONTRACT, {
+    network: NETWORK,
+    db,
+    horizon: makeHorizon({ alice: [DEPLOYER] }, {}, calls),
+  });
+
+  // The row survives a release, but no live profile owns it: a reachable DB
+  // answers not-attributed and Horizon is never consulted.
+  assert.deepEqual(res, { status: 'not-attributed' });
+  assert.equal(calls.db, 1);
+  assert.equal(calls.operations, 0);
 });
 
 test('a v4 result-meta fixture decodes the same as a v3 one through the tx path', async () => {

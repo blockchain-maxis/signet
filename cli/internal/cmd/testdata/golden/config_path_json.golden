@@ -1,0 +1,6 @@
+$ signet config path --json
+-- stdout --
+{"path":"<config-path>"}
+-- stderr --
+(empty)
+-- exit 0 --

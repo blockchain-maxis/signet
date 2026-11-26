@@ -1,4 +1,5 @@
 import type { Horizon } from '@stellar/stellar-sdk';
+import { isCreateContractFunction } from '@signet/types';
 import { logger } from '../logger.js';
 import { extractContractAddress, sleep } from '../stellar.js';
 import { isTransientError, withRetry } from '../retry.js';
@@ -178,7 +179,7 @@ async function handleOperation(
   // The SDK's operation type narrowing — use any to access function field
   // which is present on InvokeHostFunction operations from Horizon
   const opRecord = op as unknown as Record<string, unknown>;
-  if (opRecord['function'] !== 'HostFunctionTypeCreateContract') return 'done';
+  if (!isCreateContractFunction(opRecord['function'] as string | undefined)) return 'done';
 
   const txHash = op.transaction_hash;
   if (!txHash) return 'done';
@@ -353,7 +354,15 @@ async function quickCheck(
 
   while (true) {
     for (const op of page.records) {
-      const outcome = await handleOperation(op, wallet, horizon, config, store, state, readExecutable);
+      const outcome = await handleOperation(
+        op,
+        wallet,
+        horizon,
+        config,
+        store,
+        state,
+        readExecutable,
+      );
       if (outcome === 'retryLater') {
         stopped = true;
         break;
@@ -413,26 +422,23 @@ async function seedWatermark(
 
   // Newest-first, so the first record is the newest and becomes the watermark.
   const newest = ops.records[0]?.paging_token ?? null;
-  let stopped = false;
-  let lastHandledToken: string | null = null;
 
   for (const op of ops.records) {
-    const outcome = await handleOperation(op, wallet, horizon, config, store, state, readExecutable);
-    if (outcome === 'retryLater') {
-      stopped = true;
-      break;
-    }
-    if (op.paging_token) lastHandledToken = op.paging_token;
-  }
-
-  if (stopped) {
-    if (lastHandledToken) {
-      await store.wallet.update({
-        where: { id: wallet.id },
-        data: { deploymentWatermark: lastHandledToken },
-      });
-    }
-    return true;
+    const outcome = await handleOperation(
+      op,
+      wallet,
+      horizon,
+      config,
+      store,
+      state,
+      readExecutable,
+    );
+    // The page is newest-first, so every operation handled so far is newer
+    // than the one that failed. Saving any of them as the watermark would make
+    // the next forward check start past the failed deploy and lose it. Save
+    // nothing: the next tick re-seeds, and `deployTxHash` dedups what was
+    // already recorded.
+    if (outcome === 'retryLater') return true;
   }
 
   if (newest) {
@@ -480,7 +486,15 @@ async function backfill(
 
   while (true) {
     for (const op of page.records) {
-      const outcome = await handleOperation(op, wallet, horizon, config, store, state, readExecutable);
+      const outcome = await handleOperation(
+        op,
+        wallet,
+        horizon,
+        config,
+        store,
+        state,
+        readExecutable,
+      );
       if (outcome === 'retryLater') {
         stopped = true;
         break;

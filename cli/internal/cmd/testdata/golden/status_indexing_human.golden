@@ -1,0 +1,16 @@
+$ signet status --url http://127.0.0.1:<port> --source alice
+-- stdout --
+deployment: http://127.0.0.1:<port> (context default)
+network:    testnet
+health:     ok (database up, registry up, pairing up)
+identity:   alice
+publicKey:  GASAAEJC6P5UZGRLYJ2I2KYLR7RXGF44JZXDYGCFBN7T5VIHECUUEMCD
+handle:     @alice
+wallets:
+  GASAAEJC6P5UZGRLYJ2I2KYLR7RXGF44JZXDYGCFBN7T5VIHECUUEMCD  indexing cli, this key
+contracts:  0 contracts
+
+The indexer has not scanned every wallet yet; contracts appear on the profile once it has.
+-- stderr --
+(empty)
+-- exit 0 --
