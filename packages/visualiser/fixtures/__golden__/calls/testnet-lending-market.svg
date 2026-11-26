@@ -7,7 +7,7 @@
   font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="14"
 >
   <title id="calls-title">testnet-lending-market (testnet CBXZBQ6NW3TGPGLTR4JCG2VPVWFLCCHKDW75NJIXYXV7CJLNUO64VTFC)</title>
-  <desc id="calls-desc">2 functions in 2 groups, 0 types, 0 references; calls 2 other contracts</desc>
+  <desc id="calls-desc">2 functions, ungrouped, 0 types, 0 references; calls 2 other contracts</desc>
   <defs>
     <marker id="calls-filled-arrow" markerWidth="8" markerHeight="8" refX="7.5" refY="3" orient="auto" markerUnits="userSpaceOnUse"><path class="viz-arrow viz-arrow--filled" d="M0,0 L8,3 L0,6 Z" fill="var(--viz-edge)"/></marker>
   </defs>
