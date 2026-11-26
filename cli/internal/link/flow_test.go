@@ -75,9 +75,20 @@ func baseDeps(status pair.Status) Deps {
 		Start: func(context.Context, string, string) (pair.Started, error) {
 			return pair.Started{State: "p_1", PollToken: "tok", UserCode: "ABCD2345"}, nil
 		},
-		Poll:      func(context.Context, string) (pair.Status, error) { return status, nil },
-		Challenge: func(context.Context, string) (string, string, error) { return "UNSIGNED", testPassphrase, nil },
-		Sign:      func(string, string) (string, error) { return "SIGNED", nil },
+		Poll: func(context.Context, string) (pair.Status, error) { return status, nil },
+		Challenge: func(_ context.Context, account string) (string, string, error) {
+			var pub [32]byte
+			if p, err := decodeAccountID(account); err == nil {
+				pub = p
+			} else {
+				pub = testClientKey
+			}
+			envelope := buildRawChallenge(
+				2, testServerKey, 0, 1, 0, 4102444800, true, pub, 10, "link.cli.signet.dev auth",
+			)
+			return envelope, testPassphrase, nil
+		},
+		Sign: func(string, string) (string, error) { return "SIGNED", nil },
 		Complete: func(context.Context, string, string, string) (pair.Completed, error) {
 			return pair.Completed{Handle: "alice"}, nil
 		},
@@ -102,11 +113,11 @@ func TestRun_LinksViaPollingWhenThereIsNoLoopback(t *testing.T) {
 		return pair.Completed{Handle: "alice"}, nil
 	}
 
-	result, err := Run(context.Background(), "https://signet.example", "testnet", "src", "GABC", deps)
+	result, err := Run(context.Background(), "https://signet.example", "testnet", "src", testClientPublicKey, deps)
 	if err != nil {
 		t.Fatalf("Run: %v", err)
 	}
-	if result.Handle != "alice" || result.PublicKey != "GABC" || result.Status != "linked" {
+	if result.Handle != "alice" || result.PublicKey != testClientPublicKey || result.Status != "linked" {
 		t.Fatalf("result = %+v", result)
 	}
 	if signed != "SIGNED" {
@@ -126,7 +137,7 @@ func TestRun_PutsTheCodeAndCallbackStateInTheApprovalURL(t *testing.T) {
 		}
 	}
 
-	if _, err := Run(context.Background(), "https://signet.example/", "testnet", "src", "GABC", deps); err != nil {
+	if _, err := Run(context.Background(), "https://signet.example/", "testnet", "src", testClientPublicKey, deps); err != nil {
 		t.Fatalf("Run: %v", err)
 	}
 
@@ -163,7 +174,7 @@ func TestRun_PrintsTheUserCodeNextToTheURL(t *testing.T) {
 	var lines []string
 	deps.Report = func(line string) { lines = append(lines, line) }
 
-	if _, err := Run(context.Background(), "https://signet.example", "testnet", "src", "GABC", deps); err != nil {
+	if _, err := Run(context.Background(), "https://signet.example", "testnet", "src", testClientPublicKey, deps); err != nil {
 		t.Fatalf("Run: %v", err)
 	}
 
@@ -189,7 +200,7 @@ func TestRun_OmitsTheUserCodeAgainstAnOlderServer(t *testing.T) {
 	var lines []string
 	deps.Report = func(line string) { lines = append(lines, line) }
 
-	if _, err := Run(context.Background(), "https://signet.example", "testnet", "src", "GABC", deps); err != nil {
+	if _, err := Run(context.Background(), "https://signet.example", "testnet", "src", testClientPublicKey, deps); err != nil {
 		t.Fatalf("Run: %v", err)
 	}
 
@@ -230,7 +241,7 @@ func TestRun_LoopbackCallbackWinsWhenItArrivesFirst(t *testing.T) {
 		}
 	}
 
-	result, err := Run(context.Background(), "https://signet.example", "testnet", "src", "GABC", deps)
+	result, err := Run(context.Background(), "https://signet.example", "testnet", "src", testClientPublicKey, deps)
 	if err != nil {
 		t.Fatalf("Run: %v", err)
 	}
@@ -256,7 +267,7 @@ func TestRun_CallbackWithTheWrongStateDoesNotFinishTheLink(t *testing.T) {
 		return pair.Completed{}, nil
 	}
 
-	_, err := Run(context.Background(), "https://signet.example", "testnet", "src", "GABC", deps)
+	_, err := Run(context.Background(), "https://signet.example", "testnet", "src", testClientPublicKey, deps)
 	if !errors.Is(err, exitcode.ErrTimeout) {
 		t.Fatalf("err = %v, want the wait to end without the callback counting", err)
 	}
@@ -273,7 +284,7 @@ func TestRun_RejectedApprovalExitsWithoutSigning(t *testing.T) {
 		return pair.Completed{}, nil
 	}
 
-	_, err := Run(context.Background(), "https://signet.example", "testnet", "src", "GABC", deps)
+	_, err := Run(context.Background(), "https://signet.example", "testnet", "src", testClientPublicKey, deps)
 	if !errors.Is(err, exitcode.ErrApprovalRejected) {
 		t.Fatalf("err = %v, want ErrApprovalRejected", err)
 	}
@@ -285,7 +296,7 @@ func TestRun_RejectedApprovalExitsWithoutSigning(t *testing.T) {
 func TestRun_TimeoutTellsYouHowToRetry(t *testing.T) {
 	deps := baseDeps(pair.StatusExpired)
 
-	_, err := Run(context.Background(), "https://signet.example", "testnet", "src", "GABC", deps)
+	_, err := Run(context.Background(), "https://signet.example", "testnet", "src", testClientPublicKey, deps)
 	if !errors.Is(err, exitcode.ErrTimeout) {
 		t.Fatalf("err = %v, want ErrTimeout", err)
 	}
@@ -304,7 +315,7 @@ func TestRun_AlreadyLinkedIsItsOwnFailureMode(t *testing.T) {
 		return pair.Completed{}, fmt.Errorf("%w: reworded, and still already linked", exitcode.ErrAlreadyLinked)
 	}
 
-	_, err := Run(context.Background(), "https://signet.example", "testnet", "src", "GABC", deps)
+	_, err := Run(context.Background(), "https://signet.example", "testnet", "src", testClientPublicKey, deps)
 	if !errors.Is(err, exitcode.ErrAlreadyLinked) {
 		t.Fatalf("err = %v, want ErrAlreadyLinked", err)
 	}
@@ -317,7 +328,7 @@ func TestRun_FallsBackToPollingWhenTheLoopbackCannotBind(t *testing.T) {
 	var lines []string
 	deps.Report = func(line string) { lines = append(lines, line) }
 
-	result, err := Run(context.Background(), "https://signet.example", "testnet", "src", "GABC", deps)
+	result, err := Run(context.Background(), "https://signet.example", "testnet", "src", testClientPublicKey, deps)
 	if err != nil {
 		t.Fatalf("Run: %v", err)
 	}
@@ -343,7 +354,7 @@ func TestRun_SigningFailureStopsBeforeComplete(t *testing.T) {
 		return pair.Completed{}, nil
 	}
 
-	if _, err := Run(context.Background(), "https://signet.example", "testnet", "src", "GABC", deps); err == nil {
+	if _, err := Run(context.Background(), "https://signet.example", "testnet", "src", testClientPublicKey, deps); err == nil {
 		t.Fatal("expected a signing error")
 	}
 }
@@ -363,7 +374,7 @@ func TestRun_RedactsSecretsFromApprovalOutputTimeoutAndResult(t *testing.T) {
 			return nil
 		}
 
-		_, err := Run(context.Background(), "https://signet.example/"+seed, "testnet", "src", "GABC", deps)
+		_, err := Run(context.Background(), "https://signet.example/"+seed, "testnet", "src", testClientPublicKey, deps)
 		if !errors.Is(err, exitcode.ErrTimeout) {
 			t.Fatalf("err = %v, want ErrTimeout", err)
 		}
@@ -381,7 +392,7 @@ func TestRun_RedactsSecretsFromApprovalOutputTimeoutAndResult(t *testing.T) {
 		deps.Complete = func(context.Context, string, string, string) (pair.Completed, error) {
 			return pair.Completed{Handle: seed}, nil
 		}
-		result, err := Run(context.Background(), "https://signet.example", seed, "src", "GABC", deps)
+		result, err := Run(context.Background(), "https://signet.example", seed, "src", testClientPublicKey, deps)
 		if err != nil {
 			t.Fatalf("Run: %v", err)
 		}
@@ -400,7 +411,7 @@ func TestFetchChallenge_RedactsTheServersError(t *testing.T) {
 	}))
 	defer srv.Close()
 
-	_, _, err := FetchChallenge(apiClient(t, srv.URL), "testnet", spec.CliLinkPurposeLink)(context.Background(), "GABC")
+	_, _, err := FetchChallenge(apiClient(t, srv.URL), "testnet", spec.CliLinkPurposeLink)(context.Background(), testClientPublicKey)
 	if !errors.Is(err, exitcode.ErrNetwork) {
 		t.Fatalf("err = %v, want ErrNetwork", err)
 	}
@@ -423,7 +434,7 @@ func TestFetchChallenge_RequestsTheCLILinkChallengeForTheResolvedNetwork(t *test
 	}))
 	defer server.Close()
 
-	got, passphrase, err := FetchChallenge(apiClient(t, server.URL+"/"), "mainnet", spec.CliLinkPurposeLink)(context.Background(), "GABC")
+	got, passphrase, err := FetchChallenge(apiClient(t, server.URL+"/"), "mainnet", spec.CliLinkPurposeLink)(context.Background(), testClientPublicKey)
 	if err != nil {
 		t.Fatalf("FetchChallenge: %v", err)
 	}
@@ -436,7 +447,7 @@ func TestFetchChallenge_RequestsTheCLILinkChallengeForTheResolvedNetwork(t *test
 	if gotMethod != http.MethodGet || gotPath != "/api/cli-link" {
 		t.Errorf("request = %s %s, want GET /api/cli-link", gotMethod, gotPath)
 	}
-	if gotAccount != "GABC" {
+	if gotAccount != testClientPublicKey {
 		t.Errorf("account = %q, want GABC", gotAccount)
 	}
 	if gotNetwork != "mainnet" {
@@ -451,7 +462,7 @@ func TestFetchChallenge_SurfacesAServerRefusal(t *testing.T) {
 	}))
 	defer server.Close()
 
-	_, _, err := FetchChallenge(apiClient(t, server.URL), "mainnet", spec.CliLinkPurposeLink)(context.Background(), "GABC")
+	_, _, err := FetchChallenge(apiClient(t, server.URL), "mainnet", spec.CliLinkPurposeLink)(context.Background(), testClientPublicKey)
 	if !errors.Is(err, exitcode.ErrNetwork) || !strings.Contains(err.Error(), "Network mismatch") {
 		t.Fatalf("err = %v, want a network error carrying the server's message", err)
 	}
@@ -466,12 +477,38 @@ func TestFetchChallenge_AsksForTheChallengeOfTheGivenPurpose(t *testing.T) {
 			got = r.URL.Query().Get("purpose")
 			_, _ = w.Write([]byte(`{"transaction":"AAAAchallenge","network_passphrase":"` + testPassphrase + `"}`))
 		}))
-		if _, _, err := FetchChallenge(apiClient(t, server.URL), "testnet", purpose)(context.Background(), "GABC"); err != nil {
+		if _, _, err := FetchChallenge(apiClient(t, server.URL), "testnet", purpose)(context.Background(), testClientPublicKey); err != nil {
 			t.Fatalf("FetchChallenge(%s): %v", purpose, err)
 		}
 		server.Close()
 		if got != string(purpose) {
 			t.Errorf("purpose = %q, want %q", got, purpose)
 		}
+	}
+}
+
+func TestRun_RefusesNonChallengeTransactionBeforeSigning(t *testing.T) {
+	deps := baseDeps(pair.StatusApproved)
+	deps.Challenge = func(context.Context, string) (string, string, error) {
+		return "AAAAgarbage", testPassphrase, nil
+	}
+	signed := false
+	deps.Sign = func(string, string) (string, error) {
+		signed = true
+		return "SIGNED", nil
+	}
+
+	_, err := Run(context.Background(), "https://signet.example", "testnet", "src", testClientPublicKey, deps)
+	if err == nil {
+		t.Fatal("expected Run to fail on non-challenge transaction")
+	}
+	if signed {
+		t.Fatal("Sign was called on non-challenge transaction")
+	}
+	if !errors.Is(err, exitcode.ErrSigningFailure) {
+		t.Fatalf("got %v, want ErrSigningFailure", err)
+	}
+	if code, ok := exitcode.CodeFor(err); !ok || code != exitcode.SigningFailure {
+		t.Fatalf("exitcode = %d, want %d (exit 5)", code, exitcode.SigningFailure)
 	}
 }
