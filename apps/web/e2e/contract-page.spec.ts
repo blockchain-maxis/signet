@@ -10,8 +10,10 @@ import {
   FIXTURE_OPERATION_COUNT,
   MALFORMED_ADDRESS,
   OTHER_HANDLE,
+  PROFILE_OPERATIONS_HANDLE,
   WASM_HASH_1,
   WASM_HASH_2,
+  seedProfileOperationsFixture,
 } from './fixtures/contracts';
 import { CALLEE_SAC } from './fixtures/docs-failures';
 
@@ -344,7 +346,11 @@ test.describe('contract page @db', () => {
   test('the profile page reports the real operation total and pages to the end of the indexed record (#899)', async ({
     page,
   }) => {
-    await page.goto(`/p/${FIXTURE_HANDLE}`);
+    // Its own profile, seeded here: the 130 rows belong to this test alone and
+    // never sit on the contract-page fixture's wallets (#460's tab checks read
+    // those), so they cannot change what any other tab renders.
+    await seedProfileOperationsFixture();
+    await page.goto(`/p/${PROFILE_OPERATIONS_HANDLE}`);
 
     // The heading is the database's count, not the size of the first page, and
     // the record is complete — nothing is described as partial.

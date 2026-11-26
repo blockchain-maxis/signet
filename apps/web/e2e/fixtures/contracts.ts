@@ -21,6 +21,11 @@ import { CALLEE_SAC } from './docs-failures';
  * handle that did not deploy it is the case, so the spec requests
  * `/p/e2e-other/contract/A`.
  *
+ * The #899 profile (`e2e-ops`, its own handle and wallet) is seeded by
+ * `seedProfileOperationsFixture`, which the #899 test calls itself: its 130
+ * indexed operations are kept off `e2e-dev` on purpose, so they cannot change
+ * what any other spec sees on this profile's contract pages.
+ *
  * Idempotent: every write is an upsert (or delete-then-create for the
  * snapshot rows, which have no natural key), so re-running against a database
  * that already holds the fixture converges instead of failing or duplicating.
@@ -54,7 +59,15 @@ export const OTHER_NETWORK = 'mainnet';
 export const WASM_HASH_1 = '11'.repeat(32);
 export const WASM_HASH_2 = '22'.repeat(32);
 
-/** Indexed operations seeded for the profile (#899). More than one 100-row read. */
+/**
+ * The #899 profile: a handle and wallet of its own, so the operations below are
+ * read by the profile page's #899 test and by nothing else. Keeping them off
+ * `e2e-dev` is what leaves that profile's contract pages untouched.
+ */
+export const PROFILE_OPERATIONS_HANDLE = 'e2e-ops';
+export const OPERATIONS_WALLET = accountId(0xe3);
+
+/** Indexed operations seeded for the #899 profile. More than one 100-row read. */
 export const FIXTURE_OPERATION_COUNT = 130;
 
 /**
@@ -145,29 +158,6 @@ export async function seedContractFixture(): Promise<void> {
       );
     }
     const [a, b] = rows as [(typeof rows)[number], (typeof rows)[number]];
-
-    // Fixture-only indexed operations (#899): more than the old 100-row window,
-    // so the profile heading must report the real total and "Load more" must
-    // page through every one of them.
-    for (let i = 0; i < FIXTURE_OPERATION_COUNT; i++) {
-      const txHash = `${i.toString(16).padStart(2, '0')}`.repeat(32);
-      const id = `${txHash}:0`;
-      const data = {
-        walletId: wallets[0]!.id,
-        type: 'invoke_host_function',
-        function: 'claim',
-        decodedFunction: 'claim',
-        sourceAccount: WALLET_1,
-        createdAt: new Date(Date.UTC(2026, 2, 20, 12, 0, 0) - i * 60_000),
-        transactionHash: txHash,
-        successful: true,
-      };
-      await prisma.operation.upsert({
-        where: { id },
-        update: data,
-        create: { id, ...data },
-      });
-    }
 
     // Fixture-only snapshots. ContractSnapshot has no natural key, so replace.
     // (#429 adds `countedSince`; once that column exists, set it here the way
@@ -271,6 +261,55 @@ export async function seedContractFixture(): Promise<void> {
           observedAt: at(`${day}T12:00:00Z`),
           observedLedger: ledger,
         },
+      });
+    }
+  } finally {
+    await prisma.$disconnect();
+  }
+}
+
+/**
+ * Loads the #899 profile: `PROFILE_OPERATIONS_HANDLE` with one wallet holding
+ * `FIXTURE_OPERATION_COUNT` indexed operations — more than the old 100-row read,
+ * so the profile heading must report the real total and "Load more" must page
+ * through every one of them.
+ *
+ * It is a separate helper (and a separate handle) because the #899 spec is the
+ * only test that needs these rows: seeding them onto `e2e-dev` meant every `@db`
+ * test's profile carried them, changing what the contract page's tabs render.
+ * Idempotent like `seedContractFixture`.
+ */
+export async function seedProfileOperationsFixture(): Promise<void> {
+  const { prisma } = await import('@signet/db');
+  try {
+    const profile = await prisma.profile.upsert({
+      where: { handle: PROFILE_OPERATIONS_HANDLE },
+      update: {},
+      create: { handle: PROFILE_OPERATIONS_HANDLE },
+    });
+    const wallet = await prisma.wallet.upsert({
+      where: { pubkey: OPERATIONS_WALLET },
+      update: { profileId: profile.id },
+      create: { profileId: profile.id, pubkey: OPERATIONS_WALLET, source: 'cli', isPrimary: true },
+    });
+
+    for (let i = 0; i < FIXTURE_OPERATION_COUNT; i++) {
+      const txHash = `${i.toString(16).padStart(2, '0')}`.repeat(32);
+      const id = `${txHash}:0`;
+      const data = {
+        walletId: wallet.id,
+        type: 'invoke_host_function',
+        function: 'claim',
+        decodedFunction: 'claim',
+        sourceAccount: OPERATIONS_WALLET,
+        createdAt: new Date(Date.UTC(2026, 2, 20, 12, 0, 0) - i * 60_000),
+        transactionHash: txHash,
+        successful: true,
+      };
+      await prisma.operation.upsert({
+        where: { id },
+        update: data,
+        create: { id, ...data },
       });
     }
   } finally {
