@@ -43,6 +43,31 @@ npm install -g @signet/cli
 signet --version
 ```
 
+### Update checks
+
+signet checks at most once per day whether a newer release exists, caching the
+result in your user cache directory (`update-check.json`). A failed check (for
+example, when offline) is cached too, so it is not retried until the next day.
+When a newer release is available, an upgrade notice is printed to stderr after
+an interactive command finishes, at most once per day. It never changes the exit
+code.
+
+To check manually:
+
+```bash
+signet version --check
+signet version --check --json
+```
+
+To disable the automatic once-a-day check:
+
+```bash
+export SIGNET_NO_UPDATE_CHECK=1
+```
+
+The check is also automatically skipped in CI environments (`CI` environment variable set),
+under `--json`, when stderr is not a terminal, or when running a `dev` or prerelease build.
+
 Building from source needs Go (see `cli/go.mod` for the version) and a stable
 Rust toolchain for the simulator:
 

@@ -4,6 +4,7 @@
 package cmd
 
 import (
+	"context"
 	"fmt"
 	"os"
 	"strings"
@@ -13,6 +14,7 @@ import (
 	"github.com/blockchain-maxis/signet/cli/internal/config"
 	"github.com/blockchain-maxis/signet/cli/internal/exitcode"
 	"github.com/blockchain-maxis/signet/cli/internal/keys"
+	updatecheck "github.com/blockchain-maxis/signet/cli/internal/update"
 )
 
 func newRootCmd(version, commit string) *cobra.Command {
@@ -36,6 +38,7 @@ instance) over its HTTP API.`,
 		SilenceUsage:  true,
 		SilenceErrors: true,
 	}
+	root.SetContext(withDeps(context.Background(), base))
 
 	// --json is defined once, here, for every command. It promises exactly one
 	// JSON object on stdout, or nothing; see internal/output.
@@ -194,5 +197,35 @@ func Run(root *cobra.Command) error {
 			_ = WriteErrorJSON(root.ErrOrStderr(), err)
 		}
 	}
+	maybeNotifyUpdate(root)
 	return err
+}
+
+// maybeNotifyUpdate checks whether a newer signet release exists and prints a
+// once-a-day notice to stderr for interactive terminal users.
+func maybeNotifyUpdate(root *cobra.Command) {
+	if jsonRequested(root) {
+		return
+	}
+	if os.Getenv("CI") != "" || os.Getenv("SIGNET_NO_UPDATE_CHECK") == "1" {
+		return
+	}
+	deps, err := depsFor(root)
+	if err != nil || updatecheck.IsDevOrPrerelease(deps.Version) {
+		return
+	}
+	stderr := root.ErrOrStderr()
+	if !writerIsTerminal(stderr) {
+		return
+	}
+	opts := deps.updateOptions()
+	if opts.CacheDir == "" {
+		// Without a cache the check would run, and the notice print, on
+		// every command.
+		return
+	}
+	notice, ok := updatecheck.PassiveCheck(context.Background(), deps.Version, opts.CacheDir, opts)
+	if ok && notice != "" {
+		_, _ = fmt.Fprint(stderr, notice)
+	}
 }
