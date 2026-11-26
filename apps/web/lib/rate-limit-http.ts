@@ -19,7 +19,7 @@ export { LIMITS } from './rate-limit-policy.ts';
  * continue. Route handlers use it as an early return:
  *
  * ```ts
- * const limited = await enforceRateLimit(req, 'auth:challenge', LIMITS.authChallenge);
+ * const limited = await enforceRateLimit(req, 'sep10:challenge', LIMITS.sep10);
  * if (limited) return limited;
  * ```
  */

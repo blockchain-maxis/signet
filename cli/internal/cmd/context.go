@@ -1,15 +1,20 @@
 package cmd
 
 import (
+	"errors"
 	"fmt"
 	"io"
+	"net/http"
 	"sort"
+	"strings"
 	"text/tabwriter"
 
 	"github.com/spf13/cobra"
 
+	"github.com/blockchain-maxis/signet/cli/internal/api"
 	"github.com/blockchain-maxis/signet/cli/internal/config"
 	"github.com/blockchain-maxis/signet/cli/internal/exitcode"
+	"github.com/blockchain-maxis/signet/cli/internal/networkcheck"
 )
 
 func init() {
@@ -175,38 +180,121 @@ func newContextUseCmd() *cobra.Command {
 	}
 }
 
+type contextAddResult struct {
+	Name       string `json:"name"`
+	URL        string `json:"url"`
+	Network    string `json:"network"`
+	Source     string `json:"source"`
+	RPCURL     string `json:"rpcUrl"`
+	Discovered bool   `json:"discovered"`
+}
+
 func newContextAddCmd() *cobra.Command {
-	var urlFlag, networkFlag, sourceFlag string
+	var urlFlag, networkFlag, sourceFlag, rpcURLFlag string
+	var forceFlag bool
 
 	cmd := &cobra.Command{
-		Use:   "add <name> --url <url> --network <network> [--source <source>]",
+		Use:   "add <name> --url <url> [--network <network>] [--rpc-url <url>] [--source <source>] [--force]",
 		Short: "Add a new deployment context",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			name := args[0]
+			name := strings.TrimSpace(args[0])
+			if name == "" {
+				return &config.ContextError{Msg: "context name cannot be empty", Code: exitcode.InvalidInput}
+			}
+			if strings.TrimSpace(urlFlag) == "" {
+				return &config.ContextError{Msg: "--url is required", Code: exitcode.InvalidInput}
+			}
+
 			f, err := config.Load()
 			if err != nil {
 				return fmt.Errorf("%w: reading config: %w", exitcode.ErrConfiguration, err)
 			}
+			if !forceFlag && f.Contexts != nil {
+				if _, exists := f.Contexts[name]; exists {
+					return &config.ContextError{
+						Msg:  fmt.Sprintf("context %q already exists; pass --force to replace it", name),
+						Code: exitcode.InvalidInput,
+					}
+				}
+			}
+
+			printer := printerFor(cmd)
+			deps, err := depsFor(cmd)
+			if err != nil {
+				return err
+			}
+			client, err := deps.NewClient(urlFlag, api.Options{
+				UserAgent: api.UserAgent(deps.Version),
+				Insecure:  deps.Insecure,
+			})
+			if err != nil {
+				return err
+			}
+
+			discovered := false
+			resolvedNetwork := strings.TrimSpace(networkFlag)
+			if norm, ok := networkcheck.Normalize(resolvedNetwork); ok {
+				resolvedNetwork = norm
+			}
+
+			deployment, discErr := client.API().Discover(cmd.Context())
+			if discErr != nil {
+				var apiErr *api.Error
+				reason := fmt.Sprintf("deployment %s could not be reached to discover its network (%v)", urlFlag, discErr)
+				if errors.As(discErr, &apiErr) && apiErr.Status == http.StatusNotFound {
+					reason = fmt.Sprintf("deployment %s publishes no /.well-known/stellar.toml", urlFlag)
+				}
+				if resolvedNetwork == "" {
+					return &config.ContextError{
+						Msg:  fmt.Sprintf("%s; pass --network explicitly", reason),
+						Code: exitcode.InvalidInput,
+					}
+				}
+				printer.Diagnostic("note: " + reason + "; trusting --network " + resolvedNetwork)
+			} else if deployment.NetworkPassphrase == "" {
+				if resolvedNetwork == "" {
+					return &config.ContextError{
+						Msg:  fmt.Sprintf("deployment %s stellar.toml has no NETWORK_PASSPHRASE; pass --network explicitly", urlFlag),
+						Code: exitcode.InvalidInput,
+					}
+				}
+			} else if resolvedNetwork != "" {
+				if err := networkcheck.Compare(resolvedNetwork, deployment); err != nil {
+					return err
+				}
+			} else {
+				detected, ok := networkcheck.NameFor(deployment.NetworkPassphrase)
+				if !ok {
+					return &config.ContextError{
+						Msg:  fmt.Sprintf("deployment %s publishes unrecognized NETWORK_PASSPHRASE %q; pass --network explicitly", urlFlag, deployment.NetworkPassphrase),
+						Code: exitcode.InvalidInput,
+					}
+				}
+				resolvedNetwork = detected
+				discovered = true
+			}
 
 			newCtx := config.Context{
 				URL:     urlFlag,
-				Network: networkFlag,
+				Network: resolvedNetwork,
 				Source:  sourceFlag,
+				RPCURL:  rpcURLFlag,
 			}
-			if err := f.AddContext(name, newCtx); err != nil {
+			if err := f.AddContext(name, newCtx, forceFlag); err != nil {
 				return err
 			}
 			if err := config.Save(f); err != nil {
 				return fmt.Errorf("%w: saving config: %w", exitcode.ErrConfiguration, err)
 			}
 
-			printer := printerFor(cmd)
-			res := map[string]string{
-				"name":    name,
-				"url":     urlFlag,
-				"network": networkFlag,
-				"source":  sourceFlag,
+			res := contextAddResult{
+				Name:       name,
+				URL:        urlFlag,
+				Network:    resolvedNetwork,
+				Source:     sourceFlag,
+				RPCURL:     rpcURLFlag,
+				Discovered: discovered,
 			}
 			return printer.Result(res, func(w io.Writer) error {
 				_, err := fmt.Fprintf(w, "Added context %q.\n", name)
@@ -216,8 +304,10 @@ func newContextAddCmd() *cobra.Command {
 	}
 
 	cmd.Flags().StringVar(&urlFlag, "url", "", "Signet deployment URL (required)")
-	cmd.Flags().StringVar(&networkFlag, "network", "", "Stellar network (required, e.g. testnet, mainnet)")
+	cmd.Flags().StringVar(&networkFlag, "network", "", "Stellar network (discovered from stellar.toml if omitted)")
+	cmd.Flags().StringVar(&rpcURLFlag, "rpc-url", "", "Stellar RPC URL for sandbox commands (optional)")
 	cmd.Flags().StringVar(&sourceFlag, "source", "", "Default identity for this context (optional)")
+	cmd.Flags().BoolVar(&forceFlag, "force", false, "Replace an existing context of the same name")
 	_ = cmd.RegisterFlagCompletionFunc("network", completeNetworksFunc)
 	_ = cmd.RegisterFlagCompletionFunc("source", completeIdentitiesFunc(defaultDeps()))
 

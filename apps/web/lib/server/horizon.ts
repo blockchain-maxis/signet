@@ -12,6 +12,7 @@
  */
 
 import type { Operation } from '../profiles.ts';
+import { cache } from 'react';
 import { logger } from '../logger.ts';
 import { STELLAR_NETWORK } from '../chain.ts';
 import { assertNetworkUrls } from '../network-guard.ts';
@@ -127,7 +128,7 @@ export interface HorizonOperationsResult {
  *
  * @param wallet - The Stellar account ID (G…) to query.
  */
-export async function fetchHorizonOperations(
+export const fetchHorizonOperations = cache(async function fetchHorizonOperations(
   wallet: string,
 ): Promise<HorizonOperationsResult | null> {
   // Basic sanity-check: Stellar account IDs start with G and are 56 chars.
@@ -191,4 +192,4 @@ export async function fetchHorizonOperations(
     );
     return null;
   }
-}
+});

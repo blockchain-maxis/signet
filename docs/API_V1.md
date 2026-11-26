@@ -133,21 +133,39 @@ Lists page with an **opaque `cursor`** plus a `limit`:
 - The next page is `meta.nextCursor`, which is `null` on the last page.
 
 ```http
-GET /api/v1/handles/ada/operations?limit=2
+GET /api/v1/profiles/ada/operations?limit=2
 ```
 
 ```json
 {
   "data": [
-    { "hash": "5c1f…", "function": "transfer", "createdAt": "2026-09-30T14:03:22.000Z" },
-    { "hash": "9a07…", "function": "mint", "createdAt": "2026-09-29T08:41:10.000Z" }
+    {
+      "id": "1884231",
+      "type": "invoke_host_function",
+      "function": "transfer",
+      "contract": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAM66",
+      "sourceAccount": "GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF",
+      "createdAt": "2026-09-30T14:03:22.000Z",
+      "txHash": "5c1f0e6d9b3a2f8c4d7e1a0b9c8d7e6f5a4b3c2d1e0f9a8b7c6d5e4f3a2b1c0d",
+      "successful": true
+    },
+    {
+      "id": "1884194",
+      "type": "invoke_host_function",
+      "function": "mint",
+      "contract": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAM66",
+      "sourceAccount": "GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF",
+      "createdAt": "2026-09-29T08:41:10.000Z",
+      "txHash": "9a0701b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60718293a4b5c6d7e",
+      "successful": true
+    }
   ],
   "meta": {
-    "network": "testnet",
-    "source": "database",
-    "nextCursor": "eyJvIjoyfQ",
+    "nextCursor": "AXsib2Zmc2V0IjoyfQ",
+    "total": 3,
     "truncated": false,
-    "cap": null
+    "cap": null,
+    "source": "database"
   }
 }
 ```
@@ -155,18 +173,29 @@ GET /api/v1/handles/ada/operations?limit=2
 Following the cursor:
 
 ```http
-GET /api/v1/handles/ada/operations?limit=2&cursor=eyJvIjoyfQ
+GET /api/v1/profiles/ada/operations?limit=2&cursor=AXsib2Zmc2V0IjoyfQ
 ```
 
 ```json
 {
-  "data": [{ "hash": "e2d4…", "function": "transfer", "createdAt": "2026-09-27T19:55:03.000Z" }],
+  "data": [
+    {
+      "id": "1884001",
+      "type": "invoke_host_function",
+      "function": "transfer",
+      "contract": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAM66",
+      "sourceAccount": "GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF",
+      "createdAt": "2026-09-27T19:55:03.000Z",
+      "txHash": "e2d40a1b2c3d4e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60718293a4b5c6d7e",
+      "successful": true
+    }
+  ],
   "meta": {
-    "network": "testnet",
-    "source": "database",
     "nextCursor": null,
+    "total": 3,
     "truncated": false,
-    "cap": null
+    "cap": null,
+    "source": "database"
   }
 }
 ```
@@ -193,8 +222,10 @@ not "this is everything that exists".
 
 - `data`: `[{ id, type, function, contract, sourceAccount, createdAt, txHash, successful }]`.
 - `asset_balance_changes` is dropped from v1: it is an internal Horizon representation rather than part of the stable Signet contract.
+- The database cursor is a keyset over `createdAt` and `id` (the tiebreak), so an operation indexed while a client pages never shifts or repeats a page. Version-1 `{ offset }` cursors remain accepted for backward compatibility until the next minor release.
 - When the database answered, `meta.total` is an exact count integer.
 - On the Horizon fallback, `meta.total` is `null` (never a lower bound presented as an exact total), and the cursor never promises pages beyond the cap.
+- Malformed cursors or cursors of the wrong shape return `400 bad_request` with `details.parameter: "cursor"`.
 
 ### The handle directory
 
