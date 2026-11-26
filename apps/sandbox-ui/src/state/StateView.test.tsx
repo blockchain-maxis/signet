@@ -11,7 +11,8 @@ const REGISTRY = 'CASFJHI5PQSRWS7JV25CF7FOMRKIVBP3RXRP3E2GH2CV4BCAG7FUJRCN';
 const WALLET = 'GAAZI4TCR3TY5OJHCTJC2A4QSY6CJWJH5IAJTGKIN2ER7LBNVKOCCWN7';
 const LEDGER = 5_388_497;
 
-// The registry's fork as GET /api/state?layer=fork returns it (decoded by entries_describe).
+// The registry's fork as GET /api/state?layer=fork returns it (decoded by entries_describe;
+// the registry's spec does not declare its DataKey, so each case argument is its own expression).
 const fork: ForkEntry[] = [
   {
     key: 'AAAABgAAAAEkVJ0dfCUbS+muuiL8rmRUioX7jeL9k0Y+hV4EQDfLRAAAABQAAAAB',
@@ -21,8 +22,8 @@ const fork: ForkEntry[] = [
       contract: REGISTRY,
       executable: 'wasm 936996c7',
       storage: [
-        { key: ['Admin'], value: WALLET },
-        { key: ['Count'], value: 3 },
+        { key: ['Admin'], key_expression: 'Admin', value: WALLET },
+        { key: ['Count'], key_expression: 'Count', value: 3 },
       ],
     },
   },
@@ -30,12 +31,50 @@ const fork: ForkEntry[] = [
     key: 'k-owner',
     live_until_ledger_seq: 5_509_456,
     provenance: { fetched_at_ledger: LEDGER, drifted: true },
-    decoded: { kind: 'contract_data', contract: REGISTRY, durability: 'persistent', key: ['Owner', 'alice'], value: WALLET },
+    decoded: {
+      kind: 'contract_data',
+      contract: REGISTRY,
+      durability: 'persistent',
+      key: ['Owner', 'alice'],
+      key_expression: 'Owner("alice")',
+      value: WALLET,
+    },
   },
   {
     key: 'k-temp',
     live_until_ledger_seq: 5_000_000,
-    decoded: { kind: 'contract_data', contract: REGISTRY, durability: 'temporary', key: ['Nonce', 7], value: true },
+    decoded: {
+      kind: 'contract_data',
+      contract: REGISTRY,
+      durability: 'temporary',
+      key: ['Nonce', 7],
+      key_expression: 'Nonce(u32:7)',
+      value: true,
+    },
+  },
+  {
+    key: 'k-addr',
+    live_until_ledger_seq: 5_509_456,
+    decoded: {
+      kind: 'contract_data',
+      contract: REGISTRY,
+      durability: 'persistent',
+      key: WALLET,
+      key_expression: `address:"${WALLET}"`,
+      value: 1,
+    },
+  },
+  {
+    key: 'k-ambiguous',
+    live_until_ledger_seq: 5_509_456,
+    decoded: {
+      kind: 'contract_data',
+      contract: REGISTRY,
+      durability: 'persistent',
+      key: { raw: 'unknown' },
+      key_expression: null,
+      value: 'val',
+    },
   },
 ];
 
@@ -68,7 +107,7 @@ test('entries show decoded keys, TTLs against the fork ledger, and drift', async
   expect(owner).toHaveAttribute('data-drifted', 'true');
   expect(within(owner).getByText('drifted')).toBeInTheDocument();
   expect(owner).toHaveTextContent('live until 5509456, 120959 ledgers left');
-  const temp = within(table).getByText('temporary Nonce(7)').closest('tr')!;
+  const temp = within(table).getByText('temporary Nonce(u32:7)').closest('tr')!;
   expect(temp).toHaveTextContent('archived (live until 5000000)');
   expect(temp).not.toHaveAttribute('data-drifted');
 });
@@ -129,4 +168,20 @@ test("the UI's overrides can be deleted; the file's are labelled", async () => {
   expect(screen.getByText('from signet.dev.toml')).toBeInTheDocument();
   await userEvent.click(screen.getByRole('button', { name: 'delete override Owner("alice")' }));
   expect(del).toHaveBeenCalledWith('overrides/ui-2');
+});
+
+test('a fork entry keyed by an address posts address:"G…", and a key with a null expression has no override button', async () => {
+  const { api, post } = fakeApi();
+  view(api);
+  const table = await screen.findByRole('table');
+  expect(table).toHaveTextContent(`persistent address:"${WALLET}"`);
+  expect(table).toHaveTextContent('persistent {"raw":"unknown"}');
+
+  // Address entry has an override button and pre-fills address:"G..."
+  await userEvent.click(await screen.findByRole('button', { name: `override persistent address:"${WALLET}"` }));
+  const form = screen.getByRole('form', { name: 'Add an override' });
+  expect(within(form).getByRole('textbox', { name: 'key expression' })).toHaveValue(`address:"${WALLET}"`);
+
+  // Null key_expression row has no override button
+  expect(screen.queryByRole('button', { name: 'override persistent {"raw":"unknown"}' })).not.toBeInTheDocument();
 });

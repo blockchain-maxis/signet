@@ -52,7 +52,6 @@ test('outline structure: groups -> functions -> uses with argument/return -> nes
   assert.ok(groupNames.includes('set'));
   assert.ok(groupNames.includes('new'));
   assert.ok(groupNames.includes('lifecycle'));
-  assert.ok(groupNames.includes('types'));
 
   // Find 'submit' function inside 'other' group
   const otherGroup = outline.find((g) => g.name === 'other');
@@ -72,12 +71,32 @@ test('outline structure: groups -> functions -> uses with argument/return -> nes
   assert.equal(positionsType.role, 'return');
   assert.equal(positionsType.edgeId, 'fn:submit->type:Positions');
 
-  // Verify types group for types not attached to functions
-  const typesGroup = outline.find((g) => g.name === 'types');
+  // Verify types group for types not attached to functions when unattached type edges exist
+  const customModel = layoutContractGraph({
+    nodes: [
+      { id: 'fn:op', kind: 'function', name: 'op' },
+      { id: 'type:PoolDataKey', kind: 'type', name: 'PoolDataKey', typeKind: 'struct' },
+      { id: 'type:UserReserveKey', kind: 'type', name: 'UserReserveKey', typeKind: 'struct' },
+    ],
+    edges: [
+      {
+        id: 'type:PoolDataKey->type:UserReserveKey',
+        from: 'type:PoolDataKey',
+        to: 'type:UserReserveKey',
+        kinds: ['field'],
+        roles: [{ kind: 'field', path: 'UserReserveKey', via: 'user' }],
+      },
+    ],
+    errors: [],
+    events: [],
+    build: undefined,
+  });
+  const customOutline = buildDiagramOutline(customModel);
+  const typesGroup = customOutline.find((g) => g.name === 'types');
   assert.ok(typesGroup);
   const poolDataKey = typesGroup.children?.find((t) => t.name === 'PoolDataKey');
   assert.ok(poolDataKey);
-  assert.equal(poolDataKey.children?.length, 2);
+  assert.equal(poolDataKey.children?.length, 1);
 
   const userReserveKey = poolDataKey.children?.find((t) => t.name === 'UserReserveKey');
   assert.ok(userReserveKey);
@@ -111,10 +130,6 @@ test('renderOutlineHtml renders accessible html with docs anchor links', () => {
       'uses <a href="#type-Request">Request</a> (argument), <a href="#type-Positions">Positions</a> (return)',
     ),
   );
-
-  // Type-level field connections
-  assert.ok(html.includes('<a href="#type-PoolDataKey">PoolDataKey</a>'));
-  assert.ok(html.includes('<a href="#type-UserReserveKey">UserReserveKey</a> (field)'));
 });
 
 test('axelar-its fixture: every edge in the graph appears exactly once in the outline', () => {

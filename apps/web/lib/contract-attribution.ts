@@ -9,16 +9,18 @@
  * Two layers, mirroring `getProfile` in `./profiles.ts`:
  *
  * 1. **Database.** A `Contract` row with `address = {address}`, whose
- *    `wallet.profile.handle = {handle}` (any of the handle's wallets, not just
- *    the primary one), and whose `network` equals the configured
+ *    `wallet.profile` is live for `{handle}` (#895: an on-chain primary wallet
+ *    still binds it), whose owning wallet is any of the handle's wallets, not
+ *    just the primary one, and whose `network` equals the configured
  *    `STELLAR_NETWORK`. The database answers authoritatively when it is
  *    reachable: a reachable DB with no matching row means `not-attributed` and
  *    does NOT fall through to Horizon, so a DB outage and a real miss behave
- *    differently.
+ *    differently. A released or revoked handle has no live profile, so its
+ *    leftover deploy wallets stop attributing their contracts.
  * 2. **Horizon, only when there is no database** (`DATABASE_URL` unset or the
  *    DB unreachable). The handle's wallets are resolved and each `G…` wallet's
  *    Horizon operations are walked for `invoke_host_function` records whose
- *    `function` is `HostFunctionTypeCreateContract` — the same filter the
+ *    `function` is recognized by `isCreateContractFunction` — the same filter the
  *    indexer's deployment worker uses. For each record the created contract ID
  *    is derived with `deriveContractId` from its `address`/`salt` fields; when
  *    those fields are missing the transaction is fetched and the return value
@@ -35,10 +37,10 @@
  *   `fetchHorizonOperations` refuses `C…` wallets.
  */
 import { cache } from 'react';
-import { isValidHandle, networkPassphrase, type Network } from '@signet/types';
+import { isCreateContractFunction, isValidHandle, networkPassphrase, type Network } from '@signet/types';
 import { STELLAR_NETWORK } from './chain.ts';
 import { deriveContractId, isContractAddress } from './contract-address.ts';
-import { getProfile } from './profiles.ts';
+import { getProfile, liveProfileWhere } from './profiles.ts';
 import { HORIZON_MAX_RECORDS } from './server/horizon.ts';
 import {
   ATTRIBUTION_HIT_TTL_SECONDS,
@@ -147,8 +149,6 @@ export interface AttributeContractDeps {
   horizon?: AttributionHorizon;
 }
 
-const CREATE_CONTRACT_FUNCTION = 'HostFunctionTypeCreateContract';
-
 const prismaAttributionDb: AttributionDb = {
   findContract: async ({ address, handle, network }) => {
     if (!process.env.DATABASE_URL) return undefined;
@@ -158,7 +158,7 @@ const prismaAttributionDb: AttributionDb = {
         where: {
           address,
           network,
-          wallet: { profile: { handle: handle.toLowerCase() } },
+          wallet: { profile: liveProfileWhere(handle) },
         },
         include: { wallet: { select: { id: true, pubkey: true } } },
       });
@@ -387,7 +387,7 @@ async function attributeFromHorizon(
         break;
       }
       scanned += 1;
-      if (op.type !== 'invoke_host_function' || op.function !== CREATE_CONTRACT_FUNCTION) {
+      if (op.type !== 'invoke_host_function' || !isCreateContractFunction(op.function)) {
         continue;
       }
       const created = await deriveCreatedAddress(op, wallet, passphrase, horizon);

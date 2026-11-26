@@ -16,6 +16,7 @@ import (
 	"github.com/blockchain-maxis/signet/cli/internal/pair"
 	"github.com/blockchain-maxis/signet/cli/internal/rpc"
 	"github.com/blockchain-maxis/signet/cli/internal/simulator"
+	updatecheck "github.com/blockchain-maxis/signet/cli/internal/update"
 )
 
 // Deps is everything a command needs from the outside world, gathered in one
@@ -43,6 +44,16 @@ type Deps struct {
 	Version string
 	Commit  string
 
+	// CheckUpdate overrides `signet version --check`'s lookup for tests.
+	CheckUpdate func(ctx context.Context, currentVersion string) (*updatecheck.CheckResult, error)
+	// UpdateCacheDir is where update-check.json lives (cacheDir). Tests point
+	// it at a temporary directory.
+	UpdateCacheDir func() (string, error)
+	// FetchLatestRelease looks up the newest cli-v release for the update
+	// check and notice. Nil means the GitHub Releases API; tests set it so
+	// they never reach the network.
+	FetchLatestRelease func(ctx context.Context, currentVersion string) (*updatecheck.ReleaseInfo, error)
+
 	// LocateSimulator finds signet-simulator and reports a version mismatch
 	// through warn (simulator.Find). Only commands that execute contract
 	// code call it.
@@ -69,6 +80,7 @@ func defaultDeps() Deps {
 		LocateSimulator: simulator.Find,
 		ForkRoot:        fork.Root,
 		Now:             time.Now,
+		UpdateCacheDir:  cacheDir,
 	}
 }
 
@@ -100,4 +112,15 @@ func printerFor(cmd *cobra.Command) *output.Printer {
 func jsonRequested(cmd *cobra.Command) bool {
 	v, _ := cmd.Flags().GetBool("json")
 	return v
+}
+
+// updateOptions are the update-check options this run's Deps imply.
+func (d Deps) updateOptions() updatecheck.Options {
+	opts := updatecheck.Options{Fetch: d.FetchLatestRelease}
+	if d.UpdateCacheDir != nil {
+		if dir, err := d.UpdateCacheDir(); err == nil {
+			opts.CacheDir = dir
+		}
+	}
+	return opts
 }

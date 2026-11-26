@@ -1,0 +1,49 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://signet.dev/schemas/sandbox/v1/cli-error.json",
+  "title": "cli-error",
+  "description": "Structured error written to stderr under --json on command failure.",
+  "type": "object",
+  "properties": {
+    "error": {
+      "type": "object",
+      "properties": {
+        "kind": {
+          "enum": [
+            "configuration",
+            "no_identity",
+            "signing_failed",
+            "network",
+            "timeout",
+            "approval_rejected",
+            "already_linked",
+            "diff_found",
+            "host_unsupported",
+            "build_failed",
+            "simulator_failure",
+            "no_spec",
+            "interrupted",
+            "invalid_input",
+            "generic"
+          ]
+        },
+        "exitCode": {
+          "type": "integer"
+        },
+        "message": {
+          "type": "string"
+        },
+        "code": {
+          "type": "string"
+        },
+        "detail": {
+          "type": "object"
+        }
+      },
+      "required": ["kind", "exitCode", "message"],
+      "additionalProperties": false
+    }
+  },
+  "required": ["error"],
+  "additionalProperties": false
+}

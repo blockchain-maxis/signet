@@ -33,12 +33,14 @@
     "indexer:dev": "pnpm --filter @signet/indexer dev",
     "dev:seed": "pnpm --filter @signet/indexer run dev:seed",
     "docs:generate": "pnpm --filter @signet/web run docs:generate",
+    "docs:check": "pnpm --filter @signet/web run docs:check",
     "openapi:export": "pnpm --filter @signet/web openapi:export",
     "openapi:check": "pnpm --filter @signet/web openapi:check",
     "openapi:breaking": "node scripts/check-openapi-breaking.mjs"
   },
   "devDependencies": {
     "@eslint/js": "^9.13.0",
+    "@stellar/stellar-sdk": "^16.1.0",
     "@types/node": "^20.16.0",
     "eslint": "^9.13.0",
     "eslint-config-prettier": "^9.1.0",

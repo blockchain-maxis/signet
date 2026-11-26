@@ -151,6 +151,7 @@ const ENV_ALLOW = new Set([
   'NETWORK', // shell override for deploy-contract.sh
   'STELLAR_ACCOUNT', // shell override for deploy-contract.sh
   'ADMIN_ADDRESS', // shell override for deploy-contract.sh
+  'RPC_URL', // shell override for deploy-contract.sh (NETWORK_PASSPHRASE is listed below as a stellar.toml key)
   'SIGNET_URL', // shell env for the cli/ Go module, not the pnpm workspace's .env
   'STELLAR_SIGN_WITH_KEY', // shell env the stellar CLI already reads; cli/ honours it, not app env
   'SIGNET_DEPLOY_KEY', // CI secret holding the deploy key, exported as STELLAR_SIGN_WITH_KEY
@@ -161,6 +162,7 @@ const ENV_ALLOW = new Set([
   'NPM_TOKEN', // GitHub Actions secret, not app env — see release-cli.yml
   'SIGNET_SIMULATOR_PATH', // docs/CLI_RUST_BRIDGE.md — future Go CLI env, not this web app's
   'SIGNET_NETWORK', // shell env for the cli/ Go module (network override), not the pnpm workspace's .env
+  'SIGNET_CONTEXT', // shell env for the cli/ Go module (context override), not the pnpm workspace's .env
   'SIGNET_REGISTRY_WASM', // test input for the simulator's registry goldens (docs/SANDBOX.md), not app env
   'UPDATE_GOLDEN', // test flag that rewrites the simulator's goldens, not app env
   'SIGNET_API_KEY', // examples/grant-portal's own env (an sgk_ key it sends), not this app's
@@ -175,6 +177,8 @@ const ENV_ALLOW = new Set([
 const NOT_ENV_IDENTIFIERS = new Set([
   'RESERVED_HANDLES', // packages/types
   'HANDLE_MAX_LEN', // packages/types
+  'HANDLE_PATTERN', // packages/types
+  'FROZEN_CODES', // scripts/check-contract-errors.mjs append-only list
   'BASE_FEE', // @stellar/stellar-sdk constant
   'MAX_BATCH_SIZE', // identity-registry contract constant
   'MAX_HANDLE_LEN', // identity-registry contract constant
@@ -198,6 +202,11 @@ const NOT_ENV_IDENTIFIERS = new Set([
   'NETWORK_PASSPHRASE', // stellar.toml key the CLI reads, not env
   'SIGNING_KEY', // stellar.toml key the CLI reads, not env
   'WEB_AUTH_ENDPOINT', // stellar.toml key the CLI reads, not env
+  'MAX_ACTIVE_API_KEYS', // apps/web/lib/server/account-api-keys.ts — limit constant, not config
+  'MAX_API_KEY_NAME', // apps/web/lib/server/account-api-keys.ts — limit constant, not config
+  'BAD_REQUEST', // tRPC error code the generated API reference cites, not env
+  'PRECONDITION_FAILED', // tRPC error code the generated API reference cites, not env
+  'NOT_FOUND', // tRPC error code the generated API reference cites, not env
 ]);
 
 /** Backticked SCREAMING_SNAKE with an underscore — typical env var citation. */

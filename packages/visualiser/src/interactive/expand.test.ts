@@ -26,7 +26,9 @@ class FakeElement {
   }
   closest(selector: string): FakeElement | null {
     const isToggle = (el: FakeElement) =>
-      selector === 'a[data-group-toggle]' && el.attrs.has('data-group-toggle') && el.attrs.has('href');
+      ((selector.includes('data-group-toggle') && el.attrs.has('data-group-toggle')) ||
+        (selector.includes('data-type-toggle') && el.attrs.has('data-type-toggle'))) &&
+      el.attrs.has('href');
     if (isToggle(this)) return this;
     return this.parent ? this.parent.closest(selector) : null;
   }
@@ -49,9 +51,13 @@ class FakeElement {
   }
   querySelector(selector: string): FakeElement | null {
     const group = /data-group-toggle="([^"]+)"/.exec(selector)?.[1];
+    const type = /data-type-toggle="([^"]+)"/.exec(selector)?.[1];
+    const nodeId = /data-node-id="([^"]+)"/.exec(selector)?.[1];
     const walk = (el: FakeElement): FakeElement | null => {
       for (const c of el.children) {
-        if (c.attrs.get('data-group-toggle') === group) return c;
+        if (group && c.attrs.get('data-group-toggle') === group) return c;
+        if (type && c.attrs.get('data-type-toggle') === type) return c;
+        if (nodeId && c.attrs.get('data-node-id') === nodeId) return c;
         const found = walk(c);
         if (found) return found;
       }

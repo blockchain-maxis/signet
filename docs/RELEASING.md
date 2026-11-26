@@ -103,8 +103,9 @@ Every simulator job and the assembling `release` job run in the same workflow ru
    ```bash
    pnpm --filter @signet/sdk publish --access public
    ```
-2. **Deploying / Upgrading Contracts**:
-   - Follow the migration procedures in [`docs/CONTRACT_MIGRATION.md`](./CONTRACT_MIGRATION.md) and [`docs/DEPLOYMENT.md`](./DEPLOYMENT.md).
+2. **Deploying a new registry contract (there is no upgrade path)**:
+   - The Identity Registry is immutable. It has no upgrade entry point, so a contract change is never an in-place upgrade. It means deploying a **new** contract id and migrating bindings to it.
+   - Deploy with [`docs/DEPLOYMENT.md`](./DEPLOYMENT.md). Migrate with [`docs/CONTRACT_MIGRATION.md`](./CONTRACT_MIGRATION.md), which covers the snapshot, verification, reservations and cutover.
    - Verify on-chain contract initialization (`initialize(admin)`).
    - Update `NEXT_PUBLIC_IDENTITY_REGISTRY_ID` in production environment variables.
 

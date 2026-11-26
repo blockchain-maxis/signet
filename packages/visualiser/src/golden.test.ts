@@ -68,7 +68,7 @@ function hrefsFor(model: PositionedDiagramModel): (nodeId: string) => string | n
   return (nodeId) => {
     const node = byId.get(nodeId);
     if (node?.kind === 'function') return `#fn-${node.name}`;
-    if (node?.kind === 'type') return `#${typeAnchor(node.name)}`;
+    if (node?.kind === 'type' || node?.kind === 'stub') return `#${typeAnchor(node.name)}`;
     return null;
   };
 }

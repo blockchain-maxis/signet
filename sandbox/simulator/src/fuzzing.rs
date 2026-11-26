@@ -9,6 +9,7 @@
 use std::cell::RefCell;
 use std::io::{self, Cursor};
 use std::rc::Rc;
+use std::sync::LazyLock;
 
 use base64::engine::general_purpose::STANDARD as BASE64;
 use base64::Engine;
@@ -17,6 +18,30 @@ use serde_json::{json, Value};
 use crate::dispatch::Dispatcher;
 use crate::framing::{Line, LineReader};
 use crate::stdio::Channel;
+
+static NETWORK_CONFIG_FIXTURE: &str = include_str!("../tests/fixtures/network-config-entries.json");
+static CALLEE_WASM: &[u8] = include_bytes!("../../fixtures/wasm/callee.wasm");
+
+static NETWORK_CONFIG_ENTRIES: LazyLock<Value> = LazyLock::new(|| {
+    let raw: Value = serde_json::from_str(NETWORK_CONFIG_FIXTURE)
+        .expect("network-config-entries.json must be valid JSON");
+    let items: Vec<Value> = raw["payload"]["entries"]
+        .as_array()
+        .expect("payload.entries array")
+        .iter()
+        .map(|e| {
+            json!({
+                "key_xdr": e["key"],
+                "data_xdr": e["xdr"],
+                "last_modified_ledger_seq": e["lastModifiedLedgerSeq"],
+                "ext_xdr": e.get("extXdr").cloned().unwrap_or(json!("AAAAAA==")),
+            })
+        })
+        .collect();
+    Value::Array(items)
+});
+
+static CALLEE_WASM_BASE64: LazyLock<String> = LazyLock::new(|| BASE64.encode(CALLEE_WASM));
 
 /// `framing`: arbitrary bytes into the line reader, at a small limit (so
 /// over-long lines are common) and at the real one. Every line it yields
@@ -49,9 +74,10 @@ fn dispatcher() -> Dispatcher {
     Dispatcher::new(channel)
 }
 
-fn send(dispatcher: &mut Dispatcher, message: &Value) -> bool {
+fn send(dispatcher: &mut Dispatcher, message: &Value) -> (Value, bool) {
     let step = dispatcher.handle(Line::Complete(message.to_string().into_bytes()));
-    step.exit.is_none()
+    let cont = step.exit.is_none();
+    (step.reply, cont)
 }
 
 fn hello(dispatcher: &mut Dispatcher) {
@@ -59,6 +85,36 @@ fn hello(dispatcher: &mut Dispatcher) {
         dispatcher,
         &json!({ "version": 1, "id": "hello", "type": "hello", "client_protocol_version": 1 }),
     );
+}
+
+fn open_valid_ledger(dispatcher: &mut Dispatcher, lane: u32) -> String {
+    send(
+        dispatcher,
+        &json!({
+            "version": 1,
+            "id": "setup-open",
+            "type": "ledger_open",
+            "network_passphrase": "Test SDF Network ; September 2015",
+            "ledger_protocol": lane,
+            "sequence": 100,
+            "timestamp": 1_790_000_000u64,
+            "fetch": "deny",
+            "entries": &*NETWORK_CONFIG_ENTRIES,
+        }),
+    );
+    let (install_reply, _) = send(
+        dispatcher,
+        &json!({
+            "version": 1,
+            "id": "setup-install",
+            "type": "contract_install",
+            "wasm_base64": &*CALLEE_WASM_BASE64,
+        }),
+    );
+    install_reply["contract_id"]
+        .as_str()
+        .unwrap_or("CASFJHI5PQSRWS7JV25CF7FOMRKIVBP3RXRP3E2GH2CV4BCAG7FUJRCN")
+        .to_string()
 }
 
 /// `dispatch`: arbitrary JSON lines into the envelope dispatcher, after the
@@ -79,7 +135,7 @@ pub fn dispatch(data: &[u8]) {
 /// The requests whose parameters carry XDR, each with `x` (base64 of the
 /// fuzz input) in every XDR field it has. `lane` alternates the ledger
 /// protocol, since each lane decodes with its own XDR crate.
-fn xdr_requests(x: &str, lane: u32) -> Vec<Value> {
+fn xdr_requests(x: &str, lane: u32, contract_id: &str) -> Vec<(String, Value)> {
     let side = json!({
         "outcome": "ok",
         "return_value_xdr": x,
@@ -93,32 +149,138 @@ fn xdr_requests(x: &str, lane: u32) -> Vec<Value> {
         { "key_xdr": x, "data_xdr": x, "last_modified_ledger_seq": 1, "ext_xdr": x },
     ]);
     vec![
-        json!({ "type": "tx_decode", "ledger_protocol": lane, "transaction_xdr": x }),
-        json!({ "type": "tx_decode", "ledger_protocol": lane, "transaction_xdr": x, "result_meta_xdr": x }),
-        json!({ "type": "tx_resources", "ledger_protocol": lane, "transaction_data_xdr": x }),
-        json!({ "type": "entries_describe", "ledger_protocol": lane, "entries": [{ "data_xdr": x, "ext_xdr": x }] }),
-        json!({ "type": "diff_results", "ledger_protocol": lane, "a": side, "b": side }),
-        json!({ "type": "wasm_inspect", "ledger_protocol": lane, "wasm_base64": x }),
-        json!({
-            "type": "ledger_open",
-            "network_passphrase": "Test SDF Network ; September 2015",
-            "ledger_protocol": lane,
-            "sequence": 100,
-            "timestamp": 1_790_000_000u64,
-            "entries": entries,
-        }),
-        json!({ "type": "ledger_put", "entries": entries }),
-        json!({ "type": "ledger_get", "keys_xdr": [x] }),
-        json!({ "type": "layout_check", "entries": [{ "key_xdr": x, "entry_xdr": x }] }),
-        json!({ "type": "contract_install", "wasm_base64": x }),
-        json!({ "type": "spec_extract", "source": { "wasm_base64": x } }),
+        (
+            "x-tx_decode".into(),
+            json!({ "type": "tx_decode", "ledger_protocol": lane, "transaction_xdr": x }),
+        ),
+        (
+            "x-tx_decode_meta".into(),
+            json!({ "type": "tx_decode", "ledger_protocol": lane, "transaction_xdr": x, "result_meta_xdr": x }),
+        ),
+        (
+            "x-tx_resources".into(),
+            json!({ "type": "tx_resources", "ledger_protocol": lane, "transaction_data_xdr": x }),
+        ),
+        (
+            "x-entries_describe".into(),
+            json!({ "type": "entries_describe", "ledger_protocol": lane, "entries": [{ "data_xdr": x, "ext_xdr": x }] }),
+        ),
+        (
+            "x-diff_results".into(),
+            json!({ "type": "diff_results", "ledger_protocol": lane, "a": side, "b": side }),
+        ),
+        (
+            "x-wasm_inspect".into(),
+            json!({ "type": "wasm_inspect", "ledger_protocol": lane, "wasm_base64": x }),
+        ),
+        (
+            "x-spec_extract".into(),
+            json!({ "type": "spec_extract", "source": { "wasm_base64": x } }),
+        ),
+        (
+            "x-ledger_put".into(),
+            json!({ "type": "ledger_put", "entries": entries }),
+        ),
+        (
+            "x-ledger_get".into(),
+            json!({ "type": "ledger_get", "keys_xdr": [x] }),
+        ),
+        (
+            "x-ledger_apply".into(),
+            json!({ "type": "ledger_apply", "entries": [{ "key_xdr": x, "entry_xdr": x }] }),
+        ),
+        (
+            "x-simulate_args_xdr".into(),
+            json!({
+                "type": "simulate",
+                "contract_id": contract_id,
+                "function": "add",
+                "args_xdr": [x],
+            }),
+        ),
+        (
+            "x-spec_decode_val".into(),
+            json!({
+                "type": "spec_decode_val",
+                "source": { "contract_id": contract_id },
+                "function": "add",
+                "val_xdr": x,
+            }),
+        ),
+        (
+            "x-spec_decode_event".into(),
+            json!({
+                "type": "spec_decode_val",
+                "source": { "contract_id": contract_id },
+                "event_xdr": x,
+            }),
+        ),
+        (
+            "x-spec_encode_args".into(),
+            json!({
+                "type": "spec_encode_args",
+                "source": { "wasm_base64": x },
+                "function": "add",
+                "args": {},
+            }),
+        ),
+        (
+            "x-spec_diff".into(),
+            json!({
+                "type": "spec_diff",
+                "old": { "wasm_base64": x },
+                "new": { "contract_id": contract_id },
+            }),
+        ),
+        (
+            "x-layout_check_valid".into(),
+            json!({
+                "type": "layout_check",
+                "old": { "contract_id": contract_id },
+                "new": { "contract_id": contract_id },
+                "entries": [{ "key_xdr": x, "entry_xdr": x }],
+            }),
+        ),
+        (
+            "x-layout_check_wasm".into(),
+            json!({
+                "type": "layout_check",
+                "old": { "wasm_base64": x },
+                "new": { "contract_id": contract_id },
+                "entries": [{ "key_xdr": x, "entry_xdr": x }],
+            }),
+        ),
+        (
+            "x-contract_install".into(),
+            json!({ "type": "contract_install", "wasm_base64": x }),
+        ),
+        (
+            "x-ledger_import".into(),
+            json!({
+                "type": "ledger_import",
+                "ledger_sequence": 100,
+                "ledger_timestamp": 1_790_000_000u64,
+                "entries": entries,
+            }),
+        ),
+        (
+            "x-ledger_open".into(),
+            json!({
+                "type": "ledger_open",
+                "network_passphrase": "Test SDF Network ; September 2015",
+                "ledger_protocol": lane,
+                "sequence": 100,
+                "timestamp": 1_790_000_000u64,
+                "entries": entries,
+            }),
+        ),
     ]
 }
 
 /// `xdr_params`: the fuzz input as the bytes of every request parameter that
 /// decodes XDR, in both lanes. The first byte picks the lane, so the
 /// fuzzer can steer.
-pub fn xdr_params(data: &[u8]) {
+pub fn xdr_params(data: &[u8]) -> Vec<Value> {
     let (lane, bytes) = match data.split_first() {
         Some((first, rest)) => (if first & 1 == 0 { 28 } else { 29 }, rest),
         None => (28, data),
@@ -126,11 +288,18 @@ pub fn xdr_params(data: &[u8]) {
     let x = BASE64.encode(bytes);
     let mut dispatcher = dispatcher();
     hello(&mut dispatcher);
-    for (n, mut request) in xdr_requests(&x, lane).into_iter().enumerate() {
+
+    let contract_id = open_valid_ledger(&mut dispatcher, lane);
+
+    let mut replies = Vec::new();
+    for (id, mut request) in xdr_requests(&x, lane, &contract_id) {
         request["version"] = json!(1);
-        request["id"] = json!(format!("x-{n}"));
-        if !send(&mut dispatcher, &request) {
+        request["id"] = json!(id);
+        let (reply, cont) = send(&mut dispatcher, &request);
+        replies.push(reply);
+        if !cont {
             break;
         }
     }
+    replies
 }
