@@ -161,6 +161,7 @@ const ENV_ALLOW = new Set([
   'NPM_TOKEN', // GitHub Actions secret, not app env — see release-cli.yml
   'SIGNET_SIMULATOR_PATH', // docs/CLI_RUST_BRIDGE.md — future Go CLI env, not this web app's
   'SIGNET_NETWORK', // shell env for the cli/ Go module (network override), not the pnpm workspace's .env
+  'SIGNET_CONTEXT', // shell env for the cli/ Go module (context override), not the pnpm workspace's .env
   'SIGNET_REGISTRY_WASM', // test input for the simulator's registry goldens (docs/SANDBOX.md), not app env
   'UPDATE_GOLDEN', // test flag that rewrites the simulator's goldens, not app env
   'SIGNET_API_KEY', // examples/grant-portal's own env (an sgk_ key it sends), not this app's
